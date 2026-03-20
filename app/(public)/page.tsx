@@ -5,7 +5,7 @@ import PlaceSection from '@/components/(public)/accueil/place-section';
 import SocialSection from '@/components/(public)/accueil/social-section';
 import FindUsSection from '@/components/(public)/accueil/find-us-section';
 
-export default function Home() {
+export default function HomePage() {
   return (
     <>
       <HeroSection />

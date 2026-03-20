@@ -2,6 +2,9 @@
   "name": "nextjs-starter",
   "version": "0.1.0",
   "private": true,
+  "overrides": {
+    "@next/env": "npm:@varlock/nextjs-integration"
+  },
   "scripts": {
     "postinstall": "prisma generate",
     "dev": "bun --bun next dev",
@@ -21,6 +24,7 @@
     "@heroui/react": "^2.8.10",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
+    "@varlock/nextjs-integration": "^0.3.1",
     "better-auth": "^1.5.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -31,7 +35,9 @@
     "pg": "^8.20.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "tailwind-merge": "^3.5.0"
+    "schema-dts": "^1.1.5",
+    "tailwind-merge": "^3.5.0",
+    "varlock": "^0.6.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.2",
