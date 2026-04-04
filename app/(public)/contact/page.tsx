@@ -4,9 +4,12 @@ import ContactFormSection from '@/components/(public)/contact/contact-form-secti
 import ContactMapSection from '@/components/(public)/contact/contact-map-section';
 
 export const metadata: Metadata = {
-  title: 'Contact | EBA Coffee Shop',
+  title: 'Contact',
   description:
-    'Contactez EBA Coffee Shop a Abidjan. Reservation, question ou partenariat — ecrivez-nous ou passez nous voir a Cocody.',
+    'Contactez EBA Coffee Shop à Abidjan. Réservation, question ou partenariat — écrivez-nous ou passez nous voir à Cocody.',
+  alternates: {
+    canonical: '/contact',
+  },
 };
 
 export default function ContactPage() {

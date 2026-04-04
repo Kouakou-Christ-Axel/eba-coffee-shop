@@ -17,7 +17,7 @@ const contactCards = [
     color: 'bg-primary/10 text-primary',
   },
   {
-    label: 'Telephone',
+    label: 'Téléphone',
     value: brandConfig.links.contact.phone.display,
     icon: Phone,
     href: brandConfig.links.contact.phone.href,
@@ -53,7 +53,7 @@ function ContactHeroSection() {
     >
       <Image
         src="/assets/examples/accueil/eba-hero.webp"
-        alt="Ambiance chaleureuse du coffee shop EBA a Abidjan"
+        alt="Ambiance chaleureuse du coffee shop EBA à Cocody, Abidjan"
         fill
         priority
         className="object-cover"
@@ -89,7 +89,7 @@ function ContactHeroSection() {
                   : { duration: 0.6, ease: 'easeOut', delay: 0.1 }
               }
             >
-              Parlons autour d&apos;un cafe
+              Contactez EBA Coffee Shop à Abidjan
             </motion.h1>
 
             <motion.p
@@ -101,7 +101,7 @@ function ContactHeroSection() {
                   : { duration: 0.6, ease: 'easeOut', delay: 0.2 }
               }
             >
-              On vous repond en moins d&apos;une heure sur WhatsApp
+              On vous répond en moins d&apos;une heure sur WhatsApp
             </motion.p>
           </motion.div>
 
