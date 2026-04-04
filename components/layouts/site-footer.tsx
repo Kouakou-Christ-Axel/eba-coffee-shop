@@ -71,8 +71,8 @@ function SiteFooter() {
               {brandConfig.name}
             </h3>
             <p className="mt-3 text-sm text-white/75 leading-relaxed">
-              Cafe et patisserie premium a Abidjan. Une adresse pensee pour
-              savourer l&apos;instant.
+              Café et pâtisserie artisanale à Cocody, Abidjan. Votre coffee shop
+              pour savourer l&apos;instant.
             </p>
           </motion.div>
 
@@ -160,7 +160,7 @@ function SiteFooter() {
               : { duration: 0.5, ease: 'easeOut', delay: 0.3 }
           }
         >
-          <p>&copy; {new Date().getFullYear()} EBA. Tous droits reserves.</p>
+          <p>&copy; {new Date().getFullYear()} EBA. Tous droits réservés.</p>
         </motion.div>
       </div>
     </footer>
