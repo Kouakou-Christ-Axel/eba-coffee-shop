@@ -7,7 +7,8 @@
       "Bash(bash:*)",
       "Bash(rtk bun:*)",
       "Bash(rtk npx:*)",
-      "Bash(rtk ls:*)"
+      "Bash(rtk ls:*)",
+      "Bash(rtk next:*)"
     ]
   }
 }
