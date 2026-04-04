@@ -6,7 +6,8 @@
       "Bash(rtk git:*)",
       "Bash(bash:*)",
       "Bash(rtk bun:*)",
-      "Bash(rtk npx:*)"
+      "Bash(rtk npx:*)",
+      "Bash(rtk ls:*)"
     ]
   }
 }
