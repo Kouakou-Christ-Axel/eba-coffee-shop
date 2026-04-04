@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import HeroSection from '@/components/(public)/accueil/hero-section';
+import QuickTrustSection from '@/components/(public)/accueil/quick-trust-section';
 import IncontournablesSection from '@/components/(public)/accueil/incontournables-section';
 import UniversEbaSection from '@/components/(public)/accueil/univers-eba-section';
 import PlaceSection from '@/components/(public)/accueil/place-section';
@@ -30,6 +31,7 @@ export default function HomePage() {
   return (
     <>
       <HeroSection />
+      <QuickTrustSection />
       <IncontournablesSection />
       <UniversEbaSection />
       <PlaceSection />
