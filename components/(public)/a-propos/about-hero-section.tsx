@@ -30,7 +30,7 @@ function AboutHeroSection() {
         />
       </motion.div>
 
-      <div className="absolute inset-0 bg-black/60" aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
 
       <motion.div
         className="relative z-10 px-6 text-center text-white"

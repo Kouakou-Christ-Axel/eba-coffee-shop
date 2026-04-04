@@ -4,31 +4,32 @@ import React from 'react';
 import { Button, Card, CardBody, Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Clock3, MapPin, MessageCircle, Phone } from 'lucide-react';
+import { brandConfig } from '@/config/brand.config';
 
 const infoRows = [
   {
     label: 'Adresse',
-    value: 'Boulevard Latrille, Cocody, Abidjan',
+    value: brandConfig.links.contact.address,
     icon: MapPin,
   },
   {
     label: 'Repere',
-    value: 'A 2 min du carrefour Duncan',
+    value: brandConfig.links.contact.landmark,
     icon: MapPin,
   },
   {
     label: 'Horaires',
-    value: 'Lun - Dim : 7h30 - 21h30',
+    value: brandConfig.links.contact.hours,
     icon: Clock3,
   },
   {
     label: 'WhatsApp',
-    value: '+225 07 00 00 00 00',
+    value: brandConfig.links.contact.whatsapp.display,
     icon: MessageCircle,
   },
   {
     label: 'Telephone',
-    value: '+225 27 22 00 00 00',
+    value: brandConfig.links.contact.phone.display,
     icon: Phone,
   },
 ];
@@ -136,7 +137,7 @@ function FindUsSection() {
             >
               <Button
                 as={Link}
-                href="https://wa.me/2250700000000"
+                href={brandConfig.links.contact.whatsapp.href}
                 target="_blank"
                 rel="noopener noreferrer"
                 color="primary"
@@ -149,7 +150,7 @@ function FindUsSection() {
               </Button>
               <Button
                 as={Link}
-                href="https://maps.google.com/?q=Boulevard+Latrille+Cocody+Abidjan"
+                href={brandConfig.links.maps.directions}
                 target="_blank"
                 rel="noopener noreferrer"
                 variant="bordered"
@@ -176,7 +177,7 @@ function FindUsSection() {
                 <div className="relative h-80 w-full md:h-128">
                   <iframe
                     title="Carte Google Maps EBA a Abidjan"
-                    src="https://www.google.com/maps?q=Boulevard+Latrille+Cocody+Abidjan&output=embed"
+                    src={brandConfig.links.maps.embed}
                     loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"
                     className="h-full w-full border-0"

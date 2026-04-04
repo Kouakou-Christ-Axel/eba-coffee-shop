@@ -5,6 +5,7 @@ import React from 'react';
 import { Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Instagram, Music2, Play } from 'lucide-react';
+import { brandConfig } from '@/config/brand.config';
 
 type SocialItem = {
   title: string;
@@ -15,12 +16,15 @@ type SocialItem = {
   imageAlt: string;
 };
 
+const instagramLink = brandConfig.links.social.instagram.href;
+const tiktokLink = brandConfig.links.social.tiktok.href;
+
 const socialItems: SocialItem[] = [
   {
     title: 'Latte art du matin',
     platform: 'Instagram',
     type: 'image',
-    href: 'https://www.instagram.com/eba.coffeeshop/',
+    href: instagramLink,
     imageSrc: '/assets/examples/accueil/eba-hero-2.png',
     imageAlt: 'Cafe signature servi sur un comptoir elegant a Abidjan',
   },
@@ -28,7 +32,7 @@ const socialItems: SocialItem[] = [
     title: 'Backstage patisserie',
     platform: 'TikTok',
     type: 'video',
-    href: 'https://www.tiktok.com/@eba.coffeeshop',
+    href: tiktokLink,
     imageSrc: '/assets/examples/accueil/eba-hero.webp',
     imageAlt: 'Preparation de patisserie artisanale dans l ambiance EBA',
   },
@@ -36,7 +40,7 @@ const socialItems: SocialItem[] = [
     title: 'Ambiance du lieu',
     platform: 'Instagram',
     type: 'image',
-    href: 'https://www.instagram.com/eba.coffeeshop/',
+    href: instagramLink,
     imageSrc: '/assets/examples/accueil/eba-hero.webp',
     imageAlt: 'Ambiance chaleureuse du coffee shop EBA a Abidjan',
   },
@@ -44,7 +48,7 @@ const socialItems: SocialItem[] = [
     title: 'Routine barista',
     platform: 'TikTok',
     type: 'video',
-    href: 'https://www.tiktok.com/@eba.coffeeshop',
+    href: tiktokLink,
     imageSrc: '/assets/examples/accueil/eba-hero-2.png',
     imageAlt: 'Barista en preparation de cafe dans un decor premium',
   },
@@ -52,7 +56,7 @@ const socialItems: SocialItem[] = [
     title: 'Pause gourmande',
     platform: 'Instagram',
     type: 'image',
-    href: 'https://www.instagram.com/eba.coffeeshop/',
+    href: instagramLink,
     imageSrc: '/assets/examples/accueil/eba-hero-2.png',
     imageAlt: 'Patisserie et cafe servis en salle dans le quartier Cocody',
   },
@@ -60,7 +64,7 @@ const socialItems: SocialItem[] = [
     title: 'Vibes du soir',
     platform: 'TikTok',
     type: 'video',
-    href: 'https://www.tiktok.com/@eba.coffeeshop',
+    href: tiktokLink,
     imageSrc: '/assets/examples/accueil/eba-hero.webp',
     imageAlt: 'Scene video de l ambiance du lieu EBA en fin de journee',
   },
@@ -98,17 +102,17 @@ function SocialSection() {
           <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-medium">
             <Link
               isExternal
-              href="https://www.instagram.com/eba.coffeeshop/"
+              href={brandConfig.links.social.instagram.href}
               className="text-primary hover:opacity-80"
             >
-              @eba.coffeeshop on Instagram
+              {brandConfig.links.social.instagram.handle} on Instagram
             </Link>
             <Link
               isExternal
-              href="https://www.tiktok.com/@eba.coffeeshop"
+              href={brandConfig.links.social.tiktok.href}
               className="text-primary hover:opacity-80"
             >
-              @eba.coffeeshop on TikTok
+              {brandConfig.links.social.tiktok.handle} on TikTok
             </Link>
           </div>
         </motion.div>
@@ -189,10 +193,10 @@ function SocialSection() {
         >
           <Link
             isExternal
-            href="https://www.instagram.com/explore/tags/InstantEBA/"
+            href={brandConfig.links.hashtag.href}
             className="font-medium hover:opacity-80"
           >
-            Taggez vos moments avec #InstantEBA
+            Taggez vos moments avec {brandConfig.links.hashtag.label}
           </Link>
         </motion.p>
       </div>

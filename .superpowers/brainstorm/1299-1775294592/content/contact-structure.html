@@ -1,0 +1,161 @@
+<h2>Structure de la page Contact — 2 approches</h2>
+<p class="subtitle">Basé sur le style de la page d'accueil (Framer Motion, pas GSAP) et les besoins réels d'un café à Abidjan</p>
+
+<div class="cards">
+  <!-- Approach A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 24px; background: linear-gradient(135deg, #f7efe8, #f0e4d8);">
+      <div style="font-family: system-ui; font-size: 11px; color: #22181f;">
+
+        <!-- Hero compact -->
+        <div style="background: #22181f; color: white; padding: 14px; border-radius: 8px 8px 0 0; text-align: center;">
+          <div style="font-size: 8px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.6; margin-bottom: 4px;">Contact</div>
+          <div style="font-size: 14px; font-weight: 700;">Parlons autour d'un café</div>
+          <div style="font-size: 8px; opacity: 0.7; margin-top: 3px;">Sous-titre descriptif</div>
+        </div>
+
+        <!-- 3 Quick cards row -->
+        <div style="display: flex; gap: 6px; padding: 10px 8px; background: #faf6f2;">
+          <div style="flex: 1; background: white; border-radius: 6px; padding: 8px; text-align: center; border: 1px solid #e8ddd4;">
+            <div style="font-size: 14px;">💬</div>
+            <div style="font-size: 7px; font-weight: 600;">WhatsApp</div>
+            <div style="font-size: 6px; color: #6c3077;">Réponse rapide</div>
+          </div>
+          <div style="flex: 1; background: white; border-radius: 6px; padding: 8px; text-align: center; border: 1px solid #e8ddd4;">
+            <div style="font-size: 14px;">📞</div>
+            <div style="font-size: 7px; font-weight: 600;">Téléphone</div>
+            <div style="font-size: 6px; color: #6c3077;">Appel direct</div>
+          </div>
+          <div style="flex: 1; background: white; border-radius: 6px; padding: 8px; text-align: center; border: 1px solid #e8ddd4;">
+            <div style="font-size: 14px;">📍</div>
+            <div style="font-size: 7px; font-weight: 600;">Nous trouver</div>
+            <div style="font-size: 6px; color: #6c3077;">Itinéraire</div>
+          </div>
+        </div>
+
+        <!-- Form + Map side by side -->
+        <div style="display: flex; gap: 8px; padding: 0 8px 10px;">
+          <div style="flex: 1; background: white; border-radius: 6px; padding: 10px; border: 1px solid #e8ddd4;">
+            <div style="font-size: 8px; font-weight: 600; margin-bottom: 6px;">Envoyez-nous un message</div>
+            <div style="background: #f7efe8; height: 10px; border-radius: 3px; margin-bottom: 4px;"></div>
+            <div style="background: #f7efe8; height: 10px; border-radius: 3px; margin-bottom: 4px;"></div>
+            <div style="background: #f7efe8; height: 10px; border-radius: 3px; margin-bottom: 4px;"></div>
+            <div style="background: #f7efe8; height: 22px; border-radius: 3px; margin-bottom: 6px;"></div>
+            <div style="background: #6c3077; height: 14px; border-radius: 20px; width: 60%;"></div>
+          </div>
+          <div style="flex: 1; background: #d4c5b0; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #555; min-height: 100px;">
+            Google Maps
+          </div>
+        </div>
+
+        <!-- Info bar -->
+        <div style="background: #22181f; color: white; padding: 8px; border-radius: 0 0 8px 8px; display: flex; justify-content: space-around; font-size: 6px; text-align: center;">
+          <div><strong>Horaires</strong><br/>7h30 - 21h30</div>
+          <div><strong>Adresse</strong><br/>Blvd Latrille, Cocody</div>
+          <div><strong>Repère</strong><br/>2 min du carrefour Duncan</div>
+        </div>
+
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Sections fluides</h3>
+      <p><strong>4 zones visuelles, 0 coupure dure.</strong> Hero compact (40vh) → cartes d'accès rapide → formulaire + map côte à côte → barre d'infos. Tout coule naturellement avec des fonds qui se fondent via dégradés.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Forces</h4><ul>
+          <li>Aucune séparation grossière — transitions douces</li>
+          <li>Accès rapides visibles dès le premier scroll</li>
+          <li>Form + Map côte à côte = gain d'espace</li>
+          <li>Barre d'infos finale ancre les détails pratiques</li>
+        </ul></div>
+        <div class="cons"><h4>Limites</h4><ul>
+          <li>Le formulaire partage l'espace avec la map</li>
+          <li>Sur mobile, les éléments s'empilent quand même</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Approach B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 24px; background: linear-gradient(135deg, #f7efe8, #f0e4d8);">
+      <div style="font-family: system-ui; font-size: 11px; color: #22181f;">
+
+        <!-- Hero with overlay cards -->
+        <div style="background: #22181f; color: white; padding: 20px 14px 30px; border-radius: 8px 8px 0 0; text-align: center; position: relative;">
+          <div style="font-size: 8px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.6; margin-bottom: 4px;">Contact</div>
+          <div style="font-size: 14px; font-weight: 700;">Parlons autour d'un café</div>
+          <div style="font-size: 8px; opacity: 0.7; margin-top: 3px;">On vous répond en moins d'une heure sur WhatsApp</div>
+        </div>
+
+        <!-- Overlapping cards -->
+        <div style="display: flex; gap: 6px; padding: 0 12px; margin-top: -14px; position: relative; z-index: 2;">
+          <div style="flex: 1; background: white; border-radius: 8px; padding: 10px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div style="width: 24px; height: 24px; background: #6c3077; border-radius: 50%; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">💬</div>
+            <div style="font-size: 7px; font-weight: 600;">WhatsApp</div>
+            <div style="font-size: 6px; color: #888; margin-top: 2px;">+225 07 00 00 00</div>
+          </div>
+          <div style="flex: 1; background: white; border-radius: 8px; padding: 10px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div style="width: 24px; height: 24px; background: #f29b00; border-radius: 50%; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">📞</div>
+            <div style="font-size: 7px; font-weight: 600;">Téléphone</div>
+            <div style="font-size: 6px; color: #888; margin-top: 2px;">+225 27 22 00 00</div>
+          </div>
+          <div style="flex: 1; background: white; border-radius: 8px; padding: 10px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div style="width: 24px; height: 24px; background: #6c3077; border-radius: 50%; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">📍</div>
+            <div style="font-size: 7px; font-weight: 600;">Adresse</div>
+            <div style="font-size: 6px; color: #888; margin-top: 2px;">Blvd Latrille, Cocody</div>
+          </div>
+        </div>
+
+        <!-- Form section -->
+        <div style="background: #faf6f2; padding: 16px 12px 10px; margin-top: 8px;">
+          <div style="font-size: 9px; font-weight: 700; margin-bottom: 3px;">Envoyez-nous un message</div>
+          <div style="font-size: 7px; color: #888; margin-bottom: 8px;">Pour une réservation, un partenariat ou une question</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 4px;">
+            <div style="background: white; height: 12px; border-radius: 4px; border: 1px solid #e8ddd4;"></div>
+            <div style="background: white; height: 12px; border-radius: 4px; border: 1px solid #e8ddd4;"></div>
+          </div>
+          <div style="background: white; height: 12px; border-radius: 4px; margin-bottom: 4px; border: 1px solid #e8ddd4;"></div>
+          <div style="background: white; height: 24px; border-radius: 4px; margin-bottom: 6px; border: 1px solid #e8ddd4;"></div>
+          <div style="background: #6c3077; height: 16px; border-radius: 20px; width: 50%;"></div>
+        </div>
+
+        <!-- Map with overlay info -->
+        <div style="position: relative;">
+          <div style="background: #d4c5b0; height: 80px; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #555; border-radius: 0 0 8px 8px;">
+            Google Maps (pleine largeur)
+          </div>
+          <div style="position: absolute; bottom: 8px; left: 8px; background: white; border-radius: 6px; padding: 6px 8px; font-size: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.12);">
+            <strong>Lun - Dim : 7h30 - 21h30</strong><br/>
+            À 2 min du carrefour Duncan
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Hero + cartes superposées</h3>
+      <p><strong>3 zones qui s'imbriquent.</strong> Hero compact avec cartes de contact qui chevauchent le hero → formulaire pleine largeur → map pleine largeur avec carte d'info en overlay. Effet de profondeur, zéro séparation visible.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Forces</h4><ul>
+          <li>Effet de profondeur élégant (cartes qui chevauchent)</li>
+          <li>WhatsApp/Tel/Adresse immédiatement visibles avec les numéros</li>
+          <li>Formulaire a toute la largeur = plus confortable</li>
+          <li>Map en pleine largeur = impact visuel fort</li>
+        </ul></div>
+        <div class="cons"><h4>Limites</h4><ul>
+          <li>Page légèrement plus longue au scroll</li>
+          <li>L'effet de chevauchement demande un peu plus de soin responsive</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top: 20px; padding: 16px; background: rgba(108, 48, 119, 0.08); border-radius: 8px; border-left: 3px solid #6c3077;">
+  <h3 style="margin: 0 0 8px; font-size: 14px;">Ma recommandation : Approche B</h3>
+  <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #444;">
+    L'approche B élimine toutes les coupures dures grâce aux éléments qui s'imbriquent. Les cartes de contact superposées sur le hero créent un lien visuel naturel. Le formulaire pleine largeur est plus confortable. Et la map en pleine largeur en fin de page donne un ancrage visuel fort — exactement comme le style "Find Us" de la page d'accueil mais en mieux intégré.
+    <br/><br/>
+    <strong>Changements techniques clés :</strong> Framer Motion uniquement (pas de GSAP), animations légères (fade-up), composants HeroUI cohérents avec le reste du site.
+  </p>
+</div>

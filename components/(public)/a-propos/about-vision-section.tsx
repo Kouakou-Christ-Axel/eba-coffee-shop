@@ -3,6 +3,8 @@
 import Image from 'next/image';
 import { motion, useReducedMotion } from 'framer-motion';
 
+const smoothEase = [0.22, 1, 0.36, 1] as const;
+
 function AboutVisionSection() {
   const reduceMotion = useReducedMotion();
 
@@ -15,7 +17,7 @@ function AboutVisionSection() {
           y: 0,
           transition: {
             duration: 0.7,
-            ease: [0.22, 1, 0.36, 1],
+            ease: smoothEase,
             staggerChildren: 0.1,
           },
         },
@@ -28,7 +30,7 @@ function AboutVisionSection() {
         visible: {
           opacity: 1,
           y: 0,
-          transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
+          transition: { duration: 0.6, ease: smoothEase },
         },
       };
 
@@ -71,11 +73,11 @@ function AboutVisionSection() {
             transition={
               reduceMotion
                 ? undefined
-                : { duration: 0.75, delay: 0.08, ease: [0.22, 1, 0.36, 1] }
+                : { duration: 0.75, delay: 0.08, ease: smoothEase }
             }
             className="overflow-hidden rounded-3xl border border-default-200/70 bg-content1 shadow-lg"
           >
-            <div className="relative h-72 w-full sm:h-80 md:h-96 lg:h-[30rem]">
+            <div className="relative h-72 w-full sm:h-80 md:h-96 lg:h-120">
               <Image
                 src="/assets/examples/accueil/eba-hero-2.png"
                 alt="Interieur raffine du coffee shop EBA a Abidjan"
@@ -90,5 +92,4 @@ function AboutVisionSection() {
     </section>
   );
 }
-
 export default AboutVisionSection;

@@ -1,99 +1,75 @@
 'use client';
 
-import React, { useRef } from 'react';
-import { Card, CardBody } from '@heroui/react';
-import { useGSAP } from '@gsap/react';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import React from 'react';
+import { Button, Link } from '@heroui/react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Clock3, MapPin } from 'lucide-react';
-
-gsap.registerPlugin(useGSAP, ScrollTrigger);
-
-const infoItems = [
-  {
-    icon: MapPin,
-    label: 'Adresse',
-    value: 'Boulevard Latrille, Cocody, Abidjan',
-  },
-  {
-    icon: MapPin,
-    label: 'Repere',
-    value: 'A 2 min du carrefour Duncan',
-  },
-  {
-    icon: Clock3,
-    label: 'Horaires',
-    value: 'Lun - Dim : 7h30 - 21h30',
-  },
-];
+import { brandConfig } from '@/config/brand.config';
 
 function ContactMapSection() {
-  const sectionRef = useRef<HTMLElement>(null);
-
-  useGSAP(
-    () => {
-      const mm = gsap.matchMedia();
-
-      mm.add('(prefers-reduced-motion: no-preference)', () => {
-        gsap.from('.map-iframe', {
-          opacity: 0,
-          duration: 0.8,
-          ease: 'power2.out',
-          scrollTrigger: {
-            trigger: '.map-iframe',
-            start: 'top 85%',
-          },
-        });
-
-        gsap.from('.map-info-card', {
-          y: 30,
-          opacity: 0,
-          duration: 0.7,
-          ease: 'power2.out',
-          scrollTrigger: {
-            trigger: '.map-info-card',
-            start: 'top 90%',
-          },
-        });
-      });
-    },
-    { scope: sectionRef }
-  );
+  const reduceMotion = useReducedMotion();
 
   return (
-    <section ref={sectionRef} aria-labelledby="map-section-title">
+    <section aria-labelledby="map-section-title" className="relative">
       <h2 id="map-section-title" className="sr-only">
         Nous trouver
       </h2>
 
-      <div className="relative h-80 w-full md:h-96">
+      <div className="relative h-80 w-full md:h-[28rem]">
         <iframe
           title="Carte Google Maps EBA a Abidjan"
-          src="https://www.google.com/maps?q=Boulevard+Latrille+Cocody+Abidjan&output=embed"
+          src={brandConfig.links.maps.embed}
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
-          className="map-iframe h-full w-full border-0"
+          className="h-full w-full border-0"
         />
 
-        <Card className="map-info-card absolute bottom-4 left-4 right-4 border border-default-200/70 bg-content1/95 shadow-lg backdrop-blur-md sm:left-6 sm:right-auto sm:max-w-sm">
-          <CardBody className="gap-3 p-5">
-            {infoItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.label} className="flex items-start gap-3">
-                  <Icon
-                    aria-hidden="true"
-                    className="mt-0.5 h-4.5 w-4.5 shrink-0 text-primary"
-                  />
-                  <div className="text-sm">
-                    <p className="font-medium text-foreground">{item.label}</p>
-                    <p className="text-foreground/75">{item.value}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </CardBody>
-        </Card>
+        <motion.div
+          className="absolute bottom-4 left-4 max-w-xs rounded-xl bg-background/95 p-4 shadow-lg backdrop-blur-md md:bottom-6 md:left-6 md:p-5"
+          initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
+          whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={
+            reduceMotion
+              ? undefined
+              : { duration: 0.6, ease: 'easeOut', delay: 0.3 }
+          }
+        >
+          <div className="space-y-2.5">
+            <div className="flex items-start gap-2.5">
+              <Clock3
+                aria-hidden="true"
+                className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+              />
+              <p className="text-sm font-medium text-foreground">
+                {brandConfig.links.contact.hours}
+              </p>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <MapPin
+                aria-hidden="true"
+                className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+              />
+              <p className="text-sm text-foreground/75">
+                {brandConfig.links.contact.landmark}
+              </p>
+            </div>
+          </div>
+
+          <Button
+            as={Link}
+            href={brandConfig.links.maps.directions}
+            target="_blank"
+            rel="noopener noreferrer"
+            variant="bordered"
+            color="secondary"
+            radius="full"
+            size="sm"
+            className="mt-3"
+          >
+            Voir l&apos;itineraire
+          </Button>
+        </motion.div>
       </div>
     </section>
   );

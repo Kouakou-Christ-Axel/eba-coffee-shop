@@ -1,7 +1,13 @@
-import React from 'react';
+import AboutHeroSection from '@/components/(public)/a-propos/about-hero-section';
+import AboutVisionSection from '@/components/(public)/a-propos/about-vision-section';
 
 function AProposPage() {
-  return <div></div>;
+  return (
+    <>
+      <AboutHeroSection />
+      <AboutVisionSection />
+    </>
+  );
 }
 
 export default AProposPage;
