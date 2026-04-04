@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import HeroSection from '@/components/(public)/le-lieu/hero-section';
 import AmbianceGallerySection from '@/components/(public)/le-lieu/ambiance-gallery-section';
 import ExperienceSection from '@/components/(public)/le-lieu/experience-section';
@@ -6,6 +7,12 @@ import WhyComeSection from '@/components/(public)/le-lieu/why-come-section';
 import PracticalLocationSection from '@/components/(public)/le-lieu/practical-location-section';
 import FinalCtaSection from '@/components/(public)/le-lieu/final-cta-section';
 import React from 'react';
+
+export const metadata: Metadata = {
+  title: 'Le lieu',
+  description:
+    'Visitez EBA Coffee Shop à Cocody, Abidjan : un espace chaleureux et soigné pour savourer café, pâtisseries et brunch.',
+};
 
 function LeLieuPage() {
   return (
