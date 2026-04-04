@@ -5,28 +5,18 @@ import React from 'react';
 import { Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Instagram, Music2, MapPin, MessageCircle, Mail } from 'lucide-react';
+import { brandConfig } from '@/config/brand.config';
 
-const footerLinks = {
-  navigation: [
-    { label: 'Accueil', href: '/' },
-    { label: 'À propos', href: '/a-propos' },
-    { label: 'Carte', href: '/carte' },
-    { label: 'Le lieu', href: '/le-lieu' },
-    { label: 'Contact', href: '/contact' },
-  ],
-  social: [
-    {
-      label: 'Instagram',
-      href: 'https://www.instagram.com/eba.coffeeshop/',
-      icon: Instagram,
-    },
-    {
-      label: 'TikTok',
-      href: 'https://www.tiktok.com/@eba.coffeeshop',
-      icon: Music2,
-    },
-  ],
-};
+const socialItems = [
+  {
+    ...brandConfig.links.social.instagram,
+    icon: Instagram,
+  },
+  {
+    ...brandConfig.links.social.tiktok,
+    icon: Music2,
+  },
+] as const;
 
 function SiteFooter() {
   const reduceMotion = useReducedMotion();
@@ -45,13 +35,13 @@ function SiteFooter() {
       <div className="mx-auto w-full max-w-5xl px-6">
         <motion.div className="flex items-center justify-between border-b border-white/10 py-6 md:py-7">
           <Image
-            src="/assets/logos/eba_white_n.svg"
+            src="/assets/logos/eba_white_n.png"
             alt="EBA logo"
             width={48}
             height={48}
           />
           <div className="flex items-center gap-4">
-            {footerLinks.social.map((social) => {
+            {socialItems.map((social) => {
               const Icon = social.icon;
               return (
                 <Link
@@ -78,7 +68,7 @@ function SiteFooter() {
             }
           >
             <h3 className="text-sm font-bold uppercase tracking-wide text-white">
-              EBA
+              {brandConfig.name}
             </h3>
             <p className="mt-3 text-sm text-white/75 leading-relaxed">
               Cafe et patisserie premium a Abidjan. Une adresse pensee pour
@@ -98,7 +88,7 @@ function SiteFooter() {
               Navigation
             </h3>
             <ul className="mt-4 space-y-2" role="list">
-              {footerLinks.navigation.map((link) => (
+              {brandConfig.menu.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
@@ -128,7 +118,7 @@ function SiteFooter() {
                   aria-hidden="true"
                   className="mt-0.5 h-4 w-4 shrink-0 text-primary"
                 />
-                <span>Boulevard Latrille, Cocody, Abidjan</span>
+                <span>{brandConfig.links.contact.address}</span>
               </li>
               <li className="flex items-center gap-2 text-sm text-white/75">
                 <MessageCircle
@@ -137,10 +127,10 @@ function SiteFooter() {
                 />
                 <Link
                   isExternal
-                  href="https://wa.me/2250700000000"
+                  href={brandConfig.links.contact.whatsapp.href}
                   className="hover:text-primary"
                 >
-                  +225 07 00 00 00 00
+                  {brandConfig.links.contact.whatsapp.display}
                 </Link>
               </li>
               <li className="flex items-center gap-2 text-sm text-white/75">
@@ -149,10 +139,10 @@ function SiteFooter() {
                   className="h-4 w-4 shrink-0 text-primary"
                 />
                 <Link
-                  href="mailto:contact@eba.ci"
+                  href={brandConfig.links.contact.email.href}
                   className="hover:text-primary"
                 >
-                  contact@eba.ci
+                  {brandConfig.links.contact.email.display}
                 </Link>
               </li>
             </ul>

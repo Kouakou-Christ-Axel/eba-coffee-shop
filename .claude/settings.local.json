@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git config:*)",
+      "Read(//mnt/c/Users/kouax/WebstormProjects/**)",
+      "Bash(rtk git:*)",
+      "Bash(bash:*)",
+      "Bash(rtk bun:*)",
+      "Bash(rtk npx:*)"
+    ]
+  }
+}
