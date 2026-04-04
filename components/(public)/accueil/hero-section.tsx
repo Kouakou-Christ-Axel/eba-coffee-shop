@@ -3,8 +3,11 @@
 import Image from 'next/image';
 import React from 'react';
 import { Button, Link } from '@heroui/react';
+import { motion, useReducedMotion } from 'framer-motion';
 
 function HeroSection() {
+  const reduceMotion = useReducedMotion();
+
   return (
     <section className="relative min-h-svh w-full overflow-hidden">
       <Image
@@ -17,7 +20,16 @@ function HeroSection() {
 
       <div className="absolute inset-0 bg-black/55" aria-hidden="true" />
 
-      <div className="relative z-10 flex min-h-svh items-center justify-center px-6">
+      <motion.div
+        className="relative z-10 flex min-h-svh items-center justify-center px-6"
+        initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
+        animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+        transition={
+          reduceMotion
+            ? undefined
+            : { duration: 0.8, delay: 0.08, ease: [0.22, 1, 0.36, 1] }
+        }
+      >
         <div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-5 text-center text-white">
           <h3 className="rounded-full border border-white/40 bg-white/10 px-4 py-1 text-xs uppercase tracking-[0.2em]">
             EBA Coffee Shop
@@ -43,7 +55,7 @@ function HeroSection() {
             Voir la carte
           </Button>
         </div>
-      </div>
+      </motion.div>
     </section>
   );
 }
