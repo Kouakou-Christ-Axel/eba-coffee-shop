@@ -9,9 +9,12 @@ import FinalCtaSection from '@/components/(public)/le-lieu/final-cta-section';
 import React from 'react';
 
 export const metadata: Metadata = {
-  title: 'Le lieu',
+  title: 'Le lieu — Votre coffee shop à Cocody',
   description:
-    'Visitez EBA Coffee Shop à Cocody, Abidjan : un espace chaleureux et soigné pour savourer café, pâtisseries et brunch.',
+    'Visitez EBA Coffee Shop à Cocody, Abidjan : un espace chaleureux et soigné pour savourer café de spécialité, pâtisseries artisanales et brunch. Ouvert 7j/7.',
+  alternates: {
+    canonical: '/le-lieu',
+  },
 };
 
 function LeLieuPage() {

@@ -9,7 +9,7 @@ function HeroSection() {
     >
       <Image
         src="/assets/examples/accueil/eba-hero.webp"
-        alt="Interieur chaleureux du coffee shop EBA a Abidjan"
+        alt="Intérieur chaleureux du coffee shop EBA à Cocody, Abidjan"
         fill
         priority
         sizes="100vw"
@@ -36,18 +36,18 @@ function HeroSection() {
               id="le-lieu-hero-title"
               className="mt-4 text-balance text-3xl font-semibold leading-tight text-white sm:text-4xl md:text-5xl"
             >
-              Un cocon gourmand au coeur d&apos;Abidjan
+              Un cocon gourmand au cœur d&apos;Abidjan
             </h1>
 
             <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-white/90 sm:text-base md:text-lg">
-              Un espace chaleureux, soigne et convivial pour prendre un cafe,
-              savourer une patisserie et ralentir un instant.
+              Un espace chaleureux, soigné et convivial pour prendre un café,
+              savourer une pâtisserie et ralentir un instant.
             </p>
           </div>
 
           <div className="hidden md:col-span-5 md:flex md:justify-end">
             <div className="max-w-sm rounded-2xl border border-white/20 bg-white/10 p-5 text-sm leading-relaxed text-white/85 shadow-2xl backdrop-blur-md">
-              Une ambiance intime, des details soignes et une energie locale qui
+              Une ambiance intime, des détails soignés et une énergie locale qui
               donne envie de rester.
             </div>
           </div>
