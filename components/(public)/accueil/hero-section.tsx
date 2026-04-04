@@ -12,7 +12,7 @@ function HeroSection() {
     <section className="relative min-h-svh w-full overflow-hidden">
       <Image
         src="/assets/examples/accueil/eba-hero-2.png"
-        alt="Ambiance EBA Coffee Shop"
+        alt="EBA Coffee Shop — intérieur chaleureux du coffee shop à Cocody, Abidjan"
         fill
         priority
         className="object-cover"
@@ -36,7 +36,7 @@ function HeroSection() {
           </h3>
 
           <h1 className="text-balance text-4xl font-bold leading-tight sm:text-5xl md:text-6xl">
-            Un café d&apos;exception dans une ambiance chaleureuse
+            Votre coffee shop à Abidjan — café, pâtisseries et brunch
           </h1>
 
           <p className="max-w-2xl text-pretty text-base text-white/90 sm:text-lg">
