@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import React from 'react';
 import { Button, Card, CardBody, CardFooter, Link } from '@heroui/react';
+import { motion, useReducedMotion } from 'framer-motion';
 
 type IncontournableItem = {
   name: string;
@@ -39,13 +40,21 @@ const incontournables: IncontournableItem[] = [
 const priceFormatter = new Intl.NumberFormat('fr-FR');
 
 function IncontournablesSection() {
+  const reduceMotion = useReducedMotion();
+
   return (
     <section
       className="bg-background py-14 md:py-20"
       aria-labelledby="incontournables-title"
     >
       <div className="content-container px-6">
-        <div className="mb-8 flex flex-col gap-3 md:mb-10">
+        <motion.div
+          className="mb-8 flex flex-col gap-3 md:mb-10"
+          initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
+          whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+        >
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
             Les favoris EBA
           </p>
@@ -59,41 +68,53 @@ function IncontournablesSection() {
             Les pâtisseries et boissons les plus aimées, sélectionnées pour une
             expérience intense et gourmande.
           </p>
-        </div>
+        </motion.div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {incontournables.map((item) => (
-            <Card key={item.name} className="overflow-hidden border">
-              <div className="relative h-80 w-full overflow-hidden">
-                <Image
-                  src={item.imageSrc}
-                  alt={item.imageAlt}
-                  fill
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                  className={`object-cover transition-transform duration-500 hover:scale-105 ${item.imagePositionClassName ?? ''}`}
-                />
-              </div>
+          {incontournables.map((item, index) => (
+            <motion.div
+              key={item.name}
+              initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
+              whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{
+                duration: 0.6,
+                ease: 'easeOut',
+                delay: index * 0.1,
+              }}
+            >
+              <Card className="overflow-hidden border">
+                <div className="relative h-80 w-full overflow-hidden">
+                  <Image
+                    src={item.imageSrc}
+                    alt={item.imageAlt}
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                    className={`object-cover transition-transform duration-500 hover:scale-105 ${item.imagePositionClassName ?? ''}`}
+                  />
+                </div>
 
-              <CardBody className="gap-2 px-5 py-4">
-                <h3 className="text-lg font-semibold">{item.name}</h3>
-                <p className="text-base font-medium text-primary">
-                  {priceFormatter.format(item.price)} FCFA
-                </p>
-              </CardBody>
+                <CardBody className="gap-2 px-5 py-4">
+                  <h3 className="text-lg font-semibold">{item.name}</h3>
+                  <p className="text-base font-medium text-primary">
+                    {priceFormatter.format(item.price)} FCFA
+                  </p>
+                </CardBody>
 
-              <CardFooter className="pt-0 pb-5 px-5">
-                <Button
-                  as={Link}
-                  href="/contact"
-                  color="primary"
-                  variant="solid"
-                  className="w-full"
-                  aria-label={`Je commande ${item.name}`}
-                >
-                  Je commande
-                </Button>
-              </CardFooter>
-            </Card>
+                <CardFooter className="pt-0 pb-5 px-5">
+                  <Button
+                    as={Link}
+                    href="/contact"
+                    color="primary"
+                    variant="solid"
+                    className="w-full"
+                    aria-label={`Je commande ${item.name}`}
+                  >
+                    Je commande
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
           ))}
         </div>
       </div>
