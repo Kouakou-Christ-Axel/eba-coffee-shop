@@ -24,11 +24,11 @@ function HeroSection() {
           </h3>
 
           <h1 className="text-balance text-4xl font-bold leading-tight sm:text-5xl md:text-6xl">
-            Un cafe d exception dans une ambiance chaleureuse
+            Un café d&apos;exception dans une ambiance chaleureuse
           </h1>
 
           <p className="max-w-2xl text-pretty text-base text-white/90 sm:text-lg">
-            Decouvrez nos boissons signature, nos douceurs maison et prenez le
+            Découvrez nos boissons signature, nos douceurs maison et prenez le
             temps de savourer chaque instant.
           </p>
 

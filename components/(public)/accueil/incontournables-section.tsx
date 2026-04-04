@@ -56,8 +56,8 @@ function IncontournablesSection() {
             Nos incontournables
           </h2>
           <p className="max-w-2xl text-sm text-foreground/75 md:text-base">
-            Les 4 patisseries et boissons les plus aimees, selectionnees pour
-            une experience intense et gourmande.
+            Les pâtisseries et boissons les plus aimées, sélectionnées pour une
+            expérience intense et gourmande.
           </p>
         </div>
 
