@@ -13,7 +13,7 @@ function AboutHeroSection() {
     >
       <Image
         src="/assets/examples/accueil/eba-hero-2.png"
-        alt="Photo lifestyle du lieu EBA a Abidjan"
+        alt="Intérieur du coffee shop EBA — pâtisserie artisanale à Cocody, Abidjan"
         fill
         priority
         sizes="100vw"
@@ -45,13 +45,13 @@ function AboutHeroSection() {
             id="about-hero-title"
             className="text-balance text-4xl font-semibold leading-tight sm:text-5xl md:text-6xl"
           >
-            Un lieu pense pour les instants simples et bons
+            L&apos;histoire d&apos;EBA — pâtisserie artisanale à Abidjan
           </h1>
 
           <p className="max-w-2xl text-pretty text-base text-white/90 sm:text-lg">
-            Chez EBA, nous croyons a la douceur des pauses bien faites: un cafe,
-            une patisserie, une ambiance soignee et le plaisir de prendre son
-            temps.
+            Chez EBA, nous croyons à la douceur des pauses bien faites&nbsp;: un
+            café, une pâtisserie, une ambiance soignée et le plaisir de prendre
+            son temps.
           </p>
         </div>
       </motion.div>

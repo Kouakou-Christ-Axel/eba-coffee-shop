@@ -7,9 +7,12 @@ import AboutAtelierSection from '@/components/(public)/a-propos/about-atelier-se
 import AboutCtaSection from '@/components/(public)/a-propos/about-cta-section';
 
 export const metadata: Metadata = {
-  title: 'À propos',
+  title: 'À propos — Notre histoire',
   description:
-    'Découvrez l\'histoire d\'EBA Coffee Shop : le parcours de notre pâtissière formée en France, nos engagements qualité et notre vision à Abidjan.',
+    "Découvrez l'histoire d'EBA Coffee Shop à Abidjan : une pâtissière formée en France, des engagements qualité et une vision artisanale à Cocody.",
+  alternates: {
+    canonical: '/a-propos',
+  },
 };
 
 function AProposPage() {
