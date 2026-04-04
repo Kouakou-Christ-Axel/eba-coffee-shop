@@ -98,7 +98,7 @@ function Navbar() {
       <NavbarBrand>
         <Image
           src="/assets/logos/eba_n.svg"
-          alt="Logo eba"
+          alt="EBA Coffee Shop — café et pâtisserie à Abidjan"
           width={60}
           height={60}
         />
@@ -117,10 +117,10 @@ function Navbar() {
       </NavbarContent>
       <NavbarContent justify="end">
         <NavbarItem className="hidden lg:flex">
-          <Link href="#">Nous trouver</Link>
+          <Link href="/le-lieu">Nous trouver</Link>
         </NavbarItem>
         <NavbarItem className="hidden lg:flex">
-          <Button as={Link} color="primary" href="#" variant="flat">
+          <Button as={Link} color="primary" href="/contact" variant="flat">
             Commander
           </Button>
         </NavbarItem>
