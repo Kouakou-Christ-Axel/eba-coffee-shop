@@ -53,7 +53,7 @@ function QuickTrustSection() {
         aria-hidden="true"
       />
 
-      <div className="mx-auto w-full max-w-6xl px-6">
+      <div className="content-container px-6">
         <h2 id="quick-trust-title" className="sr-only">
           Cafe et patisserie a Abidjan - EBA
         </h2>
