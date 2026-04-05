@@ -28,5 +28,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'monthly',
       priority: 0.7,
     },
+    {
+      url: `${siteUrl}/carte`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.9,
+    },
   ];
 }
