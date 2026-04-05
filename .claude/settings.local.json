@@ -8,7 +8,8 @@
       "Bash(rtk bun:*)",
       "Bash(rtk npx:*)",
       "Bash(rtk ls:*)",
-      "Bash(rtk next:*)"
+      "Bash(rtk next:*)",
+      "WebFetch(domain:cafecontinent.com)"
     ]
   }
 }
