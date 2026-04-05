@@ -44,6 +44,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
           i.productId === item.productId &&
           JSON.stringify(i.supplements) === JSON.stringify(item.supplements)
       );
+      console.log('existing', existing);
       if (existing) {
         return {
           items: state.items.map((i) =>

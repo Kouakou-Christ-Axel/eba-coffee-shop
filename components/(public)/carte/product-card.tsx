@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { Button } from '@heroui/react';
-import { Plus } from 'lucide-react';
+import { Check, Plus } from 'lucide-react';
 import { useCartStore } from '@/lib/cart-store';
 import { priceFormatter, type Product } from '@/config/menu';
 import SupplementModal from '@/components/(public)/carte/supplement-modal';
@@ -16,6 +16,7 @@ type ProductCardProps = {
 function ProductCard({ product }: ProductCardProps) {
   const { addItem } = useCartStore();
   const [showModal, setShowModal] = useState(false);
+  const [justAdded, setJustAdded] = useState(false);
   const hasSups = product.supplements && product.supplements.length > 0;
 
   function handleAdd() {
@@ -28,6 +29,8 @@ function ProductCard({ product }: ProductCardProps) {
         basePrice: product.price,
         supplements: [],
       });
+      setJustAdded(true);
+      setTimeout(() => setJustAdded(false), 1200);
     }
   }
 
@@ -70,14 +73,18 @@ function ProductCard({ product }: ProductCardProps) {
         <Button
           isIconOnly
           size="sm"
-          color="primary"
+          color={justAdded ? 'success' : 'primary'}
           variant="flat"
           radius="full"
           aria-label={`Ajouter ${product.name}`}
           onPress={handleAdd}
-          className="shrink-0"
+          className="shrink-0 cursor-pointer transition-transform duration-150 active:scale-90 hover:scale-110"
         >
-          <Plus className="h-4 w-4" />
+          {justAdded ? (
+            <Check className="h-4 w-4" />
+          ) : (
+            <Plus className="h-4 w-4" />
+          )}
         </Button>
       </div>
 

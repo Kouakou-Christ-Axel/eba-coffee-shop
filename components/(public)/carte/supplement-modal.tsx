@@ -72,6 +72,7 @@ function SupplementModal({ product, isOpen, onClose }: SupplementModalProps) {
   }
 
   function handleAdd() {
+    console.log('product', product);
     addItem({
       productId: product.id,
       productName: product.name,

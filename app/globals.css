@@ -150,6 +150,51 @@
   @apply w-full mx-auto px-4 lg:max-w-300 xl:max-w-380;
 }
 
+/* Custom scrollbar — warm, minimal, matches cream/purple theme */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.421 0.129 321.208 / 0.25) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(0.421 0.129 321.208 / 0.2);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.421 0.129 321.208 / 0.35);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: oklch(0.92 0.004 286.32 / 0.15);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.92 0.004 286.32 / 0.3);
+}
+
+.dark * {
+  scrollbar-color: oklch(0.92 0.004 286.32 / 0.15) transparent;
+}
+
+/* Hide scrollbar on horizontal scroll containers */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes marquee {
   from {
     transform: translateX(0);

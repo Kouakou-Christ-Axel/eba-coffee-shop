@@ -23,7 +23,7 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const updateQuantity = useCartStore((s) => s.updateQuantity);
   const removeItem = useCartStore((s) => s.removeItem);
   const clearCart = useCartStore((s) => s.clearCart);
-  const totalPrice = useCartStore((s) => s.totalPrice());
+  const totalPrice = items.reduce((sum, i) => sum + getItemTotal(i), 0);
 
   function handleOrder() {
     const url = buildWhatsAppUrl(items);

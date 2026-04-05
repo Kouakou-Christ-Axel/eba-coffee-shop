@@ -37,7 +37,8 @@
     "react-dom": "19.2.0",
     "schema-dts": "^1.1.5",
     "tailwind-merge": "^3.5.0",
-    "varlock": "^0.6.1"
+    "varlock": "^0.6.1",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.2",

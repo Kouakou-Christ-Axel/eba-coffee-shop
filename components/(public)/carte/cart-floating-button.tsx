@@ -8,8 +8,12 @@ import { priceFormatter } from '@/config/menu';
 import CartDrawer from '@/components/(public)/carte/cart-drawer';
 
 function CartFloatingButton() {
-  const totalItems = useCartStore((s) => s.totalItems)();
-  const totalPrice = useCartStore((s) => s.totalPrice)();
+  const items = useCartStore((s) => s.items);
+  const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
+  const totalPrice = items.reduce((sum, i) => {
+    const supps = i.supplements.reduce((s, sup) => s + sup.price, 0);
+    return sum + (i.basePrice + supps) * i.quantity;
+  }, 0);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
