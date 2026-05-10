@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Modal,
   ModalContent,
@@ -9,9 +10,10 @@ import {
   Button,
 } from '@heroui/react';
 import { Minus, Plus, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useCartStore, getItemTotal } from '@/lib/cart-store';
 import { priceFormatter } from '@/config/menu';
-import { buildWhatsAppUrl } from '@/lib/cart-to-whatsapp';
+import { CheckoutForm } from './checkout-form';
 
 type CartDrawerProps = {
   isOpen: boolean;
@@ -19,103 +21,123 @@ type CartDrawerProps = {
 };
 
 function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
+  const router = useRouter();
   const items = useCartStore((s) => s.items);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
   const removeItem = useCartStore((s) => s.removeItem);
   const clearCart = useCartStore((s) => s.clearCart);
   const totalPrice = items.reduce((sum, i) => sum + getItemTotal(i), 0);
 
-  function handleOrder() {
-    const url = buildWhatsAppUrl(items);
-    window.open(url, '_blank');
+  const [step, setStep] = useState<1 | 2>(1);
+
+  function handleClose() {
+    setStep(1);
+    onClose();
+  }
+
+  function handleOrderSuccess(orderId: string) {
+    clearCart();
+    handleClose();
+    router.push(`/commande/${orderId}`);
   }
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       placement="center"
       size="lg"
       scrollBehavior="inside"
     >
       <ModalContent>
         <ModalHeader>
-          <span className="text-lg font-semibold">Votre commande</span>
+          <span className="text-lg font-semibold">
+            {step === 1 ? 'Votre commande' : 'Informations de retrait'}
+          </span>
         </ModalHeader>
 
         <ModalBody>
-          {items.length === 0 ? (
-            <p className="py-8 text-center text-sm text-foreground/50">
-              Votre panier est vide
-            </p>
-          ) : (
-            <div className="divide-y divide-foreground/5">
-              {items.map((item) => (
-                <div
-                  key={item.cartId}
-                  className="flex items-start gap-3 py-4 first:pt-0"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground">
-                      {item.productName}
-                    </p>
-                    {item.supplements.length > 0 && (
-                      <p className="mt-0.5 text-xs text-foreground/45">
-                        {item.supplements.map((s) => s.optionName).join(', ')}
+          {step === 1 ? (
+            items.length === 0 ? (
+              <p className="py-8 text-center text-sm text-foreground/50">
+                Votre panier est vide
+              </p>
+            ) : (
+              <div className="divide-y divide-foreground/5">
+                {items.map((item) => (
+                  <div
+                    key={item.cartId}
+                    className="flex items-start gap-3 py-4 first:pt-0"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-foreground">
+                        {item.productName}
                       </p>
-                    )}
-                    <p className="mt-1 text-sm font-medium text-primary">
-                      {priceFormatter.format(getItemTotal(item))}&nbsp;F
-                    </p>
-                  </div>
+                      {item.supplements.length > 0 && (
+                        <p className="mt-0.5 text-xs text-foreground/45">
+                          {item.supplements.map((s) => s.optionName).join(', ')}
+                        </p>
+                      )}
+                      <p className="mt-1 text-sm font-medium text-primary">
+                        {priceFormatter.format(getItemTotal(item))}&nbsp;F
+                      </p>
+                    </div>
 
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="flat"
-                      radius="full"
-                      aria-label="Retirer un"
-                      onPress={() =>
-                        updateQuantity(item.cartId, item.quantity - 1)
-                      }
-                    >
-                      <Minus className="h-3.5 w-3.5" />
-                    </Button>
-                    <span className="w-6 text-center text-sm font-medium">
-                      {item.quantity}
-                    </span>
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="flat"
-                      radius="full"
-                      aria-label="Ajouter un"
-                      onPress={() =>
-                        updateQuantity(item.cartId, item.quantity + 1)
-                      }
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="light"
-                      radius="full"
-                      color="danger"
-                      aria-label="Supprimer"
-                      onPress={() => removeItem(item.cartId)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="flat"
+                        radius="full"
+                        aria-label="Retirer un"
+                        onPress={() =>
+                          updateQuantity(item.cartId, item.quantity - 1)
+                        }
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </Button>
+                      <span className="w-6 text-center text-sm font-medium">
+                        {item.quantity}
+                      </span>
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="flat"
+                        radius="full"
+                        aria-label="Ajouter un"
+                        onPress={() =>
+                          updateQuantity(item.cartId, item.quantity + 1)
+                        }
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="light"
+                        radius="full"
+                        color="danger"
+                        aria-label="Supprimer"
+                        onPress={() => removeItem(item.cartId)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )
+          ) : (
+            <CheckoutForm
+              items={items}
+              total={totalPrice}
+              onBack={() => setStep(1)}
+              onSuccess={handleOrderSuccess}
+            />
           )}
         </ModalBody>
 
-        {items.length > 0 && (
+        {step === 1 && items.length > 0 && (
           <ModalFooter className="flex-col gap-3">
             <div className="flex w-full items-center justify-between">
               <span className="text-base font-semibold">Total</span>
@@ -128,15 +150,15 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
               color="primary"
               className="w-full"
               size="lg"
-              onPress={handleOrder}
+              onPress={() => setStep(2)}
             >
-              Commander via WhatsApp
+              Passer la commande
             </Button>
 
             <button
               onClick={() => {
                 clearCart();
-                onClose();
+                handleClose();
               }}
               className="text-xs text-foreground/40 transition-colors hover:text-destructive"
             >
