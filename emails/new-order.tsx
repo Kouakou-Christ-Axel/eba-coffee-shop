@@ -1,4 +1,82 @@
-// emails/new-order.tsx (stub — will be implemented in Task 2)
-export default function NewOrderEmail(_props: { order: unknown }) {
-  return null;
+// emails/new-order.tsx
+import * as React from 'react';
+import {
+  Html,
+  Body,
+  Container,
+  Heading,
+  Text,
+  Link,
+  Hr,
+} from '@react-email/components';
+import { formatPickupTime } from '@/lib/format-order';
+import type { CartItem } from '@/lib/cart-store';
+
+type OrderData = {
+  id: string;
+  reference: string;
+  customerName: string;
+  customerPhone: string;
+  pickupTime: Date;
+  items: unknown;
+  total: number;
+};
+
+type Props = { order: OrderData };
+
+const priceFormatter = new Intl.NumberFormat('fr-FR');
+
+export default function NewOrderEmail({ order }: Props) {
+  const items = order.items as CartItem[];
+  const pickupFormatted = formatPickupTime(order.pickupTime);
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+
+  return (
+    <Html lang="fr">
+      <Body style={{ fontFamily: 'sans-serif', color: '#333' }}>
+        <Container
+          style={{ maxWidth: '600px', margin: '0 auto', padding: '24px' }}
+        >
+          <Heading as="h1">🛎️ Nouvelle commande EBA Coffee Shop</Heading>
+
+          <Text>
+            <strong>Référence :</strong> {order.reference}
+          </Text>
+          <Text>
+            <strong>Retrait :</strong> {pickupFormatted}
+          </Text>
+
+          <Hr />
+
+          <Heading as="h2">Client</Heading>
+          <Text>
+            <strong>Prénom :</strong> {order.customerName}
+          </Text>
+          <Text>
+            <strong>Téléphone :</strong> {order.customerPhone}
+          </Text>
+
+          <Hr />
+
+          <Heading as="h2">Articles</Heading>
+          {items.map((item, i) => (
+            <Text key={i}>
+              {item.productName} x{item.quantity}
+              {item.supplements.length > 0 &&
+                ` — ${item.supplements.map((s) => s.optionName).join(', ')}`}
+            </Text>
+          ))}
+          <Text>
+            <strong>Total : {priceFormatter.format(order.total)} FCFA</strong>
+          </Text>
+
+          <Hr />
+
+          <Link href={`${siteUrl}/dashboard/commandes/${order.id}`}>
+            Voir la commande dans le dashboard →
+          </Link>
+        </Container>
+      </Body>
+    </Html>
+  );
 }
