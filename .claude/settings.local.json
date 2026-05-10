@@ -27,7 +27,13 @@
       "Bash(rtk vitest *)",
       "Bash(npx vitest *)",
       "Bash(rtk grep *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(cat vitest.config.ts)",
+      "Bash(cat vitest.config.mts)",
+      "Bash(cat vitest.config.js)",
+      "Bash(rtk test *)",
+      "Bash(git show *)",
+      "Bash(npx tsc *)"
     ]
   }
 }
