@@ -140,5 +140,6 @@ describe('POST /api/commandes', () => {
 
     const res = await POST(makeRequest(validBody));
     expect(res.status).toBe(201);
+    expect(mockSendNewOrderEmail).toHaveBeenCalledWith(mockOrder);
   });
 });
