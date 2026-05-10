@@ -1,7 +1,7 @@
 // lib/email.tsx
 import React from 'react';
 import { Resend } from 'resend';
-import { renderAsync } from '@react-email/render';
+import { render } from '@react-email/render';
 import NewOrderEmail from '@/emails/new-order';
 
 type OrderData = {
@@ -22,7 +22,7 @@ export async function sendNewOrderEmail(order: OrderData): Promise<void> {
   }
 
   const resend = new Resend(process.env.RESEND_API_KEY);
-  const html = await renderAsync(React.createElement(NewOrderEmail, { order }));
+  const html = await render(React.createElement(NewOrderEmail, { order }));
 
   await resend.emails.send({
     from: 'EBA Coffee Shop <noreply@ebacoffeeshop.ci>',

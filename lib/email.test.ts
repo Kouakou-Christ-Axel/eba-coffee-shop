@@ -10,7 +10,7 @@ vi.mock('resend', () => ({
 }));
 
 vi.mock('@react-email/render', () => ({
-  renderAsync: vi.fn().mockResolvedValue('<html>mock email</html>'),
+  render: vi.fn().mockResolvedValue('<html>mock email</html>'),
 }));
 
 vi.mock('@/emails/new-order', () => ({
