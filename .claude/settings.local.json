@@ -10,7 +10,24 @@
       "Bash(rtk ls:*)",
       "Bash(rtk next:*)",
       "WebFetch(domain:cafecontinent.com)",
-      "Bash(bun add:*)"
+      "Bash(bun add:*)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\kouax\\\\WebstormProjects\\\\eba-coffee-shop\" -Force)",
+      "Bash(Select-Object Name, FullName)",
+      "Bash(copy *)",
+      "Bash(PowerShell *)",
+      "Bash(bun test *)",
+      "Bash(Remove-Item *)",
+      "Bash(rtk tsc *)",
+      "Bash(bun list *)",
+      "Bash(bunx vitest *)",
+      "Bash(bun info *)",
+      "Bash(bun run *)",
+      "Bash(Get-ChildItem *)",
+      "Bash(Select-Object FullName)",
+      "Bash(rtk vitest *)",
+      "Bash(npx vitest *)",
+      "Bash(rtk grep *)",
+      "Bash(node *)"
     ]
   }
 }

@@ -4,11 +4,13 @@ import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 
 const trustItems = [
-  'Café de spécialité',
+  'Café de qualité',
   'Pâtisseries faites maison',
-  'Ingrédients frais du marché',
-  'Zéro conservateur',
+  'Produits avec amour',
+  'Options gourmandes toute la journée',
+  'Idéal pour travailler ou se poser',
   'Cocody, Abidjan',
+  'Produits locaux',
 ];
 
 function TrustStrip() {
