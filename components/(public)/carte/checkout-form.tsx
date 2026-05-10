@@ -19,16 +19,20 @@ type Props = {
 };
 
 export function CheckoutForm({ items, total, onBack, onSuccess }: Props) {
-  const slots = useMemo(() => generatePickupSlots(new Date()), []);
-
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [errors, setErrors] = useState<CheckoutErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const { slots, today } = useMemo(() => {
+    const now = new Date();
+    return {
+      slots: generatePickupSlots(now),
+      today: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+    };
+  }, []);
+
   const todaySlots = slots.filter((s) => {
     const d = new Date(s.getFullYear(), s.getMonth(), s.getDate());
     return d.getTime() === today.getTime();
@@ -51,7 +55,10 @@ export function CheckoutForm({ items, total, onBack, onSuccess }: Props) {
       fields,
       items,
       total,
-      onSuccess,
+      onSuccess: (orderId) => {
+        setIsSubmitting(false);
+        onSuccess(orderId);
+      },
       onError: (errs) => {
         setErrors(errs);
         setIsSubmitting(false);
@@ -113,6 +120,7 @@ export function CheckoutForm({ items, total, onBack, onSuccess }: Props) {
 
       <Input
         label="Téléphone"
+        type="tel"
         value={customerPhone}
         onValueChange={setCustomerPhone}
         isInvalid={!!errors.customerPhone}
