@@ -1,3 +1,8 @@
+/**
+ * Generates available pickup slots for today and tomorrow.
+ * A slot is included only if its timestamp is >= now + 30 minutes (millisecond-precise).
+ * Slots run from 08:00 to 20:00 at 15-minute intervals (local time).
+ */
 export function generatePickupSlots(now: Date): Date[] {
   const slots: Date[] = [];
   const minTime = new Date(now.getTime() + 30 * 60 * 1000);

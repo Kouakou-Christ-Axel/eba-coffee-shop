@@ -82,4 +82,26 @@ describe('generatePickupSlots', () => {
     expect(todaySlots.length).toBe(0);
     expect(tomorrowSlots.length).toBeGreaterThan(0);
   });
+
+  it('exclut le créneau à exactement 30 min si now a des secondes non nulles', () => {
+    // now = 09:00:01.500 → minTime = 09:30:01.500 → le créneau 09:30:00.000 est exclu
+    const now = new Date(2026, 4, 10, 9, 0, 1, 500);
+    const slots = generatePickupSlots(now);
+
+    const todaySlots = slots.filter((s) => {
+      const d = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+      return d.getTime() === new Date(2026, 4, 10, 0, 0, 0).getTime();
+    });
+
+    // 09:30 is exactly at 09:00:01.5 + 30min = 09:30:01.5 → 09:30:00.000 < 09:30:01.500 → excluded
+    const has930 = todaySlots.some(
+      (s) => s.getHours() === 9 && s.getMinutes() === 30
+    );
+    expect(has930).toBe(false);
+    // 09:45 should be included (45 min after now)
+    const has945 = todaySlots.some(
+      (s) => s.getHours() === 9 && s.getMinutes() === 45
+    );
+    expect(has945).toBe(true);
+  });
 });
