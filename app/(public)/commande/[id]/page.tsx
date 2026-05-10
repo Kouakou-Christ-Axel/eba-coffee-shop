@@ -25,7 +25,7 @@ export default async function CommandePage({ params }: Props) {
   const pickupFormatted = formatPickupTime(order.pickupTime);
 
   return (
-    <main className="mx-auto max-w-xl px-4 py-12">
+    <div className="mx-auto max-w-xl px-4 py-12">
       <div className="flex flex-col items-center gap-6">
         <CheckCircle className="h-16 w-16 text-success" strokeWidth={1.5} />
 
@@ -81,7 +81,7 @@ export default async function CommandePage({ params }: Props) {
                       item.supplements.reduce((s, sup) => s + sup.price, 0)) *
                       item.quantity
                   )}
-                  &nbsp;F
+                  &nbsp;FCFA
                 </p>
               </div>
             ))}
@@ -107,6 +107,6 @@ export default async function CommandePage({ params }: Props) {
           ← Retour à la carte
         </Link>
       </div>
-    </main>
+    </div>
   );
 }
