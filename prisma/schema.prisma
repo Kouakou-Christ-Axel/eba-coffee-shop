@@ -72,3 +72,27 @@ model Verification {
 
   @@map("verification")
 }
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  READY
+  PICKED_UP
+  CANCELLED
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  reference     String      @unique
+  customerName  String
+  customerPhone String
+  pickupTime    DateTime
+  items         Json
+  total         Int
+  status        OrderStatus @default(PENDING)
+  note          String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("order")
+}
