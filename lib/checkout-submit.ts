@@ -75,6 +75,10 @@ export async function submitCheckoutForm({
     return;
   }
 
-  const data = (await response.json()) as { id: string };
-  onSuccess(data.id);
+  try {
+    const data = (await response.json()) as { id: string };
+    onSuccess(data.id);
+  } catch {
+    onError({ submit: 'Une erreur est survenue. Veuillez réessayer.' });
+  }
 }
