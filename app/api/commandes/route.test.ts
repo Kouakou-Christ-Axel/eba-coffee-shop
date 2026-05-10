@@ -18,7 +18,12 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
+vi.mock('@/lib/email', () => ({
+  sendNewOrderEmail: vi.fn().mockResolvedValue(undefined),
+}));
+
 import prisma from '@/lib/prisma';
+import { sendNewOrderEmail } from '@/lib/email';
 import { POST } from './route';
 
 const mockCreate = prisma.order.create as MockedFunction<
@@ -26,6 +31,9 @@ const mockCreate = prisma.order.create as MockedFunction<
 >;
 const mockFindUnique = prisma.order.findUnique as MockedFunction<
   typeof prisma.order.findUnique
+>;
+const mockSendNewOrderEmail = sendNewOrderEmail as MockedFunction<
+  typeof sendNewOrderEmail
 >;
 
 const validBody = {
@@ -45,6 +53,20 @@ const validBody = {
   total: 3500,
 };
 
+const mockOrder = {
+  id: 'clorder123',
+  reference: 'EBA-20260510-AB12',
+  customerName: validBody.customerName,
+  customerPhone: validBody.customerPhone,
+  pickupTime: new Date(validBody.pickupTime),
+  items: validBody.items,
+  total: validBody.total,
+  status: 'PENDING' as const,
+  note: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
 function makeRequest(body: unknown) {
   return new NextRequest('http://localhost/api/commandes', {
     method: 'POST',
@@ -56,22 +78,10 @@ function makeRequest(body: unknown) {
 describe('POST /api/commandes', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockSendNewOrderEmail.mockResolvedValue(undefined);
   });
 
   it('retourne 201 avec id et reference pour un body valide', async () => {
-    const mockOrder = {
-      id: 'clorder123',
-      reference: 'EBA-20260510-AB12',
-      customerName: validBody.customerName,
-      customerPhone: validBody.customerPhone,
-      pickupTime: new Date(validBody.pickupTime),
-      items: validBody.items,
-      total: validBody.total,
-      status: 'PENDING' as const,
-      note: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
     mockFindUnique.mockResolvedValue(null);
     mockCreate.mockResolvedValue(mockOrder);
 
@@ -121,5 +131,14 @@ describe('POST /api/commandes', () => {
 
     const res = await POST(makeRequest(validBody));
     expect(res.status).toBe(500);
+  });
+
+  it("l'échec de l'envoi email ne cause pas un 500", async () => {
+    mockFindUnique.mockResolvedValue(null);
+    mockCreate.mockResolvedValue(mockOrder);
+    mockSendNewOrderEmail.mockRejectedValue(new Error('Resend error'));
+
+    const res = await POST(makeRequest(validBody));
+    expect(res.status).toBe(201);
   });
 });
