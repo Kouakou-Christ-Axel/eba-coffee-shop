@@ -1,5 +1,12 @@
 // lib/orders.test.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  type MockedFunction,
+} from 'vitest';
 
 // Mock prisma AVANT tout import qui l'utilise
 vi.mock('@/lib/prisma', () => ({
@@ -12,6 +19,15 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 import prisma from '@/lib/prisma';
+
+// Type the mocked functions explicitly
+const mockCreate = prisma.order.create as MockedFunction<
+  typeof prisma.order.create
+>;
+const mockFindUnique = prisma.order.findUnique as MockedFunction<
+  typeof prisma.order.findUnique
+>;
+
 import {
   generateOrderReference,
   createOrderSchema,
@@ -124,12 +140,12 @@ describe('createOrder', () => {
       updatedAt: new Date(),
     };
 
-    vi.mocked(prisma.order.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.order.create).mockResolvedValue(mockOrder);
+    mockFindUnique.mockResolvedValue(null);
+    mockCreate.mockResolvedValue(mockOrder);
 
     const result = await createOrder(validInput);
 
-    expect(prisma.order.create).toHaveBeenCalledOnce();
+    expect(mockCreate).toHaveBeenCalledOnce();
     expect(result.status).toBe('PENDING');
     expect(result.reference).toBe('EBA-20260510-AB12');
   });
@@ -149,12 +165,12 @@ describe('createOrder', () => {
       updatedAt: new Date(),
     };
 
-    vi.mocked(prisma.order.findUnique).mockResolvedValue(null);
-    vi.mocked(prisma.order.create).mockResolvedValue(mockOrder);
+    mockFindUnique.mockResolvedValue(null);
+    mockCreate.mockResolvedValue(mockOrder);
 
     await createOrder(validInput);
 
-    expect(prisma.order.create).toHaveBeenCalledWith(
+    expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           customerName: 'Kofi',
@@ -187,17 +203,17 @@ describe('getOrder', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    vi.mocked(prisma.order.findUnique).mockResolvedValue(mockOrder);
+    mockFindUnique.mockResolvedValue(mockOrder);
 
     const result = await getOrder('clorder123');
     expect(result).toEqual(mockOrder);
-    expect(prisma.order.findUnique).toHaveBeenCalledWith({
+    expect(mockFindUnique).toHaveBeenCalledWith({
       where: { id: 'clorder123' },
     });
   });
 
   it("retourne null si la commande n'existe pas", async () => {
-    vi.mocked(prisma.order.findUnique).mockResolvedValue(null);
+    mockFindUnique.mockResolvedValue(null);
 
     const result = await getOrder('inexistant');
     expect(result).toBeNull();
