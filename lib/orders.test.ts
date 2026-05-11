@@ -14,6 +14,8 @@ vi.mock('@/lib/prisma', () => ({
     order: {
       create: vi.fn(),
       findUnique: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
     },
   },
 }));
@@ -27,12 +29,19 @@ const mockCreate = prisma.order.create as MockedFunction<
 const mockFindUnique = prisma.order.findUnique as MockedFunction<
   typeof prisma.order.findUnique
 >;
+const mockFindMany = prisma.order.findMany as MockedFunction<
+  typeof prisma.order.findMany
+>;
+const mockCount = prisma.order.count as MockedFunction<
+  typeof prisma.order.count
+>;
 
 import {
   generateOrderReference,
   createOrderSchema,
   createOrder,
   getOrder,
+  listOrders,
 } from './orders';
 
 // ─── generateOrderReference ───────────────────────────────────────────────────
@@ -217,5 +226,94 @@ describe('getOrder', () => {
 
     const result = await getOrder('inexistant');
     expect(result).toBeNull();
+  });
+});
+
+// ─── listOrders ───────────────────────────────────────────────────────────────
+
+const mockOrder = {
+  id: 'o1',
+  reference: 'EBA-20260511-AB12',
+  customerName: 'Kofi',
+  customerPhone: '07001234',
+  pickupTime: new Date(),
+  items: [],
+  total: 3500,
+  status: 'PENDING' as const,
+  note: null,
+  createdAt: new Date('2026-05-11T10:00:00'),
+  updatedAt: new Date(),
+};
+
+describe('listOrders', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('retourne les commandes et les passe triées par createdAt DESC', async () => {
+    mockFindMany.mockResolvedValue([mockOrder]);
+    mockCount.mockResolvedValue(1);
+
+    const result = await listOrders({ page: 1 });
+
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { createdAt: 'desc' } })
+    );
+    expect(result.orders).toEqual([mockOrder]);
+  });
+
+  it('passe le filtre status quand fourni', async () => {
+    mockFindMany.mockResolvedValue([]);
+    mockCount.mockResolvedValue(0);
+
+    await listOrders({ page: 1, status: 'PENDING' });
+
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: 'PENDING' } })
+    );
+    expect(mockCount).toHaveBeenCalledWith({ where: { status: 'PENDING' } });
+  });
+
+  it('sans filtre, passe un where vide', async () => {
+    mockFindMany.mockResolvedValue([]);
+    mockCount.mockResolvedValue(0);
+
+    await listOrders({ page: 1 });
+
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: {} })
+    );
+  });
+
+  it('limite à 20 résultats par page (take: 20)', async () => {
+    mockFindMany.mockResolvedValue([]);
+    mockCount.mockResolvedValue(0);
+
+    await listOrders({ page: 1 });
+
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 20 })
+    );
+  });
+
+  it('calcule le skip correct pour la page 2 (skip: 20)', async () => {
+    mockFindMany.mockResolvedValue([]);
+    mockCount.mockResolvedValue(0);
+
+    await listOrders({ page: 2 });
+
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 20 })
+    );
+  });
+
+  it('retourne total et pageSize', async () => {
+    mockFindMany.mockResolvedValue([]);
+    mockCount.mockResolvedValue(45);
+
+    const result = await listOrders({ page: 1 });
+
+    expect(result.total).toBe(45);
+    expect(result.pageSize).toBe(20);
   });
 });

@@ -1,5 +1,6 @@
 // lib/orders.ts
 import { z } from 'zod';
+import type { OrderStatus } from '@/generated/prisma';
 import prisma from '@/lib/prisma';
 
 // ─── Schémas Zod ──────────────────────────────────────────────────────────────
@@ -60,4 +61,29 @@ export async function createOrder(input: CreateOrderInput) {
 
 export async function getOrder(id: string) {
   return prisma.order.findUnique({ where: { id } });
+}
+
+// ─── listOrders ───────────────────────────────────────────────────────────────
+
+export interface ListOrdersParams {
+  page: number;
+  status?: OrderStatus;
+}
+
+export async function listOrders({ page, status }: ListOrdersParams) {
+  const pageSize = 20;
+  const skip = (page - 1) * pageSize;
+  const where = status ? { status } : {};
+
+  const [orders, total] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: pageSize,
+    }),
+    prisma.order.count({ where }),
+  ]);
+
+  return { orders, total, pageSize };
 }
