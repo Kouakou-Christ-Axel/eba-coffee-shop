@@ -17,6 +17,7 @@ model User {
   id    String  @id @default(uuid())
   email String  @unique
   name  String?
+  role  UserRole @default(USER)
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -71,6 +72,11 @@ model Verification {
   updatedAt  DateTime @default(now()) @updatedAt
 
   @@map("verification")
+}
+
+enum UserRole {
+  USER
+  ADMIN
 }
 
 enum OrderStatus {
