@@ -11,7 +11,7 @@ export default async function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <div className="text-center">
         <h1 className="mb-2 text-2xl font-bold text-gray-900">
           EBA Coffee Shop
@@ -21,6 +21,6 @@ export default async function LoginPage() {
         </p>
         <LoginButton />
       </div>
-    </main>
+    </div>
   );
 }
