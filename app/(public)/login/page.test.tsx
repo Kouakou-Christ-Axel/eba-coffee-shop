@@ -31,7 +31,11 @@ vi.mock('@/lib/auth', () => ({
 // Évite l'import de authClient (client-only) dans le contexte node
 vi.mock('./login-button', () => ({
   default: () =>
-    React.createElement('button', null, 'Se connecter avec Google'),
+    React.createElement(
+      'form',
+      null,
+      React.createElement('button', null, 'Recevoir un code')
+    ),
 }));
 
 import { auth } from '@/lib/auth';
@@ -54,10 +58,10 @@ describe('LoginPage', () => {
     await expect(LoginPage()).rejects.toThrow('REDIRECT:/dashboard');
   });
 
-  it('affiche le bouton Google si pas de session', async () => {
+  it('affiche le formulaire de connexion OTP si pas de session', async () => {
     mockGetSession.mockResolvedValue(null);
     const element = await LoginPage();
     const html = renderToStaticMarkup(element);
-    expect(html).toContain('Se connecter avec Google');
+    expect(html).toContain('Recevoir un code');
   });
 });

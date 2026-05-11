@@ -15,6 +15,9 @@ vi.mock('@/lib/prisma', () => ({
     order: {
       findUnique: vi.fn(),
     },
+    pickupSettings: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
   },
 }));
 

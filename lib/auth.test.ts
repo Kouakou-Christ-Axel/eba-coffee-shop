@@ -21,6 +21,14 @@ vi.mock('better-auth/next-js', () => ({
   nextCookies: vi.fn().mockReturnValue({}),
 }));
 
+vi.mock('better-auth/plugins/email-otp', () => ({
+  emailOTP: vi.fn().mockReturnValue({}),
+}));
+
+vi.mock('@/lib/email', () => ({
+  sendOtpEmail: vi.fn(),
+}));
+
 vi.mock('@/lib/prisma', () => ({
   default: {
     user: {

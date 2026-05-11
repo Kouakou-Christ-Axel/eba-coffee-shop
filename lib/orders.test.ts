@@ -17,6 +17,9 @@ vi.mock('@/lib/prisma', () => ({
       findMany: vi.fn(),
       count: vi.fn(),
     },
+    $accelerate: {
+      invalidate: vi.fn().mockResolvedValue(undefined),
+    },
   },
 }));
 

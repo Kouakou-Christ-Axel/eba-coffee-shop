@@ -8,9 +8,9 @@ export const brandConfig = {
     phone: '+225 27 22 00 00 00',
     whatsapp: '+225 07 00 00 00 00',
     whatsappLink: 'https://wa.me/2250700000000',
-    mapsLink: 'https://maps.google.com/?q=Boulevard+Latrille+Cocody+Abidjan',
+    mapsLink: 'https://maps.app.goo.gl/rVWsT26ZDLaBCWhW9',
     mapsEmbed:
-      'https://www.google.com/maps?q=Boulevard+Latrille+Cocody+Abidjan&output=embed',
+      'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3775.5511752867687!2d-3.9627225252561202!3d5.403760094575373!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xfc193623ac5095f%3A0x7f92b7dfdde03a30!2sEba%20coffee%20shop!5e1!3m2!1sfr!2sci!4v1778512410241!5m2!1sfr!2sci',
   },
   menu: [
     {

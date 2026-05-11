@@ -2,11 +2,12 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, MapPin } from 'lucide-react';
 import { getOrder } from '@/lib/orders';
 import { formatPickupTime } from '@/lib/format-order';
 import { priceFormatter } from '@/config/menu';
 import type { CartItem } from '@/lib/cart-store';
+import { getPickupSettings } from '@/lib/pickup-settings-db';
 
 export const metadata: Metadata = {
   title: 'Commande confirmée — EBA Coffee Shop',
@@ -17,7 +18,10 @@ type Props = { params: Promise<{ id: string }> };
 
 export default async function CommandePage({ params }: Props) {
   const { id } = await params;
-  const order = await getOrder(id);
+  const [order, settings] = await Promise.all([
+    getOrder(id),
+    getPickupSettings(),
+  ]);
 
   if (!order) notFound();
 
@@ -94,6 +98,47 @@ export default async function CommandePage({ params }: Props) {
             </span>
           </div>
         </div>
+
+        {(settings.pickupAddress || settings.pickupMapsUrl) && (
+          <div className="w-full rounded-xl border border-foreground/10 bg-default-50 p-5">
+            <div className="flex items-start gap-3">
+              <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+              <div className="flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-foreground/40">
+                  Lieu de retrait
+                </p>
+                {settings.pickupAddress && (
+                  <p className="mt-1 text-sm font-medium">
+                    {settings.pickupAddress}
+                  </p>
+                )}
+              </div>
+            </div>
+            {settings.pickupMapsUrl &&
+              (settings.pickupMapsUrl.includes('/maps/embed') ? (
+                <div className="mt-4 overflow-hidden rounded-lg border border-foreground/10">
+                  <iframe
+                    src={settings.pickupMapsUrl}
+                    width="100%"
+                    height="220"
+                    style={{ border: 0 }}
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    title="Carte du lieu de retrait"
+                  />
+                </div>
+              ) : (
+                <a
+                  href={settings.pickupMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Voir sur Google Maps →
+                </a>
+              ))}
+          </div>
+        )}
 
         <p className="text-center text-sm text-foreground/60">
           Présentez-vous au comptoir EBA Coffee Shop à l&apos;heure choisie.

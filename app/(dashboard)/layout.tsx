@@ -1,10 +1,14 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
-import Link from 'next/link';
 import { auth } from '@/lib/auth';
-import { Button } from '@/components/ui/button';
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
+import { DashboardSidebar } from '@/components/(dashboard)/dashboard-sidebar';
 
 export default async function DashboardLayout({
   children,
@@ -22,24 +26,18 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="flex w-56 flex-col border-r">
-        <div className="p-4">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Dashboard
-          </p>
-        </div>
-        <Separator />
-        <nav className="flex flex-1 flex-col gap-1 p-2">
-          <Button variant="ghost" asChild className="w-full justify-start">
-            <Link href="/dashboard/commandes">Commandes</Link>
-          </Button>
-          <Button variant="ghost" asChild className="w-full justify-start">
-            <Link href="/dashboard/menu">Menu</Link>
-          </Button>
-        </nav>
-      </aside>
-      <main className="flex-1 p-8">{children}</main>
-    </div>
+    <SidebarProvider>
+      <DashboardSidebar
+        user={{ name: session.user.name, email: session.user.email }}
+      />
+      <SidebarInset>
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <span className="text-sm font-medium">Dashboard</span>
+        </header>
+        <div className="flex flex-1 flex-col gap-4 p-6">{children}</div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

@@ -37,4 +37,6 @@ export async function updateOrderStatus(
     where: { id },
     data: { status: newStatus },
   });
+
+  await prisma.$accelerate.invalidate({ tags: ['orders'] });
 }

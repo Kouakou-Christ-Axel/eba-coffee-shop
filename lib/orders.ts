@@ -47,7 +47,7 @@ export function generateOrderReference(): string {
 export async function createOrder(input: CreateOrderInput) {
   const reference = generateOrderReference();
 
-  return prisma.order.create({
+  const order = await prisma.order.create({
     data: {
       reference,
       customerName: input.customerName,
@@ -57,6 +57,9 @@ export async function createOrder(input: CreateOrderInput) {
       total: input.total,
     },
   });
+
+  await prisma.$accelerate.invalidate({ tags: ['orders'] });
+  return order;
 }
 
 export async function getOrder(id: string) {

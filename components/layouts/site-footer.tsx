@@ -4,17 +4,21 @@ import Image from 'next/image';
 import React from 'react';
 import { Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Instagram, Music2, MapPin, MessageCircle, Mail } from 'lucide-react';
+import { MapPin, MessageCircle, Mail } from 'lucide-react';
+import {
+  IconBrandInstagram,
+  IconBrandTiktok,
+} from '@tabler/icons-react';
 import { brandConfig } from '@/config/brand.config';
 
 const socialItems = [
   {
     ...brandConfig.links.social.instagram,
-    icon: Instagram,
+    icon: IconBrandInstagram,
   },
   {
     ...brandConfig.links.social.tiktok,
-    icon: Music2,
+    icon: IconBrandTiktok,
   },
 ] as const;
 

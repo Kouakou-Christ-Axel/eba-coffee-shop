@@ -33,7 +33,19 @@
       "Bash(cat vitest.config.js)",
       "Bash(rtk test *)",
       "Bash(git show *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npx eslint *)",
+      "Bash(Select-String -Pattern \"vitest|vite\")",
+      "Bash(rtk lint *)",
+      "Bash(git stash *)",
+      "Bash(rtk sed *)",
+      "Bash(git merge-base *)",
+      "Bash(bunx --bun shadcn@latest add button card separator -y)",
+      "Bash(bunx --bun shadcn@latest add table tabs badge -y)",
+      "Bash(grep -n \"introuvable\\\\|not found\\\\|findUnique.*mockResolvedValue\\(null\\)\" C:\\\\Users\\\\kouax\\\\WebstormProjects\\\\eba-coffee-shop\\\\app\\\\\\\\\\\\\\(dashboard\\\\\\\\\\\\\\)/dashboard/commandes/actions.test.ts)",
+      "Bash(git commit -m ' *)",
+      "Bash(bun vitest *)",
+      "Bash(Select-String -Pattern \"\\(PASS|FAIL|seed|menu|carte\\)\")"
     ]
   }
 }

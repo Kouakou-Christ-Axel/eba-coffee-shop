@@ -1,11 +1,12 @@
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
-import prisma from '@/lib/prisma';
+import { emailOTP } from 'better-auth/plugins/email-otp';
 import { nextCookies } from 'better-auth/next-js';
+import prisma from '@/lib/prisma';
+import { sendOtpEmail } from '@/lib/email';
 
 export async function promoteAdminIfMatch(
   user: { id: string; email: string },
-  _context?: unknown
 ) {
   const adminEmail = process.env.ADMIN_EMAIL;
   if (adminEmail && user.email === adminEmail) {
@@ -30,13 +31,16 @@ export const auth = betterAuth({
       },
     },
   },
-  socialProviders: {
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    },
-  },
-  plugins: [nextCookies()],
+  plugins: [
+    emailOTP({
+      otpLength: 6,
+      expiresIn: 60 * 5,
+      sendVerificationOTP: async ({ email, otp }) => {
+        await sendOtpEmail(email, otp);
+      },
+    }),
+    nextCookies(),
+  ],
   databaseHooks: {
     user: {
       create: {

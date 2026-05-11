@@ -26,6 +26,9 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    $accelerate: {
+      invalidate: vi.fn().mockResolvedValue(undefined),
+    },
   },
 }));
 

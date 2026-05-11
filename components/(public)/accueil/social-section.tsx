@@ -4,7 +4,11 @@ import Image from 'next/image';
 import React from 'react';
 import { Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Instagram, Music2, Play } from 'lucide-react';
+import {
+  IconBrandInstagram,
+  IconBrandTiktok,
+  IconBrandYoutube,
+} from '@tabler/icons-react';
 import { brandConfig } from '@/config/brand.config';
 
 type SocialItem = {
@@ -123,7 +127,9 @@ function SocialSection() {
         >
           {socialItems.map((item, index) => {
             const isInstagram = item.platform === 'Instagram';
-            const PlatformIcon = isInstagram ? Instagram : Music2;
+            const PlatformIcon = isInstagram
+              ? IconBrandInstagram
+              : IconBrandTiktok;
 
             return (
               <motion.li
@@ -163,7 +169,7 @@ function SocialSection() {
                       </span>
                       {item.type === 'video' && (
                         <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm">
-                          <Play aria-hidden="true" className="h-3.5 w-3.5" />
+                          <IconBrandYoutube aria-hidden="true" className="h-3.5 w-3.5" />
                         </span>
                       )}
                     </figcaption>

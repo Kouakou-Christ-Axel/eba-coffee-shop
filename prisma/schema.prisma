@@ -155,3 +155,18 @@ model SupplementOption {
 
   @@map("supplement_option")
 }
+
+model PickupSettings {
+  id              String   @id @default("singleton")
+  slotIntervalMin Int      @default(15)
+  leadTimeMin     Int      @default(30)
+  visibleDays     Int      @default(2)
+  capacityPerSlot Int?
+  weeklyHours     Json     @default("{}")
+  dateOverrides   Json     @default("[]")
+  pickupAddress   String?
+  pickupMapsUrl   String?
+  updatedAt       DateTime @updatedAt
+
+  @@map("pickup_settings")
+}
