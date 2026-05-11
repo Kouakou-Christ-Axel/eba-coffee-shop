@@ -32,7 +32,7 @@ Ajouter le click & collect au site EBA Coffee Shop. Le client commande depuis le
 | 4   | Email de notification (Resend)       | ✅ Terminé |
 | 5   | Dashboard — Auth admin               | ✅ Terminé |
 | 6   | Dashboard — Gestion des commandes    | ✅ Terminé |
-| 7   | Migration menu en base               | ⬜ À faire |
+| 7   | Migration menu en base               | ✅ Terminé |
 | 8   | Dashboard — Gestion du menu + images | ⬜ À faire |
 
 > Mettre à jour le statut : ⬜ À faire → 🔄 En cours → ✅ Terminé
