@@ -102,3 +102,56 @@ model Order {
 
   @@map("order")
 }
+
+model MenuCategory {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  sortOrder Int       @default(0)
+  available Boolean   @default(true)
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("menu_category")
+}
+
+model Product {
+  id               String            @id @default(cuid())
+  name             String
+  description      String
+  price            Int
+  imageUrl         String?
+  available        Boolean           @default(true)
+  sortOrder        Int               @default(0)
+  categoryId       String
+  category         MenuCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  supplementGroups SupplementGroup[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@map("product")
+}
+
+model SupplementGroup {
+  id        String             @id @default(cuid())
+  name      String
+  type      String
+  required  Boolean            @default(false)
+  sortOrder Int                @default(0)
+  productId String
+  product   Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  options   SupplementOption[]
+
+  @@map("supplement_group")
+}
+
+model SupplementOption {
+  id      String          @id @default(cuid())
+  name    String
+  price   Int
+  groupId String
+  group   SupplementGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@map("supplement_option")
+}
