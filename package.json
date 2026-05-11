@@ -17,6 +17,7 @@
     "db:generate": "bunx --bun prisma generate",
     "db:push": "bunx --bun prisma db push",
     "db:studio": "bunx --bun prisma studio",
+    "db:seed": "bun run prisma/seed.ts",
     "prepare": "husky",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -37,6 +38,7 @@
     "lucide-react": "^0.554.0",
     "next": "16.1.7",
     "pg": "^8.20.0",
+    "radix-ui": "^1.4.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "resend": "^6.12.3",
