@@ -51,9 +51,26 @@ describe('NewOrderEmail', () => {
     expect(html).toContain('Cappuccino');
   });
 
+  it('contient la quantité des articles', () => {
+    const html = renderToStaticMarkup(<NewOrderEmail order={mockOrder} />);
+    expect(html).toContain('x2');
+  });
+
+  it('contient le prix unitaire de la ligne article (basePrice+suppl)*qté', () => {
+    // basePrice=3500, supplement=500, qty=2 → lineTotal=8000
+    const html = renderToStaticMarkup(<NewOrderEmail order={mockOrder} />);
+    expect(html).toMatch(/8.000/);
+  });
+
   it('contient le nom des suppléments', () => {
     const html = renderToStaticMarkup(<NewOrderEmail order={mockOrder} />);
     expect(html).toContain('Lait de soja');
+  });
+
+  it('contient le prix des suppléments', () => {
+    const html = renderToStaticMarkup(<NewOrderEmail order={mockOrder} />);
+    // supplement price = 500
+    expect(html).toMatch(/\+.*500.*FCFA/);
   });
 
   it('contient le total en FCFA', () => {

@@ -229,7 +229,7 @@ robots: { index: false, follow: false }
 
 - `RESEND_API_KEY`
 - `OWNER_EMAIL`
-- `NEXT_PUBLIC_APP_URL` (pour le lien dashboard)
+- `NEXT_PUBLIC_SITE_URL` (pour le lien dashboard — déjà présente dans .env.schema)
 
 **Fichiers à créer :**
 

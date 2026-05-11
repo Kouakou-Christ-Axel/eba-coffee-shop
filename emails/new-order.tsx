@@ -18,7 +18,7 @@ type OrderData = {
   customerName: string;
   customerPhone: string;
   pickupTime: Date;
-  items: unknown;
+  items: CartItem[];
   total: number;
 };
 
@@ -27,7 +27,7 @@ type Props = { order: OrderData };
 const priceFormatter = new Intl.NumberFormat('fr-FR');
 
 export default function NewOrderEmail({ order }: Props) {
-  const items = order.items as CartItem[];
+  const items = order.items;
   const pickupFormatted = formatPickupTime(order.pickupTime);
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
 
@@ -59,13 +59,33 @@ export default function NewOrderEmail({ order }: Props) {
           <Hr />
 
           <Heading as="h2">Articles</Heading>
-          {items.map((item, i) => (
-            <Text key={i}>
-              {item.productName} x{item.quantity}
-              {item.supplements.length > 0 &&
-                ` — ${item.supplements.map((s) => s.optionName).join(', ')}`}
-            </Text>
-          ))}
+          {items.map((item) => {
+            const supplementsTotal = item.supplements.reduce(
+              (sum, s) => sum + s.price,
+              0
+            );
+            const lineTotal =
+              (item.basePrice + supplementsTotal) * item.quantity;
+            return (
+              <Text key={item.cartId}>
+                {item.productName} x{item.quantity} —{' '}
+                {priceFormatter.format(lineTotal)} FCFA
+                {item.supplements.length > 0 && (
+                  <>
+                    {'\n'}
+                    <span style={{ color: '#666', fontSize: '0.9em' }}>
+                      {item.supplements
+                        .map(
+                          (s) =>
+                            `${s.optionName} (+${priceFormatter.format(s.price)} FCFA)`
+                        )
+                        .join(', ')}
+                    </span>
+                  </>
+                )}
+              </Text>
+            );
+          })}
           <Text>
             <strong>Total : {priceFormatter.format(order.total)} FCFA</strong>
           </Text>

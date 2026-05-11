@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOrder, createOrderSchema } from '@/lib/orders';
 import { sendNewOrderEmail } from '@/lib/email';
+import type { CartItem } from '@/lib/cart-store';
 
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -24,7 +25,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const order = await createOrder(parsed.data);
-    sendNewOrderEmail(order).catch((err) => {
+    sendNewOrderEmail({
+      ...order,
+      items: order.items as CartItem[],
+    }).catch((err) => {
       console.error('[email] Échec notification propriétaire :', err);
     });
     return NextResponse.json(

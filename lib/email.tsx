@@ -3,6 +3,7 @@ import React from 'react';
 import { Resend } from 'resend';
 import { render } from '@react-email/render';
 import NewOrderEmail from '@/emails/new-order';
+import type { CartItem } from '@/lib/cart-store';
 
 type OrderData = {
   id: string;
@@ -10,7 +11,7 @@ type OrderData = {
   customerName: string;
   customerPhone: string;
   pickupTime: Date;
-  items: unknown;
+  items: CartItem[];
   total: number;
 };
 
