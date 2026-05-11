@@ -17,6 +17,17 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: 'Annulée',
 };
 
+const STATUS_VARIANTS: Record<
+  string,
+  'default' | 'secondary' | 'destructive' | 'outline'
+> = {
+  PENDING: 'secondary',
+  CONFIRMED: 'default',
+  READY: 'default',
+  PICKED_UP: 'outline',
+  CANCELLED: 'destructive',
+};
+
 function formatPickupTime(date: Date): string {
   const dayMonth = new Intl.DateTimeFormat('fr-FR', {
     weekday: 'long',
@@ -59,7 +70,9 @@ export default async function CommandeDetailPage({
             {formatPickupTime(order.pickupTime)}
           </p>
         </div>
-        <Badge variant="secondary">{STATUS_LABELS[order.status]}</Badge>
+        <Badge variant={STATUS_VARIANTS[order.status]}>
+          {STATUS_LABELS[order.status]}
+        </Badge>
       </div>
 
       <Card>

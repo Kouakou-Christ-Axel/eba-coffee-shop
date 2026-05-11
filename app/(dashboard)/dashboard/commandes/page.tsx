@@ -50,7 +50,17 @@ export default async function CommandesPage({
 }) {
   const params = await searchParams;
   const page = Math.max(1, Number(params.page ?? 1));
-  const status = params.status as OrderStatus | undefined;
+  const VALID_STATUSES = new Set([
+    'PENDING',
+    'CONFIRMED',
+    'READY',
+    'PICKED_UP',
+    'CANCELLED',
+  ]);
+  const rawStatus = params.status;
+  const status = (
+    rawStatus && VALID_STATUSES.has(rawStatus) ? rawStatus : undefined
+  ) as OrderStatus | undefined;
 
   const { orders, total, pageSize } = await listOrders({ page, status });
   const totalPages = Math.ceil(total / pageSize);
