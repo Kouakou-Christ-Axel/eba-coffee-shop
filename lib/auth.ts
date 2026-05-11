@@ -3,7 +3,10 @@ import { prismaAdapter } from 'better-auth/adapters/prisma';
 import prisma from '@/lib/prisma';
 import { nextCookies } from 'better-auth/next-js';
 
-export async function promoteAdminIfMatch(user: { id: string; email: string }) {
+export async function promoteAdminIfMatch(
+  user: { id: string; email: string },
+  _context?: unknown
+) {
   const adminEmail = process.env.ADMIN_EMAIL;
   if (adminEmail && user.email === adminEmail) {
     await prisma.user.update({

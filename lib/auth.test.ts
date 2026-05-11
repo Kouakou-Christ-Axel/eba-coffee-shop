@@ -45,7 +45,11 @@ describe('promoteAdminIfMatch', () => {
   });
 
   afterEach(() => {
-    process.env.ADMIN_EMAIL = savedAdminEmail;
+    if (savedAdminEmail === undefined) {
+      delete process.env.ADMIN_EMAIL;
+    } else {
+      process.env.ADMIN_EMAIL = savedAdminEmail;
+    }
   });
 
   it("attribue le rôle ADMIN si l'email correspond à ADMIN_EMAIL", async () => {
