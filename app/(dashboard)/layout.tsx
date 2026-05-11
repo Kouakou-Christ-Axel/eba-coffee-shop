@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 
 export default async function DashboardLayout({
   children,
@@ -20,30 +22,23 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
-      <nav className="w-56 border-r bg-white p-6">
-        <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
-          Dashboard
-        </p>
-        <ul className="space-y-2">
-          <li>
-            <Link
-              href="/dashboard/commandes"
-              className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              Commandes
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/dashboard/menu"
-              className="block rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              Menu
-            </Link>
-          </li>
-        </ul>
-      </nav>
+    <div className="flex min-h-screen bg-background">
+      <aside className="flex w-56 flex-col border-r">
+        <div className="p-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            Dashboard
+          </p>
+        </div>
+        <Separator />
+        <nav className="flex flex-1 flex-col gap-1 p-2">
+          <Button variant="ghost" asChild className="w-full justify-start">
+            <Link href="/dashboard/commandes">Commandes</Link>
+          </Button>
+          <Button variant="ghost" asChild className="w-full justify-start">
+            <Link href="/dashboard/menu">Menu</Link>
+          </Button>
+        </nav>
+      </aside>
       <main className="flex-1 p-8">{children}</main>
     </div>
   );
