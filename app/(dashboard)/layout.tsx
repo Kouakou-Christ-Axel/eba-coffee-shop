@@ -2,6 +2,8 @@ import React from 'react';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
+import { ROLE_GROUPS } from '@/lib/auth-helpers';
+import type { UserRole } from '@/generated/prisma/client';
 import {
   SidebarInset,
   SidebarProvider,
@@ -21,7 +23,8 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
-  if (session.user.role !== 'ADMIN') {
+  const role = session.user.role as UserRole;
+  if (!ROLE_GROUPS.DASHBOARD.includes(role)) {
     redirect('/');
   }
 
@@ -29,6 +32,7 @@ export default async function DashboardLayout({
     <SidebarProvider>
       <DashboardSidebar
         user={{ name: session.user.name, email: session.user.email }}
+        role={role}
       />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">

@@ -2,33 +2,34 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getOrder } from '@/lib/orders';
 import type { CartItem } from '@/lib/cart-store';
-import type { OrderStatus } from '@/generated/prisma';
+import type { OrderStatus } from '@/generated/prisma/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { StatusButtons } from './status-buttons';
 
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'En attente',
-  CONFIRMED: 'Confirmée',
+const STATUS_LABELS: Record<OrderStatus, string> = {
+  NEW: 'Nouvelle',
+  PREPARING: 'En cours',
   READY: 'Prête',
-  PICKED_UP: 'Récupérée',
+  COMPLETED: 'Récupérée',
   CANCELLED: 'Annulée',
 };
 
 const STATUS_VARIANTS: Record<
-  string,
+  OrderStatus,
   'default' | 'secondary' | 'destructive' | 'outline'
 > = {
-  PENDING: 'secondary',
-  CONFIRMED: 'default',
+  NEW: 'secondary',
+  PREPARING: 'default',
   READY: 'default',
-  PICKED_UP: 'outline',
+  COMPLETED: 'outline',
   CANCELLED: 'destructive',
 };
 
-function formatPickupTime(date: Date): string {
+function formatPickupTime(date: Date | null): string {
+  if (!date) return 'Sans créneau (walk-in)';
   const dayMonth = new Intl.DateTimeFormat('fr-FR', {
     weekday: 'long',
     day: 'numeric',
@@ -65,14 +66,24 @@ export default async function CommandeDetailPage({
           <Button variant="ghost" size="sm" asChild className="-ml-3 mb-2">
             <Link href="/dashboard/commandes">← Retour</Link>
           </Button>
-          <h1 className="font-mono text-2xl font-bold">{order.reference}</h1>
-          <p className="text-muted-foreground">
+          <h1 className="font-mono text-2xl font-bold">
+            #{String(order.dailyNumber).padStart(3, '0')}
+          </h1>
+          <p className="font-mono text-xs text-muted-foreground">
+            {order.reference}
+          </p>
+          <p className="mt-1 text-muted-foreground">
             {formatPickupTime(order.pickupTime)}
           </p>
         </div>
-        <Badge variant={STATUS_VARIANTS[order.status]}>
-          {STATUS_LABELS[order.status]}
-        </Badge>
+        <div className="flex flex-col items-end gap-2">
+          <Badge variant={STATUS_VARIANTS[order.status]}>
+            {STATUS_LABELS[order.status]}
+          </Badge>
+          <Badge variant={order.isPaid ? 'default' : 'secondary'}>
+            {order.isPaid ? 'Payée' : 'Non payée'}
+          </Badge>
+        </div>
       </div>
 
       <Card>
@@ -80,8 +91,10 @@ export default async function CommandeDetailPage({
           <CardTitle>Client</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
-          <p className="font-medium">{order.customerName}</p>
-          <p className="text-muted-foreground">{order.customerPhone}</p>
+          <p className="font-medium">
+            {order.customerName ?? 'Client anonyme'}
+          </p>
+          <p className="text-muted-foreground">{order.customerPhone ?? '—'}</p>
         </CardContent>
       </Card>
 

@@ -1,7 +1,9 @@
 // lib/orders.ts
 import { z } from 'zod';
-import type { OrderStatus } from '@/generated/prisma';
+import type { OrderStatus, OrderType } from '@/generated/prisma/client';
+import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
+import { getNextDailyNumber, todayDailyDate } from '@/lib/daily-numbering';
 
 // ─── Schémas Zod ──────────────────────────────────────────────────────────────
 
@@ -42,24 +44,47 @@ export function generateOrderReference(): string {
   return `EBA-${dateStr}-${suffix}`;
 }
 
-// ─── Opérations DB ────────────────────────────────────────────────────────────
+// ─── createOrder (public, online) ─────────────────────────────────────────────
+// Toujours TAKEAWAY pour les commandes online (cf. plan).
+
+const MAX_DAILY_NUMBER_RETRIES = 3;
 
 export async function createOrder(input: CreateOrderInput) {
-  const reference = generateOrderReference();
+  const dailyDate = todayDailyDate();
 
-  const order = await prisma.order.create({
-    data: {
-      reference,
-      customerName: input.customerName,
-      customerPhone: input.customerPhone,
-      pickupTime: new Date(input.pickupTime),
-      items: input.items,
-      total: input.total,
-    },
-  });
+  for (let attempt = 0; attempt < MAX_DAILY_NUMBER_RETRIES; attempt++) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const dailyNumber = await getNextDailyNumber(tx, dailyDate);
+        const reference = generateOrderReference();
 
-  await prisma.$accelerate.invalidate({ tags: ['orders'] });
-  return order;
+        return tx.order.create({
+          data: {
+            reference,
+            dailyDate,
+            dailyNumber,
+            customerName: input.customerName,
+            customerPhone: input.customerPhone,
+            pickupTime: new Date(input.pickupTime),
+            orderType: 'TAKEAWAY' satisfies OrderType,
+            items: input.items,
+            total: input.total,
+          },
+        });
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002' &&
+        attempt < MAX_DAILY_NUMBER_RETRIES - 1
+      ) {
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw new Error('Impossible de générer un numéro de commande quotidien');
 }
 
 export async function getOrder(id: string) {
@@ -71,12 +96,23 @@ export async function getOrder(id: string) {
 export interface ListOrdersParams {
   page: number;
   status?: OrderStatus;
+  /** Filtre par jour civil (dailyDate à 00:00 local). Si omis, pas de filtre. */
+  dailyDate?: Date;
 }
 
-export async function listOrders({ page, status }: ListOrdersParams) {
+export async function listOrders({
+  page,
+  status,
+  dailyDate,
+}: ListOrdersParams) {
   const pageSize = 20;
   const skip = (page - 1) * pageSize;
-  const where = status ? { status } : {};
+  const where: {
+    status?: OrderStatus;
+    dailyDate?: Date;
+  } = {};
+  if (status) where.status = status;
+  if (dailyDate) where.dailyDate = dailyDate;
 
   const [orders, total] = await Promise.all([
     prisma.order.findMany({

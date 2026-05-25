@@ -1,5 +1,6 @@
 // prisma/seed.ts
 import { PrismaClient } from '@/generated/prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { menu } from '@/config/menu';
 
 type SeedablePrisma = {
@@ -44,7 +45,9 @@ export async function seedMenu(prisma: SeedablePrisma) {
 }
 
 async function main() {
-  const prisma = new PrismaClient();
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+  });
   try {
     await seedMenu(prisma as SeedablePrisma);
     console.log('Seed terminé avec succès.');
@@ -54,6 +57,7 @@ async function main() {
 }
 
 // Bun : import.meta.main est true uniquement quand ce fichier est l'entrypoint
+// @ts-expect-error -- propriété Bun-spécifique non typée dans le DOM lib standard
 if (import.meta.main) {
   main().catch((err) => {
     console.error(err);

@@ -14,8 +14,8 @@ datasource db {
 }
 
 model User {
-  id    String  @id @default(uuid())
-  email String  @unique
+  id    String   @id @default(uuid())
+  email String   @unique
   name  String?
   role  UserRole @default(USER)
 
@@ -25,6 +25,7 @@ model User {
   image         String?
   sessions      Session[]
   accounts      Account[]
+  createdOrders Order[]   @relation("OrderCreatedBy")
 
   @@map("user")
 }
@@ -77,29 +78,60 @@ model Verification {
 enum UserRole {
   USER
   ADMIN
+  CASHIER
+  KITCHEN
 }
 
 enum OrderStatus {
-  PENDING
-  CONFIRMED
+  NEW
+  PREPARING
   READY
-  PICKED_UP
+  COMPLETED
   CANCELLED
 }
 
+enum OrderType {
+  DELIVERY
+  DINE_IN
+  TAKEAWAY
+}
+
+enum PaymentMode {
+  CASH
+  WAVE
+  OTHER
+}
+
 model Order {
-  id            String      @id @default(cuid())
-  reference     String      @unique
-  customerName  String
-  customerPhone String
-  pickupTime    DateTime
+  id            String       @id @default(cuid())
+  reference     String       @unique
+  dailyDate     DateTime     @db.Date
+  dailyNumber   Int
+  customerName  String?
+  customerPhone String?
+  pickupTime    DateTime?
+  orderType     OrderType    @default(TAKEAWAY)
   items         Json
   total         Int
-  status        OrderStatus @default(PENDING)
+  status        OrderStatus  @default(NEW)
   note          String?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
 
+  isPaid            Boolean      @default(false)
+  paymentMode       PaymentMode?
+  paidAt            DateTime?
+
+  driverRequested   Boolean   @default(false)
+  driverRequestedAt DateTime?
+
+  createdById String?
+  createdBy   User?   @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dailyDate, dailyNumber])
+  @@index([status, isPaid])
+  @@index([createdAt(sort: Desc)])
   @@map("order")
 }
 

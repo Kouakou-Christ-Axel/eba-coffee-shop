@@ -1,65 +1,45 @@
 'use server';
 
-import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { endOfDay, startOfDay } from 'date-fns';
-import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import type { CartItem } from '@/lib/cart-store';
-
-export type PreparationOrder = {
-  id: string;
-  reference: string;
-  customerName: string;
-  customerPhone: string;
-  pickupTime: Date;
-  items: CartItem[];
-  note: string | null;
-  total: number;
-  status: 'PENDING' | 'CONFIRMED';
-};
-
-async function requireAdmin() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session || session.user.role !== 'ADMIN') {
-    throw new Error('Non autorisé');
-  }
-}
+import { requireKitchen } from '@/lib/auth-helpers';
+import {
+  fetchPreparationQueue,
+  type PreparationOrder,
+} from '@/lib/preparation-queue';
+import { canRequestDriver } from '@/lib/order-permissions';
+import type { UserRole } from '@/generated/prisma/client';
 
 export async function getPreparationQueue(): Promise<PreparationOrder[]> {
-  await requireAdmin();
+  await requireKitchen();
+  return fetchPreparationQueue();
+}
 
-  const now = new Date();
-  const orders = await prisma.order.findMany({
-    where: {
-      status: { in: ['PENDING', 'CONFIRMED'] },
-      pickupTime: {
-        gte: startOfDay(now),
-        lte: endOfDay(now),
-      },
-    },
-    orderBy: { pickupTime: 'asc' },
+export async function startPreparation(id: string): Promise<void> {
+  await requireKitchen();
+
+  const result = await prisma.order.updateMany({
+    where: { id, status: 'NEW' },
+    data: { status: 'PREPARING' },
   });
 
-  return orders.map((o) => ({
-    id: o.id,
-    reference: o.reference,
-    customerName: o.customerName,
-    customerPhone: o.customerPhone,
-    pickupTime: o.pickupTime,
-    items: o.items as CartItem[],
-    note: o.note,
-    total: o.total,
-    status: o.status as 'PENDING' | 'CONFIRMED',
-  }));
+  if (result.count === 0) {
+    throw new Error(
+      'Impossible de démarrer : commande introuvable ou déjà en préparation'
+    );
+  }
+
+  revalidatePath('/dashboard/preparation');
+  revalidatePath('/dashboard/caisse');
+  revalidatePath('/dashboard/commandes');
 }
 
 export async function markOrderReady(id: string): Promise<void> {
-  await requireAdmin();
+  await requireKitchen();
 
   const order = await prisma.order.findUnique({ where: { id } });
   if (!order) throw new Error('Commande introuvable');
-  if (order.status !== 'PENDING' && order.status !== 'CONFIRMED') {
+  if (order.status !== 'NEW' && order.status !== 'PREPARING') {
     throw new Error(`Impossible de marquer "prête" depuis ${order.status}`);
   }
 
@@ -68,17 +48,17 @@ export async function markOrderReady(id: string): Promise<void> {
     data: { status: 'READY' },
   });
 
-  await prisma.$accelerate.invalidate({ tags: ['orders'] });
   revalidatePath('/dashboard/preparation');
+  revalidatePath('/dashboard/caisse');
   revalidatePath('/dashboard/commandes');
 }
 
 export async function cancelOrderFromKitchen(id: string): Promise<void> {
-  await requireAdmin();
+  await requireKitchen();
 
   const order = await prisma.order.findUnique({ where: { id } });
   if (!order) throw new Error('Commande introuvable');
-  if (order.status !== 'PENDING' && order.status !== 'CONFIRMED') {
+  if (order.status !== 'NEW' && order.status !== 'PREPARING') {
     throw new Error(`Impossible d'annuler depuis ${order.status}`);
   }
 
@@ -87,7 +67,27 @@ export async function cancelOrderFromKitchen(id: string): Promise<void> {
     data: { status: 'CANCELLED' },
   });
 
-  await prisma.$accelerate.invalidate({ tags: ['orders'] });
   revalidatePath('/dashboard/preparation');
+  revalidatePath('/dashboard/caisse');
   revalidatePath('/dashboard/commandes');
+}
+
+export async function requestDriver(id: string): Promise<void> {
+  const session = await requireKitchen();
+  const role = session.user.role as UserRole;
+  if (!canRequestDriver(role)) {
+    throw new Error('Non autorisé');
+  }
+
+  const result = await prisma.order.updateMany({
+    where: { id, driverRequested: false },
+    data: { driverRequested: true, driverRequestedAt: new Date() },
+  });
+
+  if (result.count === 0) {
+    throw new Error('Demande déjà envoyée ou commande introuvable');
+  }
+
+  revalidatePath('/dashboard/preparation');
+  revalidatePath('/dashboard/caisse');
 }

@@ -4,10 +4,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const TABS = [
   { value: 'all', label: 'Toutes' },
-  { value: 'PENDING', label: 'En attente' },
-  { value: 'CONFIRMED', label: 'Confirmées' },
+  { value: 'NEW', label: 'Nouvelles' },
+  { value: 'PREPARING', label: 'En cours' },
   { value: 'READY', label: 'Prêtes' },
-  { value: 'PICKED_UP', label: 'Récupérées' },
+  { value: 'COMPLETED', label: 'Récupérées' },
   { value: 'CANCELLED', label: 'Annulées' },
 ];
 

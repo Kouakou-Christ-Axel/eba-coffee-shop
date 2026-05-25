@@ -26,7 +26,9 @@ export default async function CommandePage({ params }: Props) {
   if (!order) notFound();
 
   const items = order.items as unknown as CartItem[];
-  const pickupFormatted = formatPickupTime(order.pickupTime);
+  const pickupFormatted = order.pickupTime
+    ? formatPickupTime(order.pickupTime)
+    : 'À retirer dès que prêt';
 
   return (
     <div className="mx-auto max-w-xl px-4 py-12">
@@ -36,7 +38,8 @@ export default async function CommandePage({ params }: Props) {
         <div className="text-center">
           <h1 className="text-2xl font-bold">Commande confirmée&nbsp;!</h1>
           <p className="mt-1 text-sm text-foreground/60">
-            Bonjour {order.customerName}, votre commande a bien été enregistrée.
+            Bonjour {order.customerName ?? 'cher client'}, votre commande a bien
+            été enregistrée.
           </p>
         </div>
 
@@ -55,7 +58,7 @@ export default async function CommandePage({ params }: Props) {
             </p>
             <p>
               <span className="text-foreground/50">Téléphone&nbsp;:</span>{' '}
-              {order.customerPhone}
+              {order.customerPhone ?? '—'}
             </p>
           </div>
         </div>

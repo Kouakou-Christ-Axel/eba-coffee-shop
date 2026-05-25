@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: eba_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: eba_coffee_shop
+    # Hôte 5433 → conteneur 5432 (5432 hôte déjà pris par un Postgres local)
+    ports:
+      - '5433:5432'
+    volumes:
+      - eba_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d eba_coffee_shop']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  eba_postgres_data:

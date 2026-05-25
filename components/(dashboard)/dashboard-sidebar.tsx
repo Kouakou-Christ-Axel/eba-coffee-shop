@@ -9,7 +9,9 @@ import {
   LayoutDashboard,
   LogOut,
   Settings,
+  ShoppingBag,
   UtensilsCrossed,
+  Users,
 } from 'lucide-react';
 
 import {
@@ -25,19 +27,58 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { authClient } from '@/lib/auth-client';
+import type { UserRole } from '@/generated/prisma/client';
 
 type NavItem = {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  roles: UserRole[];
 };
 
 const navItems: NavItem[] = [
-  { label: 'Vue d’ensemble', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Préparation', href: '/dashboard/preparation', icon: ChefHat },
-  { label: 'Commandes', href: '/dashboard/commandes', icon: ClipboardList },
-  { label: 'Menu', href: '/dashboard/menu', icon: UtensilsCrossed },
-  { label: 'Paramètres', href: '/dashboard/parametres', icon: Settings },
+  {
+    label: 'Vue d’ensemble',
+    href: '/dashboard',
+    icon: LayoutDashboard,
+    roles: ['ADMIN', 'CASHIER'],
+  },
+  {
+    label: 'Caisse',
+    href: '/dashboard/caisse',
+    icon: ShoppingBag,
+    roles: ['ADMIN', 'CASHIER'],
+  },
+  {
+    label: 'Préparation',
+    href: '/dashboard/preparation',
+    icon: ChefHat,
+    roles: ['ADMIN', 'CASHIER', 'KITCHEN'],
+  },
+  {
+    label: 'Commandes',
+    href: '/dashboard/commandes',
+    icon: ClipboardList,
+    roles: ['ADMIN', 'CASHIER'],
+  },
+  {
+    label: 'Menu',
+    href: '/dashboard/menu',
+    icon: UtensilsCrossed,
+    roles: ['ADMIN'],
+  },
+  {
+    label: 'Paramètres',
+    href: '/dashboard/parametres',
+    icon: Settings,
+    roles: ['ADMIN'],
+  },
+  {
+    label: 'Utilisateurs',
+    href: '/dashboard/utilisateurs',
+    icon: Users,
+    roles: ['ADMIN'],
+  },
 ];
 
 function isItemActive(pathname: string, href: string) {
@@ -52,11 +93,14 @@ type DashboardSidebarProps = {
     name?: string | null;
     email?: string | null;
   };
+  role: UserRole;
 };
 
-export function DashboardSidebar({ user }: DashboardSidebarProps) {
+export function DashboardSidebar({ user, role }: DashboardSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+
+  const visibleItems = navItems.filter((item) => item.roles.includes(role));
 
   const handleSignOut = async () => {
     await authClient.signOut();
@@ -75,7 +119,7 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
               EBA Coffee
             </span>
             <span className="text-xs text-muted-foreground leading-tight">
-              Administration
+              {roleLabel(role)}
             </span>
           </div>
         </div>
@@ -85,7 +129,7 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => {
+              {visibleItems.map((item) => {
                 const Icon = item.icon;
                 const active = isItemActive(pathname, item.href);
                 return (
@@ -113,7 +157,7 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
             <div className="flex items-center gap-2 px-2 py-1.5 group-data-[collapsible=icon]:hidden">
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-sm font-medium">
-                  {user.name ?? 'Admin'}
+                  {user.name ?? 'Staff'}
                 </span>
                 {user.email && (
                   <span className="truncate text-xs text-muted-foreground">
@@ -124,10 +168,7 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
             </div>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={handleSignOut}
-              tooltip="Se déconnecter"
-            >
+            <SidebarMenuButton onClick={handleSignOut} tooltip="Se déconnecter">
               <LogOut />
               <span>Se déconnecter</span>
             </SidebarMenuButton>
@@ -136,4 +177,17 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
       </SidebarFooter>
     </Sidebar>
   );
+}
+
+function roleLabel(role: UserRole): string {
+  switch (role) {
+    case 'ADMIN':
+      return 'Administration';
+    case 'CASHIER':
+      return 'Caisse';
+    case 'KITCHEN':
+      return 'Préparation';
+    default:
+      return 'Staff';
+  }
 }

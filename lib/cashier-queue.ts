@@ -1,0 +1,75 @@
+// lib/cashier-queue.ts
+//
+// Snapshot pour l'écran caisse. Filtre :
+//   - toute commande du jour PAS encore COMPLETED ni CANCELLED
+//   - OU toute commande encore non payée (même si remise — anomalie à régler)
+//
+// Tri : pickupTime asc avec null en dernier (les commandes online avec créneau
+// remontent), puis createdAt asc pour les walk-in et égalités.
+//
+// Importable par server actions ET route handlers (pas de 'use server').
+
+import { endOfDay, startOfDay } from 'date-fns';
+import prisma from '@/lib/prisma';
+import type { CartItem } from '@/lib/cart-store';
+import type {
+  OrderStatus,
+  OrderType,
+  PaymentMode,
+} from '@/generated/prisma/client';
+
+export type CashierOrder = {
+  id: string;
+  reference: string;
+  dailyNumber: number;
+  customerName: string | null;
+  customerPhone: string | null;
+  pickupTime: Date | null;
+  orderType: OrderType;
+  items: CartItem[];
+  note: string | null;
+  total: number;
+  status: OrderStatus;
+  isPaid: boolean;
+  paymentMode: PaymentMode | null;
+  driverRequested: boolean;
+  createdAt: Date;
+};
+
+export async function fetchCashierQueue(): Promise<CashierOrder[]> {
+  const now = new Date();
+  const dayStart = startOfDay(now);
+  const dayEnd = endOfDay(now);
+
+  const orders = await prisma.order.findMany({
+    where: {
+      createdAt: { gte: dayStart, lte: dayEnd },
+      OR: [
+        { status: { in: ['NEW', 'PREPARING', 'READY'] } },
+        { isPaid: false },
+      ],
+    },
+    orderBy: [
+      { pickupTime: { sort: 'asc', nulls: 'last' } },
+      { createdAt: 'asc' },
+    ],
+  });
+
+  return orders.map((o) => ({
+    id: o.id,
+    reference: o.reference,
+    dailyNumber: o.dailyNumber,
+    customerName: o.customerName,
+    customerPhone: o.customerPhone,
+    pickupTime: o.pickupTime,
+    orderType: o.orderType,
+    items: o.items as CartItem[],
+    note: o.note,
+    total: o.total,
+    status: o.status,
+    isPaid: o.isPaid,
+    paymentMode: o.paymentMode,
+    driverRequested: o.driverRequested,
+    createdAt: o.createdAt,
+  }));
+}

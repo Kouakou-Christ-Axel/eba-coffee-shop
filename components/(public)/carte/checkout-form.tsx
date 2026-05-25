@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { Button, Input, Tabs, Tab } from '@heroui/react';
+import { Button, Input } from '@heroui/react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ArrowLeft, Clock } from 'lucide-react';
 import {
   submitCheckoutForm,
@@ -81,18 +82,13 @@ export function CheckoutForm({ items, total, onBack, onSuccess }: Props) {
     return map;
   }, [slots]);
 
-  const dayKeys = useMemo(
-    () => Array.from(slotsByDay.keys()),
-    [slotsByDay]
-  );
+  const dayKeys = useMemo(() => Array.from(slotsByDay.keys()), [slotsByDay]);
 
   const [activeDay, setActiveDay] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (activeDay === null && dayKeys.length > 0) {
-      setActiveDay(dayKeys[0]);
-    }
-  }, [dayKeys, activeDay]);
+  if (activeDay === null && dayKeys.length > 0) {
+    setActiveDay(dayKeys[0]);
+  }
 
   const selectedDate = selectedSlot ? new Date(selectedSlot) : null;
   const selectedLabel = selectedDate
@@ -224,7 +220,7 @@ export function CheckoutForm({ items, total, onBack, onSuccess }: Props) {
       />
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-baseline justify-between">
+        <div className="flex w-full items-baseline justify-between">
           <p className="text-sm font-medium">Créneau de retrait</p>
           {selectedLabel && (
             <span className="flex items-center gap-1 text-xs text-primary">
@@ -249,23 +245,24 @@ export function CheckoutForm({ items, total, onBack, onSuccess }: Props) {
             Aucun créneau disponible pour le moment.
           </p>
         ) : (
-          <Tabs
-            aria-label="Jour de retrait"
-            selectedKey={activeDay ?? dayKeys[0]}
-            onSelectionChange={(key) => setActiveDay(String(key))}
-            variant="solid"
-            color="primary"
-            radius="md"
-            fullWidth
-            classNames={{ tabList: 'bg-foreground/5' }}
-          >
+          <Tabs value={activeDay ?? dayKeys[0]} onValueChange={setActiveDay}>
+            <TabsList className="w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {dayKeys.map((key) => {
+                const daySlots = slotsByDay.get(key) ?? [];
+                const sample = daySlots[0];
+                return (
+                  <TabsTrigger key={key} value={key}>
+                    {sample ? dayLabel(sample, today) : key}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
             {dayKeys.map((key) => {
               const daySlots = slotsByDay.get(key) ?? [];
-              const sample = daySlots[0];
               return (
-                <Tab key={key} title={sample ? dayLabel(sample, today) : key}>
+                <TabsContent key={key} value={key}>
                   {renderSlotPeriods(daySlots)}
-                </Tab>
+                </TabsContent>
               );
             })}
           </Tabs>

@@ -1,35 +1,23 @@
 'use server';
 
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import type { OrderStatus } from '@/generated/prisma';
-
-const VALID_TRANSITIONS: Record<string, OrderStatus[]> = {
-  PENDING: ['CONFIRMED', 'CANCELLED'],
-  CONFIRMED: ['READY', 'CANCELLED'],
-  READY: ['PICKED_UP'],
-  PICKED_UP: [],
-  CANCELLED: [],
-};
+import { requireCashier } from '@/lib/auth-helpers';
+import { canTransition } from '@/lib/order-permissions';
+import type { OrderStatus, UserRole } from '@/generated/prisma/client';
 
 export async function updateOrderStatus(
   id: string,
   newStatus: OrderStatus
 ): Promise<void> {
-  const session = await auth.api.getSession({ headers: await headers() });
-
-  if (!session || session.user.role !== 'ADMIN') {
-    throw new Error('Non autorisé');
-  }
+  const session = await requireCashier();
+  const role = session.user.role as UserRole;
 
   const order = await prisma.order.findUnique({ where: { id } });
   if (!order) {
     throw new Error('Commande introuvable');
   }
 
-  const allowed = VALID_TRANSITIONS[order.status] ?? [];
-  if (!allowed.includes(newStatus)) {
+  if (!canTransition(order.status, newStatus, role)) {
     throw new Error(`Transition invalide : ${order.status} → ${newStatus}`);
   }
 
@@ -37,6 +25,4 @@ export async function updateOrderStatus(
     where: { id },
     data: { status: newStatus },
   });
-
-  await prisma.$accelerate.invalidate({ tags: ['orders'] });
 }

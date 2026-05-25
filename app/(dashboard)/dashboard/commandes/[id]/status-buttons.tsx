@@ -2,26 +2,26 @@
 import { useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { updateOrderStatus } from '../actions';
-import type { OrderStatus } from '@/generated/prisma';
+import type { OrderStatus } from '@/generated/prisma/client';
 
 const ACTIONS: Record<
-  string,
+  OrderStatus,
   {
     label: string;
     next: OrderStatus;
     variant?: 'default' | 'destructive' | 'outline';
   }[]
 > = {
-  PENDING: [
-    { label: 'Confirmer', next: 'CONFIRMED' },
+  NEW: [
+    { label: 'Démarrer la préparation', next: 'PREPARING' },
     { label: 'Annuler', next: 'CANCELLED', variant: 'destructive' },
   ],
-  CONFIRMED: [
+  PREPARING: [
     { label: 'Marquer comme prête', next: 'READY' },
     { label: 'Annuler', next: 'CANCELLED', variant: 'destructive' },
   ],
-  READY: [{ label: 'Marquer comme récupérée', next: 'PICKED_UP' }],
-  PICKED_UP: [],
+  READY: [{ label: 'Marquer comme récupérée', next: 'COMPLETED' }],
+  COMPLETED: [],
   CANCELLED: [],
 };
 

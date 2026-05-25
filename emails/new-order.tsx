@@ -15,9 +15,9 @@ import type { CartItem } from '@/lib/cart-store';
 type OrderData = {
   id: string;
   reference: string;
-  customerName: string;
-  customerPhone: string;
-  pickupTime: Date;
+  customerName: string | null;
+  customerPhone: string | null;
+  pickupTime: Date | null;
   items: CartItem[];
   total: number;
 };
@@ -28,7 +28,9 @@ const priceFormatter = new Intl.NumberFormat('fr-FR');
 
 export default function NewOrderEmail({ order }: Props) {
   const items = order.items;
-  const pickupFormatted = formatPickupTime(order.pickupTime);
+  const pickupFormatted = order.pickupTime
+    ? formatPickupTime(order.pickupTime)
+    : 'Walk-in (sans créneau)';
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
 
   return (
@@ -50,10 +52,10 @@ export default function NewOrderEmail({ order }: Props) {
 
           <Heading as="h2">Client</Heading>
           <Text>
-            <strong>Prénom :</strong> {order.customerName}
+            <strong>Prénom :</strong> {order.customerName ?? 'Anonyme'}
           </Text>
           <Text>
-            <strong>Téléphone :</strong> {order.customerPhone}
+            <strong>Téléphone :</strong> {order.customerPhone ?? '—'}
           </Text>
 
           <Hr />

@@ -58,7 +58,7 @@ export async function getAvailablePickupSlots(now: Date): Promise<Date[]> {
 
   const orders = await prisma.order.findMany({
     where: {
-      status: { in: ['PENDING', 'CONFIRMED', 'READY'] },
+      status: { in: ['NEW', 'PREPARING', 'READY'] },
       pickupTime: { in: candidates },
     },
     select: { pickupTime: true },
@@ -66,6 +66,7 @@ export async function getAvailablePickupSlots(now: Date): Promise<Date[]> {
 
   const counts = new Map<number, number>();
   for (const o of orders) {
+    if (!o.pickupTime) continue;
     const key = o.pickupTime.getTime();
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
