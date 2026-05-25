@@ -1,18 +1,23 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { formatDistanceToNowStrict } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import {
   Bike,
   Coffee,
   ShoppingBag,
   StickyNote,
   AlertTriangle,
+  Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { OrderType } from '@/generated/prisma/client';
+import {
+  formatElapsedShort,
+  isPickupOverdue,
+  URGENCY_STYLES,
+  type UrgencyLevel,
+} from './urgency';
 
 const priceFormatter = new Intl.NumberFormat('fr-FR');
 
@@ -38,27 +43,34 @@ function getPaymentBadge(order: CashierOrder): PaymentBadge {
 
 type Props = {
   order: CashierOrder;
+  urgency?: UrgencyLevel;
+  now?: Date;
   actions?: ReactNode;
 };
 
-export function OrderCard({ order, actions }: Props) {
+export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
   const typeMeta = ORDER_TYPE_META[order.orderType];
   const TypeIcon = typeMeta.Icon;
   const payment = getPaymentBadge(order);
-  const elapsed = formatDistanceToNowStrict(order.createdAt, {
-    locale: fr,
-    addSuffix: true,
-  });
+  const tickNow = now ?? new Date();
+  const elapsed = formatElapsedShort(order.createdAt, tickNow);
+  const overdue = isPickupOverdue(order, tickNow);
+  const urgencyStyle = URGENCY_STYLES[urgency];
 
   const itemsSummary = order.items
     .map((i) => `${i.quantity}× ${i.productName}`)
     .join(' · ');
 
   return (
-    <article className="animate-in fade-in-0 slide-in-from-top-2 duration-300 rounded-2xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+    <article
+      className={cn(
+        'animate-in fade-in-0 slide-in-from-top-2 duration-300 rounded-2xl border-2 bg-card p-4 shadow-sm transition-shadow hover:shadow-md',
+        urgencyStyle.borderClass
+      )}
+    >
       {/* Ligne 1 : type icon + numéro + nom + badge paiement */}
       <header className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2.5 min-w-0">
+        <div className="flex min-w-0 items-start gap-2.5">
           <TypeIcon
             className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground"
             aria-label={typeMeta.label}
@@ -73,15 +85,50 @@ export function OrderCard({ order, actions }: Props) {
                 {order.customerName ?? 'Client anonyme'}
               </span>
             </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {order.customerPhone ?? '—'}
-              <span className="px-1.5">·</span>
-              {elapsed}
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs">
+              {order.customerPhone && (
+                <>
+                  <span className="text-muted-foreground">
+                    {order.customerPhone}
+                  </span>
+                  <span className="text-muted-foreground">·</span>
+                </>
+              )}
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 tabular-nums',
+                  urgencyStyle.textClass
+                )}
+              >
+                <Clock className="h-3 w-3" aria-hidden="true" />
+                {elapsed}
+              </span>
             </p>
           </div>
         </div>
         <PaymentBadgePill payment={payment} />
       </header>
+
+      {/* Override pickupTime dépassé */}
+      {overdue && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg bg-red-100 px-3 py-2 text-xs font-medium text-red-900 ring-1 ring-red-300 dark:bg-red-950/40 dark:text-red-100 dark:ring-red-800">
+          <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>
+            Créneau de retrait dépassé
+            {order.pickupTime && (
+              <>
+                {' '}
+                (
+                {order.pickupTime.toLocaleTimeString('fr-FR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+                )
+              </>
+            )}
+          </span>
+        </div>
+      )}
 
       {/* Signal cuisine "demander livreur" */}
       {order.driverRequested && (
@@ -111,7 +158,7 @@ export function OrderCard({ order, actions }: Props) {
         </span>
       </p>
 
-      {/* Slot actions (Phase 3) */}
+      {/* Slot actions */}
       {actions && <div className="mt-3">{actions}</div>}
     </article>
   );

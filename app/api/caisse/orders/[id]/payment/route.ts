@@ -53,30 +53,48 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const { isPaid, paymentMode } = parsed.data;
 
-  // Optimistic concurrency : ne modifie que si l'état actuel diffère
-  const result = await prisma.order.updateMany({
-    where: { id, isPaid: !isPaid },
-    data: {
-      isPaid,
-      paymentMode: isPaid ? paymentMode : null,
-      paidAt: isPaid ? new Date() : null,
-    },
+  // Lecture pour vérifier le statut courant — on doit transitionner
+  // NEW → PREPARING en même temps que le paiement (comportement par défaut :
+  // payer envoie automatiquement la commande en cuisine).
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { isPaid: true, status: true },
   });
-
-  if (result.count === 0) {
-    // Soit la commande n'existe pas, soit elle était déjà dans cet état
-    const order = await prisma.order.findUnique({ where: { id } });
-    if (!order) {
-      return NextResponse.json(
-        { error: 'Commande introuvable' },
-        { status: 404 }
-      );
-    }
+  if (!order) {
+    return NextResponse.json(
+      { error: 'Commande introuvable' },
+      { status: 404 }
+    );
+  }
+  if (order.isPaid === isPaid) {
     return NextResponse.json(
       { error: 'État déjà à jour', currentIsPaid: order.isPaid },
       { status: 409 }
     );
   }
 
-  return NextResponse.json({ ok: true });
+  // Si on encaisse une commande encore NEW, on la pousse aussi en cuisine.
+  const shouldStartPreparation = isPaid && order.status === 'NEW';
+
+  const result = await prisma.order.updateMany({
+    where: { id, isPaid: !isPaid },
+    data: {
+      isPaid,
+      paymentMode: isPaid ? paymentMode : null,
+      paidAt: isPaid ? new Date() : null,
+      ...(shouldStartPreparation ? { status: 'PREPARING' as const } : {}),
+    },
+  });
+
+  if (result.count === 0) {
+    return NextResponse.json(
+      { error: 'État modifié entre temps, recharger' },
+      { status: 409 }
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    startedPreparation: shouldStartPreparation,
+  });
 }

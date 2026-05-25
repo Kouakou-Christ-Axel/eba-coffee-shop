@@ -49,10 +49,8 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
         { isPaid: false },
       ],
     },
-    orderBy: [
-      { pickupTime: { sort: 'asc', nulls: 'last' } },
-      { createdAt: 'asc' },
-    ],
+    // FIFO strict : la commande la plus ancienne en haut.
+    orderBy: { createdAt: 'asc' },
   });
 
   return orders.map((o) => ({

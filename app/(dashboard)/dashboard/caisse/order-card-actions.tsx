@@ -1,7 +1,14 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Phone, MessageCircle, Check, CheckCheck, BellOff } from 'lucide-react';
+import {
+  Phone,
+  MessageCircle,
+  Check,
+  CheckCheck,
+  BellOff,
+  ChefHat,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   buildTelLink,
@@ -49,6 +56,7 @@ export function OrderCardActions({ order }: { order: CashierOrder }) {
       customerName: order.customerName,
       dailyNumber: order.dailyNumber,
       amount: order.total,
+      items: order.items,
     })
   );
 
@@ -95,6 +103,17 @@ export function OrderCardActions({ order }: { order: CashierOrder }) {
       );
       if (!result.ok) setActionError(result.error);
     });
+  }
+
+  function handleSendToKitchenWithoutPayment() {
+    if (
+      !confirm(
+        'Envoyer cette commande en cuisine sans encaissement ? Tu devras encaisser après la remise.'
+      )
+    ) {
+      return;
+    }
+    handleStatusChange('PREPARING');
   }
 
   const orderRef = `#${String(order.dailyNumber).padStart(3, '0')}`;
@@ -171,6 +190,21 @@ export function OrderCardActions({ order }: { order: CashierOrder }) {
           >
             <Check className="mr-1.5 h-4 w-4" />
             {payLabel}
+          </Button>
+        )}
+
+        {/* Cas exception : envoyer en cuisine sans encaisser (status NEW seul) */}
+        {!order.isPaid && order.status === 'NEW' && (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="w-full text-muted-foreground"
+            disabled={isPending}
+            onClick={handleSendToKitchenWithoutPayment}
+          >
+            <ChefHat className="mr-1.5 h-4 w-4" />
+            Envoyer en cuisine sans payer
           </Button>
         )}
 

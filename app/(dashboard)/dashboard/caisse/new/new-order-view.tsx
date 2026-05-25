@@ -168,86 +168,102 @@ export function NewOrderView({ menu }: { menu: MenuCategory[] }) {
       {step === 'catalog' ? (
         <ProductCatalog menu={menu} onProductTap={handleProductTap} />
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="grid gap-3 md:grid-cols-2 md:gap-4">
+          {/* Colonne gauche : récap panier */}
           <CartSummary
             items={items}
             onQuantityChange={handleQuantityChange}
             onRemove={handleRemove}
           />
 
-          {/* Form client */}
-          <div className="rounded-xl border bg-card p-4">
-            <h2 className="mb-3 text-sm font-semibold">Type de commande</h2>
-            <div className="grid grid-cols-3 gap-2">
-              {ORDER_TYPES.map(({ value, label, Icon }) => {
-                const isActive = orderType === value;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setOrderType(value)}
-                    className={cn(
-                      'flex flex-col items-center justify-center gap-1 rounded-lg border-2 px-2 py-2.5 text-xs font-medium transition-colors',
-                      isActive
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border bg-card hover:bg-muted'
-                    )}
+          {/* Colonne droite : form client */}
+          <div className="space-y-3">
+            <div className="rounded-xl border bg-card p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Type de commande
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {ORDER_TYPES.map(({ value, label, Icon }) => {
+                  const isActive = orderType === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setOrderType(value)}
+                      className={cn(
+                        'flex flex-col items-center justify-center gap-1 rounded-lg border-2 px-2 py-2 text-xs font-medium transition-colors',
+                        isActive
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-card hover:bg-muted'
+                      )}
+                    >
+                      <Icon className="h-5 w-5" strokeWidth={1.75} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-card p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Client
+              </p>
+              <div className="grid gap-2">
+                <div className="grid gap-1">
+                  <Label
+                    htmlFor="customer-phone"
+                    className="text-xs text-muted-foreground"
                   >
-                    <Icon className="h-5 w-5" strokeWidth={1.75} />
-                    {label}
-                  </button>
-                );
-              })}
+                    Téléphone
+                  </Label>
+                  <Input
+                    id="customer-phone"
+                    type="tel"
+                    inputMode="tel"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="07 88 12 34 56"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <Label
+                    htmlFor="customer-name"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Prénom
+                  </Label>
+                  <Input
+                    id="customer-name"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="Client anonyme"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <Label
+                    htmlFor="note"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Note
+                  </Label>
+                  <Textarea
+                    id="note"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Sans sucre, à emporter, etc."
+                    rows={2}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="mt-4 grid gap-3">
-              <div className="grid gap-1.5">
-                <Label htmlFor="customer-name">
-                  Prénom{' '}
-                  <span className="text-muted-foreground">(optionnel)</span>
-                </Label>
-                <Input
-                  id="customer-name"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Client anonyme"
-                  autoComplete="off"
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="customer-phone">
-                  Téléphone{' '}
-                  <span className="text-muted-foreground">(optionnel)</span>
-                </Label>
-                <Input
-                  id="customer-phone"
-                  type="tel"
-                  inputMode="tel"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="07 88 12 34 56"
-                  autoComplete="off"
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="note">
-                  Note{' '}
-                  <span className="text-muted-foreground">(optionnel)</span>
-                </Label>
-                <Textarea
-                  id="note"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Sans sucre, à emporter dans 5 min, etc."
-                  rows={2}
-                />
-              </div>
-            </div>
+            {submitError && (
+              <p className="text-sm text-destructive">{submitError}</p>
+            )}
           </div>
-
-          {submitError && (
-            <p className="text-sm text-destructive">{submitError}</p>
-          )}
         </div>
       )}
 

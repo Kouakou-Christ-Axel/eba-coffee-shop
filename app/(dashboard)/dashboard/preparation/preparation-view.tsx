@@ -14,7 +14,6 @@ import {
   Bike,
   Check,
   Coffee,
-  Play,
   ShoppingBag,
   X,
   Clock,
@@ -27,7 +26,6 @@ import { cn } from '@/lib/utils';
 import {
   markOrderReady,
   cancelOrderFromKitchen,
-  startPreparation,
   requestDriver,
 } from './actions';
 import { type PreparationOrder } from '@/lib/preparation-queue';
@@ -46,15 +44,17 @@ const SSE_URL = '/api/preparation/stream';
 
 const priceFormatter = new Intl.NumberFormat('fr-FR');
 
-// Payload SSE : `pickupTime` arrive en chaîne ISO (ou null pour walk-in).
-type RawOrder = Omit<PreparationOrder, 'pickupTime'> & {
+// Payload SSE : pickupTime et createdAt arrivent en chaîne ISO.
+type RawOrder = Omit<PreparationOrder, 'pickupTime' | 'createdAt'> & {
   pickupTime: string | null;
+  createdAt: string;
 };
 
 function normalizeOrder(raw: RawOrder): PreparationOrder {
   return {
     ...raw,
     pickupTime: raw.pickupTime ? new Date(raw.pickupTime) : null,
+    createdAt: new Date(raw.createdAt),
   };
 }
 
@@ -136,13 +136,14 @@ export function PreparationView({
     if (next) playNewOrderChime();
   }
 
-  // ── SSE : une seule connexion pour toute la durée de vie du composant ────
-  // Note : reconnexion automatique d'`EventSource` toutes les ~5 min car la
-  // fonction Vercel ferme le flux à sa durée max (300 s). Comportement attendu.
+  // ── SSE : connexion + auto-reconnexion sur CLOSED ────────────────────────
+  // EventSource ne reconnecte pas tout seul après un CLOSED (ex. 401 transitoire
+  // ou hot-reload du dev server). On gère la reconnexion à la main avec backoff.
   useEffect(() => {
-    const es = new EventSource(SSE_URL);
-
-    const handleOpen = () => setConnState('connected');
+    let currentEs: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let retryAttempt = 0;
+    let cancelled = false;
 
     const handleQueue = (e: MessageEvent) => {
       let raw: RawOrder[];
@@ -153,7 +154,6 @@ export function PreparationView({
       }
       const fresh = raw.map(normalizeOrder);
 
-      // Détection de nouvelles commandes -> carillon
       const newOrders = fresh.filter((o) => !knownIdsRef.current.has(o.id));
       if (newOrders.length > 0 && soundEnabledRef.current) {
         playNewOrderChime();
@@ -162,8 +162,6 @@ export function PreparationView({
 
       setQueue(fresh);
 
-      // Stabilité de la sélection : si la commande sélectionnée existe toujours
-      // on la garde, sinon on retombe sur la première.
       const currentSelected = selectedIdRef.current;
       const stillPresent =
         currentSelected !== null && fresh.some((o) => o.id === currentSelected);
@@ -176,21 +174,43 @@ export function PreparationView({
       setLastSync(new Date());
     };
 
-    const handleError = () => {
-      setConnState(
-        es.readyState === EventSource.CLOSED ? 'disconnected' : 'reconnecting'
-      );
+    const connect = () => {
+      if (cancelled) return;
+      const es = new EventSource(SSE_URL);
+      currentEs = es;
+
+      es.addEventListener('open', () => {
+        if (cancelled) return;
+        retryAttempt = 0;
+        setConnState('connected');
+      });
+
+      es.addEventListener('queue', handleQueue);
+
+      es.addEventListener('error', () => {
+        if (cancelled) return;
+        if (es.readyState === EventSource.CLOSED) {
+          setConnState('disconnected');
+          es.close();
+          // Backoff exponentiel borné : 1s, 2s, 4s, 8s, 15s max
+          const delay = Math.min(1000 * Math.pow(2, retryAttempt), 15_000);
+          retryAttempt += 1;
+          retryTimer = setTimeout(() => {
+            setConnState('reconnecting');
+            connect();
+          }, delay);
+        } else {
+          setConnState('reconnecting');
+        }
+      });
     };
 
-    es.addEventListener('open', handleOpen);
-    es.addEventListener('queue', handleQueue);
-    es.addEventListener('error', handleError);
+    connect();
 
     return () => {
-      es.removeEventListener('open', handleOpen);
-      es.removeEventListener('queue', handleQueue);
-      es.removeEventListener('error', handleError);
-      es.close();
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      currentEs?.close();
     };
   }, []);
 
@@ -222,20 +242,6 @@ export function PreparationView({
       } catch (err) {
         console.error('[preparation] markOrderReady échoué :', err);
         // Le prochain snapshot SSE réconciliera automatiquement.
-      }
-    });
-  }
-
-  function handleStart() {
-    if (!current || isPending) return;
-    const id = current.id;
-    // Pas de retrait optimiste : la commande reste dans la queue (NEW → PREPARING)
-    // Le snapshot SSE confirmera le changement de statut.
-    startTransition(async () => {
-      try {
-        await startPreparation(id);
-      } catch (err) {
-        console.error('[preparation] startPreparation échoué :', err);
       }
     });
   }
@@ -329,7 +335,6 @@ export function PreparationView({
             <OrderDetail
               order={current}
               isPending={isPending}
-              onStart={handleStart}
               onReady={handleReady}
               onCancel={handleCancel}
               onRequestDriver={handleRequestDriver}
@@ -398,9 +403,10 @@ function EmptyState() {
       <div className="rounded-full bg-green-100 p-6 dark:bg-green-950">
         <Check className="h-16 w-16 text-green-600 dark:text-green-400" />
       </div>
-      <h1 className="text-3xl font-bold">Aucune commande en attente</h1>
-      <p className="text-lg text-muted-foreground">
-        Toutes les commandes du jour sont prêtes.
+      <h1 className="text-3xl font-bold">Aucune commande en cuisine</h1>
+      <p className="max-w-md text-base text-muted-foreground">
+        Les commandes apparaissent ici dès qu&apos;elles sont encaissées par la
+        caisse, ou envoyées en cuisine manuellement.
       </p>
     </div>
   );
@@ -409,14 +415,12 @@ function EmptyState() {
 function OrderDetail({
   order,
   isPending,
-  onStart,
   onReady,
   onCancel,
   onRequestDriver,
 }: {
   order: PreparationOrder;
   isPending: boolean;
-  onStart: () => void;
   onReady: () => void;
   onCancel: () => void;
   onRequestDriver: () => void;
@@ -424,7 +428,6 @@ function OrderDetail({
   const pickup = order.pickupTime;
   const typeMeta = ORDER_TYPE_META[order.orderType];
   const TypeIcon = typeMeta.Icon;
-  const isNew = order.status === 'NEW';
   const isDelivery = order.orderType === 'DELIVERY';
   const minutesUntil = pickup ? differenceInMinutes(pickup, new Date()) : null;
   const isLate = pickup ? isPast(pickup) : false;
@@ -585,27 +588,15 @@ function OrderDetail({
           <X className="h-8 w-8" strokeWidth={2.5} />
           <span className="text-lg font-bold">Annuler</span>
         </button>
-        {isNew ? (
-          <button
-            type="button"
-            onClick={onStart}
-            disabled={isPending}
-            className="flex flex-col items-center justify-center gap-1 rounded-xl bg-primary py-6 text-primary-foreground shadow-lg transition-colors hover:bg-primary/90 active:bg-primary/80 disabled:opacity-50"
-          >
-            <Play className="h-10 w-10" strokeWidth={3} />
-            <span className="text-2xl font-bold">Démarrer</span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onReady}
-            disabled={isPending}
-            className="flex flex-col items-center justify-center gap-1 rounded-xl bg-green-600 py-6 text-white shadow-lg transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-50"
-          >
-            <Check className="h-10 w-10" strokeWidth={3} />
-            <span className="text-2xl font-bold">Commande prête</span>
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onReady}
+          disabled={isPending}
+          className="flex flex-col items-center justify-center gap-1 rounded-xl bg-green-600 py-6 text-white shadow-lg transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-50"
+        >
+          <Check className="h-10 w-10" strokeWidth={3} />
+          <span className="text-2xl font-bold">Commande prête</span>
+        </button>
       </div>
     </>
   );

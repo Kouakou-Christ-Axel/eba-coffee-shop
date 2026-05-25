@@ -30,15 +30,17 @@ export const runtime = 'nodejs';
 const HEARTBEAT_INTERVAL_MS = 20_000;
 const DEBOUNCE_MS = 150;
 
-// Type sérialisable : `pickupTime` devient une chaîne ISO (ou null) pour traverser JSON.
-type SerializedOrder = Omit<PreparationOrder, 'pickupTime'> & {
+// Types sérialisables : Date → string ISO (ou null) pour traverser JSON.
+type SerializedOrder = Omit<PreparationOrder, 'pickupTime' | 'createdAt'> & {
   pickupTime: string | null;
+  createdAt: string;
 };
 
 function serializeQueue(orders: PreparationOrder[]): SerializedOrder[] {
   return orders.map((o) => ({
     ...o,
     pickupTime: o.pickupTime ? o.pickupTime.toISOString() : null,
+    createdAt: o.createdAt.toISOString(),
   }));
 }
 

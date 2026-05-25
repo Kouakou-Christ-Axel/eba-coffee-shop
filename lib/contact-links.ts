@@ -1,14 +1,18 @@
 // lib/contact-links.ts
 //
-// Helpers pour générer les liens de contact externes (tel:, wa.me).
+// Helpers pour générer les liens de contact externes (tel:, wa.me, pay.wave.com).
 // Pas d'intégration API tierce — uniquement de la construction d'URL.
 //
 // Le numéro WhatsApp doit être au format E.164 sans le `+` (cf. wa.me).
 // Voir lib/phone.ts pour la normalisation.
 
 import { normalizeIvorianPhone, toWhatsAppNumber } from '@/lib/phone';
+import type { CartItem } from '@/lib/cart-store';
 
 const priceFormatter = new Intl.NumberFormat('fr-FR');
+
+const WAVE_BASE_URL = 'https://pay.wave.com/m';
+const WAVE_COUNTRY_SEGMENT = 'c/ci';
 
 /** Lien tel: pour passer un appel direct. */
 export function buildTelLink(phone: string | null): string | null {
@@ -31,21 +35,63 @@ export function buildWhatsAppLink(
 }
 
 /**
- * Message Wave envoyé via WhatsApp. Format de base à ajuster avec le client
- * (le lien Wave réel — `pay.wave.com/m/...` — doit être ajouté manuellement
- * par le caissier ou injecté via NEXT_PUBLIC_WAVE_LINK).
+ * Construit le lien Wave pour un montant donné.
+ * Format : https://pay.wave.com/m/<MERCHANT_ID>/c/ci/?amount=<montant>
+ *
+ * Le montant est en franc CFA, entier. Le merchant ID vient de l'env
+ * `NEXT_PUBLIC_WAVE_MERCHANT_ID`. Renvoie null si non configuré.
+ */
+export function buildWaveLink(amount: number): string | null {
+  const merchantId = process.env.NEXT_PUBLIC_WAVE_MERCHANT_ID;
+  if (!merchantId) return null;
+  return `${WAVE_BASE_URL}/${merchantId}/${WAVE_COUNTRY_SEGMENT}/?amount=${amount}`;
+}
+
+function formatItemLine(item: CartItem): string {
+  const supplementsTotal = item.supplements.reduce(
+    (s, sup) => s + sup.price,
+    0
+  );
+  const lineTotal = (item.basePrice + supplementsTotal) * item.quantity;
+  const supplementsLabel =
+    item.supplements.length > 0
+      ? ` (${item.supplements.map((s) => s.optionName).join(', ')})`
+      : '';
+  return `- ${item.quantity}× ${item.productName}${supplementsLabel} : ${priceFormatter.format(lineTotal)} F`;
+}
+
+/**
+ * Message WhatsApp pour demander un paiement Wave. Inclut le détail des
+ * articles, le total, et le lien Wave avec le montant déjà pré-rempli.
+ * Si le merchant ID n'est pas configuré, un placeholder remplace le lien.
  */
 export function buildWaveRequestMessage(params: {
   customerName: string | null;
   dailyNumber: number;
   amount: number;
+  items: CartItem[];
 }): string {
-  const { customerName, dailyNumber, amount } = params;
+  const { customerName, dailyNumber, amount, items } = params;
   const greeting = customerName ? `Bonjour ${customerName}` : 'Bonjour';
   const number = String(dailyNumber).padStart(3, '0');
-  const waveLink = process.env.NEXT_PUBLIC_WAVE_LINK;
-  const linkLine = waveLink ? `\n${waveLink}` : '\n[lien Wave à compléter]';
-  return `${greeting}, voici le lien Wave pour régler ta commande EBA #${number} (${priceFormatter.format(amount)} F) :${linkLine}\n\nMerci !`;
+  const itemsBlock = items.map(formatItemLine).join('\n');
+  const waveLink = buildWaveLink(amount);
+  const linkBlock = waveLink
+    ? `Paye via Wave en cliquant sur ce lien :\n${waveLink}`
+    : 'Paye via Wave : [lien à compléter]';
+
+  return [
+    `${greeting},`,
+    '',
+    `Voici le récap de ta commande EBA #${number} :`,
+    itemsBlock,
+    '',
+    `Total : ${priceFormatter.format(amount)} F`,
+    '',
+    linkBlock,
+    '',
+    'Merci !',
+  ].join('\n');
 }
 
 /** Message "ta commande est prête" via WhatsApp. */

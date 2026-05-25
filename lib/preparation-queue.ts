@@ -24,30 +24,33 @@ export type PreparationOrder = {
   items: CartItem[];
   note: string | null;
   total: number;
-  status: 'NEW' | 'PREPARING';
+  status: 'PREPARING';
   isPaid: boolean;
   driverRequested: boolean;
+  createdAt: Date;
 };
 
 /**
- * Renvoie les commandes du jour en statut NEW ou PREPARING,
- * triées par heure de retrait croissante (commandes online en premier
- * via leur pickupTime, walk-in sans créneau ensuite par createdAt).
+ * Renvoie les commandes du jour actuellement en cuisine (status=PREPARING),
+ * triées en FIFO strict par createdAt asc.
+ *
+ * Une commande arrive en cuisine soit :
+ *   - automatiquement quand le caissier la marque payée (NEW → PREPARING)
+ *   - explicitement quand le caissier clique "Envoyer en cuisine sans paiement"
+ *
+ * Les commandes NEW (en attente d'encaissement) ne sont jamais visibles ici.
  */
 export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
   const now = new Date();
   const orders = await prisma.order.findMany({
     where: {
-      status: { in: ['NEW', 'PREPARING'] },
+      status: 'PREPARING',
       createdAt: {
         gte: startOfDay(now),
         lte: endOfDay(now),
       },
     },
-    orderBy: [
-      { pickupTime: { sort: 'asc', nulls: 'last' } },
-      { createdAt: 'asc' },
-    ],
+    orderBy: { createdAt: 'asc' },
   });
 
   return orders.map((o) => ({
@@ -61,8 +64,9 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     items: o.items as CartItem[],
     note: o.note,
     total: o.total,
-    status: o.status as 'NEW' | 'PREPARING',
+    status: 'PREPARING' as const,
     isPaid: o.isPaid,
     driverRequested: o.driverRequested,
+    createdAt: o.createdAt,
   }));
 }

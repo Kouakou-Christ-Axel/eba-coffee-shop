@@ -37,16 +37,14 @@ export async function startPreparation(id: string): Promise<void> {
 export async function markOrderReady(id: string): Promise<void> {
   await requireKitchen();
 
-  const order = await prisma.order.findUnique({ where: { id } });
-  if (!order) throw new Error('Commande introuvable');
-  if (order.status !== 'NEW' && order.status !== 'PREPARING') {
-    throw new Error(`Impossible de marquer "prête" depuis ${order.status}`);
-  }
-
-  await prisma.order.update({
-    where: { id },
+  const result = await prisma.order.updateMany({
+    where: { id, status: 'PREPARING' },
     data: { status: 'READY' },
   });
+
+  if (result.count === 0) {
+    throw new Error('Commande introuvable ou déjà sortie de préparation');
+  }
 
   revalidatePath('/dashboard/preparation');
   revalidatePath('/dashboard/caisse');
@@ -56,16 +54,14 @@ export async function markOrderReady(id: string): Promise<void> {
 export async function cancelOrderFromKitchen(id: string): Promise<void> {
   await requireKitchen();
 
-  const order = await prisma.order.findUnique({ where: { id } });
-  if (!order) throw new Error('Commande introuvable');
-  if (order.status !== 'NEW' && order.status !== 'PREPARING') {
-    throw new Error(`Impossible d'annuler depuis ${order.status}`);
-  }
-
-  await prisma.order.update({
-    where: { id },
+  const result = await prisma.order.updateMany({
+    where: { id, status: 'PREPARING' },
     data: { status: 'CANCELLED' },
   });
+
+  if (result.count === 0) {
+    throw new Error('Commande introuvable ou déjà sortie de préparation');
+  }
 
   revalidatePath('/dashboard/preparation');
   revalidatePath('/dashboard/caisse');

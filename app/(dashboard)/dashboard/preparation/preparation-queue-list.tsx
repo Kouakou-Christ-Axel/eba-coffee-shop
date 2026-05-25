@@ -88,9 +88,9 @@ export function PreparationQueueList({ orders, selectedId, onSelect }: Props) {
                   <p className="flex items-center gap-1.5 truncate font-mono text-xs font-semibold text-muted-foreground">
                     <TypeIcon className="h-3 w-3 shrink-0" />#
                     {String(o.dailyNumber).padStart(3, '0')}
-                    {o.status === 'PREPARING' && (
-                      <span className="ml-auto rounded-full bg-primary/15 px-1.5 text-[10px] font-bold uppercase tracking-wide text-primary">
-                        Prep
+                    {!o.isPaid && (
+                      <span className="ml-auto rounded-full bg-orange-100 px-1.5 text-[10px] font-bold uppercase tracking-wide text-orange-900 dark:bg-orange-950 dark:text-orange-100">
+                        Non payé
                       </span>
                     )}
                   </p>
