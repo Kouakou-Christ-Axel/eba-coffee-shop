@@ -16,18 +16,20 @@ vi.mock('@/lib/auth', () => ({
   auth: { api: { getSession: vi.fn() } },
 }));
 
-vi.mock('@vercel/blob', () => ({
-  put: vi.fn(),
+vi.mock('node:fs/promises', () => ({
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  writeFile: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { auth } from '@/lib/auth';
-import { put } from '@vercel/blob';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { POST } from './route';
 
 const mockGetSession = auth.api.getSession as MockedFunction<
   typeof auth.api.getSession
 >;
-const mockPut = put as MockedFunction<typeof put>;
+const mockMkdir = mkdir as unknown as MockedFunction<typeof mkdir>;
+const mockWriteFile = writeFile as unknown as MockedFunction<typeof writeFile>;
 
 const adminSession = {
   user: { role: 'ADMIN', id: 'u1', email: 'admin@eba.ci' },
@@ -44,7 +46,11 @@ function makeRequest(file: File): Request {
 }
 
 describe('POST /api/upload', () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockMkdir.mockResolvedValue(undefined);
+    mockWriteFile.mockResolvedValue(undefined);
+  });
 
   it('401 si pas de session', async () => {
     mockGetSession.mockResolvedValue(null);
@@ -99,11 +105,8 @@ describe('POST /api/upload', () => {
     expect(res.status).toBe(400);
   });
 
-  it('200 + URL pour JPEG valide', async () => {
+  it('200 + URL relative pour JPEG valide', async () => {
     mockGetSession.mockResolvedValue(adminSession);
-    mockPut.mockResolvedValue({
-      url: 'https://blob.vercel.com/abc.jpg',
-    } as never);
 
     const file = new File([new Uint8Array([0xff, 0xd8, 0xff])], 'pic.jpg', {
       type: 'image/jpeg',
@@ -111,22 +114,26 @@ describe('POST /api/upload', () => {
     const res = await POST(makeRequest(file));
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.url).toBe('https://blob.vercel.com/abc.jpg');
-    expect(mockPut).toHaveBeenCalled();
+    expect(json.url).toMatch(/^\/uploads\/products\/\d+-[a-z0-9]+\.jpg$/);
+    expect(mockMkdir).toHaveBeenCalled();
+    expect(mockWriteFile).toHaveBeenCalled();
   });
 
   it('accepte PNG et WebP', async () => {
     mockGetSession.mockResolvedValue(adminSession);
-    mockPut.mockResolvedValue({ url: 'https://blob.vercel.com/x' } as never);
 
     const png = new File([new Uint8Array([0x89, 0x50])], 'a.png', {
       type: 'image/png',
     });
-    expect((await POST(makeRequest(png))).status).toBe(200);
+    const pngRes = await POST(makeRequest(png));
+    expect(pngRes.status).toBe(200);
+    expect((await pngRes.json()).url).toMatch(/\.png$/);
 
     const webp = new File([new Uint8Array([0x52])], 'a.webp', {
       type: 'image/webp',
     });
-    expect((await POST(makeRequest(webp))).status).toBe(200);
+    const webpRes = await POST(makeRequest(webp));
+    expect(webpRes.status).toBe(200);
+    expect((await webpRes.json()).url).toMatch(/\.webp$/);
   });
 });

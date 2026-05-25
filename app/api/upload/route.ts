@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
-import { put } from '@vercel/blob';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { auth } from '@/lib/auth';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIMES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const UPLOAD_SUBDIR = ['public', 'uploads', 'products'] as const;
 
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -33,12 +35,12 @@ export async function POST(req: Request) {
 
   const ext =
     file.type.split('/')[1] === 'jpeg' ? 'jpg' : file.type.split('/')[1];
-  const filename = `products/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-  const blob = await put(filename, file, {
-    access: 'public',
-    contentType: file.type,
-  });
+  const dir = join(process.cwd(), ...UPLOAD_SUBDIR);
+  await mkdir(dir, { recursive: true });
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await writeFile(join(dir, filename), buffer);
 
-  return NextResponse.json({ url: blob.url });
+  return NextResponse.json({ url: `/uploads/products/${filename}` });
 }

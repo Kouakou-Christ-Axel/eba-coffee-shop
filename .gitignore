@@ -43,3 +43,9 @@ next-env.d.ts
 generated/prisma
 
 !.env.schema
+
+# uploads (persisted across deploys, e.g. via PM2 deploy hook or symlink)
+/public/uploads/
+
+# pm2 logs
+/logs/

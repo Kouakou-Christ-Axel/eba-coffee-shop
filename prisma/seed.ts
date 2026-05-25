@@ -1,4 +1,5 @@
 // prisma/seed.ts
+import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@/generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { menu } from '@/config/menu';
@@ -56,9 +57,15 @@ async function main() {
   }
 }
 
-// Bun : import.meta.main est true uniquement quand ce fichier est l'entrypoint
-// @ts-expect-error -- propriété Bun-spécifique non typée dans le DOM lib standard
-if (import.meta.main) {
+const isDirectRun =
+  // Bun
+  // @ts-expect-error -- propriété Bun-spécifique non typée
+  import.meta.main === true ||
+  // Node / tsx
+  (typeof process !== 'undefined' &&
+    process.argv[1] === fileURLToPath(import.meta.url));
+
+if (isDirectRun) {
   main().catch((err) => {
     console.error(err);
     process.exit(1);
