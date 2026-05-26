@@ -45,7 +45,8 @@
       "Bash(grep -n \"introuvable\\\\|not found\\\\|findUnique.*mockResolvedValue\\(null\\)\" C:\\\\Users\\\\kouax\\\\WebstormProjects\\\\eba-coffee-shop\\\\app\\\\\\\\\\\\\\(dashboard\\\\\\\\\\\\\\)/dashboard/commandes/actions.test.ts)",
       "Bash(git commit -m ' *)",
       "Bash(bun vitest *)",
-      "Bash(Select-String -Pattern \"\\(PASS|FAIL|seed|menu|carte\\)\")"
+      "Bash(Select-String -Pattern \"\\(PASS|FAIL|seed|menu|carte\\)\")",
+      "Skill(shadcn)"
     ]
   }
 }

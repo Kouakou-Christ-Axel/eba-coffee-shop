@@ -5,6 +5,7 @@ import { varlockNextConfigPlugin } from '@varlock/nextjs-integration/plugin';
 setDefaultResultOrder('ipv4first');
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ['eba.otw.ci'],
   images: {
     dangerouslyAllowLocalIP: true,
     remotePatterns: [
