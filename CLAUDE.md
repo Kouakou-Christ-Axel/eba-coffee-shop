@@ -9,23 +9,25 @@ EBA Coffee Shop - a French-language Next.js website for a coffee shop in Abidjan
 ## Commands
 
 ```bash
-bun dev              # Dev server (port 3000)
-bun build            # Production build
-bun start            # Start production server
-bun run lint         # ESLint
-bun run format:fix   # Prettier auto-format
-bun run db:generate  # Regenerate Prisma client
-bun run db:push      # Sync Prisma schema to database
-bun run db:studio    # Open Prisma Studio GUI
+pnpm dev              # Dev server (port 3000)
+pnpm build            # Production build
+pnpm start            # Start production server
+pnpm lint             # ESLint
+pnpm format:fix       # Prettier auto-format
+pnpm db:generate      # Regenerate Prisma client
+pnpm db:push          # Sync Prisma schema to database
+pnpm db:studio        # Open Prisma Studio GUI
 ```
 
-Prisma client is auto-generated on `bun install` via the `postinstall` script.
+Package manager: **pnpm only** (do not use `bun` or `npm` — the repo relies on pnpm hoist patterns in `.npmrc` for HeroUI/Tailwind v4 to work).
+
+Prisma client is auto-generated on `pnpm install` via the `postinstall` script.
 
 Pre-commit hooks (Husky + lint-staged) run ESLint and Prettier on staged files automatically.
 
 ## Architecture
 
-- **Runtime:** Bun with Next.js 16 App Router, React 19
+- **Runtime:** Node.js with pnpm + Next.js 16 App Router, React 19
 - **Styling:** Tailwind CSS v4 (via `@tailwindcss/postcss`) + HeroUI component library with custom theme in `config/hero.ts`
 - **Database:** PostgreSQL with Prisma ORM (`prisma/schema.prisma`), singleton client in `lib/prisma.ts`
 - **Auth:** Better Auth (`lib/auth.ts` server, `lib/auth-client.ts` client) with Google OAuth, API routes at `/api/auth/[...all]`

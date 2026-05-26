@@ -101,6 +101,7 @@ function Navbar() {
           alt="EBA Coffee Shop — café et pâtisserie à Abidjan"
           width={60}
           height={60}
+          loading="eager"
         />
       </NavbarBrand>
       <NavbarContent className="hidden sm:flex gap-4" justify="center">

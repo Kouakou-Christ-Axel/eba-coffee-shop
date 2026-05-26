@@ -2,6 +2,20 @@
   "name": "nextjs-starter",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "pnpm": ">=10"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@heroui/shared-utils",
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "sharp",
+      "unrs-resolver"
+    ]
+  },
   "overrides": {
     "@next/env": "npm:@varlock/nextjs-integration"
   },
