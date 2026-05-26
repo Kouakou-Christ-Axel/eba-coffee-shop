@@ -8,6 +8,11 @@ import PlaceSection from '@/components/(public)/accueil/place-section';
 import SocialSection from '@/components/(public)/accueil/social-section';
 import FindUsSection from '@/components/(public)/accueil/find-us-section';
 
+// ISR: regenerate the homepage at most once per hour.
+// Featured products change rarely, and the dashboard menu actions already
+// call `revalidatePath('/')` on edits — so this is a freshness safety net.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'EBA Coffee Shop à Abidjan | Café, pâtisseries et brunch à Cocody',
   description:

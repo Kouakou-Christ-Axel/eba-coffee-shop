@@ -2,12 +2,20 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { Button } from '@heroui/react';
 import { Check, Plus } from 'lucide-react';
 import { useCartStore } from '@/lib/cart-store';
 import { priceFormatter, type Product } from '@/config/menu';
-import SupplementModal from '@/components/(public)/carte/supplement-modal';
+
+// Lazy-load the supplement modal — it's only opened when a product has
+// supplements AND the user clicks "add". Avoids shipping HeroUI Modal +
+// RadioGroup/Checkbox to first paint of the menu.
+const SupplementModal = dynamic(
+  () => import('@/components/(public)/carte/supplement-modal'),
+  { ssr: false }
+);
 
 type ProductCardProps = {
   product: Product;

@@ -1,11 +1,19 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag } from 'lucide-react';
 import { useCartStore } from '@/lib/cart-store';
 import { priceFormatter } from '@/config/menu';
-import CartDrawer from '@/components/(public)/carte/cart-drawer';
+
+// Lazy-load the cart drawer — it only opens once the user has items AND
+// clicks the floating button. Pulls in HeroUI Modal + checkout form, which
+// we don't want to ship on first paint of the menu.
+const CartDrawer = dynamic(
+  () => import('@/components/(public)/carte/cart-drawer'),
+  { ssr: false }
+);
 
 function CartFloatingButton() {
   const items = useCartStore((s) => s.items);
