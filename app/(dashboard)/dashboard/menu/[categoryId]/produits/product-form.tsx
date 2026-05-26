@@ -8,8 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { createProductAction, updateProductAction } from '../../actions';
+
+const BADGE_OPTIONS = ['Best-seller', 'Coup de cœur', 'Nouveau'] as const;
 
 type SupplementOption = { name: string; price: number };
 type SupplementGroup = {
@@ -26,6 +29,9 @@ export type ProductFormInitial = {
   price: number;
   imageUrl: string | null;
   supplementGroups: SupplementGroup[];
+  featured: boolean;
+  featuredOrder: number;
+  featuredBadge: string | null;
 };
 
 const EMPTY: ProductFormInitial = {
@@ -34,6 +40,9 @@ const EMPTY: ProductFormInitial = {
   price: 0,
   imageUrl: null,
   supplementGroups: [],
+  featured: false,
+  featuredOrder: 0,
+  featuredBadge: null,
 };
 
 export function ProductForm({
@@ -59,6 +68,15 @@ export function ProductForm({
   );
   const [groups, setGroups] = useState<SupplementGroup[]>(
     initial?.supplementGroups ?? []
+  );
+  const [featured, setFeatured] = useState<boolean>(
+    initial?.featured ?? EMPTY.featured
+  );
+  const [featuredOrder, setFeaturedOrder] = useState<number>(
+    initial?.featuredOrder ?? EMPTY.featuredOrder
+  );
+  const [featuredBadge, setFeaturedBadge] = useState<string | null>(
+    initial?.featuredBadge ?? EMPTY.featuredBadge
   );
 
   const isEdit = Boolean(initial?.id);
@@ -131,6 +149,9 @@ export function ProductForm({
             ...g,
             options: g.options.filter((o) => o.name.trim().length > 0),
           })),
+          featured,
+          featuredOrder: featured ? Number(featuredOrder) || 0 : 0,
+          featuredBadge: featured ? featuredBadge : null,
         };
         if (isEdit && initial?.id) {
           await updateProductAction(initial.id, payload);
@@ -223,6 +244,69 @@ export function ProductForm({
             >
               Retirer l&apos;image
             </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Mise en avant sur la page d&apos;accueil</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="featured">
+                Afficher dans les incontournables
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Le produit apparaîtra dans la section &laquo;&nbsp;Ce qu&apos;on
+                aime vous servir&nbsp;&raquo; de la page d&apos;accueil.
+              </p>
+            </div>
+            <Switch
+              id="featured"
+              checked={featured}
+              onCheckedChange={setFeatured}
+            />
+          </div>
+
+          {featured && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="featuredOrder">Ordre d&apos;affichage</Label>
+                <Input
+                  id="featuredOrder"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={featuredOrder}
+                  onChange={(e) => setFeaturedOrder(Number(e.target.value))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Plus petit = affiché en premier.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="featuredBadge">Badge</Label>
+                <select
+                  id="featuredBadge"
+                  value={featuredBadge ?? ''}
+                  onChange={(e) =>
+                    setFeaturedBadge(
+                      e.target.value === '' ? null : e.target.value
+                    )
+                  }
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                >
+                  <option value="">Aucun</option>
+                  {BADGE_OPTIONS.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

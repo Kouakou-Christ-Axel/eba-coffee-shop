@@ -156,12 +156,16 @@ model Product {
   imageUrl         String?
   available        Boolean           @default(true)
   sortOrder        Int               @default(0)
+  featured         Boolean           @default(false)
+  featuredOrder    Int               @default(0)
+  featuredBadge    String?
   categoryId       String
   category         MenuCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   supplementGroups SupplementGroup[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
+  @@index([featured, featuredOrder])
   @@map("product")
 }
 

@@ -37,6 +37,9 @@ export default async function EditProductPage({
     description: product.description,
     price: product.price,
     imageUrl: product.imageUrl,
+    featured: product.featured,
+    featuredOrder: product.featuredOrder,
+    featuredBadge: product.featuredBadge,
     supplementGroups: product.supplementGroups.map((g) => ({
       name: g.name,
       type: g.type as 'single' | 'multiple',

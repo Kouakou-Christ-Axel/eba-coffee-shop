@@ -35,6 +35,12 @@ export const updateCategorySchema = z.object({
   name: z.string().min(1).max(80),
 });
 
+const featuredFieldsSchema = {
+  featured: z.boolean().optional().default(false),
+  featuredOrder: z.number().int().nonnegative().optional().default(0),
+  featuredBadge: z.string().min(1).max(40).nullable().optional(),
+};
+
 export const productInputSchema = z.object({
   categoryId: z.string().min(1),
   name: z.string().min(1).max(120),
@@ -42,6 +48,7 @@ export const productInputSchema = z.object({
   price: z.number().int().nonnegative(),
   imageUrl: z.string().url().nullable().optional(),
   supplementGroups: z.array(supplementGroupSchema),
+  ...featuredFieldsSchema,
 });
 
 export const productUpdateSchema = z.object({
@@ -50,6 +57,7 @@ export const productUpdateSchema = z.object({
   price: z.number().int().nonnegative(),
   imageUrl: z.string().url().nullable(),
   supplementGroups: z.array(supplementGroupSchema),
+  ...featuredFieldsSchema,
 });
 
 // ─── Catégories ───────────────────────────────────────────────────────────────
@@ -121,6 +129,9 @@ export async function createProduct(input: ProductInput) {
       price: data.price,
       imageUrl: data.imageUrl ?? null,
       sortOrder: existing.length,
+      featured: data.featured,
+      featuredOrder: data.featuredOrder,
+      featuredBadge: data.featuredBadge ?? null,
       supplementGroups: {
         create: data.supplementGroups.map((g, gi) => ({
           name: g.name,
@@ -150,6 +161,9 @@ export async function updateProduct(id: string, input: ProductUpdate) {
         description: data.description,
         price: data.price,
         imageUrl: data.imageUrl,
+        featured: data.featured,
+        featuredOrder: data.featuredOrder,
+        featuredBadge: data.featuredBadge ?? null,
         supplementGroups: {
           create: data.supplementGroups.map((g, gi) => ({
             name: g.name,
@@ -176,5 +190,14 @@ export async function toggleProductAvailability(id: string) {
   return prisma.product.update({
     where: { id },
     data: { available: !p.available },
+  });
+}
+
+export async function toggleProductFeatured(id: string) {
+  const p = await prisma.product.findUnique({ where: { id } });
+  if (!p) throw new Error('Produit introuvable');
+  return prisma.product.update({
+    where: { id },
+    data: { featured: !p.featured },
   });
 }

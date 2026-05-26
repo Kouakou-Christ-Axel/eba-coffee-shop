@@ -32,6 +32,8 @@ export default async function CategoryProductsPage({
           price: true,
           imageUrl: true,
           available: true,
+          featured: true,
+          featuredBadge: true,
         },
       },
     },
@@ -93,9 +95,16 @@ export default async function CategoryProductsPage({
                 {new Intl.NumberFormat('fr-FR').format(p.price)} FCFA
               </TableCell>
               <TableCell>
-                <Badge variant={p.available ? 'default' : 'outline'}>
-                  {p.available ? 'Visible' : 'Masqué'}
-                </Badge>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge variant={p.available ? 'default' : 'outline'}>
+                    {p.available ? 'Visible' : 'Masqué'}
+                  </Badge>
+                  {p.featured && (
+                    <Badge variant="secondary">
+                      ★ {p.featuredBadge ?? 'Favori'}
+                    </Badge>
+                  )}
+                </div>
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-2">
@@ -106,7 +115,11 @@ export default async function CategoryProductsPage({
                       Modifier
                     </Link>
                   </Button>
-                  <ProductRowActions id={p.id} available={p.available} />
+                  <ProductRowActions
+                    id={p.id}
+                    available={p.available}
+                    featured={p.featured}
+                  />
                 </div>
               </TableCell>
             </TableRow>

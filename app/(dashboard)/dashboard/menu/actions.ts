@@ -16,6 +16,7 @@ async function requireAdmin() {
 function revalidateMenu() {
   revalidatePath('/api/menu');
   revalidatePath('/carte');
+  revalidatePath('/');
 }
 
 // ── Catégories ──
@@ -76,5 +77,11 @@ export async function deleteProductAction(id: string) {
 export async function toggleProductAvailabilityAction(id: string) {
   await requireAdmin();
   await menu.toggleProductAvailability(id);
+  revalidateMenu();
+}
+
+export async function toggleProductFeaturedAction(id: string) {
+  await requireAdmin();
+  await menu.toggleProductFeatured(id);
   revalidateMenu();
 }

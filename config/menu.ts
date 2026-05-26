@@ -19,6 +19,9 @@ export type Product = {
   price: number;
   image?: string;
   supplements?: SupplementGroup[];
+  featured?: boolean;
+  featuredOrder?: number;
+  featuredBadge?: string;
 };
 
 export type MenuCategory = {
@@ -65,15 +68,25 @@ export const menu: MenuCategory[] = [
       {
         id: 'cappuccino',
         name: 'Cappuccino Signature',
-        description: 'Crema onctueuse, lait moussé',
+        description:
+          'Notre espresso maison, mousse de lait soyeuse et une touche de cacao torréfié.',
         price: 3500,
+        image: '/assets/examples/accueil/eba-hero-2.png',
+        featured: true,
+        featuredOrder: 1,
+        featuredBadge: 'Best-seller',
         supplements: [milkChoice, coffeeExtras],
       },
       {
         id: 'latte-vanille',
         name: 'Latte Vanille',
-        description: 'Espresso, lait chaud, vanille naturelle',
+        description:
+          'Espresso doux, lait vapeur et sirop de vanille de Madagascar, servi chaud.',
         price: 4000,
+        image: '/assets/examples/accueil/eba-hero-2.png',
+        featured: true,
+        featuredOrder: 2,
+        featuredBadge: 'Coup de cœur',
         supplements: [milkChoice, coffeeExtras],
       },
       {
@@ -129,8 +142,12 @@ export const menu: MenuCategory[] = [
       {
         id: 'croissant-amande',
         name: 'Croissant Amande',
-        description: 'Beurre français, pâte feuilletée maison',
+        description:
+          'Pâte feuilletée beurrée, crème d’amande maison et amandes effilées dorées.',
         price: 2500,
+        image: '/assets/examples/accueil/eba-hero.webp',
+        featured: true,
+        featuredOrder: 3,
       },
       {
         id: 'pain-chocolat',

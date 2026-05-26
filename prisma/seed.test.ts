@@ -13,7 +13,10 @@ import { seedMenu } from './seed';
 describe('seedMenu', () => {
   it('insère exactement le même nombre de catégories que config/menu.ts', async () => {
     const mockCreate = vi.fn().mockResolvedValue({ id: 'cat-mock' });
-    const mockPrisma = { menuCategory: { create: mockCreate } };
+    const mockDeleteMany = vi.fn().mockResolvedValue({ count: 0 });
+    const mockPrisma = {
+      menuCategory: { create: mockCreate, deleteMany: mockDeleteMany },
+    };
 
     await seedMenu(mockPrisma as never);
 
@@ -22,7 +25,10 @@ describe('seedMenu', () => {
 
   it('insère les produits dans la première catégorie', async () => {
     const mockCreate = vi.fn().mockResolvedValue({ id: 'cat-mock' });
-    const mockPrisma = { menuCategory: { create: mockCreate } };
+    const mockDeleteMany = vi.fn().mockResolvedValue({ count: 0 });
+    const mockPrisma = {
+      menuCategory: { create: mockCreate, deleteMany: mockDeleteMany },
+    };
 
     await seedMenu(mockPrisma as never);
 
@@ -32,7 +38,10 @@ describe('seedMenu', () => {
 
   it('insère les groupes et options de suppléments pour cappuccino', async () => {
     const mockCreate = vi.fn().mockResolvedValue({ id: 'cat-mock' });
-    const mockPrisma = { menuCategory: { create: mockCreate } };
+    const mockDeleteMany = vi.fn().mockResolvedValue({ count: 0 });
+    const mockPrisma = {
+      menuCategory: { create: mockCreate, deleteMany: mockDeleteMany },
+    };
 
     await seedMenu(mockPrisma as never);
 
@@ -46,7 +55,10 @@ describe('seedMenu', () => {
 
   it("utilise l'id de la catégorie config comme slug", async () => {
     const mockCreate = vi.fn().mockResolvedValue({ id: 'cat-mock' });
-    const mockPrisma = { menuCategory: { create: mockCreate } };
+    const mockDeleteMany = vi.fn().mockResolvedValue({ count: 0 });
+    const mockPrisma = {
+      menuCategory: { create: mockCreate, deleteMany: mockDeleteMany },
+    };
 
     await seedMenu(mockPrisma as never);
 

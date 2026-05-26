@@ -7,10 +7,13 @@ import { menu } from '@/config/menu';
 type SeedablePrisma = {
   menuCategory: {
     create: (args: unknown) => Promise<unknown>;
+    deleteMany: (args?: unknown) => Promise<unknown>;
   };
 };
 
 export async function seedMenu(prisma: SeedablePrisma) {
+  await prisma.menuCategory.deleteMany({});
+
   for (let i = 0; i < menu.length; i++) {
     const category = menu[i];
     await prisma.menuCategory.create({
@@ -23,7 +26,11 @@ export async function seedMenu(prisma: SeedablePrisma) {
             name: p.name,
             description: p.description,
             price: p.price,
+            imageUrl: p.image ?? null,
             sortOrder: pi,
+            featured: p.featured ?? false,
+            featuredOrder: p.featuredOrder ?? 0,
+            featuredBadge: p.featuredBadge ?? null,
             supplementGroups: {
               create: (p.supplements ?? []).map((g, gi) => ({
                 name: g.name,
