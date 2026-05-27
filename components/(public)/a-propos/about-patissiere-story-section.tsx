@@ -1,41 +1,21 @@
 'use client';
 
-import React, { useRef } from 'react';
-import Image from 'next/image';
+// NOTE — animations conservées en GSAP brut (pas migrées vers
+// `useScrollAnimation`). Mélange parallax scrub + timeline-line scrub +
+// triggers mixtes pointant sur des refs distinctes + 2 branches matchMedia
+// (lg+ vs mobile) avec autoAlpha asymétrique sur le premier bloc mobile —
+// l'abstraction n'apporte rien ici, le boilerplate de toute façon nécessaire.
+
+import { useRef } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import PatissiereImageColumn from './_components/patissiere-image-column';
+import TimelineLine from './_components/timeline-line';
+import StoryBlock from './_components/story-block';
+import { storyBlocks } from './_components/story-blocks';
 
 gsap.registerPlugin(ScrollTrigger);
-
-type StoryBlock = {
-  year: string;
-  title: string;
-  text: string;
-};
-
-const storyBlocks: StoryBlock[] = [
-  {
-    year: '01',
-    title: 'Une passion née dans la cuisine',
-    text: 'Depuis toujours, la pâtisserie est une manière de créer du beau, de faire plaisir et de partager des moments simples. Chaque recette raconte une histoire.',
-  },
-  {
-    year: '02',
-    title: 'L\u2019école de la rigueur en France',
-    text: 'En France, elle développe le goût de la précision, de l\u2019équilibre des saveurs et du soin du détail. Une formation exigeante qui forge le savoir-faire.',
-  },
-  {
-    year: '03',
-    title: 'Le retour à Abidjan',
-    text: 'De retour à Abidjan, l\u2019envie est claire\u00a0: créer un lieu chaleureux, accessible et exigeant à la fois. Un pont entre deux cultures gourmandes.',
-  },
-  {
-    year: '04',
-    title: 'EBA prend vie',
-    text: 'Aujourd\u2019hui, EBA reflète cette vision\u00a0: un espace gourmand, soigné et convivial, pensé pour faire du bien. Chaque détail est une attention.',
-  },
-];
 
 function AboutPatissiereStorySection() {
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -93,9 +73,6 @@ function AboutPatissiereStorySection() {
         () => {
           if (!imageColumnRef.current) return;
 
-          // No pin — sticky is handled via CSS (lg:sticky lg:top-24)
-
-          // Subtle parallax on main image
           if (mainImage) {
             gsap.fromTo(
               mainImage,
@@ -113,7 +90,6 @@ function AboutPatissiereStorySection() {
             );
           }
 
-          // Credential card slides up from bottom
           if (credentialCard) {
             gsap.fromTo(
               credentialCard,
@@ -133,7 +109,6 @@ function AboutPatissiereStorySection() {
             );
           }
 
-          // Detail image slides in from right
           if (detailImage) {
             gsap.fromTo(
               detailImage,
@@ -154,7 +129,6 @@ function AboutPatissiereStorySection() {
             );
           }
 
-          // Stat items stagger in
           if (statItems.length) {
             statItems.forEach((stat, i) => {
               gsap.fromTo(
@@ -176,7 +150,6 @@ function AboutPatissiereStorySection() {
             });
           }
 
-          // Heading & subtitle stagger
           if (heading) {
             gsap.fromTo(
               heading,
@@ -214,7 +187,6 @@ function AboutPatissiereStorySection() {
             );
           }
 
-          // Timeline line grows as you scroll
           if (timelineLine) {
             gsap.fromTo(
               timelineLine,
@@ -232,7 +204,6 @@ function AboutPatissiereStorySection() {
             );
           }
 
-          // Story blocks stagger in
           blocks.forEach((block, i) => {
             gsap.fromTo(
               block,
@@ -251,7 +222,6 @@ function AboutPatissiereStorySection() {
               }
             );
 
-            // Decor line under each block
             if (decorLines[i]) {
               gsap.fromTo(
                 decorLines[i],
@@ -271,7 +241,6 @@ function AboutPatissiereStorySection() {
             }
           });
 
-          // Signature
           if (signature) {
             gsap.fromTo(
               signature,
@@ -295,7 +264,6 @@ function AboutPatissiereStorySection() {
       mm.add(
         '(max-width: 1023px) and (prefers-reduced-motion: no-preference)',
         () => {
-          // Credential card
           if (credentialCard) {
             gsap.fromTo(
               credentialCard,
@@ -314,7 +282,6 @@ function AboutPatissiereStorySection() {
             );
           }
 
-          // Heading
           if (heading) {
             gsap.fromTo(
               heading,
@@ -333,7 +300,6 @@ function AboutPatissiereStorySection() {
             );
           }
 
-          // Timeline line
           if (timelineLine) {
             gsap.fromTo(
               timelineLine,
@@ -384,7 +350,6 @@ function AboutPatissiereStorySection() {
       aria-labelledby="story-title"
       className="relative bg-[linear-gradient(180deg,rgba(255,252,248,1)_0%,rgba(247,239,232,1)_100%)] py-16 md:py-24"
     >
-      {/* Decorative background grain */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 opacity-[0.03]"
@@ -398,114 +363,10 @@ function AboutPatissiereStorySection() {
 
       <div className="content-container relative">
         <div className="grid items-start gap-10 lg:grid-cols-12 lg:items-stretch lg:gap-14">
-          {/* Left — Image composition */}
           <div className="lg:col-span-5">
-            <div
-              ref={imageColumnRef}
-              className="relative lg:sticky lg:top-24 lg:h-[78svh]"
-            >
-              {/* Main portrait image */}
-              <div className="relative h-80 overflow-hidden rounded-4xl shadow-2xl sm:h-104 lg:h-[calc(100%-5rem)]">
-                <Image
-                  data-main-image
-                  src="/assets/examples/accueil/eba-hero-2.png"
-                  alt="La pâtissière d'EBA en pleine préparation dans son atelier"
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 40vw"
-                  className="scale-105 object-cover object-center"
-                />
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-0 bg-linear-to-t from-black/50 via-black/10 to-transparent"
-                />
-
-                {/* Name & title overlay on image */}
-                <div className="absolute bottom-0 left-0 right-0 z-10 p-5 sm:p-6">
-                  <div className="flex items-center gap-3">
-                    <div
-                      aria-hidden="true"
-                      className="h-8 w-0.5 rounded-full bg-secondary"
-                    />
-                    <div>
-                      <p className="text-sm font-semibold tracking-wide text-white sm:text-base">
-                        Fondatrice & Pâtissière
-                      </p>
-                      <p className="text-xs font-medium uppercase tracking-[0.15em] text-white/60">
-                        EBA Coffee Shop &middot; Abidjan
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Detail image — overlapping bottom-right */}
-              <div
-                data-detail-image
-                className="absolute -bottom-2 -right-3 z-10 h-28 w-28 overflow-hidden rounded-2xl border-3 border-background shadow-xl sm:h-36 sm:w-36 lg:-right-5 lg:h-40 lg:w-40"
-              >
-                <Image
-                  src="/assets/examples/accueil/eba-hero.webp"
-                  alt="Détail d'une création pâtissière EBA"
-                  fill
-                  sizes="160px"
-                  className="object-cover object-center"
-                />
-              </div>
-
-              {/* Credential card — floating left-bottom */}
-              <div
-                data-credential-card
-                className="absolute -bottom-2 left-3 z-10 sm:left-4 lg:-left-3"
-              >
-                <div className="rounded-2xl border border-white/60 bg-white/80 px-4 py-4 shadow-lg shadow-black/5 backdrop-blur-md sm:px-5 sm:py-4.5">
-                  <div className="space-y-2.5">
-                    <div data-stat-item className="flex items-center gap-2.5">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/8">
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary/60" />
-                      </span>
-                      <p className="text-xs font-medium text-foreground/70 sm:text-[0.8rem]">
-                        Formée en{' '}
-                        <span className="text-foreground/90">France</span>
-                      </p>
-                    </div>
-
-                    <div data-stat-item className="flex items-center gap-2.5">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary/10">
-                        <span className="h-1.5 w-1.5 rounded-full bg-secondary/60" />
-                      </span>
-                      <p className="text-xs font-medium text-foreground/70 sm:text-[0.8rem]">
-                        CAP Pâtisserie{' '}
-                        <span className="text-foreground/50">&middot;</span>{' '}
-                        <span className="text-foreground/90">10+ ans</span>
-                      </p>
-                    </div>
-
-                    <div data-stat-item className="flex items-center gap-2.5">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/8">
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary/60" />
-                      </span>
-                      <p className="text-xs font-medium text-foreground/70 sm:text-[0.8rem]">
-                        Savoir-faire{' '}
-                        <span className="text-foreground/90">artisanal</span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Decorative corner accents */}
-              <div
-                aria-hidden="true"
-                className="absolute -right-2.5 -top-2.5 h-16 w-16 rounded-br-3xl border-r-2 border-t-2 border-secondary/30"
-              />
-              <div
-                aria-hidden="true"
-                className="absolute -left-2.5 top-8 h-12 w-12 rounded-tl-2xl border-l-2 border-t-2 border-primary/20"
-              />
-            </div>
+            <PatissiereImageColumn ref={imageColumnRef} />
           </div>
 
-          {/* Right — Story */}
           <div className="lg:col-span-7 lg:pt-4">
             <p
               data-subtitle
@@ -528,61 +389,16 @@ function AboutPatissiereStorySection() {
               <span className="text-primary">une histoire de passion</span>
             </h2>
 
-            {/* Timeline blocks */}
-            <div ref={timelineRef} className="relative mt-10 md:mt-12">
-              {/* Vertical timeline line */}
-              <div
-                aria-hidden="true"
-                className="absolute bottom-0 left-4 top-0 w-px origin-top md:left-5"
-              >
-                <div
-                  data-timeline-line
-                  className="h-full w-full origin-top bg-linear-to-b from-secondary via-primary/30 to-transparent"
+            <TimelineLine ref={timelineRef}>
+              {storyBlocks.map((block, index) => (
+                <StoryBlock
+                  key={block.year}
+                  block={block}
+                  showDecorLine={index < storyBlocks.length - 1}
                 />
-              </div>
+              ))}
+            </TimelineLine>
 
-              <div className="space-y-6 md:space-y-8">
-                {storyBlocks.map((block, index) => (
-                  <article
-                    key={block.year}
-                    data-story-block
-                    className="relative pl-12 md:pl-14"
-                  >
-                    {/* Timeline dot */}
-                    <div
-                      aria-hidden="true"
-                      className="absolute left-1.5 top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-secondary bg-background md:left-2.5 md:h-5 md:w-5"
-                    >
-                      <div className="h-1.5 w-1.5 rounded-full bg-secondary" />
-                    </div>
-
-                    {/* Step number */}
-                    <span className="mb-2 block font-mono text-xs font-medium tracking-wider text-secondary-600/70">
-                      {block.year}
-                    </span>
-
-                    <h3 className="text-lg font-semibold tracking-tight text-foreground md:text-xl">
-                      {block.title}
-                    </h3>
-
-                    <p className="mt-2 max-w-lg text-sm leading-relaxed text-foreground/70 md:text-[0.95rem] md:leading-relaxed">
-                      {block.text}
-                    </p>
-
-                    {/* Decorative line under text */}
-                    {index < storyBlocks.length - 1 && (
-                      <div
-                        data-decor-line
-                        aria-hidden="true"
-                        className="mt-5 h-px w-16 origin-left bg-primary/15 md:mt-6"
-                      />
-                    )}
-                  </article>
-                ))}
-              </div>
-            </div>
-
-            {/* Signature / closing quote */}
             <div
               data-signature
               className="ml-12 mt-10 border-l-2 border-secondary/50 pl-5 md:ml-14 md:mt-12"
