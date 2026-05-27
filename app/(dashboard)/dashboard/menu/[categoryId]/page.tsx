@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ProductRowActions } from './product-row-actions';
+import { ArrowLeft } from 'lucide-react';
 
 export default async function CategoryProductsPage({
   params,
@@ -45,7 +46,9 @@ export default async function CategoryProductsPage({
     <div className="space-y-6">
       <div>
         <Button variant="ghost" size="sm" asChild className="-ml-3 mb-2">
-          <Link href="/dashboard/menu">← Catégories</Link>
+          <Link href="/dashboard/menu">
+            <ArrowLeft /> Catégories
+          </Link>
         </Button>
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">{category.name}</h1>

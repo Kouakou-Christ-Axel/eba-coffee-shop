@@ -2,114 +2,42 @@
 
 import { useRef } from 'react';
 import Image from 'next/image';
-import { useGSAP } from '@gsap/react';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
+import { useScrollAnimation } from '@/lib/animations/use-scroll-animation';
 
 function AboutVisionSection() {
   const sectionRef = useRef<HTMLElement | null>(null);
 
-  useGSAP(
-    () => {
-      const section = sectionRef.current;
-      if (!section) return;
-
-      const heading = section.querySelector('[data-heading]');
-      const description = section.querySelector('[data-description]');
-      const banner = section.querySelector('[data-banner]');
-
-      const mm = gsap.matchMedia();
-
-      mm.add('(prefers-reduced-motion: reduce)', () => {
-        gsap.set([heading, description, banner], {
-          autoAlpha: 1,
-          y: 0,
-        });
-      });
-
-      mm.add('(prefers-reduced-motion: no-preference)', () => {
-        if (heading) {
-          gsap.fromTo(
-            heading,
-            { autoAlpha: 0, y: 24 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              duration: 0.85,
-              ease: 'power3.out',
-              scrollTrigger: {
-                trigger: heading,
-                start: 'top 85%',
-                toggleActions: 'play none none reverse',
-              },
-            }
-          );
-        }
-
-        if (description) {
-          gsap.fromTo(
-            description,
-            { autoAlpha: 0, y: 18 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              duration: 0.7,
-              delay: 0.12,
-              ease: 'power2.out',
-              scrollTrigger: {
-                trigger: description,
-                start: 'top 88%',
-                toggleActions: 'play none none reverse',
-              },
-            }
-          );
-        }
-
-        if (banner) {
-          gsap.fromTo(
-            banner,
-            { autoAlpha: 0, scale: 0.96 },
-            {
-              autoAlpha: 1,
-              scale: 1,
-              duration: 1,
-              ease: 'power3.out',
-              scrollTrigger: {
-                trigger: banner,
-                start: 'top 82%',
-                toggleActions: 'play none none reverse',
-              },
-            }
-          );
-
-          const img = banner.querySelector('img');
-          if (img) {
-            gsap.fromTo(
-              img,
-              { yPercent: -6 },
-              {
-                yPercent: 6,
-                ease: 'none',
-                scrollTrigger: {
-                  trigger: banner,
-                  start: 'top bottom',
-                  end: 'bottom top',
-                  scrub: 0.6,
-                },
-              }
-            );
-          }
-        }
-      });
-
-      return () => {
-        mm.revert();
-      };
+  useScrollAnimation(sectionRef, [
+    {
+      selector: '[data-heading]',
+      from: { autoAlpha: 0, y: 24 },
+      to: { autoAlpha: 1, y: 0, duration: 0.85, ease: 'power3.out' },
+      start: 'top 85%',
     },
-    { scope: sectionRef }
-  );
+    {
+      selector: '[data-description]',
+      from: { autoAlpha: 0, y: 18 },
+      to: { autoAlpha: 1, y: 0, duration: 0.7, ease: 'power2.out' },
+      delay: 0.12,
+      start: 'top 88%',
+    },
+    {
+      selector: '[data-banner]',
+      from: { autoAlpha: 0, scale: 0.96 },
+      to: { autoAlpha: 1, scale: 1, duration: 1, ease: 'power3.out' },
+      start: 'top 82%',
+    },
+    {
+      selector: '[data-banner] img',
+      from: { yPercent: -6 },
+      to: { yPercent: 6, ease: 'none' },
+      trigger: '[data-banner]',
+      start: 'top bottom',
+      end: 'bottom top',
+      scrub: 0.6,
+      reducedMotion: 'skip',
+    },
+  ]);
 
   return (
     <section

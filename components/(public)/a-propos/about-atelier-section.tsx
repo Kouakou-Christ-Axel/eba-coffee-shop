@@ -2,21 +2,17 @@
 
 import { useRef } from 'react';
 import Image from 'next/image';
-import { useGSAP } from '@gsap/react';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
+import { useScrollAnimation } from '@/lib/animations/use-scroll-animation';
 
 const atelierImages = [
   {
     src: '/assets/examples/accueil/eba-hero-2.png',
-    alt: 'Préparation de la pâte dans l\u2019atelier EBA',
+    alt: 'Préparation de la pâte dans l’atelier EBA',
     caption: 'La préparation',
   },
   {
     src: '/assets/examples/accueil/eba-hero.webp',
-    alt: 'Dressage d\u2019une création pâtissière EBA',
+    alt: 'Dressage d’une création pâtissière EBA',
     caption: 'Le dressage',
   },
   {
@@ -33,91 +29,30 @@ const atelierImages = [
 
 function AboutAtelierSection() {
   const sectionRef = useRef<HTMLElement | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-  useGSAP(
-    () => {
-      const section = sectionRef.current;
-      if (!section) return;
-
-      const heading = section.querySelector('[data-heading]');
-      const subtitle = section.querySelector('[data-subtitle]');
-      const images = gsap.utils.toArray<HTMLElement>(
-        '[data-gallery-item]',
-        section
-      );
-
-      const mm = gsap.matchMedia();
-
-      mm.add('(prefers-reduced-motion: reduce)', () => {
-        gsap.set([heading, subtitle, ...images], { autoAlpha: 1, y: 0 });
-      });
-
-      mm.add('(prefers-reduced-motion: no-preference)', () => {
-        if (subtitle) {
-          gsap.fromTo(
-            subtitle,
-            { autoAlpha: 0, y: 16 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              duration: 0.7,
-              ease: 'power2.out',
-              scrollTrigger: {
-                trigger: subtitle,
-                start: 'top 88%',
-                toggleActions: 'play none none reverse',
-              },
-            }
-          );
-        }
-
-        if (heading) {
-          gsap.fromTo(
-            heading,
-            { autoAlpha: 0, y: 24 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              duration: 0.85,
-              delay: 0.08,
-              ease: 'power3.out',
-              scrollTrigger: {
-                trigger: heading,
-                start: 'top 86%',
-                toggleActions: 'play none none reverse',
-              },
-            }
-          );
-        }
-
-        images.forEach((img, i) => {
-          gsap.fromTo(
-            img,
-            { autoAlpha: 0, y: 24, scale: 0.97 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              scale: 1,
-              duration: 0.7,
-              delay: i * 0.08,
-              ease: 'power2.out',
-              scrollTrigger: {
-                trigger: scrollContainerRef.current,
-                start: 'top 82%',
-                toggleActions: 'play none none reverse',
-              },
-            }
-          );
-        });
-      });
-
-      return () => {
-        mm.revert();
-      };
+  useScrollAnimation(sectionRef, [
+    {
+      selector: '[data-subtitle]',
+      from: { autoAlpha: 0, y: 16 },
+      to: { autoAlpha: 1, y: 0, duration: 0.7, ease: 'power2.out' },
+      start: 'top 88%',
     },
-    { scope: sectionRef }
-  );
+    {
+      selector: '[data-heading]',
+      from: { autoAlpha: 0, y: 24 },
+      to: { autoAlpha: 1, y: 0, duration: 0.85, ease: 'power3.out' },
+      delay: 0.08,
+      start: 'top 86%',
+    },
+    {
+      selector: '[data-gallery-item]',
+      from: { autoAlpha: 0, y: 24, scale: 0.97 },
+      to: { autoAlpha: 1, y: 0, scale: 1, duration: 0.7, ease: 'power2.out' },
+      trigger: '[data-gallery]',
+      start: 'top 82%',
+      stagger: 0.08,
+    },
+  ]);
 
   return (
     <section
@@ -149,7 +84,7 @@ function AboutAtelierSection() {
 
       {/* Horizontal scroll gallery */}
       <div
-        ref={scrollContainerRef}
+        data-gallery
         className="content-container mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 md:mt-12 md:gap-5"
         style={{ scrollbarWidth: 'none' }}
       >

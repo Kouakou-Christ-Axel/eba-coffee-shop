@@ -2,77 +2,28 @@
 
 import { useRef } from 'react';
 import Link from 'next/link';
-import { useGSAP } from '@gsap/react';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
+import { useScrollAnimation } from '@/lib/animations/use-scroll-animation';
 
 function AboutCtaSection() {
   const sectionRef = useRef<HTMLElement | null>(null);
 
-  useGSAP(
-    () => {
-      const section = sectionRef.current;
-      if (!section) return;
-
-      const content = section.querySelector('[data-content]');
-      const buttons = gsap.utils.toArray<HTMLElement>(
-        '[data-cta-btn]',
-        section
-      );
-
-      const mm = gsap.matchMedia();
-
-      mm.add('(prefers-reduced-motion: reduce)', () => {
-        gsap.set([content, ...buttons], { autoAlpha: 1, y: 0 });
-      });
-
-      mm.add('(prefers-reduced-motion: no-preference)', () => {
-        if (content) {
-          gsap.fromTo(
-            content,
-            { autoAlpha: 0, y: 24 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              duration: 0.85,
-              ease: 'power3.out',
-              scrollTrigger: {
-                trigger: content,
-                start: 'top 82%',
-                toggleActions: 'play none none reverse',
-              },
-            }
-          );
-        }
-
-        buttons.forEach((btn, i) => {
-          gsap.fromTo(
-            btn,
-            { autoAlpha: 0, y: 14 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              duration: 0.6,
-              delay: 0.25 + i * 0.1,
-              ease: 'power2.out',
-              scrollTrigger: {
-                trigger: content,
-                start: 'top 82%',
-                toggleActions: 'play none none reverse',
-              },
-            }
-          );
-        });
-      });
-
-      return () => {
-        mm.revert();
-      };
+  useScrollAnimation(sectionRef, [
+    {
+      selector: '[data-content]',
+      from: { autoAlpha: 0, y: 24 },
+      to: { autoAlpha: 1, y: 0, duration: 0.85, ease: 'power3.out' },
+      start: 'top 82%',
     },
-    { scope: sectionRef }
-  );
+    {
+      selector: '[data-cta-btn]',
+      from: { autoAlpha: 0, y: 14 },
+      to: { autoAlpha: 1, y: 0, duration: 0.6, ease: 'power2.out' },
+      trigger: '[data-content]',
+      start: 'top 82%',
+      delay: 0.25,
+      stagger: 0.1,
+    },
+  ]);
 
   return (
     <section

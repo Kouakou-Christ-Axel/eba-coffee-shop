@@ -1,11 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
-import { useGSAP } from '@gsap/react';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
+import { useScrollAnimation } from '@/lib/animations/use-scroll-animation';
 
 const engagements = [
   {
@@ -14,100 +10,43 @@ const engagements = [
   },
   {
     title: 'Des ingrédients traçables',
-    text: 'Beurre français, chocolat de couverture, fruits frais du marché. On sait d\u2019où vient ce qu\u2019on utilise.',
+    text: 'Beurre français, chocolat de couverture, fruits frais du marché. On sait d’où vient ce qu’on utilise.',
   },
   {
     title: 'Zéro conservateur',
-    text: 'Nos recettes sont courtes et lisibles. Si vous ne reconnaissez pas un ingrédient, c\u2019est qu\u2019il n\u2019a pas sa place chez nous.',
+    text: 'Nos recettes sont courtes et lisibles. Si vous ne reconnaissez pas un ingrédient, c’est qu’il n’a pas sa place chez nous.',
   },
   {
     title: 'Un prix juste',
-    text: 'L\u2019exigence ne doit pas être un luxe. Nous travaillons chaque recette pour qu\u2019elle reste accessible, sans compromis sur la qualité.',
+    text: 'L’exigence ne doit pas être un luxe. Nous travaillons chaque recette pour qu’elle reste accessible, sans compromis sur la qualité.',
   },
 ];
 
 function AboutEngagementsSection() {
   const sectionRef = useRef<HTMLElement | null>(null);
 
-  useGSAP(
-    () => {
-      const section = sectionRef.current;
-      if (!section) return;
-
-      const heading = section.querySelector('[data-heading]');
-      const subtitle = section.querySelector('[data-subtitle]');
-      const cards = gsap.utils.toArray<HTMLElement>('[data-card]', section);
-
-      const mm = gsap.matchMedia();
-
-      mm.add('(prefers-reduced-motion: reduce)', () => {
-        gsap.set([heading, subtitle, ...cards], { autoAlpha: 1, y: 0 });
-      });
-
-      mm.add('(prefers-reduced-motion: no-preference)', () => {
-        if (subtitle) {
-          gsap.fromTo(
-            subtitle,
-            { autoAlpha: 0, y: 16 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              duration: 0.7,
-              ease: 'power2.out',
-              scrollTrigger: {
-                trigger: subtitle,
-                start: 'top 88%',
-                toggleActions: 'play none none reverse',
-              },
-            }
-          );
-        }
-
-        if (heading) {
-          gsap.fromTo(
-            heading,
-            { autoAlpha: 0, y: 24 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              duration: 0.85,
-              delay: 0.08,
-              ease: 'power3.out',
-              scrollTrigger: {
-                trigger: heading,
-                start: 'top 86%',
-                toggleActions: 'play none none reverse',
-              },
-            }
-          );
-        }
-
-        cards.forEach((card, i) => {
-          gsap.fromTo(
-            card,
-            { autoAlpha: 0, y: 28 },
-            {
-              autoAlpha: 1,
-              y: 0,
-              duration: 0.7,
-              delay: i * 0.1,
-              ease: 'power2.out',
-              scrollTrigger: {
-                trigger: card,
-                start: 'top 86%',
-                toggleActions: 'play none none reverse',
-              },
-            }
-          );
-        });
-      });
-
-      return () => {
-        mm.revert();
-      };
+  useScrollAnimation(sectionRef, [
+    {
+      selector: '[data-subtitle]',
+      from: { autoAlpha: 0, y: 16 },
+      to: { autoAlpha: 1, y: 0, duration: 0.7, ease: 'power2.out' },
+      start: 'top 88%',
     },
-    { scope: sectionRef }
-  );
+    {
+      selector: '[data-heading]',
+      from: { autoAlpha: 0, y: 24 },
+      to: { autoAlpha: 1, y: 0, duration: 0.85, ease: 'power3.out' },
+      delay: 0.08,
+      start: 'top 86%',
+    },
+    {
+      selector: '[data-card]',
+      from: { autoAlpha: 0, y: 28 },
+      to: { autoAlpha: 1, y: 0, duration: 0.7, ease: 'power2.out' },
+      start: 'top 86%',
+      stagger: 0.1,
+    },
+  ]);
 
   return (
     <section
