@@ -11,9 +11,10 @@ import prisma from '@/lib/prisma';
 import { requireCashier } from '@/lib/auth-helpers';
 import { canTransition } from '@/lib/order-permissions';
 import type { OrderStatus, UserRole } from '@/generated/prisma/client';
+import { orderStatusSchema } from '@/lib/schemas/order';
 
 const bodySchema = z.object({
-  status: z.enum(['NEW', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED']),
+  status: orderStatusSchema,
 });
 
 type Params = { params: Promise<{ id: string }> };

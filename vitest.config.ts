@@ -12,6 +12,7 @@ export default defineConfig({
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
+      // TODO(phase-6): re-enable when Order model migration completes.
       'lib/orders.test.ts',
       'app/api/commandes/route.test.ts',
       'app/api/commandes/[id]/route.test.ts',
@@ -20,7 +21,6 @@ export default defineConfig({
       'app/(dashboard)/dashboard/commandes/page.test.tsx',
       'app/(dashboard)/dashboard/commandes/[id]/page.test.tsx',
       'app/(dashboard)/dashboard/commandes/[id]/status-buttons.test.tsx',
-      'app/(dashboard)/dashboard/preparation/page.test.tsx',
     ],
   },
   resolve: {

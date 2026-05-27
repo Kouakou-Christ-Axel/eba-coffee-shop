@@ -49,3 +49,6 @@ generated/prisma
 
 # pm2 logs
 /logs/
+
+# Claude Code worktrees and scratch
+/.claude/

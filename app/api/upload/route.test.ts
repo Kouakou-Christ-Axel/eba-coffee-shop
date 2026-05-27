@@ -114,7 +114,9 @@ describe('POST /api/upload', () => {
     const res = await POST(makeRequest(file));
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.url).toMatch(/^\/uploads\/products\/\d+-[a-z0-9]+\.jpg$/);
+    expect(json.url).toMatch(
+      /^\/uploads\/products\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jpg$/
+    );
     expect(mockMkdir).toHaveBeenCalled();
     expect(mockWriteFile).toHaveBeenCalled();
   });

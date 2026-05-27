@@ -11,11 +11,12 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { requireCashier } from '@/lib/auth-helpers';
+import { paymentModeSchema } from '@/lib/schemas/order';
 
 const bodySchema = z
   .object({
     isPaid: z.boolean(),
-    paymentMode: z.enum(['CASH', 'WAVE', 'OTHER']).optional(),
+    paymentMode: paymentModeSchema.optional(),
   })
   .refine((data) => !data.isPaid || data.paymentMode !== undefined, {
     message: 'paymentMode requis quand isPaid=true',

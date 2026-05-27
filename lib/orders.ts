@@ -4,30 +4,15 @@ import type { OrderStatus, OrderType } from '@/generated/prisma/client';
 import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { getNextDailyNumber, todayDailyDate } from '@/lib/daily-numbering';
+import { createOrderSchema as baseCreateOrderSchema } from '@/lib/schemas/order';
+import { ORDERS_PAGE_SIZE } from '@/config/constants';
 
-// ─── Schémas Zod ──────────────────────────────────────────────────────────────
+// ─── Schéma Zod : online (strict, customer obligatoire, pickupTime requis) ────
 
-const cartItemSupplementSchema = z.object({
-  groupName: z.string(),
-  optionName: z.string(),
-  price: z.number().int().nonnegative(),
-});
-
-const cartItemSchema = z.object({
-  cartId: z.string(),
-  productId: z.string(),
-  productName: z.string(),
-  basePrice: z.number().int().nonnegative(),
-  quantity: z.number().int().positive(),
-  supplements: z.array(cartItemSupplementSchema),
-});
-
-export const createOrderSchema = z.object({
-  customerName: z.string().min(2).max(50),
-  customerPhone: z.string().min(8).max(20),
+export const createOrderSchema = baseCreateOrderSchema.extend({
+  customerName: z.string().trim().min(2).max(50),
+  customerPhone: z.string().trim().min(8).max(20),
   pickupTime: z.string().datetime(),
-  items: z.array(cartItemSchema).min(1),
-  total: z.number().int().positive(),
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
@@ -105,7 +90,7 @@ export async function listOrders({
   status,
   dailyDate,
 }: ListOrdersParams) {
-  const pageSize = 20;
+  const pageSize = ORDERS_PAGE_SIZE;
   const skip = (page - 1) * pageSize;
   const where: {
     status?: OrderStatus;

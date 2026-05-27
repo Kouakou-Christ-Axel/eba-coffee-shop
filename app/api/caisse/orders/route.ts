@@ -8,7 +8,6 @@
 // de l'index unique (dailyDate, dailyNumber).
 
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { Prisma } from '@/generated/prisma/client';
 import { requireCashier } from '@/lib/auth-helpers';
@@ -19,29 +18,10 @@ import {
 } from '@/lib/daily-numbering';
 import { generateOrderReference } from '@/lib/orders';
 import { normalizeIvorianPhone } from '@/lib/phone';
+import { createOrderSchema, orderTypeSchema } from '@/lib/schemas/order';
 
-const cartItemSupplementSchema = z.object({
-  groupName: z.string(),
-  optionName: z.string(),
-  price: z.number().int().nonnegative(),
-});
-
-const cartItemSchema = z.object({
-  cartId: z.string(),
-  productId: z.string(),
-  productName: z.string(),
-  basePrice: z.number().int().nonnegative(),
-  quantity: z.number().int().positive(),
-  supplements: z.array(cartItemSupplementSchema),
-});
-
-const bodySchema = z.object({
-  items: z.array(cartItemSchema).min(1, 'Au moins 1 article'),
-  total: z.number().int().positive(),
-  customerName: z.string().trim().min(1).max(50).nullable().optional(),
-  customerPhone: z.string().trim().min(1).max(30).nullable().optional(),
-  orderType: z.enum(['DELIVERY', 'DINE_IN', 'TAKEAWAY']),
-  note: z.string().trim().max(500).nullable().optional(),
+const bodySchema = createOrderSchema.extend({
+  orderType: orderTypeSchema,
 });
 
 export async function POST(req: Request) {

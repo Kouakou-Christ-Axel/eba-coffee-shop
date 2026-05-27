@@ -1,10 +1,13 @@
 export const brandConfig = {
   name: 'EBA',
+  founderName: 'Fondatrice EBA',
   location: {
     address: 'Boulevard Latrille, Cocody, Abidjan',
     district: 'Cocody, Abidjan',
     landmark: 'A 2 min du carrefour Duncan',
     schedule: 'Lun - Dim : 7h30 - 21h30',
+    openingTime: '07:30',
+    closingTime: '21:30',
     phone: '+225 27 22 00 00 00',
     whatsapp: '+225 07 00 00 00 00',
     whatsappLink: 'https://wa.me/2250700000000',

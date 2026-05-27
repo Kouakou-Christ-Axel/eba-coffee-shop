@@ -13,7 +13,7 @@ export const homeJsonLd = {
   image: `${siteUrl}/og/home-coffee.jpg`,
   url: siteUrl,
   telephone: brandConfig.location.phone,
-  email: 'contact@eba.ci',
+  email: brandConfig.links.contact.email.display,
   address: {
     '@type': 'PostalAddress',
     streetAddress: 'Boulevard Latrille',
@@ -46,7 +46,7 @@ export const homeJsonLd = {
   ],
   founder: {
     '@type': 'Person',
-    name: 'Fondatrice EBA',
+    name: brandConfig.founderName,
     jobTitle: 'Pâtissière',
   },
   openingHoursSpecification: [
@@ -61,8 +61,8 @@ export const homeJsonLd = {
         'Saturday',
         'Sunday',
       ],
-      opens: '07:30',
-      closes: '21:30',
+      opens: brandConfig.location.openingTime,
+      closes: brandConfig.location.closingTime,
     },
   ],
 };
