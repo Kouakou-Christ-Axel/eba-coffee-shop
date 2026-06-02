@@ -26,7 +26,11 @@ export default function LoginButton() {
     });
     setLoading(false);
     if (sendError) {
-      setError(sendError.message ?? "Impossible d'envoyer le code");
+      console.error('[login] sendVerificationOtp error:', sendError);
+      setError(
+        sendError.message ||
+          `Impossible d'envoyer le code (erreur ${sendError.status ?? 'inconnue'}).`
+      );
       return;
     }
     setStep('otp');
@@ -42,7 +46,13 @@ export default function LoginButton() {
     });
     setLoading(false);
     if (signInError) {
-      setError(signInError.message ?? 'Code invalide ou expiré');
+      console.error('[login] signIn.emailOtp error:', signInError);
+      // Un message vide signale une erreur serveur inattendue (ex. 500),
+      // à ne pas confondre avec un code réellement invalide/expiré.
+      setError(
+        signInError.message ||
+          `Une erreur serveur est survenue (${signInError.status ?? 'inconnue'}). Réessayez ou contactez le support.`
+      );
       return;
     }
     router.push('/dashboard');
@@ -67,9 +77,7 @@ export default function LoginButton() {
             required
             autoFocus
           />
-          <p className="text-xs text-muted-foreground">
-            Code envoyé à {email}
-          </p>
+          <p className="text-xs text-muted-foreground">Code envoyé à {email}</p>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button type="submit" disabled={loading || otp.length !== 6}>
