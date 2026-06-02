@@ -40,14 +40,25 @@ export const authorizedSessionSchema = z.object({
 
 async function getSession(): Promise<AuthorizedSession | null> {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) return null;
+  if (!session) {
+    // Aucune session lisible : le cookie de session est absent ou non transmis.
+    // C'est généralement un problème de cookie (`Secure`/préfixe, reverse proxy
+    // qui ne forwarde pas X-Forwarded-Proto) et NON un problème de rôle.
+    console.warn(
+      '[auth-helpers] getSession: aucune session (cookie de session absent ou non lu)'
+    );
+    return null;
+  }
 
   const parsed = authorizedSessionSchema.safeParse(session);
   if (!parsed.success) {
     // Dérive de shape côté Better Auth — on refuse explicitement plutôt que
     // de laisser un cast silencieux faire confiance à des données invalides.
+    // On logge la valeur réelle de `role`/`name` pour diagnostiquer rapidement.
     console.error(
-      '[auth-helpers] Session shape invalide:',
+      '[auth-helpers] Session présente mais shape invalide — role=%o name=%o erreurs=%o',
+      (session as { user?: { role?: unknown } }).user?.role,
+      (session as { user?: { name?: unknown } }).user?.name,
       parsed.error.flatten()
     );
     return null;
