@@ -32,4 +32,4 @@ jobs:
             pnpm db:push
             pnpm db:trigger
             pnpm build
-            pm2 startOrReload ecosystem.config.js --update-env
+            pm2 startOrReload ecosystem.config.cjs --update-env
