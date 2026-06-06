@@ -164,6 +164,13 @@ export function SupplementPicker({
                     setSelections((prev) => ({ ...prev, [group.name]: v }))
                   }
                 >
+                  {/* Option de désélection pour les groupes facultatifs :
+                      permet de revenir à « aucun choix ». */}
+                  {!group.required && (
+                    <Radio value="">
+                      <span className="text-sm text-foreground/60">Aucun</span>
+                    </Radio>
+                  )}
                   {group.options.map((opt) => (
                     <Radio key={opt.name} value={opt.name}>
                       <span className="flex items-center justify-between gap-4">
