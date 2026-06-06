@@ -1,7 +1,15 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { ArrowLeft, Check, Minus, Plus, Trash2, X } from 'lucide-react';
+import { useMemo, useState, useTransition } from 'react';
+import {
+  ArrowLeft,
+  Check,
+  Minus,
+  Plus,
+  SlidersHorizontal,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { CartItem, CartItemSupplement } from '@/lib/cart-store';
 import type { MenuCategory, Product } from '@/config/menu';
@@ -16,6 +24,10 @@ type Props = {
   /** Appelé après une sauvegarde réussie ou une annulation. */
   onClose: () => void;
 };
+
+type PickerState =
+  | { mode: 'add'; product: Product }
+  | { mode: 'edit'; product: Product; cartId: string };
 
 function makeCartId(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -38,7 +50,8 @@ const fmt = new Intl.NumberFormat('fr-FR');
 
 /**
  * Panneau d'édition des articles d'une commande : modifier les quantités,
- * retirer des lignes, et **ajouter** de nouveaux produits via le catalogue.
+ * retirer des lignes, **ajouter** de nouveaux produits via le catalogue, et
+ * **corriger les options** (suppléments) d'une ligne existante.
  * Toute ligne ajoutée ici est marquée `addedLater` (badge « Ajout »).
  *
  * Composant sans coquille (ni Card ni Modal) : le parent fournit le conteneur.
@@ -51,10 +64,17 @@ export function OrderItemsEditor({
 }: Props) {
   const [items, setItems] = useState<CartItem[]>(initialItems);
   const [view, setView] = useState<'list' | 'catalog'>('list');
-  const [pickerProduct, setPickerProduct] = useState<Product | null>(null);
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [picker, setPicker] = useState<PickerState | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  // Index produit par id, pour retrouver les groupes de suppléments d'une
+  // ligne (les lignes ne stockent que les options choisies, pas les groupes).
+  const productById = useMemo(() => {
+    const map = new Map<string, Product>();
+    for (const cat of menu) for (const p of cat.products) map.set(p.id, p);
+    return map;
+  }, [menu]);
 
   function changeQty(cartId: string, delta: number) {
     setItems((prev) =>
@@ -103,17 +123,33 @@ export function OrderItemsEditor({
 
   function handleProductTap(product: Product) {
     if ((product.supplements?.length ?? 0) > 0) {
-      setPickerProduct(product);
-      setIsPickerOpen(true);
+      setPicker({ mode: 'add', product });
       return;
     }
     addLine(product, []);
     setView('list');
   }
 
-  function closePicker() {
-    setIsPickerOpen(false);
-    setPickerProduct(null);
+  function editLineOptions(item: CartItem) {
+    const product = productById.get(item.productId);
+    if (!product) return;
+    setPicker({ mode: 'edit', product, cartId: item.cartId });
+  }
+
+  function handlePickerConfirm(
+    product: Product,
+    supplements: CartItemSupplement[]
+  ) {
+    if (picker?.mode === 'edit') {
+      const { cartId } = picker;
+      setItems((prev) =>
+        prev.map((i) => (i.cartId === cartId ? { ...i, supplements } : i))
+      );
+    } else {
+      addLine(product, supplements);
+      setView('list');
+    }
+    setPicker(null);
   }
 
   function save() {
@@ -134,6 +170,25 @@ export function OrderItemsEditor({
 
   const total = items.reduce((sum, item) => sum + lineTotal(item), 0);
 
+  const editingItem =
+    picker?.mode === 'edit'
+      ? items.find((i) => i.cartId === picker.cartId)
+      : undefined;
+
+  const supplementPicker = (
+    <SupplementPicker
+      product={picker?.product ?? null}
+      isOpen={picker !== null}
+      onClose={() => setPicker(null)}
+      onAdd={({ product, supplements }) =>
+        handlePickerConfirm(product, supplements)
+      }
+      initialSupplements={editingItem?.supplements ?? []}
+      editToken={picker?.mode === 'edit' ? picker.cartId : undefined}
+      confirmVerb={picker?.mode === 'edit' ? 'Mettre à jour' : 'Ajouter'}
+    />
+  );
+
   if (view === 'catalog') {
     return (
       <div className="space-y-3">
@@ -151,15 +206,7 @@ export function OrderItemsEditor({
           </span>
         </div>
         <ProductCatalog menu={menu} onProductTap={handleProductTap} />
-        <SupplementPicker
-          product={pickerProduct}
-          isOpen={isPickerOpen}
-          onClose={closePicker}
-          onAdd={({ product, supplements }) => {
-            addLine(product, supplements);
-            setView('list');
-          }}
-        />
+        {supplementPicker}
       </div>
     );
   }
@@ -189,62 +236,78 @@ export function OrderItemsEditor({
         </div>
       </div>
 
-      {items.map((item) => (
-        <div key={item.cartId} className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1.5 truncate text-sm font-medium">
-              <span className="truncate">{item.productName}</span>
-              {item.addedLater && (
-                <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                  Ajout
-                </span>
-              )}
-            </p>
-            {item.supplements.length > 0 && (
-              <p className="truncate text-xs text-muted-foreground">
-                {item.supplements.map((s) => s.optionName).join(', ')}
+      {items.map((item) => {
+        const hasOptions =
+          (productById.get(item.productId)?.supplements?.length ?? 0) > 0;
+        return (
+          <div key={item.cartId} className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                <span className="truncate">{item.productName}</span>
+                {item.addedLater && (
+                  <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                    Ajout
+                  </span>
+                )}
               </p>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => changeQty(item.cartId, -1)}
-              disabled={isPending}
-            >
-              {item.quantity === 1 ? (
-                <Trash2 className="size-3.5 text-destructive" />
-              ) : (
-                <Minus className="size-3.5" />
+              {item.supplements.length > 0 && (
+                <p className="truncate text-xs text-muted-foreground">
+                  {item.supplements.map((s) => s.optionName).join(', ')}
+                </p>
               )}
-            </Button>
-            <span className="w-6 text-center text-sm font-medium">
-              {item.quantity}
+            </div>
+            {hasOptions && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => editLineOptions(item)}
+                disabled={isPending}
+                aria-label="Modifier les options"
+                title="Modifier les options"
+              >
+                <SlidersHorizontal className="size-3.5" />
+              </Button>
+            )}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => changeQty(item.cartId, -1)}
+                disabled={isPending}
+              >
+                {item.quantity === 1 ? (
+                  <Trash2 className="size-3.5 text-destructive" />
+                ) : (
+                  <Minus className="size-3.5" />
+                )}
+              </Button>
+              <span className="w-6 text-center text-sm font-medium">
+                {item.quantity}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => changeQty(item.cartId, 1)}
+                disabled={isPending}
+              >
+                <Plus className="size-3.5" />
+              </Button>
+            </div>
+            <span className="w-20 text-right text-sm">
+              {fmt.format(lineTotal(item))} F
             </span>
             <Button
               variant="ghost"
               size="icon-sm"
-              onClick={() => changeQty(item.cartId, 1)}
+              onClick={() => removeItem(item.cartId)}
               disabled={isPending}
+              aria-label="Supprimer"
             >
-              <Plus className="size-3.5" />
+              <Trash2 className="size-3.5 text-destructive" />
             </Button>
           </div>
-          <span className="w-24 text-right text-sm">
-            {fmt.format(lineTotal(item))} FCFA
-          </span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => removeItem(item.cartId)}
-            disabled={isPending}
-            aria-label="Supprimer"
-          >
-            <Trash2 className="size-3.5 text-destructive" />
-          </Button>
-        </div>
-      ))}
+        );
+      })}
 
       {items.length === 0 && (
         <p className="text-sm text-destructive">
@@ -267,6 +330,8 @@ export function OrderItemsEditor({
       <div className="border-t pt-2 text-right text-sm font-bold">
         Total : {fmt.format(total)} FCFA
       </div>
+
+      {supplementPicker}
     </div>
   );
 }
