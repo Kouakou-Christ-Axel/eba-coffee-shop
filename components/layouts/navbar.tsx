@@ -16,6 +16,9 @@ import gsap from 'gsap';
 import Image from 'next/image';
 import { brandConfig } from '@/config/brand.config';
 import { usePathname } from 'next/navigation';
+import { authClient } from '@/lib/auth-client';
+
+const DASHBOARD_ROLES = ['ADMIN', 'CASHIER', 'KITCHEN'];
 
 const HOME_SCROLL_TRIGGER_PX = 140;
 const HOME_NARROW_MAX_WIDTH = '75rem';
@@ -25,6 +28,9 @@ function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const isHome = pathname === '/';
   const navbarRef = useRef<HTMLElement | null>(null);
+  const { data: session } = authClient.useSession();
+  const userRole = (session?.user as { role?: string } | undefined)?.role;
+  const hasDashboardAccess = !!userRole && DASHBOARD_ROLES.includes(userRole);
 
   useGSAP(
     () => {
@@ -121,9 +127,15 @@ function Navbar() {
           <Link href="/le-lieu">Nous trouver</Link>
         </NavbarItem>
         <NavbarItem className="hidden lg:flex">
-          <Button as={Link} color="primary" href="/contact" variant="flat">
-            Commander
-          </Button>
+          {hasDashboardAccess ? (
+            <Button as={Link} color="primary" href="/dashboard" variant="flat">
+              Dashboard
+            </Button>
+          ) : (
+            <Button as={Link} color="primary" href="/contact" variant="flat">
+              Commander
+            </Button>
+          )}
         </NavbarItem>
         <NavbarMenuToggle
           aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}

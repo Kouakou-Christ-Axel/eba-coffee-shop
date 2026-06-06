@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -110,10 +111,17 @@ export function DashboardSidebar({ user, role }: DashboardSidebarProps) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1.5">
-          <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <span className="text-sm font-bold">E</span>
-          </div>
+        <Link
+          href="/"
+          className="flex items-center gap-2 px-2 py-1.5 hover:opacity-75 transition-opacity"
+        >
+          <Image
+            src="/assets/logos/eba_n.svg"
+            alt="EBA Coffee Shop"
+            width={36}
+            height={36}
+            className="shrink-0"
+          />
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">
             <span className="text-sm font-semibold leading-tight">
               EBA Coffee
@@ -122,7 +130,7 @@ export function DashboardSidebar({ user, role }: DashboardSidebarProps) {
               {roleLabel(role)}
             </span>
           </div>
-        </div>
+        </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
