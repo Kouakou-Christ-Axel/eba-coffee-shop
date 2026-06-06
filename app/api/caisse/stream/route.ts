@@ -15,7 +15,7 @@ import type { UserRole } from '@/generated/prisma/client';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const HEARTBEAT_INTERVAL_MS = 10_000;
+const HEARTBEAT_INTERVAL_MS = 20_000;
 const DEBOUNCE_MS = 150;
 
 // Types sérialisables : Date → string ISO (ou null) pour traverser JSON.
