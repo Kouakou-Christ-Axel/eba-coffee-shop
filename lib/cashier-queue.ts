@@ -44,6 +44,8 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
   const orders = await prisma.order.findMany({
     where: {
       createdAt: { gte: dayStart, lte: dayEnd },
+      // Une commande annulée (ou remboursée) quitte la file caisse.
+      status: { not: 'CANCELLED' },
       OR: [
         { status: { in: ['NEW', 'PREPARING', 'READY'] } },
         { isPaid: false },

@@ -6,7 +6,6 @@ type Transition = {
   roles: UserRole[];
 };
 
-const ADMIN_ONLY: UserRole[] = ['ADMIN'];
 const CASHIER_PLUS: UserRole[] = ['ADMIN', 'CASHIER'];
 const KITCHEN_PLUS: UserRole[] = ['ADMIN', 'CASHIER', 'KITCHEN'];
 
@@ -15,10 +14,12 @@ const TRANSITIONS: readonly Transition[] = [
   { from: 'PREPARING', to: 'READY', roles: KITCHEN_PLUS },
   { from: 'READY', to: 'COMPLETED', roles: CASHIER_PLUS },
 
-  // Annulations
+  // Annulations / remboursements : tout caissier peut annuler une commande
+  // active. Annuler une commande déjà payée vaut remboursement.
   { from: 'NEW', to: 'CANCELLED', roles: CASHIER_PLUS },
   { from: 'PREPARING', to: 'CANCELLED', roles: CASHIER_PLUS },
-  { from: 'READY', to: 'CANCELLED', roles: ADMIN_ONLY },
+  { from: 'READY', to: 'CANCELLED', roles: CASHIER_PLUS },
+  { from: 'COMPLETED', to: 'CANCELLED', roles: CASHIER_PLUS },
 ];
 
 /** Vérifie si un rôle peut faire passer une commande d'un statut à un autre. */

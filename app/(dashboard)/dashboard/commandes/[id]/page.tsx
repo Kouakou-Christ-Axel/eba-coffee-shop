@@ -88,6 +88,9 @@ export default async function CommandeDetailPage({
           <Badge variant={order.isPaid ? 'default' : 'secondary'}>
             {order.isPaid ? 'Payée' : 'Non payée'}
           </Badge>
+          {order.status === 'CANCELLED' && order.isPaid && (
+            <Badge variant="destructive">Remboursée</Badge>
+          )}
         </div>
       </div>
 
