@@ -8,6 +8,10 @@
 // Les messages d'erreur restent en français (cible Côte d'Ivoire).
 
 import { z } from 'zod';
+import {
+  MAX_LINE_DISCOUNT_RATIO,
+  ORDER_DISCOUNT_REASON_MAX,
+} from '@/config/constants';
 
 // ─── Sous-schémas : articles du panier ────────────────────────────────────────
 
@@ -17,18 +21,39 @@ export const cartItemSupplementSchema = z.object({
   price: z.number().int().nonnegative(),
 });
 
-export const cartItemSchema = z.object({
-  cartId: z.string(),
-  productId: z.string(),
-  productName: z.string(),
-  basePrice: z.number().int().nonnegative(),
-  coutMatiere: z.number().int().nonnegative().default(0),
-  coutEmballage: z.number().int().nonnegative().default(0),
-  quantity: z.number().int().positive(),
-  supplements: z.array(cartItemSupplementSchema),
-  // Marque une ligne ajoutée après la création de la commande.
-  addedLater: z.boolean().optional().default(false),
-});
+export const cartItemSchema = z
+  .object({
+    cartId: z.string(),
+    productId: z.string(),
+    productName: z.string(),
+    basePrice: z.number().int().nonnegative(),
+    coutMatiere: z.number().int().nonnegative().default(0),
+    coutEmballage: z.number().int().nonnegative().default(0),
+    quantity: z.number().int().positive(),
+    supplements: z.array(cartItemSupplementSchema),
+    // Marque une ligne ajoutée après la création de la commande.
+    addedLater: z.boolean().optional().default(false),
+    // Remise (montant fixe FCFA) appliquée à la ligne, motif optionnel.
+    discount: z.number().int().nonnegative().optional().default(0),
+    discountReason: z
+      .string()
+      .trim()
+      .max(ORDER_DISCOUNT_REASON_MAX, 'Motif trop long')
+      .nullable()
+      .optional(),
+  })
+  // La remise d'une ligne ne peut pas dépasser le plafond métier.
+  .refine(
+    (it) => {
+      const supplementsTotal = it.supplements.reduce((s, x) => s + x.price, 0);
+      const gross = (it.basePrice + supplementsTotal) * it.quantity;
+      return (it.discount ?? 0) <= Math.floor(gross * MAX_LINE_DISCOUNT_RATIO);
+    },
+    {
+      message: `Remise trop élevée (max ${Math.round(MAX_LINE_DISCOUNT_RATIO * 100)}% de la ligne)`,
+      path: ['discount'],
+    }
+  );
 
 export type CartItemSupplementInput = z.infer<typeof cartItemSupplementSchema>;
 export type CartItemInput = z.infer<typeof cartItemSchema>;

@@ -1,5 +1,6 @@
 // lib/cart-store.ts
 import { create } from 'zustand';
+import { getItemNet } from '@/lib/orders/totals';
 
 export type CartItemSupplement = {
   groupName: string;
@@ -19,14 +20,15 @@ export type CartItem = {
   // Ligne ajoutée après la création de la commande (badge « Ajout » côté
   // caisse / cuisine). Absent/false pour les articles d'origine.
   addedLater?: boolean;
+  // Remise caisse : montant fixe en FCFA retiré de la ligne (plafonnée), avec
+  // motif optionnel. Absent = pas de remise.
+  discount?: number;
+  discountReason?: string | null;
 };
 
+/** Total net d'une ligne (après remise). Voir lib/orders/totals.ts. */
 export function getItemTotal(item: CartItem): number {
-  const supplementsTotal = item.supplements.reduce(
-    (sum, s) => sum + s.price,
-    0
-  );
-  return (item.basePrice + supplementsTotal) * item.quantity;
+  return getItemNet(item);
 }
 
 type CartStore = {

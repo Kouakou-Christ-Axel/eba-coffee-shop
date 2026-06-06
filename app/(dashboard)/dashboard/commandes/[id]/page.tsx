@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getOrder } from '@/lib/orders';
 import { getMenu } from '@/lib/menu';
 import type { CartItem } from '@/lib/cart-store';
+import { getItemGross, getItemNet } from '@/lib/orders/totals';
 import type { OrderStatus } from '@/generated/prisma/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -127,16 +128,17 @@ export default async function CommandeDetailPage({
         <CardContent>
           <ul className="space-y-4">
             {items.map((item) => {
-              const unitSell =
-                item.basePrice +
-                item.supplements.reduce((s, sup) => s + sup.price, 0);
+              const gross = getItemGross(item);
+              const net = getItemNet(item);
+              const discounted = gross !== net;
               const unitCost =
                 (item.coutMatiere ?? 0) + (item.coutEmballage ?? 0);
-              const lineTotal = unitSell * item.quantity;
+              const lineCost = unitCost * item.quantity;
               const hasCost = unitCost > 0;
+              const margin = net - lineCost;
               return (
                 <li key={item.cartId}>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between gap-3">
                     <span className="flex items-center gap-1.5 font-medium">
                       <span>
                         {item.productName} x{item.quantity}
@@ -147,8 +149,13 @@ export default async function CommandeDetailPage({
                         </span>
                       )}
                     </span>
-                    <span>
-                      {new Intl.NumberFormat('fr-FR').format(lineTotal)} FCFA
+                    <span className="shrink-0 text-right">
+                      {discounted && (
+                        <span className="mr-1 text-sm text-muted-foreground line-through">
+                          {new Intl.NumberFormat('fr-FR').format(gross)}
+                        </span>
+                      )}
+                      {new Intl.NumberFormat('fr-FR').format(net)} FCFA
                     </span>
                   </div>
                   {item.supplements.length > 0 && (
@@ -161,19 +168,20 @@ export default async function CommandeDetailPage({
                       ))}
                     </ul>
                   )}
+                  {discounted && (
+                    <p className="mt-0.5 text-sm font-medium text-green-700 dark:text-green-400">
+                      Remise : -
+                      {new Intl.NumberFormat('fr-FR').format(gross - net)} FCFA
+                      {item.discountReason ? ` — ${item.discountReason}` : ''}
+                    </p>
+                  )}
                   {hasCost && (
                     <p className="mt-0.5 pl-0 text-xs text-muted-foreground">
-                      Coût :{' '}
-                      {new Intl.NumberFormat('fr-FR').format(
-                        unitCost * item.quantity
-                      )}{' '}
+                      Coût : {new Intl.NumberFormat('fr-FR').format(lineCost)}{' '}
                       FCFA
                       {' · '}Marge :{' '}
-                      {new Intl.NumberFormat('fr-FR').format(
-                        (unitSell - unitCost) * item.quantity
-                      )}{' '}
-                      FCFA (
-                      {Math.round(((unitSell - unitCost) / unitSell) * 100)}%)
+                      {new Intl.NumberFormat('fr-FR').format(margin)} FCFA
+                      {net > 0 ? ` (${Math.round((margin / net) * 100)}%)` : ''}
                     </p>
                   )}
                 </li>
@@ -188,8 +196,30 @@ export default async function CommandeDetailPage({
               return sum + unitCost * item.quantity;
             }, 0);
             const hasAnyCost = totalCost > 0;
+            const grossTotal = items.reduce(
+              (sum, item) => sum + getItemGross(item),
+              0
+            );
+            const totalDiscount = grossTotal - order.total;
             return (
               <>
+                {totalDiscount > 0 && (
+                  <>
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Sous-total</span>
+                      <span>
+                        {new Intl.NumberFormat('fr-FR').format(grossTotal)} FCFA
+                      </span>
+                    </div>
+                    <div className="mb-1 flex justify-between text-sm font-medium text-green-700 dark:text-green-400">
+                      <span>Remise</span>
+                      <span>
+                        -{new Intl.NumberFormat('fr-FR').format(totalDiscount)}{' '}
+                        FCFA
+                      </span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between font-bold">
                   <span>Total</span>
                   <span>

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CashierOrder } from '@/lib/cashier-queue';
+import { getItemGross, getItemNet } from '@/lib/orders/totals';
 import type { OrderType } from '@/generated/prisma/client';
 import {
   formatElapsedShort,
@@ -152,10 +153,9 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
       <div className="mt-3 text-sm">
         <ul className="space-y-1.5">
           {order.items.map((item) => {
-            const itemTotal =
-              (item.basePrice +
-                item.supplements.reduce((s, sup) => s + sup.price, 0)) *
-              item.quantity;
+            const gross = getItemGross(item);
+            const net = getItemNet(item);
+            const discounted = gross !== net;
             return (
               <li key={item.cartId} className="flex justify-between gap-3">
                 <div className="min-w-0">
@@ -175,9 +175,22 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
                       {item.supplements.map((s) => s.optionName).join(' · ')}
                     </span>
                   )}
+                  {discounted && (
+                    <span className="block pl-5 text-xs font-medium text-green-700 dark:text-green-400">
+                      Remise -{priceFormatter.format(gross - net)} F
+                      {item.discountReason ? ` (${item.discountReason})` : ''}
+                    </span>
+                  )}
                 </div>
-                <span className="shrink-0 tabular-nums text-muted-foreground">
-                  {priceFormatter.format(itemTotal)} F
+                <span className="shrink-0 tabular-nums">
+                  {discounted && (
+                    <span className="mr-1 text-xs text-muted-foreground line-through">
+                      {priceFormatter.format(gross)}
+                    </span>
+                  )}
+                  <span className="text-muted-foreground">
+                    {priceFormatter.format(net)} F
+                  </span>
                 </span>
               </li>
             );

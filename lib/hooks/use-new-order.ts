@@ -120,6 +120,18 @@ export function useNewOrder() {
     setItems((prev) => prev.filter((i) => i.cartId !== cartId));
   }
 
+  function handleDiscountChange(
+    cartId: string,
+    discount: number,
+    reason: string | null
+  ) {
+    setItems((prev) =>
+      prev.map((i) =>
+        i.cartId === cartId ? { ...i, discount, discountReason: reason } : i
+      )
+    );
+  }
+
   function goBackOrCancel() {
     if (step === 'review') {
       setStep('catalog');
@@ -131,7 +143,9 @@ export function useNewOrder() {
   function submit() {
     if (items.length === 0) return;
     if (pickupTime && !customerPhone.trim()) {
-      setSubmitError('Le numéro de téléphone est obligatoire pour une commande différée');
+      setSubmitError(
+        'Le numéro de téléphone est obligatoire pour une commande différée'
+      );
       return;
     }
     setSubmitError(null);
@@ -197,6 +211,7 @@ export function useNewOrder() {
     handleProductTap,
     handleQuantityChange,
     handleRemove,
+    handleDiscountChange,
     // modale suppléments
     closePicker,
     // navigation

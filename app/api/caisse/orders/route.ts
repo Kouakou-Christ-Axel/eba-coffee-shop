@@ -19,6 +19,7 @@ import {
 import { generateOrderReference } from '@/lib/orders';
 import { normalizeIvorianPhone } from '@/lib/phone';
 import { createOrderSchema, orderTypeSchema } from '@/lib/schemas/order';
+import { computeItemsTotal } from '@/lib/orders/totals';
 
 const bodySchema = createOrderSchema.extend({
   orderType: orderTypeSchema,
@@ -60,6 +61,11 @@ export async function POST(req: Request) {
 
   const dailyDate = todayDailyDate();
 
+  // Total recalculé côté serveur (net après remises) : on ne fait pas confiance
+  // au total envoyé par le client. La validation du plafond de remise par ligne
+  // est déjà assurée par cartItemSchema.
+  const total = computeItemsTotal(parsed.data.items);
+
   for (let attempt = 0; attempt < DAILY_NUMBER_MAX_RETRIES; attempt++) {
     try {
       const order = await prisma.$transaction(async (tx) => {
@@ -78,7 +84,7 @@ export async function POST(req: Request) {
               : null,
             orderType: parsed.data.orderType,
             items: parsed.data.items,
-            total: parsed.data.total,
+            total,
             note: parsed.data.note ?? null,
             createdById: session.user.id,
           },
