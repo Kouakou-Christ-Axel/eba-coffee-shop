@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PreparationOrder } from '@/lib/preparation-queue';
+import { getItemNet } from '@/lib/orders/totals';
 import type { OrderType } from '@/generated/prisma/client';
 
 const ORDER_TYPE_META: Record<OrderType, { label: string; Icon: typeof Bike }> =
@@ -165,12 +166,7 @@ export function OrderDetail({
                     )}
                   </div>
                   <span className="text-base text-muted-foreground">
-                    {priceFormatter.format(
-                      (item.basePrice +
-                        item.supplements.reduce((s, sup) => s + sup.price, 0)) *
-                        item.quantity
-                    )}{' '}
-                    FCFA
+                    {priceFormatter.format(getItemNet(item))} FCFA
                   </span>
                 </div>
                 {item.supplements.length > 0 && (

@@ -8,6 +8,7 @@
 
 import { normalizeIvorianPhone, toWhatsAppNumber } from '@/lib/phone';
 import type { CartItem } from '@/lib/cart-store';
+import { getItemGross, getItemNet } from '@/lib/orders/totals';
 
 const priceFormatter = new Intl.NumberFormat('fr-FR');
 
@@ -48,16 +49,17 @@ export function buildWaveLink(amount: number): string | null {
 }
 
 function formatItemLine(item: CartItem): string {
-  const supplementsTotal = item.supplements.reduce(
-    (s, sup) => s + sup.price,
-    0
-  );
-  const lineTotal = (item.basePrice + supplementsTotal) * item.quantity;
+  const gross = getItemGross(item);
+  const net = getItemNet(item);
   const supplementsLabel =
     item.supplements.length > 0
       ? ` (${item.supplements.map((s) => s.optionName).join(', ')})`
       : '';
-  return `- ${item.quantity}× ${item.productName}${supplementsLabel} : ${priceFormatter.format(lineTotal)} F`;
+  const priceLabel =
+    gross !== net
+      ? `${priceFormatter.format(net)} F (remise -${priceFormatter.format(gross - net)} F)`
+      : `${priceFormatter.format(net)} F`;
+  return `- ${item.quantity}× ${item.productName}${supplementsLabel} : ${priceLabel}`;
 }
 
 /**

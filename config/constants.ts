@@ -52,3 +52,13 @@ export const ORDERS_PAGE_SIZE = 20;
 export const ORDER_CUSTOMER_NAME_MAX = 50;
 export const ORDER_CUSTOMER_PHONE_MAX = 30;
 export const ORDER_NOTE_MAX = 500;
+
+/**
+ * Remise caisse : une remise (montant fixe en FCFA) appliquée à une ligne
+ * d'article ne peut pas dépasser cette fraction du prix brut de la ligne.
+ * Plafond métier validé côté client ET serveur.
+ */
+export const MAX_LINE_DISCOUNT_RATIO = 0.5;
+
+/** Longueur max du motif de remise saisi par le caissier. */
+export const ORDER_DISCOUNT_REASON_MAX = 100;

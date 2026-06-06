@@ -32,6 +32,7 @@ export function NewOrderView({ menu }: { menu: MenuCategory[] }) {
             items={o.items}
             onQuantityChange={o.handleQuantityChange}
             onRemove={o.handleRemove}
+            onDiscountChange={o.handleDiscountChange}
           />
           <CustomerInfoStep
             customerName={o.customerName}
