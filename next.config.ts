@@ -21,6 +21,7 @@ const cspDirectives: Record<string, string[]> = {
   'script-src': [
     "'self'",
     "'unsafe-inline'",
+    'https://static.cloudflareinsights.com',
     ...(isProduction ? [] : ["'unsafe-eval'"]),
   ],
   'style-src': ["'self'", "'unsafe-inline'"],
@@ -31,7 +32,11 @@ const cspDirectives: Record<string, string[]> = {
     'https://*.public.blob.vercel-storage.com',
   ],
   'font-src': ["'self'", 'data:'],
-  'connect-src': ["'self'", ...(isProduction ? [] : ['ws:', 'wss:'])],
+  'connect-src': [
+    "'self'",
+    'https://cloudflareinsights.com',
+    ...(isProduction ? [] : ['ws:', 'wss:']),
+  ],
   'frame-ancestors': ["'none'"],
   'base-uri': ["'self'"],
   'form-action': ["'self'"],
