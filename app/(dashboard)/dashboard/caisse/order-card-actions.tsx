@@ -10,6 +10,8 @@ import {
   BellOff,
   ChefHat,
   Pencil,
+  Ban,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,7 +20,7 @@ import {
   buildWhatsAppLink,
 } from '@/lib/contact-links';
 import type { CashierOrder } from '@/lib/cashier-queue';
-import type { MenuCategory } from '@/config/menu';
+import { priceFormatter, type MenuCategory } from '@/config/menu';
 import type { OrderStatus, PaymentMode } from '@/generated/prisma/client';
 import { PaymentModal } from './payment-modal';
 import { CopyRecapButton } from '../_components/copy-recap-button';
@@ -134,6 +136,15 @@ export function OrderCardActions({
   }
 
   const orderRef = `#${String(order.dailyNumber).padStart(3, '0')}`;
+
+  // Annuler une commande non payée ; rembourser (= annuler) une commande payée.
+  function handleCancelOrRefund() {
+    const message = order.isPaid
+      ? `Rembourser et annuler la commande ${orderRef} ?\nLe montant de ${priceFormatter.format(order.total)} F sera rendu au client.`
+      : `Annuler la commande ${orderRef} ?`;
+    if (!confirm(message)) return;
+    handleStatusChange('CANCELLED');
+  }
 
   return (
     <>
@@ -275,6 +286,30 @@ export function OrderCardActions({
           >
             <Pencil className="mr-1.5 h-4 w-4" />
             Modifier les articles
+          </Button>
+        )}
+
+        {/* Annuler / Rembourser : rembourser si déjà payée, sinon annuler */}
+        {order.status !== 'CANCELLED' && (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            disabled={isPending}
+            onClick={handleCancelOrRefund}
+          >
+            {order.isPaid ? (
+              <>
+                <RotateCcw className="mr-1.5 h-4 w-4" />
+                Rembourser
+              </>
+            ) : (
+              <>
+                <Ban className="mr-1.5 h-4 w-4" />
+                Annuler
+              </>
+            )}
           </Button>
         )}
 
