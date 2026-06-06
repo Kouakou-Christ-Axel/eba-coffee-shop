@@ -59,10 +59,9 @@ jobs:
             pnpm install --frozen-lockfile
             pnpm build
             pnpm db:trigger
-            pm2 reload ${{ secrets.VPS_PM2_APP }} --update-env
+            pm2 startOrReload ecosystem.config.js --update-env
         # Secrets requis dans GitHub → Settings → Secrets and variables → Actions :
         # VPS_HOST          : IP ou hostname du VPS (ex: 1.2.3.4)
         # VPS_USER          : utilisateur SSH (ex: ubuntu, root)
         # VPS_SSH_KEY       : clé SSH privée (contenu complet, ex: -----BEGIN OPENSSH PRIVATE KEY-----)
         # VPS_DEPLOY_PATH   : chemin absolu du projet sur le VPS (ex: /var/www/eba-coffee-shop)
-        # VPS_PM2_APP       : nom de l'app PM2 (ex: eba-coffee-shop) — voir `pm2 list`
