@@ -69,6 +69,7 @@ export default async function MenuPage() {
                   </Button>
                   <CategoryRowActions
                     id={cat.id}
+                    name={cat.name}
                     available={cat.available}
                     isFirst={idx === 0}
                     isLast={idx === categories.length - 1}

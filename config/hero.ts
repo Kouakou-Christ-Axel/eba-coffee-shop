@@ -8,6 +8,16 @@ export default heroui({
         foreground: '#22181f',
 
         default: {
+          50: '#fdfaf6',
+          100: '#f5eee4',
+          200: '#e8dbd0',
+          300: '#d5c4b8',
+          400: '#b8a090',
+          500: '#9a7d6a',
+          600: '#7d6354',
+          700: '#624e42',
+          800: '#483931',
+          900: '#2f2520',
           DEFAULT: '#fffaf6',
           foreground: '#22181f',
         },

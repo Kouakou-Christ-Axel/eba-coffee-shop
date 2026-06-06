@@ -53,6 +53,7 @@ export function useNewOrder() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [orderType, setOrderType] = useState<OrderType>('TAKEAWAY');
   const [note, setNote] = useState('');
+  const [pickupTime, setPickupTime] = useState<string | null>(null);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, startSubmit] = useTransition();
@@ -127,6 +128,10 @@ export function useNewOrder() {
 
   function submit() {
     if (items.length === 0) return;
+    if (pickupTime && !customerPhone.trim()) {
+      setSubmitError('Le numéro de téléphone est obligatoire pour une commande différée');
+      return;
+    }
     setSubmitError(null);
     startSubmit(async () => {
       try {
@@ -140,6 +145,7 @@ export function useNewOrder() {
             customerPhone: customerPhone.trim() || null,
             orderType,
             note: note.trim() || null,
+            pickupTime: pickupTime ?? null,
           }),
         });
         if (!res.ok) {
@@ -173,6 +179,7 @@ export function useNewOrder() {
     customerPhone,
     orderType,
     note,
+    pickupTime,
     submitError,
     isSubmitting,
     // setters d'étape
@@ -182,6 +189,8 @@ export function useNewOrder() {
     setCustomerPhone,
     setOrderType,
     setNote,
+    pickupTime,
+    setPickupTime,
     // actions panier
     addToCart,
     handleProductTap,

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { StatusButtons } from './status-buttons';
+import { EditOrderItems } from './edit-order-items';
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   NEW: 'Nouvelle',
@@ -100,7 +101,14 @@ export default async function CommandeDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Articles</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <span>Articles</span>
+            <EditOrderItems
+              orderId={order.id}
+              initialItems={items}
+              status={order.status as OrderStatus}
+            />
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-4">

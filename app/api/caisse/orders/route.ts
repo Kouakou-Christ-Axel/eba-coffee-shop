@@ -73,7 +73,9 @@ export async function POST(req: Request) {
             dailyNumber,
             customerName: parsed.data.customerName ?? null,
             customerPhone: normalizedPhone,
-            pickupTime: null,
+            pickupTime: parsed.data.pickupTime
+              ? new Date(parsed.data.pickupTime)
+              : null,
             orderType: parsed.data.orderType,
             items: parsed.data.items,
             total: parsed.data.total,

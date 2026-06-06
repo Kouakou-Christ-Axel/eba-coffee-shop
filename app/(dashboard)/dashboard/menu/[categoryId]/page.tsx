@@ -31,6 +31,8 @@ export default async function CategoryProductsPage({
           id: true,
           name: true,
           price: true,
+          coutMatiere: true,
+          coutEmballage: true,
           imageUrl: true,
           available: true,
           featured: true,
@@ -66,6 +68,8 @@ export default async function CategoryProductsPage({
             <TableHead>Image</TableHead>
             <TableHead>Nom</TableHead>
             <TableHead>Prix</TableHead>
+            <TableHead>Coûts</TableHead>
+            <TableHead>Marge</TableHead>
             <TableHead>Statut</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -96,6 +100,42 @@ export default async function CategoryProductsPage({
               </TableCell>
               <TableCell>
                 {new Intl.NumberFormat('fr-FR').format(p.price)} FCFA
+              </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {p.coutMatiere + p.coutEmballage > 0 ? (
+                  <span>
+                    {new Intl.NumberFormat('fr-FR').format(
+                      p.coutMatiere + p.coutEmballage
+                    )}{' '}
+                    FCFA
+                  </span>
+                ) : (
+                  <span className="text-xs">—</span>
+                )}
+              </TableCell>
+              <TableCell>
+                {p.coutMatiere + p.coutEmballage > 0 && p.price > 0 ? (
+                  (() => {
+                    const marge = p.price - p.coutMatiere - p.coutEmballage;
+                    const pct = Math.round((marge / p.price) * 100);
+                    return (
+                      <span
+                        className={
+                          pct >= 50
+                            ? 'text-sm font-medium text-green-600'
+                            : pct >= 20
+                              ? 'text-sm font-medium text-yellow-600'
+                              : 'text-sm font-medium text-destructive'
+                        }
+                      >
+                        {new Intl.NumberFormat('fr-FR').format(marge)} F ({pct}
+                        %)
+                      </span>
+                    );
+                  })()
+                ) : (
+                  <span className="text-xs text-muted-foreground">—</span>
+                )}
               </TableCell>
               <TableCell>
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -130,7 +170,7 @@ export default async function CategoryProductsPage({
           {category.products.length === 0 && (
             <TableRow>
               <TableCell
-                colSpan={5}
+                colSpan={7}
                 className="py-8 text-center text-sm text-muted-foreground"
               >
                 Aucun produit dans cette catégorie.
