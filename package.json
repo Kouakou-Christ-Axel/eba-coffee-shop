@@ -25,6 +25,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "type-check": "tsc --noEmit",
     "lint": "eslint",
     "lint-staged": "lint-staged",
     "format": "prettier --check",

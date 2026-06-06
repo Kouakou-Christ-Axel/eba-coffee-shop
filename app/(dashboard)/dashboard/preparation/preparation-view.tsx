@@ -20,6 +20,7 @@ import { OrderDetail } from './_components/order-detail';
 
 const SOUND_STORAGE_KEY = 'eba.preparation.sound-enabled';
 const SSE_URL = '/api/preparation/stream';
+const POLL_URL = '/api/preparation/queue';
 
 type RawPreparationOrder = Omit<
   PreparationOrder,
@@ -50,6 +51,7 @@ export function PreparationView({
 
   const { orders, connState, lastSync } = useOrdersStream<PreparationOrder>({
     endpoint: SSE_URL,
+    pollEndpoint: POLL_URL,
     initialOrders: initialQueue,
     normalize,
     getId: (o) => o.id,

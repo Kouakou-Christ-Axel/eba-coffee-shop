@@ -39,6 +39,18 @@ export type UseOrdersStreamOptions<T> = {
    * snapshot précédent. Utile pour déclencher un son ou une notification.
    */
   onNewOrders?: (newOrders: T[]) => void;
+  /**
+   * URL de l'endpoint REST à interroger en fallback (ex. `/api/caisse/queue`).
+   * Nécessaire quand le SSE est bloqué par un proxy (Cloudflare, Nginx…).
+   * Si absent, aucun polling n'est effectué.
+   */
+  pollEndpoint?: string;
+  /**
+   * Intervalle de polling en ms (défaut : 10 000).
+   * Le polling ne démarre que si `pollEndpoint` est fourni et si aucun
+   * événement SSE n'a été reçu depuis `pollInterval * 3` ms.
+   */
+  pollInterval?: number;
 };
 
 export type UseOrdersStreamResult<T> = {
@@ -47,10 +59,21 @@ export type UseOrdersStreamResult<T> = {
   lastSync: Date | null;
 };
 
+const POLL_INTERVAL_DEFAULT_MS = 10_000;
+const POLL_STALE_MULTIPLIER = 3;
+
 export function useOrdersStream<T>(
   options: UseOrdersStreamOptions<T>
 ): UseOrdersStreamResult<T> {
-  const { endpoint, initialOrders, normalize, getId, onNewOrders } = options;
+  const {
+    endpoint,
+    initialOrders,
+    normalize,
+    getId,
+    onNewOrders,
+    pollEndpoint,
+    pollInterval,
+  } = options;
 
   const [orders, setOrders] = useState<T[]>(initialOrders);
   const [connState, setConnState] = useState<ConnState>('connecting');
@@ -59,6 +82,7 @@ export function useOrdersStream<T>(
   const knownIdsRef = useRef<Set<string>>(
     new Set(initialOrders.map((o) => getId(o)))
   );
+  const lastSyncTimeRef = useRef<number>(0);
 
   // Refs pour stabiliser les callbacks dans l'effet "monter une fois".
   const normalizeRef = useRef(normalize);
@@ -70,6 +94,40 @@ export function useOrdersStream<T>(
     getIdRef.current = getId;
     onNewOrdersRef.current = onNewOrders;
   }, [normalize, getId, onNewOrders]);
+
+  // Polling fallback : déclenché quand SSE est bloqué par un proxy (Cloudflare…).
+  // Ne fait rien si `pollEndpoint` est absent.
+  // Ne déclenche un fetch que si le dernier sync SSE date de plus de
+  // `pollInterval * POLL_STALE_MULTIPLIER` ms, pour éviter le polling inutile
+  // quand le SSE fonctionne normalement.
+  useEffect(() => {
+    if (!pollEndpoint) return;
+    const interval = pollInterval ?? POLL_INTERVAL_DEFAULT_MS;
+    const staleThreshold = interval * POLL_STALE_MULTIPLIER;
+
+    const doPoll = async () => {
+      if (Date.now() - lastSyncTimeRef.current < staleThreshold) return;
+      try {
+        const res = await fetch(pollEndpoint, { credentials: 'same-origin' });
+        if (!res.ok) return;
+        const data: unknown = await res.json();
+        if (!Array.isArray(data)) return;
+        const fresh = (data as unknown[]).map((r) => normalizeRef.current(r));
+        const known = knownIdsRef.current;
+        const newOrders = fresh.filter((o) => !known.has(getIdRef.current(o)));
+        knownIdsRef.current = new Set(fresh.map((o) => getIdRef.current(o)));
+        lastSyncTimeRef.current = Date.now();
+        setOrders(fresh);
+        setLastSync(new Date());
+        if (newOrders.length > 0) onNewOrdersRef.current?.(newOrders);
+      } catch {
+        // silencieux — le SSE reste la source primaire
+      }
+    };
+
+    const timer = setInterval(doPoll, interval);
+    return () => clearInterval(timer);
+  }, [pollEndpoint, pollInterval]);
 
   useEffect(() => {
     let currentEs: EventSource | null = null;
@@ -92,6 +150,7 @@ export function useOrdersStream<T>(
       const newOrders = fresh.filter((o) => !known.has(getIdRef.current(o)));
       knownIdsRef.current = new Set(fresh.map((o) => getIdRef.current(o)));
 
+      lastSyncTimeRef.current = Date.now();
       setOrders(fresh);
       setLastSync(new Date());
 

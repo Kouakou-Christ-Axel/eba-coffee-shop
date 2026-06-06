@@ -1,0 +1,52 @@
+name: CD
+
+on:
+  push:
+    branches: [master]
+
+# Une seule exécution à la fois — les déploiements ne s'annulent pas entre eux.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Lint, type-check & tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type-check
+        run: pnpm type-check
+
+      - name: Tests
+        run: pnpm test
+
+  deploy:
+    name: Deploy to Coolify
+    runs-on: ubuntu-latest
+    needs: ci
+
+    steps:
+      - name: Trigger Coolify deployment
+        run: |
+          curl --fail-with-body -X GET \
+            "${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}"
+        # Secrets requis dans GitHub → Settings → Secrets and variables → Actions :
+        # COOLIFY_DEPLOY_WEBHOOK : URL du webhook Coolify (Coolify → Application → Webhooks)

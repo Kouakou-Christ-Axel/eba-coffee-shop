@@ -19,6 +19,7 @@ import {
 } from './_components/use-urgency-counts';
 
 const SSE_URL = '/api/caisse/stream';
+const POLL_URL = '/api/caisse/queue';
 const SOUND_STORAGE_KEY = 'eba.caisse.sound-enabled';
 const CHIME_REPEAT_MS = 3 * 60_000;
 
@@ -47,6 +48,7 @@ export function CaisseView({
 
   const { orders: queue, connState } = useOrdersStream<CashierOrder>({
     endpoint: SSE_URL,
+    pollEndpoint: POLL_URL,
     initialOrders: initialQueue,
     normalize,
     getId: (o) => o.id,
