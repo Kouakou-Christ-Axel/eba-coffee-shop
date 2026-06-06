@@ -30,6 +30,8 @@ export async function getMenu(): Promise<MenuCategory[]> {
       name: p.name,
       description: p.description,
       price: p.price,
+      coutMatiere: p.coutMatiere,
+      coutEmballage: p.coutEmballage,
       image: p.imageUrl ?? undefined,
       supplements: p.supplementGroups.map((g) => ({
         name: g.name,

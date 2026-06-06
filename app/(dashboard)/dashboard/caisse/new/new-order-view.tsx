@@ -38,11 +38,13 @@ export function NewOrderView({ menu }: { menu: MenuCategory[] }) {
             customerPhone={o.customerPhone}
             orderType={o.orderType}
             note={o.note}
+            pickupTime={o.pickupTime}
             submitError={o.submitError}
             onCustomerNameChange={o.setCustomerName}
             onCustomerPhoneChange={o.setCustomerPhone}
             onOrderTypeChange={o.setOrderType}
             onNoteChange={o.setNote}
+            onPickupTimeChange={o.setPickupTime}
           />
         </div>
       )}

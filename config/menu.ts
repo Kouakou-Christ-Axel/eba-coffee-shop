@@ -17,6 +17,8 @@ export type Product = {
   name: string;
   description: string;
   price: number;
+  coutMatiere?: number;
+  coutEmballage?: number;
   image?: string;
   supplements?: SupplementGroup[];
   featured?: boolean;

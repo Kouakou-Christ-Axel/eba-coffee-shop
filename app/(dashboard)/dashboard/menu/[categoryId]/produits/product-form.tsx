@@ -20,6 +20,8 @@ export type ProductFormInitial = {
   name: string;
   description: string;
   price: number;
+  coutMatiere: number;
+  coutEmballage: number;
   imageUrl: string | null;
   supplementGroups: SupplementGroup[];
   featured: boolean;
@@ -31,6 +33,8 @@ const EMPTY: ProductFormInitial = {
   name: '',
   description: '',
   price: 0,
+  coutMatiere: 0,
+  coutEmballage: 0,
   imageUrl: null,
   supplementGroups: [],
   featured: false,
@@ -55,6 +59,12 @@ export function ProductForm({
     initial?.description ?? EMPTY.description
   );
   const [price, setPrice] = useState<number>(initial?.price ?? EMPTY.price);
+  const [coutMatiere, setCoutMatiere] = useState<number>(
+    initial?.coutMatiere ?? EMPTY.coutMatiere
+  );
+  const [coutEmballage, setCoutEmballage] = useState<number>(
+    initial?.coutEmballage ?? EMPTY.coutEmballage
+  );
   const [imageUrl, setImageUrl] = useState<string | null>(
     initial?.imageUrl ?? null
   );
@@ -82,6 +92,8 @@ export function ProductForm({
           name: name.trim(),
           description: description.trim(),
           price: Number(price) || 0,
+          coutMatiere: Number(coutMatiere) || 0,
+          coutEmballage: Number(coutEmballage) || 0,
           imageUrl,
           supplementGroups: groups.map((g) => ({
             ...g,
@@ -130,7 +142,7 @@ export function ProductForm({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="price">Prix (FCFA)</Label>
+            <Label htmlFor="price">Prix de vente (FCFA)</Label>
             <Input
               id="price"
               type="number"
@@ -141,6 +153,50 @@ export function ProductForm({
               required
             />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cout-matiere">Coût matière (FCFA)</Label>
+              <Input
+                id="cout-matiere"
+                type="number"
+                min={0}
+                step={100}
+                value={coutMatiere}
+                onChange={(e) => setCoutMatiere(Number(e.target.value))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cout-emballage">Coût emballage (FCFA)</Label>
+              <Input
+                id="cout-emballage"
+                type="number"
+                min={0}
+                step={100}
+                value={coutEmballage}
+                onChange={(e) => setCoutEmballage(Number(e.target.value))}
+              />
+            </div>
+          </div>
+          {price > 0 && (
+            <div className="rounded-lg bg-muted px-3 py-2 text-sm">
+              <span className="text-muted-foreground">Marge estimée : </span>
+              <span className="font-semibold">
+                {new Intl.NumberFormat('fr-FR').format(
+                  price - coutMatiere - coutEmballage
+                )}{' '}
+                FCFA
+              </span>
+              {price > 0 && (
+                <span className="ml-2 text-muted-foreground">
+                  (
+                  {Math.round(
+                    ((price - coutMatiere - coutEmballage) / price) * 100
+                  )}{' '}
+                  %)
+                </span>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -153,6 +153,8 @@ model Product {
   name             String
   description      String
   price            Int
+  coutMatiere      Int               @default(0)
+  coutEmballage    Int               @default(0)
   imageUrl         String?
   available        Boolean           @default(true)
   sortOrder        Int               @default(0)

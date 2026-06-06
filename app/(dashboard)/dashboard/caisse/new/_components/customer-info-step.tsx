@@ -3,6 +3,7 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { ORDER_NOTE_MAX } from '@/config/constants';
 import type { OrderType } from '@/generated/prisma/client';
 import { OrderTypePicker } from './order-type-picker';
@@ -12,27 +13,96 @@ type Props = {
   customerPhone: string;
   orderType: OrderType;
   note: string;
+  pickupTime: string | null;
   submitError: string | null;
   onCustomerNameChange: (value: string) => void;
   onCustomerPhoneChange: (value: string) => void;
   onOrderTypeChange: (value: OrderType) => void;
   onNoteChange: (value: string) => void;
+  onPickupTimeChange: (value: string | null) => void;
 };
+
+function toLocalDatetimeValue(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function defaultPickupTime(): string {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() + 60);
+  d.setSeconds(0, 0);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export function CustomerInfoStep({
   customerName,
   customerPhone,
   orderType,
   note,
+  pickupTime,
   submitError,
   onCustomerNameChange,
   onCustomerPhoneChange,
   onOrderTypeChange,
   onNoteChange,
+  onPickupTimeChange,
 }: Props) {
+  const isScheduled = pickupTime !== null;
+
+  function handleScheduledToggle(checked: boolean) {
+    onPickupTimeChange(checked ? defaultPickupTime() : null);
+  }
+
+  function handleDatetimeChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.value) return;
+    const local = e.target.value;
+    const iso = new Date(local).toISOString();
+    onPickupTimeChange(iso);
+  }
+
+  const minDatetime = (() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() + 5);
+    d.setSeconds(0, 0);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  })();
+
   return (
     <div className="space-y-3">
       <OrderTypePicker value={orderType} onChange={onOrderTypeChange} />
+
+      <div className="rounded-xl border bg-card p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Programmer pour plus tard
+          </p>
+          <Switch
+            checked={isScheduled}
+            onCheckedChange={handleScheduledToggle}
+            aria-label="Commande différée"
+          />
+        </div>
+        {isScheduled && (
+          <div className="mt-2 grid gap-1">
+            <Label
+              htmlFor="pickup-time"
+              className="text-xs text-muted-foreground"
+            >
+              Date et heure de retrait
+            </Label>
+            <Input
+              id="pickup-time"
+              type="datetime-local"
+              value={pickupTime ? toLocalDatetimeValue(pickupTime) : ''}
+              onChange={handleDatetimeChange}
+              min={minDatetime}
+            />
+          </div>
+        )}
+      </div>
 
       <div className="rounded-xl border bg-card p-3">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -45,6 +115,9 @@ export function CustomerInfoStep({
               className="text-xs text-muted-foreground"
             >
               Téléphone
+              {isScheduled && (
+                <span className="ml-1 text-primary">* obligatoire</span>
+              )}
             </Label>
             <Input
               id="customer-phone"
@@ -54,6 +127,7 @@ export function CustomerInfoStep({
               onChange={(e) => onCustomerPhoneChange(e.target.value)}
               placeholder="07 88 12 34 56"
               autoComplete="off"
+              required={isScheduled}
             />
           </div>
           <div className="grid gap-1">

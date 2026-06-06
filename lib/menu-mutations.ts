@@ -41,6 +41,11 @@ const featuredFieldsSchema = {
   featuredBadge: z.string().min(1).max(40).nullable().optional(),
 };
 
+const costFieldsSchema = {
+  coutMatiere: z.number().int().nonnegative().optional().default(0),
+  coutEmballage: z.number().int().nonnegative().optional().default(0),
+};
+
 export const productInputSchema = z.object({
   categoryId: z.string().min(1),
   name: z.string().min(1).max(120),
@@ -49,6 +54,7 @@ export const productInputSchema = z.object({
   imageUrl: z.string().url().nullable().optional(),
   supplementGroups: z.array(supplementGroupSchema),
   ...featuredFieldsSchema,
+  ...costFieldsSchema,
 });
 
 export const productUpdateSchema = z.object({
@@ -58,6 +64,7 @@ export const productUpdateSchema = z.object({
   imageUrl: z.string().url().nullable(),
   supplementGroups: z.array(supplementGroupSchema),
   ...featuredFieldsSchema,
+  ...costFieldsSchema,
 });
 
 // ─── Catégories ───────────────────────────────────────────────────────────────
@@ -127,6 +134,8 @@ export async function createProduct(input: ProductInput) {
       name: data.name,
       description: data.description,
       price: data.price,
+      coutMatiere: data.coutMatiere,
+      coutEmballage: data.coutEmballage,
       imageUrl: data.imageUrl ?? null,
       sortOrder: existing.length,
       featured: data.featured,
@@ -160,6 +169,8 @@ export async function updateProduct(id: string, input: ProductUpdate) {
         name: data.name,
         description: data.description,
         price: data.price,
+        coutMatiere: data.coutMatiere,
+        coutEmballage: data.coutEmballage,
         imageUrl: data.imageUrl,
         featured: data.featured,
         featuredOrder: data.featuredOrder,
