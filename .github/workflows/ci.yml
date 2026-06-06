@@ -11,6 +11,11 @@ jobs:
     name: Lint, type-check & tests
     runs-on: ubuntu-latest
 
+    env:
+      # URL factice — prisma generate n'ouvre pas de connexion, mais
+      # prisma.config.ts via dotenv exige que la variable soit définie.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
     steps:
       - uses: actions/checkout@v4
 
