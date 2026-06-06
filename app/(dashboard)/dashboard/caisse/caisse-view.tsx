@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CashierOrder } from '@/lib/cashier-queue';
+import type { MenuCategory } from '@/config/menu';
 import {
   playNewOrderChime,
   useOrdersStream,
@@ -33,9 +34,11 @@ function normalize(raw: unknown): CashierOrder {
 
 export function CaisseView({
   initialQueue,
+  menu,
   cashierName,
 }: {
   initialQueue: CashierOrder[];
+  menu: MenuCategory[];
   cashierName: string;
 }) {
   const [tab, setTab] = useState<TabKey>('to-pay');
@@ -124,6 +127,7 @@ export function CaisseView({
         onTabChange={setTab}
         counts={counts}
         visibleOrders={visibleOrders}
+        menu={menu}
         now={now}
       />
     </div>

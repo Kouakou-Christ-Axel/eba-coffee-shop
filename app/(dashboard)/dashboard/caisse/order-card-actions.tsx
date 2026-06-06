@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { Modal, ModalContent, ModalHeader, ModalBody } from '@heroui/react';
 import {
   Phone,
   MessageCircle,
@@ -8,6 +9,7 @@ import {
   CheckCheck,
   BellOff,
   ChefHat,
+  Pencil,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,8 +18,11 @@ import {
   buildWhatsAppLink,
 } from '@/lib/contact-links';
 import type { CashierOrder } from '@/lib/cashier-queue';
+import type { MenuCategory } from '@/config/menu';
 import type { OrderStatus, PaymentMode } from '@/generated/prisma/client';
 import { PaymentModal } from './payment-modal';
+import { CopyRecapButton } from '../_components/copy-recap-button';
+import { OrderItemsEditor } from '../_components/order-items-editor';
 
 async function callApi(
   url: string,
@@ -42,11 +47,21 @@ async function callApi(
   return { ok: true };
 }
 
-export function OrderCardActions({ order }: { order: CashierOrder }) {
+export function OrderCardActions({
+  order,
+  menu,
+}: {
+  order: CashierOrder;
+  menu: MenuCategory[];
+}) {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+
+  const canEditItems =
+    order.status !== 'COMPLETED' && order.status !== 'CANCELLED';
 
   const phone = order.customerPhone;
   const telLink = buildTelLink(phone);
@@ -61,7 +76,9 @@ export function OrderCardActions({ order }: { order: CashierOrder }) {
   );
 
   const payLabel =
-    order.status === 'PREPARING' || order.status === 'READY'
+    order.status === 'PREPARING' ||
+    order.status === 'READY' ||
+    order.status === 'COMPLETED'
       ? 'Encaisser maintenant'
       : 'Marquer payée';
 
@@ -163,6 +180,14 @@ export function OrderCardActions({ order }: { order: CashierOrder }) {
           </div>
         )}
 
+        {/* Copier le récap + lien Wave (fonctionne même sans téléphone) */}
+        <CopyRecapButton
+          customerName={order.customerName}
+          dailyNumber={order.dailyNumber}
+          amount={order.total}
+          items={order.items}
+        />
+
         {/* Dismiss signal cuisine (livreur demandé) */}
         {order.driverRequested && (
           <Button
@@ -238,10 +263,45 @@ export function OrderCardActions({ order }: { order: CashierOrder }) {
           </Button>
         )}
 
+        {/* Ajouter / retirer des produits */}
+        {canEditItems && (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="w-full text-muted-foreground"
+            disabled={isPending}
+            onClick={() => setIsEditOpen(true)}
+          >
+            <Pencil className="mr-1.5 h-4 w-4" />
+            Modifier les articles
+          </Button>
+        )}
+
         {actionError && (
           <p className="text-xs text-destructive">{actionError}</p>
         )}
       </div>
+
+      <Modal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        placement="center"
+        size="lg"
+        scrollBehavior="inside"
+      >
+        <ModalContent>
+          <ModalHeader>Commande {orderRef}</ModalHeader>
+          <ModalBody className="pb-6">
+            <OrderItemsEditor
+              orderId={order.id}
+              initialItems={order.items}
+              menu={menu}
+              onClose={() => setIsEditOpen(false)}
+            />
+          </ModalBody>
+        </ModalContent>
+      </Modal>
 
       <PaymentModal
         isOpen={isPaymentOpen}

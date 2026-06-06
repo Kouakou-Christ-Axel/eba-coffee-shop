@@ -26,6 +26,8 @@ export const cartItemSchema = z.object({
   coutEmballage: z.number().int().nonnegative().default(0),
   quantity: z.number().int().positive(),
   supplements: z.array(cartItemSupplementSchema),
+  // Marque une ligne ajoutée après la création de la commande.
+  addedLater: z.boolean().optional().default(false),
 });
 
 export type CartItemSupplementInput = z.infer<typeof cartItemSupplementSchema>;

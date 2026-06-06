@@ -31,10 +31,13 @@ const ORDER_TYPE_META: Record<OrderType, { label: string; Icon: typeof Bike }> =
 type PaymentBadge =
   | { kind: 'paid' }
   | { kind: 'unpaid' }
-  | { kind: 'pay-after' };
+  | { kind: 'pay-after' }
+  | { kind: 'pickup-unpaid' };
 
 function getPaymentBadge(order: CashierOrder): PaymentBadge {
   if (order.isPaid) return { kind: 'paid' };
+  // Récupérée mais toujours pas encaissée : à signaler clairement.
+  if (order.status === 'COMPLETED') return { kind: 'pickup-unpaid' };
   if (order.status === 'PREPARING' || order.status === 'READY') {
     return { kind: 'pay-after' };
   }
@@ -58,7 +61,9 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
   const urgencyStyle = URGENCY_STYLES[urgency];
 
   const itemsSummary = order.items
-    .map((i) => `${i.quantity}× ${i.productName}`)
+    .map(
+      (i) => `${i.quantity}× ${i.productName}${i.addedLater ? ' (ajout)' : ''}`
+    )
     .join(' · ');
 
   return (
@@ -180,6 +185,11 @@ function PaymentBadgePill({ payment }: { payment: PaymentBadge }) {
       label: 'À encaisser après',
       className:
         'bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-100',
+    },
+    'pickup-unpaid': {
+      label: 'Récupérée · à encaisser',
+      className:
+        'bg-red-100 text-red-900 ring-1 ring-red-300 dark:bg-red-950 dark:text-red-100 dark:ring-red-800',
     },
   }[payment.kind];
 

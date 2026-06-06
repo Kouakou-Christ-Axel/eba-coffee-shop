@@ -158,6 +158,11 @@ export function OrderDetail({
                     <span className="text-2xl font-semibold">
                       {item.productName}
                     </span>
+                    {item.addedLater && (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-red-900 ring-1 ring-red-300 dark:bg-red-950 dark:text-red-100 dark:ring-red-800">
+                        Ajout
+                      </span>
+                    )}
                   </div>
                   <span className="text-base text-muted-foreground">
                     {priceFormatter.format(
