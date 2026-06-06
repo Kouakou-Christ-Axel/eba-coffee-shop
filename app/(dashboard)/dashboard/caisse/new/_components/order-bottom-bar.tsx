@@ -30,25 +30,42 @@ export function OrderBottomBar({
           <Button
             type="button"
             size="lg"
-            className="w-full"
+            className="w-full justify-between gap-2"
             disabled={itemsCount === 0}
             onClick={onReview}
           >
-            {itemsCount === 0
-              ? 'Panier vide'
-              : `Voir le panier · ${totalItems} article${totalItems > 1 ? 's' : ''} · ${priceFormatter.format(totalPrice)} F`}
+            {itemsCount === 0 ? (
+              <span className="mx-auto">Panier vide</span>
+            ) : (
+              <>
+                <span className="min-w-0 truncate">
+                  Voir le panier · {totalItems} article
+                  {totalItems > 1 ? 's' : ''}
+                </span>
+                <span className="shrink-0 tabular-nums">
+                  {priceFormatter.format(totalPrice)} F
+                </span>
+              </>
+            )}
           </Button>
         ) : (
           <Button
             type="button"
             size="lg"
-            className="w-full"
+            className="w-full justify-between gap-2"
             disabled={itemsCount === 0 || isSubmitting}
             onClick={onSubmit}
           >
-            {isSubmitting
-              ? 'Création…'
-              : `Valider la commande · ${priceFormatter.format(totalPrice)} F`}
+            {isSubmitting ? (
+              <span className="mx-auto">Création…</span>
+            ) : (
+              <>
+                <span className="min-w-0 truncate">Valider la commande</span>
+                <span className="shrink-0 tabular-nums">
+                  {priceFormatter.format(totalPrice)} F
+                </span>
+              </>
+            )}
           </Button>
         )}
       </div>
