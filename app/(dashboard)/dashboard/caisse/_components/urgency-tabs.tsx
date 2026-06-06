@@ -4,6 +4,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CountBadge } from './count-badge';
 import { CaisseOrderList } from './caisse-order-list';
 import type { CashierOrder } from '@/lib/cashier-queue';
+import type { MenuCategory } from '@/config/menu';
 import type { TabKey } from '../urgency';
 
 type Counts = Record<TabKey, { total: number; critical: number }>;
@@ -13,6 +14,7 @@ type Props = {
   onTabChange: (tab: TabKey) => void;
   counts: Counts;
   visibleOrders: CashierOrder[];
+  menu: MenuCategory[];
   now: Date;
 };
 
@@ -23,6 +25,7 @@ export function UrgencyTabs({
   onTabChange,
   counts,
   visibleOrders,
+  menu,
   now,
 }: Props) {
   return (
@@ -59,7 +62,12 @@ export function UrgencyTabs({
 
       {TAB_ORDER.map((t) => (
         <TabsContent key={t} value={t} className="mt-4">
-          <CaisseOrderList orders={visibleOrders} tab={t} now={now} />
+          <CaisseOrderList
+            orders={visibleOrders}
+            tab={t}
+            menu={menu}
+            now={now}
+          />
         </TabsContent>
       ))}
     </Tabs>

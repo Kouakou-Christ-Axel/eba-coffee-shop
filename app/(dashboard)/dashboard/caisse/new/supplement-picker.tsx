@@ -23,33 +23,58 @@ type Props = {
     product: Product;
     supplements: CartItemSupplement[];
   }) => void;
+  /** Sélections de départ (mode édition d'une ligne existante). */
+  initialSupplements?: CartItemSupplement[];
+  /**
+   * Jeton qui force la réinitialisation des sélections quand il change
+   * (ex. cartId de la ligne éditée). En mode ajout, laisser indéfini.
+   */
+  editToken?: string;
+  /** Libellé du verbe d'action (« Ajouter » par défaut, « Mettre à jour » en édition). */
+  confirmVerb?: string;
 };
 
-function initialSelections(
-  p: Product | null
+function buildSelections(
+  p: Product | null,
+  initial: CartItemSupplement[]
 ): Record<string, string | string[]> {
   const out: Record<string, string | string[]> = {};
   (p?.supplements ?? []).forEach((g) => {
-    out[g.name] = g.type === 'single' ? '' : [];
+    if (g.type === 'single') {
+      const found = initial.find((s) => s.groupName === g.name);
+      out[g.name] = found ? found.optionName : '';
+    } else {
+      out[g.name] = initial
+        .filter((s) => s.groupName === g.name)
+        .map((s) => s.optionName);
+    }
   });
   return out;
 }
 
-export function SupplementPicker({ product, isOpen, onClose, onAdd }: Props) {
+export function SupplementPicker({
+  product,
+  isOpen,
+  onClose,
+  onAdd,
+  initialSupplements,
+  editToken,
+  confirmVerb = 'Ajouter',
+}: Props) {
   const groups = product?.supplements ?? [];
 
-  // Pattern React "store previous prop" — reset des sélections quand le
-  // produit change, sans useEffect (cf. https://react.dev/learn/you-might-not-need-an-effect).
-  const [prevProductId, setPrevProductId] = useState<string | null>(
-    product?.id ?? null
-  );
+  // Pattern React "store previous prop" — reset des sélections quand le produit
+  // OU la ligne éditée change, sans useEffect (cf.
+  // https://react.dev/learn/you-might-not-need-an-effect).
+  const currentKey = `${product?.id ?? ''}::${editToken ?? ''}`;
+  const [prevKey, setPrevKey] = useState<string>(currentKey);
   const [selections, setSelections] = useState<
     Record<string, string | string[]>
-  >(() => initialSelections(product));
+  >(() => buildSelections(product, initialSupplements ?? []));
 
-  if (product && product.id !== prevProductId) {
-    setPrevProductId(product.id);
-    setSelections(initialSelections(product));
+  if (product && currentKey !== prevKey) {
+    setPrevKey(currentKey);
+    setSelections(buildSelections(product, initialSupplements ?? []));
   }
 
   if (!product) return null;
@@ -60,7 +85,9 @@ export function SupplementPicker({ product, isOpen, onClose, onAdd }: Props) {
       const sel = selections[group.name];
       if (group.type === 'single' && typeof sel === 'string' && sel) {
         const opt = group.options.find((o) => o.name === sel);
-        if (opt && opt.price > 0) {
+        // On enregistre le choix même gratuit (ex. sauce) pour qu'il reste
+        // visible en cuisine et modifiable ensuite.
+        if (opt) {
           result.push({
             groupName: group.name,
             optionName: opt.name,
@@ -191,7 +218,7 @@ export function SupplementPicker({ product, isOpen, onClose, onAdd }: Props) {
             onPress={handleAdd}
             isDisabled={!canSubmit()}
           >
-            Ajouter — {priceFormatter.format(getRunningTotal())} F
+            {confirmVerb} — {priceFormatter.format(getRunningTotal())} F
           </Button>
         </ModalFooter>
       </ModalContent>

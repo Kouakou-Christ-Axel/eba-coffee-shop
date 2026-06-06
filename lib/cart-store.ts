@@ -16,6 +16,9 @@ export type CartItem = {
   coutEmballage: number;
   quantity: number;
   supplements: CartItemSupplement[];
+  // Ligne ajoutée après la création de la commande (badge « Ajout » côté
+  // caisse / cuisine). Absent/false pour les articles d'origine.
+  addedLater?: boolean;
 };
 
 export function getItemTotal(item: CartItem): number {

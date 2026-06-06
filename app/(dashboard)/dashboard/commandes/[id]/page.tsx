@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getOrder } from '@/lib/orders';
+import { getMenu } from '@/lib/menu';
 import type { CartItem } from '@/lib/cart-store';
 import type { OrderStatus } from '@/generated/prisma/client';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { StatusButtons } from './status-buttons';
 import { EditOrderItems } from './edit-order-items';
+import { CopyRecapButton } from '../../_components/copy-recap-button';
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   NEW: 'Nouvelle',
@@ -59,6 +61,7 @@ export default async function CommandeDetailPage({
   }
 
   const items = order.items as CartItem[];
+  const menu = await getMenu();
 
   return (
     <div className="space-y-6">
@@ -101,30 +104,51 @@ export default async function CommandeDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+          <CardTitle className="flex flex-wrap items-center justify-between gap-2">
             <span>Articles</span>
-            <EditOrderItems
-              orderId={order.id}
-              initialItems={items}
-              status={order.status as OrderStatus}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <CopyRecapButton
+                customerName={order.customerName}
+                dailyNumber={order.dailyNumber}
+                amount={order.total}
+                items={items}
+                size="sm"
+                className="w-auto"
+              />
+              <EditOrderItems
+                orderId={order.id}
+                initialItems={items}
+                menu={menu}
+                status={order.status as OrderStatus}
+              />
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-4">
             {items.map((item) => {
-              const unitSell = item.basePrice + item.supplements.reduce((s, sup) => s + sup.price, 0);
-              const unitCost = (item.coutMatiere ?? 0) + (item.coutEmballage ?? 0);
+              const unitSell =
+                item.basePrice +
+                item.supplements.reduce((s, sup) => s + sup.price, 0);
+              const unitCost =
+                (item.coutMatiere ?? 0) + (item.coutEmballage ?? 0);
               const lineTotal = unitSell * item.quantity;
               const hasCost = unitCost > 0;
               return (
                 <li key={item.cartId}>
                   <div className="flex justify-between">
-                    <span className="font-medium">
-                      {item.productName} x{item.quantity}
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <span>
+                        {item.productName} x{item.quantity}
+                      </span>
+                      {item.addedLater && (
+                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                          Ajout
+                        </span>
+                      )}
                     </span>
                     <span>
-                      {new Intl.NumberFormat('fr-FR').format(lineTotal)}{' '}FCFA
+                      {new Intl.NumberFormat('fr-FR').format(lineTotal)} FCFA
                     </span>
                   </div>
                   {item.supplements.length > 0 && (
@@ -139,9 +163,17 @@ export default async function CommandeDetailPage({
                   )}
                   {hasCost && (
                     <p className="mt-0.5 pl-0 text-xs text-muted-foreground">
-                      Coût : {new Intl.NumberFormat('fr-FR').format(unitCost * item.quantity)} FCFA
-                      {' · '}Marge : {new Intl.NumberFormat('fr-FR').format((unitSell - unitCost) * item.quantity)} FCFA
-                      {' '}({Math.round(((unitSell - unitCost) / unitSell) * 100)}%)
+                      Coût :{' '}
+                      {new Intl.NumberFormat('fr-FR').format(
+                        unitCost * item.quantity
+                      )}{' '}
+                      FCFA
+                      {' · '}Marge :{' '}
+                      {new Intl.NumberFormat('fr-FR').format(
+                        (unitSell - unitCost) * item.quantity
+                      )}{' '}
+                      FCFA (
+                      {Math.round(((unitSell - unitCost) / unitSell) * 100)}%)
                     </p>
                   )}
                 </li>
@@ -151,7 +183,8 @@ export default async function CommandeDetailPage({
           <Separator className="my-4" />
           {(() => {
             const totalCost = items.reduce((sum, item) => {
-              const unitCost = (item.coutMatiere ?? 0) + (item.coutEmballage ?? 0);
+              const unitCost =
+                (item.coutMatiere ?? 0) + (item.coutEmballage ?? 0);
               return sum + unitCost * item.quantity;
             }, 0);
             const hasAnyCost = totalCost > 0;
@@ -159,14 +192,22 @@ export default async function CommandeDetailPage({
               <>
                 <div className="flex justify-between font-bold">
                   <span>Total</span>
-                  <span>{new Intl.NumberFormat('fr-FR').format(order.total)} FCFA</span>
+                  <span>
+                    {new Intl.NumberFormat('fr-FR').format(order.total)} FCFA
+                  </span>
                 </div>
                 {hasAnyCost && (
                   <div className="mt-1 flex justify-between text-sm text-muted-foreground">
                     <span>Marge totale</span>
                     <span>
-                      {new Intl.NumberFormat('fr-FR').format(order.total - totalCost)} FCFA
-                      {' '}({Math.round(((order.total - totalCost) / order.total) * 100)}%)
+                      {new Intl.NumberFormat('fr-FR').format(
+                        order.total - totalCost
+                      )}{' '}
+                      FCFA (
+                      {Math.round(
+                        ((order.total - totalCost) / order.total) * 100
+                      )}
+                      %)
                     </span>
                   </div>
                 )}

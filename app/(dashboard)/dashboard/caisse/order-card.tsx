@@ -31,10 +31,13 @@ const ORDER_TYPE_META: Record<OrderType, { label: string; Icon: typeof Bike }> =
 type PaymentBadge =
   | { kind: 'paid' }
   | { kind: 'unpaid' }
-  | { kind: 'pay-after' };
+  | { kind: 'pay-after' }
+  | { kind: 'pickup-unpaid' };
 
 function getPaymentBadge(order: CashierOrder): PaymentBadge {
   if (order.isPaid) return { kind: 'paid' };
+  // Récupérée mais toujours pas encaissée : à signaler clairement.
+  if (order.status === 'COMPLETED') return { kind: 'pickup-unpaid' };
   if (order.status === 'PREPARING' || order.status === 'READY') {
     return { kind: 'pay-after' };
   }
@@ -56,10 +59,6 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
   const elapsed = formatElapsedShort(order.createdAt, tickNow);
   const overdue = isPickupOverdue(order, tickNow);
   const urgencyStyle = URGENCY_STYLES[urgency];
-
-  const itemsSummary = order.items
-    .map((i) => `${i.quantity}× ${i.productName}`)
-    .join(' · ');
 
   return (
     <article
@@ -149,14 +148,45 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
         </div>
       )}
 
-      {/* Ligne items + total */}
-      <p className="mt-3 text-sm text-foreground/80">
-        <span className="text-foreground">{itemsSummary}</span>
-        <span className="px-1.5 text-muted-foreground">·</span>
-        <span className="font-semibold tabular-nums">
+      {/* Détail des articles (avec options choisies) + total */}
+      <div className="mt-3 text-sm">
+        <ul className="space-y-1.5">
+          {order.items.map((item) => {
+            const itemTotal =
+              (item.basePrice +
+                item.supplements.reduce((s, sup) => s + sup.price, 0)) *
+              item.quantity;
+            return (
+              <li key={item.cartId} className="flex justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="flex flex-wrap items-center gap-x-1.5 text-foreground">
+                    <span className="font-medium tabular-nums">
+                      {item.quantity}×
+                    </span>
+                    <span>{item.productName}</span>
+                    {item.addedLater && (
+                      <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                        Ajout
+                      </span>
+                    )}
+                  </span>
+                  {item.supplements.length > 0 && (
+                    <span className="block pl-5 text-xs text-muted-foreground">
+                      {item.supplements.map((s) => s.optionName).join(' · ')}
+                    </span>
+                  )}
+                </div>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {priceFormatter.format(itemTotal)} F
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="mt-2 border-t pt-2 text-right font-semibold tabular-nums">
           {priceFormatter.format(order.total)} F
-        </span>
-      </p>
+        </p>
+      </div>
 
       {/* Slot actions */}
       {actions && <div className="mt-3">{actions}</div>}
@@ -180,6 +210,11 @@ function PaymentBadgePill({ payment }: { payment: PaymentBadge }) {
       label: 'À encaisser après',
       className:
         'bg-orange-100 text-orange-900 dark:bg-orange-950 dark:text-orange-100',
+    },
+    'pickup-unpaid': {
+      label: 'Récupérée · à encaisser',
+      className:
+        'bg-red-100 text-red-900 ring-1 ring-red-300 dark:bg-red-950 dark:text-red-100 dark:ring-red-800',
     },
   }[payment.kind];
 

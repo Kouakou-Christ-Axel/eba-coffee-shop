@@ -16,11 +16,9 @@ function maxUrgency(
   now: Date
 ): { level: UrgencyLevel; tabs: TabKey[] } {
   const tabs: TabKey[] = [];
-  if (
-    !order.isPaid &&
-    order.status !== 'COMPLETED' &&
-    order.status !== 'CANCELLED'
-  ) {
+  // Une commande non payée reste « à encaisser » même après récupération
+  // (status COMPLETED) : sinon elle disparaît sans avoir été encaissée.
+  if (!order.isPaid && order.status !== 'CANCELLED') {
     tabs.push('to-pay');
   }
   if (order.status === 'PREPARING') tabs.push('in-progress');
@@ -84,9 +82,8 @@ export function filterByTab(
 ): CashierOrder[] {
   switch (tab) {
     case 'to-pay':
-      return orders.filter(
-        (o) => !o.isPaid && o.status !== 'COMPLETED' && o.status !== 'CANCELLED'
-      );
+      // Inclut les commandes récupérées (COMPLETED) mais pas encore encaissées.
+      return orders.filter((o) => !o.isPaid && o.status !== 'CANCELLED');
     case 'in-progress':
       return orders.filter((o) => o.status === 'PREPARING');
     case 'ready':
