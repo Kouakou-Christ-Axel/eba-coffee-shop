@@ -14,7 +14,7 @@ export function NewOrderView({ menu }: { menu: MenuCategory[] }) {
   const o = useNewOrder();
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col gap-4 pb-24">
+    <div className="flex min-h-[calc(100vh-4rem)] min-w-0 flex-col gap-4 pb-24">
       <header className="flex items-center gap-2">
         <Button variant="ghost" size="sm" onClick={o.goBackOrCancel}>
           <ArrowLeft className="h-4 w-4" />
@@ -27,7 +27,7 @@ export function NewOrderView({ menu }: { menu: MenuCategory[] }) {
       {o.step === 'catalog' ? (
         <ProductCatalog menu={menu} onProductTap={o.handleProductTap} />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 md:gap-4">
+        <div className="grid min-w-0 gap-3 md:grid-cols-2 md:gap-4 [&>*]:min-w-0">
           <CartSummary
             items={o.items}
             onQuantityChange={o.handleQuantityChange}
