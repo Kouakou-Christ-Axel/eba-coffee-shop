@@ -191,7 +191,6 @@ export function useNewOrder() {
     setCustomerPhone,
     setOrderType,
     setNote,
-    pickupTime,
     setPickupTime,
     // actions panier
     addToCart,
