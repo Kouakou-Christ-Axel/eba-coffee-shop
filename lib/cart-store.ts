@@ -12,6 +12,8 @@ export type CartItem = {
   productId: string;
   productName: string;
   basePrice: number;
+  coutMatiere: number;
+  coutEmballage: number;
   quantity: number;
   supplements: CartItemSupplement[];
 };

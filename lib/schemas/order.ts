@@ -22,6 +22,8 @@ export const cartItemSchema = z.object({
   productId: z.string(),
   productName: z.string(),
   basePrice: z.number().int().nonnegative(),
+  coutMatiere: z.number().int().nonnegative().default(0),
+  coutEmballage: z.number().int().nonnegative().default(0),
   quantity: z.number().int().positive(),
   supplements: z.array(cartItemSupplementSchema),
 });

@@ -35,6 +35,8 @@ function ProductCard({ product }: ProductCardProps) {
         productId: product.id,
         productName: product.name,
         basePrice: product.price,
+        coutMatiere: product.coutMatiere ?? 0,
+        coutEmballage: product.coutEmballage ?? 0,
         supplements: [],
       });
       setJustAdded(true);

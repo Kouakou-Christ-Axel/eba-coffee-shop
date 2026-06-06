@@ -84,6 +84,8 @@ export function useNewOrder() {
         productId: product.id,
         productName: product.name,
         basePrice: product.price,
+        coutMatiere: product.coutMatiere ?? 0,
+        coutEmballage: product.coutEmballage ?? 0,
         quantity: 1,
         supplements,
       };
