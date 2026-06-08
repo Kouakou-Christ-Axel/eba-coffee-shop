@@ -62,3 +62,12 @@ export const MAX_LINE_DISCOUNT_RATIO = 0.5;
 
 /** Longueur max du motif de remise saisi par le caissier. */
 export const ORDER_DISCOUNT_REASON_MAX = 100;
+
+/**
+ * Suivi des dépenses (back-office). Longueurs max des champs de saisie et
+ * plafond de montant (garde-fou anti-faute de frappe, en francs CFA).
+ */
+export const EXPENSE_CATEGORY_NAME_MAX = 50;
+export const EXPENSE_SUPPLIER_MAX = 100;
+export const EXPENSE_NOTE_MAX = 500;
+export const EXPENSE_AMOUNT_MAX = 100_000_000;

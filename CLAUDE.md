@@ -67,13 +67,13 @@ Pre-commit hooks (Husky + lint-staged) run ESLint and Prettier on staged files a
 
 ## Centralized schemas & constants
 
-- **Zod schemas** : `lib/schemas/{order,menu,upload}.ts` — utilise-les depuis les routes API ; les routes peuvent durcir via `.extend()` mais ne **redéclarent pas** inline.
+- **Zod schemas** : `lib/schemas/{order,menu,upload,expense}.ts` — utilise-les depuis les routes API ; les routes peuvent durcir via `.extend()` mais ne **redéclarent pas** inline.
 - **Types métier partagés** : `lib/types/index.ts` (re-exports les types depuis les schémas).
 - **Constantes** : `config/constants.ts` (`MAX_UPLOAD_SIZE_BYTES`, `SLOT_DURATION_MINUTES`, `OTP_TIMEOUT_SECONDS`, `ORDERS_PAGE_SIZE`, `ORDER_*_MAX`, etc.). Pas de magic numbers en doublon dans le code applicatif.
 
 ## Serveur MCP (gestion du menu)
 
-- **Endpoint** : `POST /api/mcp` — serveur [MCP](https://modelcontextprotocol.io) distant (transport Streamable HTTP, JSON-RPC 2.0, sans état) qui expose la gestion du menu (lecture + écriture) **et les statistiques en lecture seule** (`get_daily_stats`, `get_range_stats`, `get_daily_series`, `get_top_products`, branchés sur `lib/stats.ts`) à un client comme Claude. Doc complète : `app/api/mcp/README.md`.
+- **Endpoint** : `POST /api/mcp` — serveur [MCP](https://modelcontextprotocol.io) distant (transport Streamable HTTP, JSON-RPC 2.0, sans état) **d'administration de l'app** à destination d'un client comme Claude. Il expose : la gestion du menu (lecture + écriture), les statistiques en lecture seule (`get_daily_stats`, `get_range_stats`, `get_daily_series`, `get_top_products`, branchés sur `lib/stats.ts`), et la gestion **complète des dépenses** (catégories + dépenses, lecture **et** écriture : `list_expense_categories`, `create/update/delete_expense_category`, `list_expenses`, `get_expense_summary`, `create/update/delete_expense`, `set_expense_receipt`, branchés sur `lib/expenses.ts` + `lib/expense-mutations.ts`). Doc complète : `app/api/mcp/README.md`.
 - **Auth** : jeton statique `MCP_API_KEY` en `Authorization: Bearer <token>` (comparaison à temps constant). Si la clé n'est pas configurée → **503** (jamais d'accès ouvert).
 - **Architecture** : `app/api/mcp/route.ts` (transport + auth + revalidation cache) → `lib/mcp/handler.ts` (dispatch JSON-RPC, agnostique du framework) → `lib/mcp/tools.ts` (registre des outils).
 - **Règle d'or** : les outils MCP ne dupliquent **aucune** logique métier. Ils branchent `lib/menu.ts` (`getMenuAdmin`) et `lib/menu-mutations.ts`, et réutilisent les schémas Zod existants (`z.toJSONSchema` génère le `inputSchema`). Pour ajouter un outil, étends `tools.ts`.

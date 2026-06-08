@@ -40,8 +40,29 @@ import {
   productInputSchema,
   productUpdateSchema,
 } from '@/lib/menu-mutations';
-import { saveProductImageFromBase64 } from '@/lib/uploads';
+import {
+  saveProductImageFromBase64,
+  saveReceiptImageFromBase64,
+} from '@/lib/uploads';
 import { ALLOWED_IMAGE_MIME_TYPES, imageUrlSchema } from '@/lib/schemas/upload';
+import {
+  listExpenseCategories,
+  listExpenses,
+  getExpenseSummary,
+} from '@/lib/expenses';
+import {
+  createExpenseCategory,
+  updateExpenseCategory,
+  deleteExpenseCategory,
+  createExpense,
+  updateExpense,
+  deleteExpense,
+} from '@/lib/expense-mutations';
+import {
+  expenseCategoryInputSchema,
+  expenseInputSchema,
+  expenseFiltersSchema,
+} from '@/lib/schemas/expense';
 
 // ─── Type d'un outil ────────────────────────────────────────────────────────
 
@@ -154,6 +175,150 @@ export const tools: McpTool[] = [
       const { from, to } = toRange(args);
       const { limit } = args as { limit?: number };
       return getTopProducts(from, to, limit);
+    },
+  },
+
+  // — Dépenses : catégories —
+  {
+    name: 'list_expense_categories',
+    title: 'Lister les catégories de dépense',
+    description:
+      'Renvoie les catégories de dépense avec leur `id` et le nombre de ' +
+      'dépenses rattachées. Utilise ces `id` pour `create_expense`.',
+    inputSchema: z.object({}),
+    readOnly: true,
+    handler: () => listExpenseCategories(),
+  },
+  {
+    name: 'create_expense_category',
+    title: 'Créer une catégorie de dépense',
+    description:
+      'Crée une catégorie de dépense (ex. « Emballages », « Loyer »). Le nom ' +
+      'doit être unique.',
+    inputSchema: expenseCategoryInputSchema,
+    readOnly: false,
+    handler: (args) => createExpenseCategory(args),
+  },
+  {
+    name: 'update_expense_category',
+    title: 'Renommer une catégorie de dépense',
+    description: 'Met à jour le nom d’une catégorie de dépense.',
+    inputSchema: expenseCategoryInputSchema.extend({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, ...rest } = args as { id: string; name: string };
+      return updateExpenseCategory(id, rest);
+    },
+  },
+  {
+    name: 'delete_expense_category',
+    title: 'Supprimer une catégorie de dépense',
+    description:
+      'Supprime une catégorie de dépense. Refusé si des dépenses y sont ' +
+      'rattachées.',
+    inputSchema: z.object({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => deleteExpenseCategory((args as { id: string }).id),
+  },
+
+  // — Dépenses : opérations —
+  {
+    name: 'list_expenses',
+    title: 'Lister les dépenses',
+    description:
+      'Renvoie les dépenses filtrées par plage de dates (`from`/`to`, ' +
+      '`YYYY-MM-DD`, jour civil Abidjan) et/ou `categoryId`, avec le total. ' +
+      'Tous les filtres sont optionnels.',
+    inputSchema: expenseFiltersSchema,
+    readOnly: true,
+    handler: (args) => {
+      const f = args as { from?: string; to?: string; categoryId?: string };
+      return listExpenses({
+        dateFrom: parseDateOnlyToUTC(f.from),
+        dateTo: parseDateOnlyToUTC(f.to),
+        categoryId: f.categoryId,
+      });
+    },
+  },
+  {
+    name: 'get_expense_summary',
+    title: 'Synthèse des dépenses',
+    description:
+      'Renvoie le total des dépenses et leur ventilation par catégorie sur ' +
+      'une plage de dates. Montants en francs CFA.',
+    inputSchema: rangeSchema,
+    readOnly: true,
+    handler: (args) => {
+      const { from, to } = toRange(args);
+      return getExpenseSummary(from, to);
+    },
+  },
+  {
+    name: 'create_expense',
+    title: 'Créer une dépense',
+    description:
+      'Enregistre une dépense. `date` au format `YYYY-MM-DD`, `amount` en ' +
+      'francs CFA entiers, `categoryId` issu de `list_expense_categories`. ' +
+      '`paymentMethod` ∈ CASH/WAVE/BANK/OTHER (défaut CASH). `supplier`, ' +
+      '`note` et `receiptUrl` sont optionnels ; pour joindre une photo encodée, ' +
+      'utilise `set_expense_receipt` après création.',
+    inputSchema: expenseInputSchema,
+    readOnly: false,
+    handler: (args) => createExpense(args),
+  },
+  {
+    name: 'update_expense',
+    title: 'Modifier une dépense',
+    description:
+      'Met à jour une dépense de façon PARTIELLE : ne fournis que les champs à ' +
+      'modifier.',
+    inputSchema: expenseInputSchema.partial().extend({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, ...rest } = args as { id: string } & Record<string, unknown>;
+      return updateExpense(id, rest);
+    },
+  },
+  {
+    name: 'delete_expense',
+    title: 'Supprimer une dépense',
+    description: 'Supprime définitivement une dépense. Action irréversible.',
+    inputSchema: z.object({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => deleteExpense((args as { id: string }).id),
+  },
+  {
+    name: 'set_expense_receipt',
+    title: 'Joindre un justificatif à une dépense',
+    description:
+      'Associe une photo de justificatif à une dépense. Deux modes : (1) ' +
+      '`imageBase64` (base64 brut ou data URI) + `mimeType` — stockée ' +
+      'localement ; (2) `imageUrl` (chemin `/uploads/...` ou URL http(s)). ' +
+      'Formats : ' +
+      ALLOWED_IMAGE_MIME_TYPES.join(', ') +
+      ' (max 5 MB).',
+    inputSchema: z
+      .object({
+        id: idSchema,
+        imageBase64: z.string().min(1).optional(),
+        mimeType: z.enum(ALLOWED_IMAGE_MIME_TYPES).optional(),
+        imageUrl: imageUrlSchema.optional(),
+      })
+      .refine((v) => Boolean(v.imageBase64) || Boolean(v.imageUrl), {
+        message: 'Fournis soit `imageBase64`, soit `imageUrl`.',
+      }),
+    readOnly: false,
+    handler: async (args) => {
+      const { id, imageBase64, mimeType, imageUrl } = args as {
+        id: string;
+        imageBase64?: string;
+        mimeType?: string;
+        imageUrl?: string;
+      };
+      const url = imageBase64
+        ? await saveReceiptImageFromBase64(imageBase64, mimeType)
+        : imageUrl!;
+      return updateExpense(id, { receiptUrl: url });
     },
   },
 
