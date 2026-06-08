@@ -1,0 +1,57 @@
+name: Data backfill (manuel)
+
+# Lancement MANUEL uniquement (onglet Actions → « Data backfill » → Run workflow).
+# Opérations de données ponctuelles, volontairement HORS du CD récurrent :
+#   - customers : idempotent (rattache les commandes encore orphelines) ;
+#   - loyalty   : ⚠️ RECALCULE et ÉCRASE les tampons depuis l'historique —
+#                 à n'exécuter qu'une fois (sinon écrase les corrections manuelles
+#                 et la progression issue des récompenses utilisées).
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Backfill à exécuter'
+        type: choice
+        options:
+          - customers
+          - loyalty
+          - both
+        default: customers
+        required: true
+
+concurrency:
+  # Même groupe que le déploiement : un backfill ne tourne jamais en même temps
+  # qu'un deploy (il attend son tour).
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    name: Backfill (${{ inputs.target }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run backfill via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            source "$HOME/.nvm/nvm.sh"
+            cd /var/www/eba-coffee
+            git pull origin master
+            pnpm install --frozen-lockfile
+            case "${{ inputs.target }}" in
+              customers)
+                pnpm db:backfill-customers
+                ;;
+              loyalty)
+                pnpm db:backfill-loyalty
+                ;;
+              both)
+                pnpm db:backfill-customers
+                pnpm db:backfill-loyalty
+                ;;
+            esac
