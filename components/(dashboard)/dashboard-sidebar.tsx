@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
+  BarChart3,
   ChefHat,
   ClipboardList,
   LayoutDashboard,
@@ -43,6 +44,12 @@ const navItems: NavItem[] = [
     href: '/dashboard',
     icon: LayoutDashboard,
     roles: ['ADMIN', 'CASHIER'],
+  },
+  {
+    label: 'Statistiques',
+    href: '/dashboard/statistiques',
+    icon: BarChart3,
+    roles: ['ADMIN'],
   },
   {
     label: 'Caisse',

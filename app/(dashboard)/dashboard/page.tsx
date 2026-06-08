@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
   Banknote,
+  BarChart3,
   Bike,
   ChefHat,
   CheckCheck,
@@ -13,10 +14,12 @@ import {
   Wallet,
 } from 'lucide-react';
 import { requireDashboardAccess } from '@/lib/auth-helpers';
-import { getDailyStats } from '@/lib/stats';
+import { getDailyStats, getDailySeries } from '@/lib/stats';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { RevenueTrendChart } from '@/components/(dashboard)/charts/revenue-trend-chart';
+import { OrdersByTypeChart } from '@/components/(dashboard)/charts/orders-by-type-chart';
 
 const priceFormatter = new Intl.NumberFormat('fr-FR');
 
@@ -30,6 +33,11 @@ export default async function DashboardPage() {
   if (role === 'KITCHEN') redirect('/dashboard/preparation');
 
   const stats = await getDailyStats();
+
+  // Tendance des 7 derniers jours (jour courant inclus).
+  const seriesFrom = new Date(stats.date.getTime());
+  seriesFrom.setUTCDate(seriesFrom.getUTCDate() - 6);
+  const series = await getDailySeries(seriesFrom, stats.date);
 
   const todayLabel = new Intl.DateTimeFormat('fr-FR', {
     weekday: 'long',
@@ -45,6 +53,12 @@ export default async function DashboardPage() {
           <p className="text-sm text-muted-foreground">{todayLabel}</p>
         </div>
         <div className="flex gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href="/dashboard/statistiques">
+              <BarChart3 className="mr-1.5 h-4 w-4" />
+              Statistiques
+            </Link>
+          </Button>
           <Button asChild size="sm" variant="outline">
             <Link href="/dashboard/caisse">
               <ShoppingBag className="mr-1.5 h-4 w-4" />
@@ -84,6 +98,34 @@ export default async function DashboardPage() {
           Icon={CheckCheck}
           subtle
         />
+      </div>
+
+      {/* Charts : tendance 7 jours + répartition du jour */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">
+              Tendance — 7 derniers jours
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RevenueTrendChart data={series} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Type de commande (jour)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.totalOrders > 0 ? (
+              <OrdersByTypeChart counts={stats.countByOrderType} />
+            ) : (
+              <p className="py-12 text-center text-sm text-muted-foreground">
+                Aucune commande aujourd&apos;hui.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Détail breakdown */}

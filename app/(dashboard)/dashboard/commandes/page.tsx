@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Bike, Coffee, ShoppingBag } from 'lucide-react';
 import { listOrders } from '@/lib/orders';
-import { startOfLocalDay, formatLocalDateOnly } from '@/lib/timezone';
+import { parseDateOnlyToUTC, todayDateString } from '@/lib/timezone';
 import type { OrderStatus, OrderType } from '@/generated/prisma/client';
 import {
   Table,
@@ -14,7 +14,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { StatusTabs } from './status-tabs';
-import { DateFilter } from './date-filter';
+import { OrderSearch } from './order-search';
+import { DateRangeFilter } from '@/components/(dashboard)/date-range-filter';
+
+export const dynamic = 'force-dynamic';
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   NEW: 'Nouvelle',
@@ -55,16 +58,6 @@ const VALID_STATUSES = new Set<OrderStatus>([
   'CANCELLED',
 ]);
 
-function parseDate(value: string | undefined): Date | undefined {
-  if (!value) return undefined;
-  // Attendu : YYYY-MM-DD
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!m) return undefined;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  if (Number.isNaN(d.getTime())) return undefined;
-  return startOfLocalDay(d);
-}
-
 function formatPickupTime(date: Date | null): string {
   if (!date) return '—';
   return new Intl.DateTimeFormat('fr-FR', {
@@ -80,27 +73,65 @@ function formatPickupTime(date: Date | null): string {
 export default async function CommandesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; status?: string; date?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+    range?: string;
+    search?: string;
+  }>;
 }) {
   const params = await searchParams;
   const page = Math.max(1, Number(params.page ?? 1));
   const rawStatus = params.status as OrderStatus | undefined;
   const status =
     rawStatus && VALID_STATUSES.has(rawStatus) ? rawStatus : undefined;
+  const search = params.search?.trim() || undefined;
 
-  // Date par défaut : aujourd'hui (sauf si l'utilisateur a explicitement passé `date=all`)
-  const today = startOfLocalDay(new Date());
-  const dailyDate =
-    params.date === 'all' ? undefined : (parseDate(params.date) ?? today);
+  // Plage de dates (jour civil Abidjan). Défaut : aujourd'hui → aujourd'hui.
+  // `range=all` désactive le filtre de date (historique complet).
+  const isAll = params.range === 'all';
+  const today = todayDateString();
+  let fromStr = '';
+  let toStr = '';
+  let dateFrom: Date | undefined;
+  let dateTo: Date | undefined;
+  if (!isAll) {
+    fromStr = parseDateOnlyToUTC(params.from) ? params.from! : today;
+    toStr = parseDateOnlyToUTC(params.to) ? params.to! : fromStr;
+    if (fromStr > toStr) toStr = fromStr; // YYYY-MM-DD comparable lexicalement
+    dateFrom = parseDateOnlyToUTC(fromStr);
+    dateTo = parseDateOnlyToUTC(toStr);
+  }
 
   const { orders, total, pageSize } = await listOrders({
     page,
     status,
-    dailyDate,
+    dateFrom,
+    dateTo,
+    search,
   });
   const totalPages = Math.ceil(total / pageSize);
 
-  const selectedDateStr = dailyDate ? formatLocalDateOnly(dailyDate) : 'all';
+  const rangeLabel = isAll
+    ? 'Toutes les commandes (historique complet)'
+    : fromStr === toStr
+      ? `Jour de commande : ${fromStr}`
+      : `Du ${fromStr} au ${toStr}`;
+
+  function pageHref(p: number): string {
+    const sp = new URLSearchParams();
+    if (status) sp.set('status', status);
+    if (isAll) sp.set('range', 'all');
+    else {
+      sp.set('from', fromStr);
+      sp.set('to', toStr);
+    }
+    if (search) sp.set('search', search);
+    sp.set('page', String(p));
+    return `?${sp.toString()}`;
+  }
 
   return (
     <div className="space-y-6">
@@ -108,17 +139,18 @@ export default async function CommandesPage({
         <div>
           <h1 className="text-2xl font-bold">Commandes</h1>
           <p className="text-sm text-muted-foreground">
-            {dailyDate
-              ? `Journée du ${formatLocalDateOnly(dailyDate)}`
-              : 'Toutes les commandes (historique complet)'}
+            {rangeLabel}
             {' · '}
             {total} résultat{total > 1 ? 's' : ''}
           </p>
         </div>
-        <DateFilter selected={selectedDateStr} status={status} />
+        <DateRangeFilter from={fromStr} to={toStr} isAll={isAll} showDayNav />
       </div>
 
-      <StatusTabs activeStatus={status} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <StatusTabs activeStatus={status} />
+        <OrderSearch initial={search ?? ''} />
+      </div>
 
       <div className="overflow-x-auto">
         <Table>
@@ -206,11 +238,7 @@ export default async function CommandesPage({
         <div className="flex items-center gap-3">
           {page > 1 && (
             <Button variant="outline" size="sm" asChild>
-              <Link
-                href={`?page=${page - 1}${status ? `&status=${status}` : ''}&date=${selectedDateStr}`}
-              >
-                Précédent
-              </Link>
+              <Link href={pageHref(page - 1)}>Précédent</Link>
             </Button>
           )}
           <span className="text-sm text-muted-foreground">
@@ -218,11 +246,7 @@ export default async function CommandesPage({
           </span>
           {page < totalPages && (
             <Button variant="outline" size="sm" asChild>
-              <Link
-                href={`?page=${page + 1}${status ? `&status=${status}` : ''}&date=${selectedDateStr}`}
-              >
-                Suivant
-              </Link>
+              <Link href={pageHref(page + 1)}>Suivant</Link>
             </Button>
           )}
         </div>

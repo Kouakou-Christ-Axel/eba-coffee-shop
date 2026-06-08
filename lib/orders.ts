@@ -81,23 +81,44 @@ export async function getOrder(id: string) {
 export interface ListOrdersParams {
   page: number;
   status?: OrderStatus;
-  /** Filtre par jour civil (dailyDate à 00:00 local). Si omis, pas de filtre. */
-  dailyDate?: Date;
+  /**
+   * Filtre par plage de jours civils (dailyDate à 00:00 local, inclusif).
+   * Si `dateFrom`/`dateTo` sont omis, pas de filtre de date. Un jour unique
+   * correspond à `dateFrom === dateTo`.
+   */
+  dateFrom?: Date;
+  dateTo?: Date;
+  /** Recherche plein texte sur référence, nom et téléphone client. */
+  search?: string;
 }
 
 export async function listOrders({
   page,
   status,
-  dailyDate,
+  dateFrom,
+  dateTo,
+  search,
 }: ListOrdersParams) {
   const pageSize = ORDERS_PAGE_SIZE;
   const skip = (page - 1) * pageSize;
-  const where: {
-    status?: OrderStatus;
-    dailyDate?: Date;
-  } = {};
+  const where: Prisma.OrderWhereInput = {};
   if (status) where.status = status;
-  if (dailyDate) where.dailyDate = dailyDate;
+
+  if (dateFrom || dateTo) {
+    where.dailyDate = {
+      ...(dateFrom ? { gte: dateFrom } : {}),
+      ...(dateTo ? { lte: dateTo } : {}),
+    };
+  }
+
+  const term = search?.trim();
+  if (term) {
+    where.OR = [
+      { reference: { contains: term, mode: 'insensitive' } },
+      { customerName: { contains: term, mode: 'insensitive' } },
+      { customerPhone: { contains: term, mode: 'insensitive' } },
+    ];
+  }
 
   const [orders, total] = await Promise.all([
     prisma.order.findMany({
