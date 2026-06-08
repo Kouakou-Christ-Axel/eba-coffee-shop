@@ -73,6 +73,10 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `save_cash_closing`            | écriture | Créer / mettre à jour la clôture d’un jour       |
 | `list_customers`               | lecture  | Lister / rechercher des clients (+ stats)        |
 | `get_customer`                 | lecture  | Détail d’un client (par `id` ou `phone`)         |
+| `get_loyalty_card`             | lecture  | Carte à tampons d’un client + récompenses dispo  |
+| `adjust_loyalty_stamps`        | écriture | Ajuster les tampons d’un client (correction)     |
+| `get_loyalty_settings`         | lecture  | Lire la config de la carte à tampons             |
+| `update_loyalty_settings`      | écriture | Modifier la config de la carte à tampons         |
 | `create_category`              | écriture | Créer une catégorie                             |
 | `update_category`              | écriture | Renommer une catégorie                          |
 | `delete_category`              | écriture | Supprimer une catégorie (cascade produits)      |
@@ -111,6 +115,12 @@ Les outils **clients** (CRM, lecture seule) exposent les clients identifiés par
 **téléphone** (clé normalisée) avec leurs stats (nb de commandes, total dépensé,
 dernière commande). `get_customer` accepte un `phone` saisi librement (normalisé
 automatiquement) ou un `id`.
+
+Les outils **fidélité** (carte à tampons) : `get_loyalty_card` (avancement +
+récompenses dispo), `adjust_loyalty_stamps` (correction tracée),
+`get_loyalty_settings` / `update_loyalty_settings` (config : montant min,
+taille de carte, paliers, plafonds, règle 1/jour). Les tampons se gagnent
+automatiquement à la création de commande (≥ montant min, 1/jour/numéro).
 
 ### Images produit
 

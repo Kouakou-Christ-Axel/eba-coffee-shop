@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { getCustomer } from '@/lib/customers';
+import { getLoyaltyCard } from '@/lib/loyalty';
 import { formatPhoneForDisplay } from '@/lib/phone';
 import type { OrderStatus } from '@/generated/prisma/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -55,7 +56,7 @@ export default async function CustomerDetailPage({
   await requireAdmin();
   const { id } = await params;
 
-  const data = await getCustomer(id);
+  const [data, card] = await Promise.all([getCustomer(id), getLoyaltyCard(id)]);
   if (!data) notFound();
   const { customer, orders, stats } = data;
 
@@ -84,6 +85,37 @@ export default async function CustomerDetailPage({
           value={stats.lastOrderAt ? dateFmt.format(stats.lastOrderAt) : '—'}
         />
       </div>
+
+      {card && card.settings.enabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Carte de fidélité</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-bold tabular-nums">
+                {card.stampCount}/{card.settings.stampsPerCard}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                tampons sur la carte en cours
+              </span>
+            </div>
+            {card.availableRewards.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {card.availableRewards.map((r) => (
+                  <Badge key={r.id} className="bg-green-600">
+                    🎁 Récompense dispo — jusqu&apos;à {priceFmt.format(r.capAmount)} F
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Aucune récompense en attente.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

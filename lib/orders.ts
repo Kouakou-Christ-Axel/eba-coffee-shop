@@ -5,6 +5,7 @@ import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { getNextDailyNumber, todayDailyDate } from '@/lib/daily-numbering';
 import { upsertCustomerForOrder } from '@/lib/customer-mutations';
+import { awardLoyaltyForOrder } from '@/lib/loyalty-mutations';
 import { createOrderSchema as baseCreateOrderSchema } from '@/lib/schemas/order';
 import { ORDERS_PAGE_SIZE } from '@/config/constants';
 
@@ -49,7 +50,7 @@ export async function createOrder(input: CreateOrderInput) {
           input.customerName
         );
 
-        return tx.order.create({
+        const order = await tx.order.create({
           data: {
             reference,
             dailyDate,
@@ -63,6 +64,17 @@ export async function createOrder(input: CreateOrderInput) {
             total: input.total,
           },
         });
+
+        if (customerId) {
+          await awardLoyaltyForOrder(tx, {
+            customerId,
+            orderId: order.id,
+            orderTotal: order.total,
+            actorId: null,
+          });
+        }
+
+        return order;
       });
     } catch (err) {
       if (
