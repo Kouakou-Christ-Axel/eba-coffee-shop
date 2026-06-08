@@ -67,6 +67,10 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `update_expense`               | écriture | Modifier une dépense (mise à jour **partielle**)|
 | `delete_expense`               | écriture | Supprimer une dépense                           |
 | `set_expense_receipt`          | écriture | Joindre un justificatif (base64 ou URL)         |
+| `get_cash_position`            | lecture  | Chiffres espèces d’un jour + clôture éventuelle  |
+| `get_cash_closing`             | lecture  | Lire la clôture d’un jour                        |
+| `list_cash_closings`           | lecture  | Historique des clôtures sur une plage            |
+| `save_cash_closing`            | écriture | Créer / mettre à jour la clôture d’un jour       |
 | `create_category`              | écriture | Créer une catégorie                             |
 | `update_category`              | écriture | Renommer une catégorie                          |
 | `delete_category`              | écriture | Supprimer une catégorie (cascade produits)      |
@@ -94,6 +98,12 @@ dépenses, lecture **et** écriture) : on peut tout gérer sans ouvrir l'app.
 provient de `list_expense_categories`, et `paymentMethod` ∈
 `CASH`/`WAVE`/`BANK`/`OTHER`. Le justificatif photo se joint via
 `set_expense_receipt` (base64 ou URL).
+
+Les outils **clôture de caisse** (espèces, une clôture par jour civil) :
+`get_cash_position` prépare une clôture (ventes/dépenses espèces du jour),
+`save_cash_closing` l'enregistre (la caisse théorique et l'écart sont
+recalculés : fond + ventes espèces − dépenses espèces ; écart = comptées −
+théorique).
 
 ### Images produit
 
