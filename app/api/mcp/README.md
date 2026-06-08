@@ -53,6 +53,10 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | Outil                          | Type     | Description                                     |
 | ------------------------------ | -------- | ----------------------------------------------- |
 | `get_menu`                     | lecture  | Menu complet avec identifiants internes (`id`)  |
+| `get_daily_stats`              | lecture  | Stats agrégées de la journée en cours           |
+| `get_range_stats`              | lecture  | KPIs sur une plage (`from`/`to`, `YYYY-MM-DD`)  |
+| `get_daily_series`             | lecture  | Série jour par jour (commandes + CA) sur plage  |
+| `get_top_products`             | lecture  | Top produits vendus sur une plage (`limit?`)    |
 | `create_category`              | écriture | Créer une catégorie                             |
 | `update_category`              | écriture | Renommer une catégorie                          |
 | `delete_category`              | écriture | Supprimer une catégorie (cascade produits)      |
@@ -69,6 +73,10 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 Les prix et coûts (`coutMatiere`, `coutEmballage`) sont exprimés en **francs
 CFA** (nombres entiers) et `get_menu` les renvoie. Commence toujours par
 `get_menu` pour récupérer les `id` avant toute modification.
+
+Les outils statistiques sont en **lecture seule**. Les plages `from`/`to` sont
+au format `YYYY-MM-DD`, interprétées en **jour civil Abidjan** (bornes incluses),
+et les montants (CA, panier moyen…) sont en francs CFA entiers.
 
 ### Images produit
 

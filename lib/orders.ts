@@ -92,15 +92,15 @@ export interface ListOrdersParams {
   search?: string;
 }
 
-export async function listOrders({
-  page,
+export type OrderFilters = Omit<ListOrdersParams, 'page'>;
+
+/** Construit le `where` Prisma partagé entre la liste paginée et l'export. */
+export function buildOrdersWhere({
   status,
   dateFrom,
   dateTo,
   search,
-}: ListOrdersParams) {
-  const pageSize = ORDERS_PAGE_SIZE;
-  const skip = (page - 1) * pageSize;
+}: OrderFilters): Prisma.OrderWhereInput {
   const where: Prisma.OrderWhereInput = {};
   if (status) where.status = status;
 
@@ -120,6 +120,14 @@ export async function listOrders({
     ];
   }
 
+  return where;
+}
+
+export async function listOrders({ page, ...filters }: ListOrdersParams) {
+  const pageSize = ORDERS_PAGE_SIZE;
+  const skip = (page - 1) * pageSize;
+  const where = buildOrdersWhere(filters);
+
   const [orders, total] = await Promise.all([
     prisma.order.findMany({
       where,
@@ -131,4 +139,16 @@ export async function listOrders({
   ]);
 
   return { orders, total, pageSize };
+}
+
+/**
+ * Récupère toutes les commandes correspondant aux filtres (sans pagination),
+ * pour l'export CSV. Triées par date de création croissante (ordre chronologique
+ * naturel pour un tableur).
+ */
+export async function getOrdersForExport(filters: OrderFilters) {
+  return prisma.order.findMany({
+    where: buildOrdersWhere(filters),
+    orderBy: { createdAt: 'asc' },
+  });
 }

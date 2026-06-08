@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Bike, Coffee, ShoppingBag } from 'lucide-react';
+import { Bike, Coffee, Download, ShoppingBag } from 'lucide-react';
 import { listOrders } from '@/lib/orders';
 import { parseDateOnlyToUTC, todayDateString } from '@/lib/timezone';
 import type { OrderStatus, OrderType } from '@/generated/prisma/client';
@@ -120,7 +120,7 @@ export default async function CommandesPage({
       ? `Jour de commande : ${fromStr}`
       : `Du ${fromStr} au ${toStr}`;
 
-  function pageHref(p: number): string {
+  function filterParams(): URLSearchParams {
     const sp = new URLSearchParams();
     if (status) sp.set('status', status);
     if (isAll) sp.set('range', 'all');
@@ -129,9 +129,16 @@ export default async function CommandesPage({
       sp.set('to', toStr);
     }
     if (search) sp.set('search', search);
+    return sp;
+  }
+
+  function pageHref(p: number): string {
+    const sp = filterParams();
     sp.set('page', String(p));
     return `?${sp.toString()}`;
   }
+
+  const exportHref = `/api/export/orders?${filterParams().toString()}`;
 
   return (
     <div className="space-y-6">
@@ -144,7 +151,15 @@ export default async function CommandesPage({
             {total} résultat{total > 1 ? 's' : ''}
           </p>
         </div>
-        <DateRangeFilter from={fromStr} to={toStr} isAll={isAll} showDayNav />
+        <div className="flex flex-wrap items-center gap-2">
+          <DateRangeFilter from={fromStr} to={toStr} isAll={isAll} showDayNav />
+          <Button asChild variant="outline" size="sm">
+            <a href={exportHref}>
+              <Download className="mr-1.5 h-4 w-4" />
+              Exporter CSV
+            </a>
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
