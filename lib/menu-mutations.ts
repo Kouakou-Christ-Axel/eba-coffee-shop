@@ -1,6 +1,8 @@
 // lib/menu-mutations.ts
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
+import { supplementGroupSchema } from '@/lib/schemas/menu';
+import { imageUrlSchema } from '@/lib/schemas/upload';
 
 // ─── Slugify ──────────────────────────────────────────────────────────────────
 
@@ -14,18 +16,10 @@ export function slugify(input: string): string {
 }
 
 // ─── Schémas Zod ──────────────────────────────────────────────────────────────
-
-const supplementOptionSchema = z.object({
-  name: z.string().min(1).max(80),
-  price: z.number().int().nonnegative(),
-});
-
-const supplementGroupSchema = z.object({
-  name: z.string().min(1).max(80),
-  type: z.enum(['single', 'multiple']),
-  required: z.boolean(),
-  options: z.array(supplementOptionSchema),
-});
+//
+// Les schémas de suppléments sont centralisés dans `lib/schemas/menu.ts` (règle
+// CLAUDE.md : pas de redéclaration inline). `imageUrlSchema` (lib/schemas/upload)
+// accepte chemins relatifs locaux ET URLs absolues.
 
 export const createCategorySchema = z.object({
   name: z.string().min(1).max(80),
@@ -51,20 +45,28 @@ export const productInputSchema = z.object({
   name: z.string().min(1).max(120),
   description: z.string().min(1).max(500),
   price: z.number().int().nonnegative(),
-  imageUrl: z.string().url().nullable().optional(),
+  imageUrl: imageUrlSchema.nullable().optional(),
   supplementGroups: z.array(supplementGroupSchema),
   ...featuredFieldsSchema,
   ...costFieldsSchema,
 });
 
+// Mise à jour PARTIELLE : tous les champs sont optionnels. Seuls les champs
+// FOURNIS sont modifiés — un champ absent est laissé intact (et non remis à sa
+// valeur par défaut). Indispensable pour un client agentique (MCP) qui ne
+// renvoie que ce qu'il veut changer, sans risquer d'effacer le reste.
 export const productUpdateSchema = z.object({
-  name: z.string().min(1).max(120),
-  description: z.string().min(1).max(500),
-  price: z.number().int().nonnegative(),
-  imageUrl: z.string().url().nullable(),
-  supplementGroups: z.array(supplementGroupSchema),
-  ...featuredFieldsSchema,
-  ...costFieldsSchema,
+  categoryId: z.string().min(1).optional(),
+  name: z.string().min(1).max(120).optional(),
+  description: z.string().min(1).max(500).optional(),
+  price: z.number().int().nonnegative().optional(),
+  imageUrl: imageUrlSchema.nullable().optional(),
+  supplementGroups: z.array(supplementGroupSchema).optional(),
+  featured: z.boolean().optional(),
+  featuredOrder: z.number().int().nonnegative().optional(),
+  featuredBadge: z.string().min(1).max(40).nullable().optional(),
+  coutMatiere: z.number().int().nonnegative().optional(),
+  coutEmballage: z.number().int().nonnegative().optional(),
 });
 
 // ─── Catégories ───────────────────────────────────────────────────────────────
@@ -161,22 +163,42 @@ export async function updateProduct(id: string, input: ProductUpdate) {
   const existing = await prisma.product.findUnique({ where: { id } });
   if (!existing) throw new Error('Produit introuvable');
 
+  // N'écrit QUE les champs scalaires explicitement fournis (un champ absent =
+  // inchangé). `featuredBadge: null` reste un effacement volontaire et valide.
+  const scalar = {
+    ...(data.categoryId !== undefined && { categoryId: data.categoryId }),
+    ...(data.name !== undefined && { name: data.name }),
+    ...(data.description !== undefined && { description: data.description }),
+    ...(data.price !== undefined && { price: data.price }),
+    ...(data.imageUrl !== undefined && { imageUrl: data.imageUrl }),
+    ...(data.featured !== undefined && { featured: data.featured }),
+    ...(data.featuredOrder !== undefined && {
+      featuredOrder: data.featuredOrder,
+    }),
+    ...(data.featuredBadge !== undefined && {
+      featuredBadge: data.featuredBadge,
+    }),
+    ...(data.coutMatiere !== undefined && { coutMatiere: data.coutMatiere }),
+    ...(data.coutEmballage !== undefined && {
+      coutEmballage: data.coutEmballage,
+    }),
+  };
+
+  // Les groupes de suppléments ne sont remplacés QUE s'ils sont fournis. Absents
+  // → on ne touche pas aux suppléments existants (pas de transaction inutile).
+  if (data.supplementGroups === undefined) {
+    return prisma.product.update({ where: { id }, data: scalar });
+  }
+
+  const groups = data.supplementGroups;
   return prisma.$transaction(async (tx) => {
     await tx.supplementGroup.deleteMany({ where: { productId: id } });
     return tx.product.update({
       where: { id },
       data: {
-        name: data.name,
-        description: data.description,
-        price: data.price,
-        coutMatiere: data.coutMatiere,
-        coutEmballage: data.coutEmballage,
-        imageUrl: data.imageUrl,
-        featured: data.featured,
-        featuredOrder: data.featuredOrder,
-        featuredBadge: data.featuredBadge ?? null,
+        ...scalar,
         supplementGroups: {
-          create: data.supplementGroups.map((g, gi) => ({
+          create: groups.map((g, gi) => ({
             name: g.name,
             type: g.type,
             required: g.required,
@@ -188,6 +210,36 @@ export async function updateProduct(id: string, input: ProductUpdate) {
         },
       },
     });
+  });
+}
+
+// Réordonne un produit d'un cran (haut/bas) DANS sa catégorie, en échangeant son
+// `sortOrder` avec celui de son voisin. Symétrique de `moveCategory`.
+export async function moveProduct(id: string, direction: 'up' | 'down') {
+  const product = await prisma.product.findUnique({
+    where: { id },
+    select: { categoryId: true },
+  });
+  if (!product) throw new Error('Produit introuvable');
+
+  const all = await prisma.product.findMany({
+    where: { categoryId: product.categoryId },
+    orderBy: { sortOrder: 'asc' },
+    select: { id: true, sortOrder: true },
+  });
+  const idx = all.findIndex((p) => p.id === id);
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= all.length) return;
+
+  const a = all[idx];
+  const b = all[swapIdx];
+  await prisma.product.update({
+    where: { id: a.id },
+    data: { sortOrder: b.sortOrder },
+  });
+  await prisma.product.update({
+    where: { id: b.id },
+    data: { sortOrder: a.sortOrder },
   });
 }
 

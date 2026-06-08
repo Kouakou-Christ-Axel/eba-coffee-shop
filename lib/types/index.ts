@@ -50,12 +50,14 @@ export {
 export type {
   AllowedImageMimeType,
   UploadFileInput,
+  ImageUrlInput,
 } from '@/lib/schemas/upload';
 
 export {
   ALLOWED_IMAGE_MIME_TYPES,
   MAX_UPLOAD_SIZE_BYTES,
   uploadFileSchema,
+  imageUrlSchema,
   imageExtensionFromMime,
   isAllowedImageMimeType,
 } from '@/lib/schemas/upload';

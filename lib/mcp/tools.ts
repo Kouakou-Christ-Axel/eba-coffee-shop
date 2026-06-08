@@ -27,11 +27,14 @@ import {
   deleteProduct,
   toggleProductAvailability,
   toggleProductFeatured,
+  moveProduct,
   createCategorySchema,
   updateCategorySchema,
   productInputSchema,
   productUpdateSchema,
 } from '@/lib/menu-mutations';
+import { saveProductImageFromBase64 } from '@/lib/uploads';
+import { ALLOWED_IMAGE_MIME_TYPES, imageUrlSchema } from '@/lib/schemas/upload';
 
 // ─── Type d'un outil ────────────────────────────────────────────────────────
 
@@ -132,9 +135,12 @@ export const tools: McpTool[] = [
     name: 'create_product',
     title: 'Créer un produit',
     description:
-      'Crée un produit dans une catégorie (via `categoryId`). Les prix sont en ' +
-      'francs CFA, en nombre entier. `supplementGroups` peut être un tableau ' +
-      'vide.',
+      'Crée un produit dans une catégorie (via `categoryId`). Les prix et coûts ' +
+      '(`coutMatiere`, `coutEmballage`) sont en francs CFA entiers. ' +
+      '`supplementGroups` peut être un tableau vide. `imageUrl` accepte un ' +
+      'chemin local (`/uploads/products/...`, obtenu via `set_product_image`) ou ' +
+      'une URL http(s) ; pour téléverser un fichier, utilise plutôt ' +
+      '`set_product_image`.',
     inputSchema: productInputSchema,
     readOnly: false,
     handler: (args) =>
@@ -144,9 +150,11 @@ export const tools: McpTool[] = [
     name: 'update_product',
     title: 'Modifier un produit',
     description:
-      'Remplace les champs d’un produit existant (nom, description, prix, ' +
-      'image, mise en avant, suppléments). Les groupes de suppléments sont ' +
-      'entièrement remplacés par ceux fournis.',
+      'Met à jour un produit existant de façon PARTIELLE : ne fournis que les ' +
+      'champs à modifier, les autres restent inchangés. `categoryId` permet de ' +
+      'déplacer le produit vers une autre catégorie. ⚠️ Si tu fournis ' +
+      '`supplementGroups`, la liste entière est remplacée par celle fournie ' +
+      '(omets-la pour conserver les suppléments existants).',
     inputSchema: productUpdateSchema.extend({ id: idSchema }),
     readOnly: false,
     handler: (args) => {
@@ -154,6 +162,69 @@ export const tools: McpTool[] = [
         typeof productUpdateSchema
       >;
       return updateProduct(id, rest);
+    },
+  },
+  {
+    name: 'set_product_image',
+    title: 'Définir l’image d’un produit',
+    description:
+      'Associe une image à un produit. Deux modes : (1) téléverser un fichier en ' +
+      'fournissant `imageBase64` (contenu encodé en base64, ou data URI) + ' +
+      '`mimeType` — l’image est stockée localement ; (2) référencer une image ' +
+      'existante via `imageUrl` (chemin `/uploads/...` ou URL http(s)). Renvoie ' +
+      'le produit mis à jour avec son `imageUrl`. Formats acceptés : ' +
+      ALLOWED_IMAGE_MIME_TYPES.join(', ') +
+      ' (max 5 MB).',
+    inputSchema: z
+      .object({
+        id: idSchema,
+        imageBase64: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('Image encodée en base64 (brut) ou data URI.'),
+        mimeType: z
+          .enum(ALLOWED_IMAGE_MIME_TYPES)
+          .optional()
+          .describe('Type MIME requis avec imageBase64 (sauf data URI).'),
+        imageUrl: imageUrlSchema
+          .optional()
+          .describe('Alternative : URL/chemin d’une image déjà hébergée.'),
+      })
+      .refine((v) => Boolean(v.imageBase64) || Boolean(v.imageUrl), {
+        message: 'Fournis soit `imageBase64`, soit `imageUrl`.',
+      }),
+    readOnly: false,
+    handler: async (args) => {
+      const { id, imageBase64, mimeType, imageUrl } = args as {
+        id: string;
+        imageBase64?: string;
+        mimeType?: string;
+        imageUrl?: string;
+      };
+      const url = imageBase64
+        ? await saveProductImageFromBase64(imageBase64, mimeType)
+        : imageUrl!;
+      return updateProduct(id, { imageUrl: url });
+    },
+  },
+  {
+    name: 'move_product',
+    title: 'Réordonner un produit',
+    description:
+      'Déplace un produit d’un cran vers le haut ou vers le bas dans l’ordre ' +
+      'd’affichage, au sein de sa catégorie.',
+    inputSchema: z.object({
+      id: idSchema,
+      direction: z.enum(['up', 'down']),
+    }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, direction } = args as {
+        id: string;
+        direction: 'up' | 'down';
+      };
+      return moveProduct(id, direction);
     },
   },
   {

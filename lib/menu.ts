@@ -67,6 +67,8 @@ export type AdminMenuProduct = {
   name: string;
   description: string;
   price: number;
+  coutMatiere: number;
+  coutEmballage: number;
   imageUrl: string | null;
   available: boolean;
   featured: boolean;
@@ -111,6 +113,8 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
       name: p.name,
       description: p.description,
       price: p.price,
+      coutMatiere: p.coutMatiere,
+      coutEmballage: p.coutEmballage,
       imageUrl: p.imageUrl ?? null,
       available: p.available,
       featured: p.featured,
