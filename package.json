@@ -63,6 +63,7 @@
     "radix-ui": "^1.4.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "recharts": "^3.8.1",
     "resend": "^6.12.3",
     "schema-dts": "^1.1.5",
     "tailwind-merge": "^3.5.0",
