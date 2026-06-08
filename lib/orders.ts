@@ -4,6 +4,7 @@ import type { OrderStatus, OrderType } from '@/generated/prisma/client';
 import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { getNextDailyNumber, todayDailyDate } from '@/lib/daily-numbering';
+import { upsertCustomerForOrder } from '@/lib/customer-mutations';
 import { createOrderSchema as baseCreateOrderSchema } from '@/lib/schemas/order';
 import { ORDERS_PAGE_SIZE } from '@/config/constants';
 
@@ -42,6 +43,11 @@ export async function createOrder(input: CreateOrderInput) {
       return await prisma.$transaction(async (tx) => {
         const dailyNumber = await getNextDailyNumber(tx, dailyDate);
         const reference = generateOrderReference();
+        const customerId = await upsertCustomerForOrder(
+          tx,
+          input.customerPhone,
+          input.customerName
+        );
 
         return tx.order.create({
           data: {
@@ -50,6 +56,7 @@ export async function createOrder(input: CreateOrderInput) {
             dailyNumber,
             customerName: input.customerName,
             customerPhone: input.customerPhone,
+            customerId,
             pickupTime: new Date(input.pickupTime),
             orderType: 'TAKEAWAY' satisfies OrderType,
             items: input.items,

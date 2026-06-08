@@ -128,13 +128,31 @@ model Order {
   createdById String?
   createdBy   User?   @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  // Client identifié par téléphone (CRM / fidélité). Null = commande anonyme.
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([dailyDate, dailyNumber])
   @@index([status, isPaid])
   @@index([createdAt(sort: Desc)])
+  @@index([customerId])
   @@map("order")
+}
+
+model Customer {
+  // Identité client (CRM). Clé = téléphone normalisé (forme canonique E.164
+  // quand reconnu, sinon chiffres). Pas de compte/login : on identifie au numéro.
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String?
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("customer")
 }
 
 model MenuCategory {

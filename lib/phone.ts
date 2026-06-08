@@ -35,6 +35,24 @@ export function normalizeIvorianPhone(input: string): string | null {
 }
 
 /**
+ * Clé canonique d'un client à partir d'un téléphone saisi librement, pour
+ * dédoublonner ("07 …", "+225 07 …", "00225 07 …" → même clé).
+ *
+ * Souple : on privilégie la forme E.164 (`+225…`) quand le numéro est reconnu ;
+ * sinon on retombe sur les chiffres bruts (≥ 6) pour rester tolérant aux saisies
+ * caisse atypiques. Retourne null si rien d'exploitable.
+ */
+export function customerPhoneKey(
+  raw: string | null | undefined
+): string | null {
+  if (!raw) return null;
+  const e164 = normalizeIvorianPhone(raw);
+  if (e164) return e164;
+  const digits = raw.replace(/\D/g, '');
+  return digits.length >= 6 ? digits : null;
+}
+
+/**
  * Format pour les liens wa.me : indicatif + numéro local SANS le `+`.
  * Ex. "+22507881234567" → "22507881234567"
  */
