@@ -18,6 +18,7 @@ import {
 } from '@/lib/daily-numbering';
 import { generateOrderReference } from '@/lib/orders';
 import { upsertCustomerForOrder } from '@/lib/customer-mutations';
+import { awardLoyaltyForOrder } from '@/lib/loyalty-mutations';
 import { normalizeIvorianPhone } from '@/lib/phone';
 import { createOrderSchema, orderTypeSchema } from '@/lib/schemas/order';
 import { computeItemsTotal } from '@/lib/orders/totals';
@@ -78,7 +79,7 @@ export async function POST(req: Request) {
           parsed.data.customerName
         );
 
-        return tx.order.create({
+        const created = await tx.order.create({
           data: {
             reference,
             dailyDate,
@@ -96,6 +97,17 @@ export async function POST(req: Request) {
             createdById: session.user.id,
           },
         });
+
+        if (customerId) {
+          await awardLoyaltyForOrder(tx, {
+            customerId,
+            orderId: created.id,
+            orderTotal: total,
+            actorId: session.user.id,
+          });
+        }
+
+        return created;
       });
 
       return NextResponse.json(

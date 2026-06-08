@@ -148,11 +148,77 @@ model Customer {
   id        String   @id @default(cuid())
   phone     String   @unique
   name      String?
+
+  // Fidélité (carte à tampons). `stampCount` = avancement de la carte en cours.
+  // `lastStampDate` sert à la règle « 1 tampon / jour / numéro ».
+  stampCount    Int       @default(0)
+  lastStampDate DateTime? @db.Date
+
   orders    Order[]
+  rewards   LoyaltyReward[]
+  ledger    LoyaltyLedger[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("customer")
+}
+
+enum LoyaltyRewardStatus {
+  AVAILABLE
+  USED
+}
+
+model LoyaltyReward {
+  id         String              @id @default(cuid())
+  customerId String
+  customer   Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tier       Int // palier atteint (nb de tampons), ex. 5 ou 10
+  capAmount  Int // plafond de la récompense (FCFA)
+  status     LoyaltyRewardStatus @default(AVAILABLE)
+
+  earnedOrderId String?
+  usedOrderId   String?
+  earnedAt      DateTime  @default(now())
+  usedAt        DateTime?
+
+  @@index([customerId, status])
+  @@map("loyalty_reward")
+}
+
+enum LoyaltyEventType {
+  STAMP_EARNED
+  REWARD_EARNED
+  REWARD_USED
+  ADJUSTMENT
+}
+
+model LoyaltyLedger {
+  id         String           @id @default(cuid())
+  customerId String
+  customer   Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  type       LoyaltyEventType
+  stamps     Int              @default(0) // delta de tampons (ex. +1, ou ajustement)
+  orderId    String?
+  actorId    String? // utilisateur à l'origine (null = automatique / en ligne)
+  note       String?
+  createdAt  DateTime         @default(now())
+
+  @@index([customerId])
+  @@map("loyalty_ledger")
+}
+
+model LoyaltySettings {
+  id             String  @id @default("singleton")
+  enabled        Boolean @default(true)
+  minOrderAmount Int     @default(1000) // montant min (FCFA) pour gagner 1 tampon
+  stampsPerCard  Int     @default(10) // taille de la carte (palier final)
+  tier1Stamps    Int     @default(5) // palier intermédiaire
+  tier1RewardCap Int     @default(1000) // plafond récompense palier intermédiaire
+  tier2RewardCap Int     @default(2500) // plafond récompense palier final
+  oneStampPerDay Boolean @default(true)
+  updatedAt      DateTime @updatedAt
+
+  @@map("loyalty_settings")
 }
 
 model MenuCategory {

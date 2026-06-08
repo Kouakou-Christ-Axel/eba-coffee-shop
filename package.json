@@ -35,6 +35,7 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx --env-file=.env prisma/seed.ts",
     "db:backfill-customers": "tsx --env-file=.env prisma/backfill-customers.ts",
+    "db:backfill-loyalty": "tsx --env-file=.env prisma/backfill-loyalty.ts",
     "db:trigger": "prisma db execute --file prisma/sql/orders-notify-trigger.sql",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
