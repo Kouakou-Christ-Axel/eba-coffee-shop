@@ -14,6 +14,7 @@ import {
   ShoppingBag,
   UtensilsCrossed,
   Users,
+  Wallet,
 } from 'lucide-react';
 
 import {
@@ -49,6 +50,12 @@ const navItems: NavItem[] = [
     label: 'Statistiques',
     href: '/dashboard/statistiques',
     icon: BarChart3,
+    roles: ['ADMIN'],
+  },
+  {
+    label: 'Dépenses',
+    href: '/dashboard/depenses',
+    icon: Wallet,
     roles: ['ADMIN'],
   },
   {

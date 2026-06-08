@@ -1,12 +1,14 @@
 // lib/uploads.ts
 //
-// Logique de persistance des images produit, partagée entre la route HTTP
+// Logique de persistance des images uploadées, partagée entre la route HTTP
 // (`app/api/upload/route.ts`, upload multipart depuis le dashboard) et le
 // serveur MCP (`lib/mcp/tools.ts`, upload en base64 depuis un agent). Aucune
 // duplication : la validation (MIME/taille) et l'écriture disque vivent ici.
 //
-// Les fichiers sont écrits dans `public/uploads/products/` et exposés en
-// same-origin sous `/uploads/products/<uuid>.<ext>` (rendu sous CSP `'self'`).
+// Les fichiers sont écrits dans `public/uploads/<subdir>/` et exposés en
+// same-origin sous `/uploads/<subdir>/<uuid>.<ext>` (rendu sous CSP `'self'`).
+// Deux familles aujourd'hui : `products` (images produit) et `receipts`
+// (justificatifs de dépense).
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -17,20 +19,22 @@ import {
   isAllowedImageMimeType,
 } from '@/lib/schemas/upload';
 
-const UPLOAD_SUBDIR = ['public', 'uploads', 'products'] as const;
+/** Sous-dossiers d'upload autorisés (whitelist — pas de chemin arbitraire). */
+export type UploadSubdir = 'products' | 'receipts';
 
-/** URL publique (relative, same-origin) servie pour un fichier produit. */
-function publicUrl(filename: string): string {
-  return `/uploads/products/${filename}`;
+/** URL publique (relative, same-origin) servie pour un fichier uploadé. */
+function publicUrl(subdir: UploadSubdir, filename: string): string {
+  return `/uploads/${subdir}/${filename}`;
 }
 
 /**
- * Valide (MIME + taille) puis écrit un buffer image et renvoie son URL relative.
- * Lève une `Error` (message lisible) en cas de format/taille invalide.
+ * Valide (MIME + taille) puis écrit un buffer image dans `subdir` et renvoie
+ * son URL relative. Lève une `Error` (message lisible) si format/taille invalide.
  */
-export async function saveProductImage(
+export async function saveImage(
   buffer: Buffer,
-  mimeType: string
+  mimeType: string,
+  subdir: UploadSubdir
 ): Promise<string> {
   const ext = imageExtensionFromMime(mimeType);
   if (!ext) {
@@ -44,20 +48,21 @@ export async function saveProductImage(
   }
 
   const filename = `${randomUUID()}.${ext}`;
-  const dir = join(process.cwd(), ...UPLOAD_SUBDIR);
+  const dir = join(process.cwd(), 'public', 'uploads', subdir);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, filename), buffer);
-  return publicUrl(filename);
+  return publicUrl(subdir, filename);
 }
 
 /**
  * Décode une image fournie en base64 (brut) ou en data URI
- * (`data:<mime>;base64,<...>`) et l'enregistre. Le `mimeType` explicite est
- * requis sauf si une data URI le porte. Pensée pour le serveur MCP, où l'agent
- * envoie l'image encodée en texte JSON plutôt qu'en multipart.
+ * (`data:<mime>;base64,<...>`) et l'enregistre dans `subdir`. Le `mimeType`
+ * explicite est requis sauf si une data URI le porte. Pensée pour le serveur
+ * MCP, où l'agent envoie l'image encodée en texte JSON plutôt qu'en multipart.
  */
-export async function saveProductImageFromBase64(
+export async function saveImageFromBase64(
   input: string,
+  subdir: UploadSubdir,
   mimeType?: string
 ): Promise<string> {
   let data = input.trim();
@@ -78,6 +83,23 @@ export async function saveProductImageFromBase64(
     throw new Error('Format non supporté (JPEG, PNG, WebP, AVIF uniquement)');
   }
 
-  const buffer = Buffer.from(data, 'base64');
-  return saveProductImage(buffer, mime);
+  return saveImage(Buffer.from(data, 'base64'), mime, subdir);
 }
+
+// ─── Wrappers par famille (subdir figé) ───────────────────────────────────────
+
+/** Image produit (multipart dashboard). */
+export const saveProductImage = (buffer: Buffer, mimeType: string) =>
+  saveImage(buffer, mimeType, 'products');
+
+/** Image produit depuis base64 (MCP). */
+export const saveProductImageFromBase64 = (input: string, mimeType?: string) =>
+  saveImageFromBase64(input, 'products', mimeType);
+
+/** Justificatif de dépense (multipart dashboard). */
+export const saveReceiptImage = (buffer: Buffer, mimeType: string) =>
+  saveImage(buffer, mimeType, 'receipts');
+
+/** Justificatif de dépense depuis base64 (MCP). */
+export const saveReceiptImageFromBase64 = (input: string, mimeType?: string) =>
+  saveImageFromBase64(input, 'receipts', mimeType);

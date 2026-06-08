@@ -3,15 +3,19 @@ import {
   ClipboardList,
   Download,
   ShoppingBasket,
+  TrendingDown,
+  Wallet,
   XCircle,
 } from 'lucide-react';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { getRangeStats, getDailySeries, getTopProducts } from '@/lib/stats';
+import { getExpenseSummary } from '@/lib/expenses';
 import {
   parseDateOnlyToUTC,
   todayDateString,
   shiftDateString,
 } from '@/lib/timezone';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DateRangeFilter } from '@/components/(dashboard)/date-range-filter';
@@ -20,6 +24,7 @@ import { OrdersByTypeChart } from '@/components/(dashboard)/charts/orders-by-typ
 import { PaymentModeChart } from '@/components/(dashboard)/charts/payment-mode-chart';
 import { StatusBreakdownChart } from '@/components/(dashboard)/charts/status-breakdown-chart';
 import { TopProductsChart } from '@/components/(dashboard)/charts/top-products-chart';
+import { ExpensesByCategoryChart } from '@/components/(dashboard)/charts/expenses-by-category-chart';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,11 +48,14 @@ export default async function StatistiquesPage({
   const from = parseDateOnlyToUTC(fromStr)!;
   const to = parseDateOnlyToUTC(toStr)!;
 
-  const [stats, series, topProducts] = await Promise.all([
+  const [stats, series, topProducts, expenseSummary] = await Promise.all([
     getRangeStats(from, to),
     getDailySeries(from, to),
     getTopProducts(from, to),
+    getExpenseSummary(from, to),
   ]);
+
+  const netMargin = stats.revenue - expenseSummary.total;
 
   return (
     <div className="space-y-6">
@@ -86,11 +94,22 @@ export default async function StatistiquesPage({
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Kpi
           label="CA encaissé"
           value={`${priceFormatter.format(stats.revenue)} F`}
           Icon={Banknote}
+        />
+        <Kpi
+          label="Dépenses"
+          value={`${priceFormatter.format(expenseSummary.total)} F`}
+          Icon={Wallet}
+        />
+        <Kpi
+          label="Marge nette"
+          value={`${priceFormatter.format(netMargin)} F`}
+          Icon={TrendingDown}
+          valueClassName={netMargin < 0 ? 'text-destructive' : 'text-green-600'}
         />
         <Kpi
           label="Commandes"
@@ -160,6 +179,14 @@ export default async function StatistiquesPage({
             <TopProductsChart data={topProducts} />
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Dépenses par catégorie</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ExpensesByCategoryChart data={expenseSummary.byCategory} />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -169,10 +196,12 @@ function Kpi({
   label,
   value,
   Icon,
+  valueClassName,
 }: {
   label: string;
   value: string;
   Icon: typeof Banknote;
+  valueClassName?: string;
 }) {
   return (
     <div className="rounded-xl border bg-card p-4">
@@ -182,7 +211,9 @@ function Kpi({
         </p>
         <Icon className="h-4 w-4 text-muted-foreground" />
       </div>
-      <p className="mt-2 text-2xl font-bold tabular-nums">{value}</p>
+      <p className={cn('mt-2 text-2xl font-bold tabular-nums', valueClassName)}>
+        {value}
+      </p>
     </div>
   );
 }

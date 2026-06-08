@@ -23,9 +23,10 @@ model User {
   updatedAt     DateTime  @updatedAt
   emailVerified Boolean   @default(false)
   image         String?
-  sessions      Session[]
-  accounts      Account[]
-  createdOrders Order[]   @relation("OrderCreatedBy")
+  sessions        Session[]
+  accounts        Account[]
+  createdOrders   Order[]   @relation("OrderCreatedBy")
+  createdExpenses Expense[] @relation("ExpenseCreatedBy")
 
   @@map("user")
 }
@@ -207,4 +208,48 @@ model PickupSettings {
   updatedAt       DateTime @updatedAt
 
   @@map("pickup_settings")
+}
+
+enum ExpensePaymentMethod {
+  CASH
+  WAVE
+  BANK
+  OTHER
+}
+
+model ExpenseCategory {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  sortOrder Int       @default(0)
+  expenses  Expense[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("expense_category")
+}
+
+model Expense {
+  id            String               @id @default(cuid())
+  // Jour civil de la dépense (cohérent avec Order.dailyDate pour les requêtes
+  // de plage dans les stats).
+  date          DateTime             @db.Date
+  amount        Int // montant en francs CFA
+  paymentMethod ExpensePaymentMethod @default(CASH)
+  supplier      String?
+  note          String?
+  // Justificatif (photo) optionnel : chemin /uploads/receipts/... ou URL http(s).
+  receiptUrl    String?
+
+  categoryId String
+  category   ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  createdById String?
+  createdBy   User?   @relation("ExpenseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date(sort: Desc)])
+  @@index([categoryId])
+  @@map("expense")
 }

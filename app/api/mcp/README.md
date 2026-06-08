@@ -57,6 +57,16 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `get_range_stats`              | lecture  | KPIs sur une plage (`from`/`to`, `YYYY-MM-DD`)  |
 | `get_daily_series`             | lecture  | Série jour par jour (commandes + CA) sur plage  |
 | `get_top_products`             | lecture  | Top produits vendus sur une plage (`limit?`)    |
+| `list_expense_categories`      | lecture  | Catégories de dépense (+ nombre de dépenses)    |
+| `create_expense_category`      | écriture | Créer une catégorie de dépense                  |
+| `update_expense_category`      | écriture | Renommer une catégorie de dépense               |
+| `delete_expense_category`      | écriture | Supprimer une catégorie (refusé si utilisée)    |
+| `list_expenses`                | lecture  | Lister les dépenses (filtres date/catégorie)    |
+| `get_expense_summary`          | lecture  | Total + ventilation des dépenses par catégorie  |
+| `create_expense`               | écriture | Enregistrer une dépense                         |
+| `update_expense`               | écriture | Modifier une dépense (mise à jour **partielle**)|
+| `delete_expense`               | écriture | Supprimer une dépense                           |
+| `set_expense_receipt`          | écriture | Joindre un justificatif (base64 ou URL)         |
 | `create_category`              | écriture | Créer une catégorie                             |
 | `update_category`              | écriture | Renommer une catégorie                          |
 | `delete_category`              | écriture | Supprimer une catégorie (cascade produits)      |
@@ -77,6 +87,13 @@ CFA** (nombres entiers) et `get_menu` les renvoie. Commence toujours par
 Les outils statistiques sont en **lecture seule**. Les plages `from`/`to` sont
 au format `YYYY-MM-DD`, interprétées en **jour civil Abidjan** (bornes incluses),
 et les montants (CA, panier moyen…) sont en francs CFA entiers.
+
+Les outils **dépenses** couvrent l'administration complète (catégories +
+dépenses, lecture **et** écriture) : on peut tout gérer sans ouvrir l'app.
+`amount` est en francs CFA entiers, `date` au format `YYYY-MM-DD`, `categoryId`
+provient de `list_expense_categories`, et `paymentMethod` ∈
+`CASH`/`WAVE`/`BANK`/`OTHER`. Le justificatif photo se joint via
+`set_expense_receipt` (base64 ou URL).
 
 ### Images produit
 
