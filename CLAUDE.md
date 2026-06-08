@@ -73,7 +73,7 @@ Pre-commit hooks (Husky + lint-staged) run ESLint and Prettier on staged files a
 
 ## Serveur MCP (gestion du menu)
 
-- **Endpoint** : `POST /api/mcp` — serveur [MCP](https://modelcontextprotocol.io) distant (transport Streamable HTTP, JSON-RPC 2.0, sans état) qui expose la gestion du menu (lecture + écriture) à un client comme Claude. Doc complète : `app/api/mcp/README.md`.
+- **Endpoint** : `POST /api/mcp` — serveur [MCP](https://modelcontextprotocol.io) distant (transport Streamable HTTP, JSON-RPC 2.0, sans état) qui expose la gestion du menu (lecture + écriture) **et les statistiques en lecture seule** (`get_daily_stats`, `get_range_stats`, `get_daily_series`, `get_top_products`, branchés sur `lib/stats.ts`) à un client comme Claude. Doc complète : `app/api/mcp/README.md`.
 - **Auth** : jeton statique `MCP_API_KEY` en `Authorization: Bearer <token>` (comparaison à temps constant). Si la clé n'est pas configurée → **503** (jamais d'accès ouvert).
 - **Architecture** : `app/api/mcp/route.ts` (transport + auth + revalidation cache) → `lib/mcp/handler.ts` (dispatch JSON-RPC, agnostique du framework) → `lib/mcp/tools.ts` (registre des outils).
 - **Règle d'or** : les outils MCP ne dupliquent **aucune** logique métier. Ils branchent `lib/menu.ts` (`getMenuAdmin`) et `lib/menu-mutations.ts`, et réutilisent les schémas Zod existants (`z.toJSONSchema` génère le `inputSchema`). Pour ajouter un outil, étends `tools.ts`.

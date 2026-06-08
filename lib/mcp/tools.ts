@@ -17,6 +17,13 @@
 import { z } from 'zod';
 import { getMenuAdmin } from '@/lib/menu';
 import {
+  getDailyStats,
+  getRangeStats,
+  getDailySeries,
+  getTopProducts,
+} from '@/lib/stats';
+import { parseDateOnlyToUTC } from '@/lib/timezone';
+import {
   createCategory,
   updateCategory,
   deleteCategory,
@@ -52,6 +59,24 @@ export type McpTool = {
 
 const idSchema = z.string().min(1, 'Identifiant requis');
 
+// Plage de dates pour les outils statistiques (jour civil Abidjan, inclusif).
+const dateOnly = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : YYYY-MM-DD');
+const rangeSchema = z.object({
+  from: dateOnly.describe('Date de début (incluse), format YYYY-MM-DD.'),
+  to: dateOnly.describe('Date de fin (incluse), format YYYY-MM-DD.'),
+});
+
+/** Convertit la plage validée en bornes Date (UTC minuit), from ≤ to. */
+function toRange(args: unknown): { from: Date; to: Date } {
+  const { from, to } = args as { from: string; to: string };
+  let f = parseDateOnlyToUTC(from)!;
+  let t = parseDateOnlyToUTC(to)!;
+  if (f.getTime() > t.getTime()) [f, t] = [t, f];
+  return { from: f, to: t };
+}
+
 // ─── Définitions ──────────────────────────────────────────────────────────────
 
 export const tools: McpTool[] = [
@@ -66,6 +91,70 @@ export const tools: McpTool[] = [
     inputSchema: z.object({}),
     readOnly: true,
     handler: () => getMenuAdmin(),
+  },
+
+  // — Statistiques (lecture seule) —
+  {
+    name: 'get_daily_stats',
+    title: 'Stats du jour',
+    description:
+      'Renvoie les statistiques agrégées de la journée en cours (jour civil ' +
+      'Abidjan) : nombre de commandes, revenu encaissé, commandes actives/' +
+      'terminées/annulées, répartition par type et par mode de paiement.',
+    inputSchema: z.object({}),
+    readOnly: true,
+    handler: () => getDailyStats(),
+  },
+  {
+    name: 'get_range_stats',
+    title: 'Stats sur une période',
+    description:
+      'KPIs agrégés sur une plage de dates (incluse) : commandes, revenu ' +
+      'encaissé (CA), panier moyen, taux d’annulation, et répartitions par ' +
+      'statut, type de commande et mode de paiement. Montants en francs CFA.',
+    inputSchema: rangeSchema,
+    readOnly: true,
+    handler: (args) => {
+      const { from, to } = toRange(args);
+      return getRangeStats(from, to);
+    },
+  },
+  {
+    name: 'get_daily_series',
+    title: 'Série journalière',
+    description:
+      'Renvoie, jour par jour sur la plage demandée (jours sans activité ' +
+      'inclus à 0), le nombre de commandes et le CA encaissé. Idéal pour ' +
+      'tracer une tendance.',
+    inputSchema: rangeSchema,
+    readOnly: true,
+    handler: (args) => {
+      const { from, to } = toRange(args);
+      return getDailySeries(from, to);
+    },
+  },
+  {
+    name: 'get_top_products',
+    title: 'Top produits',
+    description:
+      'Renvoie les produits les plus vendus sur la plage (hors commandes ' +
+      'annulées), triés par quantité, avec le chiffre d’affaires associé ' +
+      '(net de remise). `limit` est optionnel (défaut 8).',
+    inputSchema: rangeSchema.extend({
+      limit: z
+        .number()
+        .int()
+        .positive()
+        .max(50)
+        .optional()
+        .describe('Nombre de produits à renvoyer (défaut 8, max 50).'),
+    }),
+    readOnly: true,
+    handler: (args) => {
+      const { from, to } = toRange(args);
+      const { limit } = args as { limit?: number };
+      return getTopProducts(from, to, limit);
+    },
   },
 
   // — Catégories —

@@ -1,6 +1,7 @@
 import {
   Banknote,
   ClipboardList,
+  Download,
   ShoppingBasket,
   XCircle,
 } from 'lucide-react';
@@ -12,6 +13,7 @@ import {
   shiftDateString,
 } from '@/lib/timezone';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { DateRangeFilter } from '@/components/(dashboard)/date-range-filter';
 import { RevenueTrendChart } from '@/components/(dashboard)/charts/revenue-trend-chart';
 import { OrdersByTypeChart } from '@/components/(dashboard)/charts/orders-by-type-chart';
@@ -56,17 +58,31 @@ export default async function StatistiquesPage({
             Du {fromStr} au {toStr}
           </p>
         </div>
-        <DateRangeFilter
-          from={fromStr}
-          to={toStr}
-          isAll={false}
-          allowAll={false}
-          presets={[
-            { label: '7 jours', days: 7 },
-            { label: '30 jours', days: 30 },
-            { label: '90 jours', days: 90 },
-          ]}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <DateRangeFilter
+            from={fromStr}
+            to={toStr}
+            isAll={false}
+            allowAll={false}
+            presets={[
+              { label: '7 jours', days: 7 },
+              { label: '30 jours', days: 30 },
+              { label: '90 jours', days: 90 },
+            ]}
+          />
+          <Button asChild variant="outline" size="sm">
+            <a href={`/api/export/daily?from=${fromStr}&to=${toStr}`}>
+              <Download className="mr-1.5 h-4 w-4" />
+              Récap journalier
+            </a>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <a href={`/api/export/orders?from=${fromStr}&to=${toStr}`}>
+              <Download className="mr-1.5 h-4 w-4" />
+              Commandes
+            </a>
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}
