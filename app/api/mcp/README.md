@@ -71,6 +71,8 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `get_cash_closing`             | lecture  | Lire la clôture d’un jour                        |
 | `list_cash_closings`           | lecture  | Historique des clôtures sur une plage            |
 | `save_cash_closing`            | écriture | Créer / mettre à jour la clôture d’un jour       |
+| `list_customers`               | lecture  | Lister / rechercher des clients (+ stats)        |
+| `get_customer`                 | lecture  | Détail d’un client (par `id` ou `phone`)         |
 | `create_category`              | écriture | Créer une catégorie                             |
 | `update_category`              | écriture | Renommer une catégorie                          |
 | `delete_category`              | écriture | Supprimer une catégorie (cascade produits)      |
@@ -104,6 +106,11 @@ Les outils **clôture de caisse** (espèces, une clôture par jour civil) :
 `save_cash_closing` l'enregistre (la caisse théorique et l'écart sont
 recalculés : fond + ventes espèces − dépenses espèces ; écart = comptées −
 théorique).
+
+Les outils **clients** (CRM, lecture seule) exposent les clients identifiés par
+**téléphone** (clé normalisée) avec leurs stats (nb de commandes, total dépensé,
+dernière commande). `get_customer` accepte un `phone` saisi librement (normalisé
+automatiquement) ou un `id`.
 
 ### Images produit
 

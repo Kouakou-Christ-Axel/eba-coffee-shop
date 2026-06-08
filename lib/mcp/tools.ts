@@ -70,6 +70,11 @@ import {
 } from '@/lib/cash-closing';
 import { saveCashClosing } from '@/lib/cash-closing-mutations';
 import { cashClosingInputSchema } from '@/lib/schemas/cash-closing';
+import {
+  listCustomers,
+  getCustomer,
+  getCustomerByPhone,
+} from '@/lib/customers';
 
 // ─── Type d'un outil ────────────────────────────────────────────────────────
 
@@ -385,6 +390,48 @@ export const tools: McpTool[] = [
     inputSchema: cashClosingInputSchema,
     readOnly: false,
     handler: (args) => saveCashClosing(args),
+  },
+
+  // — Clients (CRM, lecture seule) —
+  {
+    name: 'list_customers',
+    title: 'Lister / rechercher des clients',
+    description:
+      'Renvoie les clients (identifiés par téléphone) avec leurs stats ' +
+      '(nb de commandes, total dépensé, dernière commande). `search` filtre ' +
+      'par nom ou téléphone ; `page` pagine (20 par page).',
+    inputSchema: z.object({
+      search: z.string().optional(),
+      page: z.number().int().positive().optional(),
+    }),
+    readOnly: true,
+    handler: (args) => {
+      const { search, page } = args as { search?: string; page?: number };
+      return listCustomers({ search, page });
+    },
+  },
+  {
+    name: 'get_customer',
+    title: 'Détail d’un client',
+    description:
+      'Renvoie un client avec ses stats et ses commandes récentes. Fournis ' +
+      'soit `id`, soit `phone` (numéro saisi librement, normalisé ' +
+      'automatiquement). Renvoie null si introuvable.',
+    inputSchema: z
+      .object({
+        id: z.string().min(1).optional(),
+        phone: z.string().min(1).optional(),
+      })
+      .refine((v) => Boolean(v.id) || Boolean(v.phone), {
+        message: 'Fournis `id` ou `phone`.',
+      }),
+    readOnly: true,
+    handler: async (args) => {
+      const { id, phone } = args as { id?: string; phone?: string };
+      if (id) return getCustomer(id);
+      const found = await getCustomerByPhone(phone!);
+      return found ? getCustomer(found.id) : null;
+    },
   },
 
   // — Catégories —

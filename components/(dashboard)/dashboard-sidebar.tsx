@@ -9,6 +9,7 @@ import {
   Calculator,
   ChefHat,
   ClipboardList,
+  Contact,
   LayoutDashboard,
   LogOut,
   Settings,
@@ -57,6 +58,12 @@ const navItems: NavItem[] = [
     label: 'Dépenses',
     href: '/dashboard/depenses',
     icon: Wallet,
+    roles: ['ADMIN'],
+  },
+  {
+    label: 'Clients',
+    href: '/dashboard/clients',
+    icon: Contact,
     roles: ['ADMIN'],
   },
   {

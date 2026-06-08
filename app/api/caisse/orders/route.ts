@@ -17,6 +17,7 @@ import {
   DAILY_NUMBER_MAX_RETRIES,
 } from '@/lib/daily-numbering';
 import { generateOrderReference } from '@/lib/orders';
+import { upsertCustomerForOrder } from '@/lib/customer-mutations';
 import { normalizeIvorianPhone } from '@/lib/phone';
 import { createOrderSchema, orderTypeSchema } from '@/lib/schemas/order';
 import { computeItemsTotal } from '@/lib/orders/totals';
@@ -71,6 +72,11 @@ export async function POST(req: Request) {
       const order = await prisma.$transaction(async (tx) => {
         const dailyNumber = await getNextDailyNumber(tx, dailyDate);
         const reference = generateOrderReference();
+        const customerId = await upsertCustomerForOrder(
+          tx,
+          normalizedPhone,
+          parsed.data.customerName
+        );
 
         return tx.order.create({
           data: {
@@ -79,6 +85,7 @@ export async function POST(req: Request) {
             dailyNumber,
             customerName: parsed.data.customerName ?? null,
             customerPhone: normalizedPhone,
+            customerId,
             pickupTime: parsed.data.pickupTime
               ? new Date(parsed.data.pickupTime)
               : null,
