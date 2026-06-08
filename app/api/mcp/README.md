@@ -59,13 +59,32 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `toggle_category_availability` | écriture | Afficher / masquer une catégorie                |
 | `move_category`                | écriture | Réordonner une catégorie (`up` / `down`)        |
 | `create_product`               | écriture | Créer un produit                                |
-| `update_product`               | écriture | Modifier un produit                             |
+| `update_product`               | écriture | Modifier un produit (mise à jour **partielle**) |
+| `set_product_image`            | écriture | Téléverser (base64) ou rattacher une image      |
+| `move_product`                 | écriture | Réordonner un produit (`up` / `down`)           |
 | `delete_product`               | écriture | Supprimer un produit                            |
 | `toggle_product_availability`  | écriture | Afficher / masquer un produit                   |
 | `toggle_product_featured`      | écriture | Mettre en avant / retirer un produit            |
 
-Les prix sont exprimés en **francs CFA** (nombres entiers). Commence toujours par
+Les prix et coûts (`coutMatiere`, `coutEmballage`) sont exprimés en **francs
+CFA** (nombres entiers) et `get_menu` les renvoie. Commence toujours par
 `get_menu` pour récupérer les `id` avant toute modification.
+
+### Images produit
+
+`set_product_image` permet à un client comme Claude de **donner une image à un
+produit** sans passer par le dashboard :
+
+- **Téléversement** : `imageBase64` (contenu encodé base64 ou data URI
+  `data:image/png;base64,...`) + `mimeType`. L'image est enregistrée localement
+  (`/uploads/products/<uuid>.<ext>`, max 5 MB, JPEG/PNG/WebP/AVIF) et rattachée
+  au produit.
+- **Référence** : `imageUrl` pour pointer une image déjà hébergée (chemin
+  `/uploads/...` ou URL http(s)).
+
+`update_product` est **partiel** : ne fournis que les champs à changer. ⚠️ Si tu
+passes `supplementGroups`, la liste entière est remplacée ; omets-la pour
+conserver les suppléments existants.
 
 ## Architecture
 

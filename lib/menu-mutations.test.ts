@@ -47,6 +47,7 @@ import {
   updateProduct,
   deleteProduct,
   toggleProductAvailability,
+  moveProduct,
   slugify,
 } from './menu-mutations';
 
@@ -319,6 +320,83 @@ describe('updateProduct', () => {
         supplementGroups: [],
       })
     ).rejects.toThrow('Produit introuvable');
+  });
+
+  it('partiel : ne modifie que le prix sans toucher aux suppléments', async () => {
+    mockProdFindUnique.mockResolvedValue({ id: 'p1' } as never);
+    mockProdUpdate.mockResolvedValue({ id: 'p1' } as never);
+
+    await updateProduct('p1', { price: 5000 });
+
+    // Pas de suppléments fournis → pas de transaction (suppléments préservés).
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(mockProdUpdate).toHaveBeenCalledWith({
+      where: { id: 'p1' },
+      data: { price: 5000 },
+    });
+  });
+
+  it('partiel : accepte un chemin d’upload local comme imageUrl', async () => {
+    mockProdFindUnique.mockResolvedValue({ id: 'p1' } as never);
+    mockProdUpdate.mockResolvedValue({ id: 'p1' } as never);
+
+    await updateProduct('p1', { imageUrl: '/uploads/products/x.jpg' });
+
+    expect(mockProdUpdate).toHaveBeenCalledWith({
+      where: { id: 'p1' },
+      data: { imageUrl: '/uploads/products/x.jpg' },
+    });
+  });
+
+  it('déplace le produit vers une autre catégorie via categoryId', async () => {
+    mockProdFindUnique.mockResolvedValue({ id: 'p1' } as never);
+    mockProdUpdate.mockResolvedValue({ id: 'p1' } as never);
+
+    await updateProduct('p1', { categoryId: 'cat2' });
+
+    expect(mockProdUpdate).toHaveBeenCalledWith({
+      where: { id: 'p1' },
+      data: { categoryId: 'cat2' },
+    });
+  });
+});
+
+describe('moveProduct', () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it('échange le sortOrder avec le voisin dans la même catégorie', async () => {
+    mockProdFindUnique.mockResolvedValue({ categoryId: 'cat1' } as never);
+    mockProdFindMany.mockResolvedValue([
+      { id: 'a', sortOrder: 0 },
+      { id: 'b', sortOrder: 1 },
+    ] as never);
+    mockProdUpdate.mockResolvedValue({} as never);
+
+    await moveProduct('a', 'down');
+
+    expect(mockProdUpdate).toHaveBeenCalledWith({
+      where: { id: 'a' },
+      data: { sortOrder: 1 },
+    });
+    expect(mockProdUpdate).toHaveBeenCalledWith({
+      where: { id: 'b' },
+      data: { sortOrder: 0 },
+    });
+  });
+
+  it('ne fait rien en bord de liste', async () => {
+    mockProdFindUnique.mockResolvedValue({ categoryId: 'cat1' } as never);
+    mockProdFindMany.mockResolvedValue([
+      { id: 'a', sortOrder: 0 },
+      { id: 'b', sortOrder: 1 },
+    ] as never);
+    await moveProduct('a', 'up');
+    expect(mockProdUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejette si le produit n'existe pas", async () => {
+    mockProdFindUnique.mockResolvedValue(null);
+    await expect(moveProduct('x', 'up')).rejects.toThrow('Produit introuvable');
   });
 });
 

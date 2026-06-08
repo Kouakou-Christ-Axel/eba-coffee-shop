@@ -71,3 +71,30 @@ export const uploadFileSchema = z
   });
 
 export type UploadFileInput = z.infer<typeof uploadFileSchema>;
+
+// ─── URL/chemin d'image d'un produit ──────────────────────────────────────────
+//
+// Depuis la migration VPS, `/api/upload` renvoie un chemin RELATIF same-origin
+// (`/uploads/products/<uuid>.<ext>`) — qui n'est pas une URL absolue valide. Le
+// schéma de produit utilisait `z.string().url()`, qui REJETTE ces chemins : la
+// sauvegarde d'une image uploadée localement échouait donc (dashboard ET MCP).
+//
+// `imageUrlSchema` accepte les deux formes réellement affichables :
+//   • un chemin relatif same-origin commençant par `/` (uploads locaux) ;
+//   • une URL absolue http(s) (ex. legacy Vercel Blob, CDN whitelisté).
+//
+// Note rendu : les chemins relatifs s'affichent sous CSP `img-src 'self'` ; une
+// URL absolue doit pointer vers un hôte autorisé dans `next.config.ts`
+// (`images.remotePatterns`) et la CSP `img-src` pour être rendue par next/image.
+
+export const imageUrlSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(500)
+  .refine((v) => v.startsWith('/') || z.string().url().safeParse(v).success, {
+    message:
+      "URL d'image invalide : chemin relatif (/uploads/...) ou URL http(s) attendu",
+  });
+
+export type ImageUrlInput = z.infer<typeof imageUrlSchema>;

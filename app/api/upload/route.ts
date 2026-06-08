@@ -1,16 +1,11 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
 import { auth } from '@/lib/auth';
 import {
   MAX_UPLOAD_SIZE_BYTES,
-  imageExtensionFromMime,
   isAllowedImageMimeType,
 } from '@/lib/schemas/upload';
-
-const UPLOAD_SUBDIR = ['public', 'uploads', 'products'] as const;
+import { saveProductImage } from '@/lib/uploads';
 
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -40,16 +35,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const ext = imageExtensionFromMime(file.type);
-  if (!ext) {
-    return NextResponse.json({ error: 'Format non supporté' }, { status: 400 });
-  }
-  const filename = `${randomUUID()}.${ext}`;
-
-  const dir = join(process.cwd(), ...UPLOAD_SUBDIR);
-  await mkdir(dir, { recursive: true });
   const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(join(dir, filename), buffer);
-
-  return NextResponse.json({ url: `/uploads/products/${filename}` });
+  const url = await saveProductImage(buffer, file.type);
+  return NextResponse.json({ url });
 }
