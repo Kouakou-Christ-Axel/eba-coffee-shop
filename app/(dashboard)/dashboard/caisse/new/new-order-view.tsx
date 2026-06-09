@@ -40,12 +40,14 @@ export function NewOrderView({ menu }: { menu: MenuCategory[] }) {
             orderType={o.orderType}
             note={o.note}
             pickupTime={o.pickupTime}
+            orderDate={o.orderDate}
             submitError={o.submitError}
             onCustomerNameChange={o.setCustomerName}
             onCustomerPhoneChange={o.setCustomerPhone}
             onOrderTypeChange={o.setOrderType}
             onNoteChange={o.setNote}
             onPickupTimeChange={o.setPickupTime}
+            onOrderDateChange={o.setOrderDate}
           />
         </div>
       )}

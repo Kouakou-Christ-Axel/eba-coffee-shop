@@ -108,6 +108,14 @@ export const createOrderSchema = z.object({
     .datetime({ message: 'Date de retrait invalide' })
     .nullable()
     .optional(),
+  // Antidatage : jour civil (Abidjan) auquel rattacher la commande, format
+  // YYYY-MM-DD. Absent = jour en cours. Utilisé par la caisse et l'outil MCP
+  // pour enregistrer des commandes anciennes ; ignoré par le flux online.
+  orderDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendu : YYYY-MM-DD')
+    .nullable()
+    .optional(),
   items: z.array(cartItemSchema).min(1, 'Au moins 1 article'),
   total: z.number().int().positive('Total invalide'),
   orderType: orderTypeSchema.optional(),

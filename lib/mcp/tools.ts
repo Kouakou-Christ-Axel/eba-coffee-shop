@@ -76,6 +76,12 @@ import {
   getCustomerByPhone,
 } from '@/lib/customers';
 import { getLoyaltyCard, getLoyaltyCardByPhone } from '@/lib/loyalty';
+import {
+  createCashierOrder,
+  buildOrderItemsFromMenu,
+  type OrderItemRef,
+} from '@/lib/order-mutations';
+import { orderTypeSchema } from '@/lib/schemas/order';
 import { adjustStamps } from '@/lib/loyalty-mutations';
 import {
   getLoyaltySettings,
@@ -402,6 +408,84 @@ export const tools: McpTool[] = [
     handler: (args) => saveCashClosing(args),
   },
 
+  // — Commandes (écriture) —
+  {
+    name: 'create_order',
+    title: 'Enregistrer une commande',
+    description:
+      'Enregistre une commande (utile pour saisir des commandes anciennes). ' +
+      '`orderDate` (`YYYY-MM-DD`, jour civil Abidjan) ANTIDATE la commande ; ' +
+      'omis = jour en cours. `items` référence les produits par `productId` ' +
+      '(issu de `get_menu`) avec une `quantity` ; les prix, coûts et prix des ' +
+      'suppléments sont résolus depuis le menu — ne les fournis pas. Les ' +
+      'suppléments se désignent par `groupName` + `optionName`. Le total est ' +
+      'calculé côté serveur (net après remises). `orderType` ∈ ' +
+      'DELIVERY/DINE_IN/TAKEAWAY (défaut TAKEAWAY). `customerName`, ' +
+      '`customerPhone` (normalisé, rattache la fidélité) et `note` sont ' +
+      'optionnels. Renvoie l’`id`, la `reference` et le `dailyNumber`.',
+    inputSchema: z.object({
+      orderDate: dateOnly
+        .nullable()
+        .optional()
+        .describe('Jour civil d’antidatage (YYYY-MM-DD). Omis = aujourd’hui.'),
+      items: z
+        .array(
+          z.object({
+            productId: idSchema.describe('`id` produit (cf. `get_menu`).'),
+            quantity: z.number().int().positive(),
+            supplements: z
+              .array(
+                z.object({
+                  groupName: z.string().min(1),
+                  optionName: z.string().min(1),
+                })
+              )
+              .optional()
+              .describe('Suppléments choisis (groupe + option, par nom).'),
+            discount: z
+              .number()
+              .int()
+              .nonnegative()
+              .optional()
+              .describe('Remise ligne (montant fixe FCFA), plafonnée.'),
+            discountReason: z.string().max(120).nullable().optional(),
+          })
+        )
+        .min(1, 'Au moins 1 article'),
+      orderType: orderTypeSchema.optional(),
+      customerName: z.string().trim().max(50).nullable().optional(),
+      customerPhone: z.string().trim().max(30).nullable().optional(),
+      note: z.string().trim().max(500).nullable().optional(),
+    }),
+    readOnly: false,
+    handler: async (args) => {
+      const a = args as {
+        orderDate?: string | null;
+        items: OrderItemRef[];
+        orderType?: 'DELIVERY' | 'DINE_IN' | 'TAKEAWAY';
+        customerName?: string | null;
+        customerPhone?: string | null;
+        note?: string | null;
+      };
+      const items = await buildOrderItemsFromMenu(a.items);
+      const order = await createCashierOrder({
+        items,
+        orderType: a.orderType ?? 'TAKEAWAY',
+        orderDate: a.orderDate ?? null,
+        customerName: a.customerName ?? null,
+        customerPhone: a.customerPhone ?? null,
+        note: a.note ?? null,
+      });
+      return {
+        id: order.id,
+        reference: order.reference,
+        dailyDate: order.dailyDate,
+        dailyNumber: order.dailyNumber,
+        total: order.total,
+      };
+    },
+  },
+
   // — Clients (CRM, lecture seule) —
   {
     name: 'list_customers',
@@ -477,7 +561,10 @@ export const tools: McpTool[] = [
       .object({
         id: z.string().min(1).optional(),
         phone: z.string().min(1).optional(),
-        delta: z.number().int().refine((n) => n !== 0, 'delta non nul requis'),
+        delta: z
+          .number()
+          .int()
+          .refine((n) => n !== 0, 'delta non nul requis'),
         note: z.string().max(200).optional(),
       })
       .refine((v) => Boolean(v.id) || Boolean(v.phone), {

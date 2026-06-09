@@ -54,6 +54,8 @@ export function useNewOrder() {
   const [orderType, setOrderType] = useState<OrderType>('TAKEAWAY');
   const [note, setNote] = useState('');
   const [pickupTime, setPickupTime] = useState<string | null>(null);
+  // Antidatage : YYYY-MM-DD pour une commande ancienne. null = jour en cours.
+  const [orderDate, setOrderDate] = useState<string | null>(null);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, startSubmit] = useTransition();
@@ -162,6 +164,7 @@ export function useNewOrder() {
             orderType,
             note: note.trim() || null,
             pickupTime: pickupTime ?? null,
+            orderDate: orderDate ?? null,
           }),
         });
         if (!res.ok) {
@@ -196,6 +199,7 @@ export function useNewOrder() {
     orderType,
     note,
     pickupTime,
+    orderDate,
     submitError,
     isSubmitting,
     // setters d'étape
@@ -206,6 +210,7 @@ export function useNewOrder() {
     setOrderType,
     setNote,
     setPickupTime,
+    setOrderDate,
     // actions panier
     addToCart,
     handleProductTap,
