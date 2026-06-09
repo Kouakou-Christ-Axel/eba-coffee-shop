@@ -3,10 +3,20 @@
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { requireCashier } from '@/lib/auth-helpers';
-import { canTransition } from '@/lib/order-permissions';
+import { setOrderStatus, setOrderPayment } from '@/lib/order-mutations';
 import { computeItemsTotal, getMaxItemDiscount } from '@/lib/orders/totals';
 import type { CartItem } from '@/lib/cart-store';
-import type { OrderStatus, UserRole } from '@/generated/prisma/client';
+import type {
+  OrderStatus,
+  PaymentMode,
+  UserRole,
+} from '@/generated/prisma/client';
+
+/** Revalide la page de détail et la liste après une mutation de commande. */
+function revalidateOrder(id: string): void {
+  revalidatePath(`/dashboard/commandes/${id}`);
+  revalidatePath('/dashboard/commandes');
+}
 
 export async function updateOrderStatus(
   id: string,
@@ -15,19 +25,19 @@ export async function updateOrderStatus(
   const session = await requireCashier();
   const role = session.user.role as UserRole;
 
-  const order = await prisma.order.findUnique({ where: { id } });
-  if (!order) {
-    throw new Error('Commande introuvable');
-  }
+  await setOrderStatus(id, newStatus, role);
+  revalidateOrder(id);
+}
 
-  if (!canTransition(order.status, newStatus, role)) {
-    throw new Error(`Transition invalide : ${order.status} → ${newStatus}`);
-  }
+/** Encaisse une commande (marque payée) depuis la section Commandes. */
+export async function markOrderPaidAction(
+  id: string,
+  paymentMode: PaymentMode
+): Promise<void> {
+  await requireCashier();
 
-  await prisma.order.update({
-    where: { id },
-    data: { status: newStatus },
-  });
+  await setOrderPayment(id, true, paymentMode);
+  revalidateOrder(id);
 }
 
 export async function updateOrderItemsAction(

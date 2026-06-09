@@ -1,10 +1,12 @@
 // lib/order-mutations.ts
 //
-// Logique de création de commande « caisse / administration », partagée entre :
-//   - la route walk-in `POST /api/caisse/orders` (caissier authentifié)
-//   - l'outil MCP `create_order` (client comme Claude)
+// Logique de mutation des commandes « caisse / administration », partagée entre
+// les routes API caisse, les server actions du dashboard et les outils MCP.
+// Aucune de ces couches ne réimplémente la logique métier : elles branchent
+// toutes les fonctions ci-dessous.
 //
-// Différences avec `createOrder` (lib/orders.ts, flux online public) :
+// Création (`createCashierOrder`) — différences avec `createOrder`
+// (lib/orders.ts, flux online public) :
 //   - `customerName` / `customerPhone` optionnels (commande anonyme possible)
 //   - `orderType` libre (DELIVERY / DINE_IN / TAKEAWAY)
 //   - `note` possible
@@ -12,11 +14,16 @@
 //     jour civil passé. Absent = jour en cours. Le `createdAt` est alors aligné
 //     sur ce jour pour conserver un tri chronologique cohérent dans l'historique.
 //
-// Aucune logique métier n'est dupliquée ailleurs : la numérotation quotidienne
-// (`getNextDailyNumber`), l'upsert client et l'attribution de fidélité sont
-// réutilisés tels quels.
+// Statut (`setOrderStatus`) et paiement (`setOrderPayment`) : transitions
+// validées (rôle / `canTransition`), concurrence optimiste, et auto-passage en
+// cuisine (NEW → PREPARING) lors de l'encaissement d'une commande encore NEW.
 
 import { Prisma } from '@/generated/prisma/client';
+import type {
+  OrderStatus,
+  PaymentMode,
+  UserRole,
+} from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import {
   getNextDailyNumber,
@@ -26,6 +33,7 @@ import {
 import { generateOrderReference } from '@/lib/orders';
 import { upsertCustomerForOrder } from '@/lib/customer-mutations';
 import { awardLoyaltyForOrder } from '@/lib/loyalty-mutations';
+import { canTransition } from '@/lib/order-permissions';
 import { normalizeIvorianPhone } from '@/lib/phone';
 import { computeItemsTotal } from '@/lib/orders/totals';
 import { parseDateOnlyToUTC } from '@/lib/timezone';
@@ -33,6 +41,21 @@ import { getMenuAdmin } from '@/lib/menu';
 import { cartItemSchema } from '@/lib/schemas/order';
 import type { CartItem } from '@/lib/cart-store';
 import type { CartItemInput, OrderTypeInput } from '@/lib/schemas/order';
+
+/**
+ * Erreur métier portant un code HTTP, pour que les routes API renvoient le bon
+ * statut (404/403/409/400) sans réécrire la logique. Côté server action / MCP,
+ * le message suffit.
+ */
+export class OrderMutationError extends Error {
+  constructor(
+    message: string,
+    readonly httpStatus: number
+  ) {
+    super(message);
+    this.name = 'OrderMutationError';
+  }
+}
 
 export type CreateCashierOrderInput = {
   items: CartItemInput[];
@@ -196,4 +219,96 @@ export async function buildOrderItemsFromMenu(
   });
 
   return items;
+}
+
+// ─── Changement de statut ─────────────────────────────────────────────────────
+
+/**
+ * Fait transitionner une commande vers `newStatus`. Vérifie l'autorisation
+ * (`canTransition` selon le rôle) et applique une concurrence optimiste : la
+ * mise à jour n'a lieu que si le statut courant n'a pas changé entre temps.
+ *
+ * Lève `OrderMutationError` (404 introuvable, 403 transition refusée, 409
+ * conflit) — à mapper en réponse HTTP par les routes.
+ */
+export async function setOrderStatus(
+  id: string,
+  newStatus: OrderStatus,
+  role: UserRole
+): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+  if (!order) {
+    throw new OrderMutationError('Commande introuvable', 404);
+  }
+
+  if (!canTransition(order.status, newStatus, role)) {
+    throw new OrderMutationError(
+      `Transition non autorisée : ${order.status} → ${newStatus}`,
+      403
+    );
+  }
+
+  const result = await prisma.order.updateMany({
+    where: { id, status: order.status },
+    data: { status: newStatus },
+  });
+
+  if (result.count === 0) {
+    throw new OrderMutationError(
+      'État déjà modifié par un autre caissier',
+      409
+    );
+  }
+}
+
+// ─── Encaissement / paiement ──────────────────────────────────────────────────
+
+/**
+ * Bascule l'état de paiement d'une commande. Si `isPaid=true`, `paymentMode` est
+ * requis. Encaisser une commande encore `NEW` la pousse aussi en cuisine
+ * (`NEW → PREPARING`). Concurrence optimiste sur `isPaid`.
+ *
+ * Lève `OrderMutationError` (400 mode manquant, 404 introuvable, 409 conflit).
+ * Renvoie `startedPreparation` (vrai si la commande est partie en cuisine).
+ */
+export async function setOrderPayment(
+  id: string,
+  isPaid: boolean,
+  paymentMode?: PaymentMode | null
+): Promise<{ startedPreparation: boolean }> {
+  if (isPaid && !paymentMode) {
+    throw new OrderMutationError('paymentMode requis quand isPaid=true', 400);
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { isPaid: true, status: true },
+  });
+  if (!order) {
+    throw new OrderMutationError('Commande introuvable', 404);
+  }
+  if (order.isPaid === isPaid) {
+    throw new OrderMutationError('État de paiement déjà à jour', 409);
+  }
+
+  const shouldStartPreparation = isPaid && order.status === 'NEW';
+
+  const result = await prisma.order.updateMany({
+    where: { id, isPaid: !isPaid },
+    data: {
+      isPaid,
+      paymentMode: isPaid ? (paymentMode ?? null) : null,
+      paidAt: isPaid ? new Date() : null,
+      ...(shouldStartPreparation ? { status: 'PREPARING' as const } : {}),
+    },
+  });
+
+  if (result.count === 0) {
+    throw new OrderMutationError('État modifié entre temps, recharger', 409);
+  }
+
+  return { startedPreparation: shouldStartPreparation };
 }

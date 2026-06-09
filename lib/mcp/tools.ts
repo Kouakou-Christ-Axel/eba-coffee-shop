@@ -76,12 +76,19 @@ import {
   getCustomerByPhone,
 } from '@/lib/customers';
 import { getLoyaltyCard, getLoyaltyCardByPhone } from '@/lib/loyalty';
+import { listOrders } from '@/lib/orders';
 import {
   createCashierOrder,
   buildOrderItemsFromMenu,
+  setOrderStatus,
+  setOrderPayment,
   type OrderItemRef,
 } from '@/lib/order-mutations';
-import { orderTypeSchema } from '@/lib/schemas/order';
+import {
+  orderTypeSchema,
+  orderStatusSchema,
+  paymentModeSchema,
+} from '@/lib/schemas/order';
 import { adjustStamps } from '@/lib/loyalty-mutations';
 import {
   getLoyaltySettings,
@@ -483,6 +490,89 @@ export const tools: McpTool[] = [
         dailyNumber: order.dailyNumber,
         total: order.total,
       };
+    },
+  },
+  {
+    name: 'list_orders',
+    title: 'Lister les commandes',
+    description:
+      'Renvoie les commandes (les plus récentes d’abord) avec leur `id`, ' +
+      '`dailyNumber`, `reference`, statut, état de paiement, total et client. ' +
+      'Filtres optionnels : `status` (NEW/PREPARING/READY/COMPLETED/CANCELLED), ' +
+      'plage de jours `from`/`to` (`YYYY-MM-DD`, jour civil Abidjan), `search` ' +
+      '(référence, nom ou téléphone), `page` (20 par page). Utilise l’`id` ' +
+      'renvoyé pour `set_order_status` / `mark_order_paid`.',
+    inputSchema: z.object({
+      status: orderStatusSchema.optional(),
+      from: dateOnly.optional().describe('Jour de début (inclus), YYYY-MM-DD.'),
+      to: dateOnly.optional().describe('Jour de fin (inclus), YYYY-MM-DD.'),
+      search: z.string().optional(),
+      page: z.number().int().positive().optional(),
+    }),
+    readOnly: true,
+    handler: (args) => {
+      const a = args as {
+        status?: z.infer<typeof orderStatusSchema>;
+        from?: string;
+        to?: string;
+        search?: string;
+        page?: number;
+      };
+      return listOrders({
+        page: a.page ?? 1,
+        status: a.status,
+        dateFrom: parseDateOnlyToUTC(a.from),
+        dateTo: parseDateOnlyToUTC(a.to),
+        search: a.search,
+      });
+    },
+  },
+  {
+    name: 'set_order_status',
+    title: 'Changer le statut d’une commande',
+    description:
+      'Fait passer une commande à un nouveau `status` ' +
+      '(NEW → PREPARING → READY → COMPLETED, ou CANCELLED). « Récupérée » = ' +
+      'COMPLETED. Les transitions invalides sont refusées. `id` provient de ' +
+      '`list_orders`.',
+    inputSchema: z.object({
+      id: idSchema,
+      status: orderStatusSchema,
+    }),
+    readOnly: false,
+    handler: async (args) => {
+      const { id, status } = args as {
+        id: string;
+        status: z.infer<typeof orderStatusSchema>;
+      };
+      // Le serveur MCP agit avec les pleins droits (jeton d’administration).
+      await setOrderStatus(id, status, 'ADMIN');
+      return { ok: true, id, status };
+    },
+  },
+  {
+    name: 'mark_order_paid',
+    title: 'Encaisser une commande',
+    description:
+      'Marque une commande comme payée avec un `paymentMode` ∈ ' +
+      'CASH/WAVE/OTHER. Encaisser une commande encore NEW la pousse aussi en ' +
+      'cuisine (passe en PREPARING). `id` provient de `list_orders`.',
+    inputSchema: z.object({
+      id: idSchema,
+      paymentMode: paymentModeSchema,
+    }),
+    readOnly: false,
+    handler: async (args) => {
+      const { id, paymentMode } = args as {
+        id: string;
+        paymentMode: z.infer<typeof paymentModeSchema>;
+      };
+      const { startedPreparation } = await setOrderPayment(
+        id,
+        true,
+        paymentMode
+      );
+      return { ok: true, id, paymentMode, startedPreparation };
     },
   },
 

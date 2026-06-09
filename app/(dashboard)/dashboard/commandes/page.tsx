@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { StatusTabs } from './status-tabs';
 import { OrderSearch } from './order-search';
+import { EncaisserButton } from './encaisser-button';
 import { DateRangeFilter } from '@/components/(dashboard)/date-range-filter';
 
 export const dynamic = 'force-dynamic';
@@ -226,11 +227,22 @@ export default async function CommandesPage({
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link href={`/dashboard/commandes/${order.id}`}>
-                        Voir
-                      </Link>
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      {!order.isPaid && order.status !== 'CANCELLED' && (
+                        <EncaisserButton
+                          orderId={order.id}
+                          orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
+                          amount={order.total}
+                          variant="outline"
+                          size="sm"
+                        />
+                      )}
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/dashboard/commandes/${order.id}`}>
+                          Voir
+                        </Link>
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
