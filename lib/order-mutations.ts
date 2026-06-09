@@ -35,7 +35,7 @@ import { upsertCustomerForOrder } from '@/lib/customer-mutations';
 import { awardLoyaltyForOrder } from '@/lib/loyalty-mutations';
 import { canTransition } from '@/lib/order-permissions';
 import { normalizeIvorianPhone } from '@/lib/phone';
-import { computeItemsTotal } from '@/lib/orders/totals';
+import { computeItemsTotal, getMaxItemDiscount } from '@/lib/orders/totals';
 import { parseDateOnlyToUTC } from '@/lib/timezone';
 import { getMenuAdmin } from '@/lib/menu';
 import { cartItemSchema } from '@/lib/schemas/order';
@@ -311,4 +311,60 @@ export async function setOrderPayment(
   }
 
   return { startedPreparation: shouldStartPreparation };
+}
+
+// ─── Mise à jour des articles (et donc des remises) ───────────────────────────
+
+/**
+ * Remplace les articles d'une commande et recalcule son total (net après
+ * remises). Sert à ajouter/retirer des produits ET à appliquer des remises de
+ * ligne. Refuse une commande terminée/annulée et plafonne chaque remise.
+ *
+ * Lève `OrderMutationError` (400 liste vide / remise trop élevée, 404
+ * introuvable, 409 commande terminée). Renvoie le nouveau total.
+ */
+export async function updateOrderItems(
+  id: string,
+  items: CartItem[]
+): Promise<{ total: number }> {
+  if (items.length === 0) {
+    throw new OrderMutationError(
+      'La commande doit avoir au moins un article',
+      400
+    );
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+  if (!order) {
+    throw new OrderMutationError('Commande introuvable', 404);
+  }
+  if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
+    throw new OrderMutationError(
+      'Impossible de modifier une commande terminée ou annulée',
+      409
+    );
+  }
+
+  // Plafond de remise par ligne (sécurité serveur, en plus de la validation UI).
+  for (const item of items) {
+    if ((item.discount ?? 0) > getMaxItemDiscount(item)) {
+      throw new OrderMutationError(
+        `Remise trop élevée sur « ${item.productName} »`,
+        400
+      );
+    }
+  }
+
+  // Total net recalculé côté serveur (après remises).
+  const total = computeItemsTotal(items);
+
+  await prisma.order.update({
+    where: { id },
+    data: { items: items as unknown as Prisma.InputJsonValue, total },
+  });
+
+  return { total };
 }
