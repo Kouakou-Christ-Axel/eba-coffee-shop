@@ -76,12 +76,22 @@ import {
   getCustomerByPhone,
 } from '@/lib/customers';
 import { getLoyaltyCard, getLoyaltyCardByPhone } from '@/lib/loyalty';
+import { listOrders, getOrder } from '@/lib/orders';
 import {
   createCashierOrder,
   buildOrderItemsFromMenu,
+  setOrderStatus,
+  setOrderPayment,
+  updateOrderItems,
+  OrderMutationError,
   type OrderItemRef,
 } from '@/lib/order-mutations';
-import { orderTypeSchema } from '@/lib/schemas/order';
+import type { CartItem } from '@/lib/cart-store';
+import {
+  orderTypeSchema,
+  orderStatusSchema,
+  paymentModeSchema,
+} from '@/lib/schemas/order';
 import { adjustStamps } from '@/lib/loyalty-mutations';
 import {
   getLoyaltySettings,
@@ -483,6 +493,158 @@ export const tools: McpTool[] = [
         dailyNumber: order.dailyNumber,
         total: order.total,
       };
+    },
+  },
+  {
+    name: 'list_orders',
+    title: 'Lister les commandes',
+    description:
+      'Renvoie les commandes (les plus récentes d’abord) avec leur `id`, ' +
+      '`dailyNumber`, `reference`, statut, état de paiement, total et client. ' +
+      'Filtres optionnels : `status` (NEW/PREPARING/READY/COMPLETED/CANCELLED), ' +
+      'plage de jours `from`/`to` (`YYYY-MM-DD`, jour civil Abidjan), `search` ' +
+      '(référence, nom ou téléphone), `page` (20 par page). Utilise l’`id` ' +
+      'renvoyé pour `set_order_status` / `mark_order_paid`.',
+    inputSchema: z.object({
+      status: orderStatusSchema.optional(),
+      from: dateOnly.optional().describe('Jour de début (inclus), YYYY-MM-DD.'),
+      to: dateOnly.optional().describe('Jour de fin (inclus), YYYY-MM-DD.'),
+      search: z.string().optional(),
+      page: z.number().int().positive().optional(),
+    }),
+    readOnly: true,
+    handler: (args) => {
+      const a = args as {
+        status?: z.infer<typeof orderStatusSchema>;
+        from?: string;
+        to?: string;
+        search?: string;
+        page?: number;
+      };
+      return listOrders({
+        page: a.page ?? 1,
+        status: a.status,
+        dateFrom: parseDateOnlyToUTC(a.from),
+        dateTo: parseDateOnlyToUTC(a.to),
+        search: a.search,
+      });
+    },
+  },
+  {
+    name: 'set_order_status',
+    title: 'Changer le statut d’une commande',
+    description:
+      'Fait passer une commande à un nouveau `status` ' +
+      '(NEW → PREPARING → READY → COMPLETED, ou CANCELLED). « Récupérée » = ' +
+      'COMPLETED. Les transitions invalides sont refusées. `id` provient de ' +
+      '`list_orders`.',
+    inputSchema: z.object({
+      id: idSchema,
+      status: orderStatusSchema,
+    }),
+    readOnly: false,
+    handler: async (args) => {
+      const { id, status } = args as {
+        id: string;
+        status: z.infer<typeof orderStatusSchema>;
+      };
+      // Le serveur MCP agit avec les pleins droits (jeton d’administration).
+      await setOrderStatus(id, status, 'ADMIN');
+      return { ok: true, id, status };
+    },
+  },
+  {
+    name: 'mark_order_paid',
+    title: 'Encaisser une commande',
+    description:
+      'Marque une commande comme payée avec un `paymentMode` ∈ ' +
+      'CASH/WAVE/OTHER. Encaisser une commande encore NEW la pousse aussi en ' +
+      'cuisine (passe en PREPARING). `id` provient de `list_orders`.',
+    inputSchema: z.object({
+      id: idSchema,
+      paymentMode: paymentModeSchema,
+    }),
+    readOnly: false,
+    handler: async (args) => {
+      const { id, paymentMode } = args as {
+        id: string;
+        paymentMode: z.infer<typeof paymentModeSchema>;
+      };
+      const { startedPreparation } = await setOrderPayment(
+        id,
+        true,
+        paymentMode
+      );
+      return { ok: true, id, paymentMode, startedPreparation };
+    },
+  },
+  {
+    name: 'apply_order_discount',
+    title: 'Appliquer une remise à une commande',
+    description:
+      'Applique une remise (montant fixe FCFA) à une ou plusieurs lignes d’une ' +
+      'commande existante. Chaque ligne est ciblée par son `cartId` (visible ' +
+      'dans les `items` renvoyés par `list_orders`). `discount` est le montant ' +
+      'retiré de la ligne (0 pour annuler une remise), plafonné à un pourcentage ' +
+      'du montant de la ligne ; `reason` est un motif optionnel. Les lignes non ' +
+      'citées sont inchangées. Le total de la commande est recalculé. Refusé sur ' +
+      'une commande terminée ou annulée.',
+    inputSchema: z.object({
+      id: idSchema,
+      lines: z
+        .array(
+          z.object({
+            cartId: z
+              .string()
+              .min(1)
+              .describe('Identifiant de ligne (cf. `items` de `list_orders`).'),
+            discount: z
+              .number()
+              .int()
+              .nonnegative()
+              .describe('Montant de remise en FCFA (0 = retirer la remise).'),
+            reason: z.string().max(120).nullable().optional(),
+          })
+        )
+        .min(1, 'Au moins une ligne'),
+    }),
+    readOnly: false,
+    handler: async (args) => {
+      const { id, lines } = args as {
+        id: string;
+        lines: { cartId: string; discount: number; reason?: string | null }[];
+      };
+
+      const order = await getOrder(id);
+      if (!order) {
+        throw new OrderMutationError('Commande introuvable', 404);
+      }
+
+      const items = order.items as CartItem[];
+      const byCartId = new Map(lines.map((l) => [l.cartId, l]));
+
+      // Toutes les lignes ciblées doivent exister dans la commande.
+      for (const l of lines) {
+        if (!items.some((it) => it.cartId === l.cartId)) {
+          throw new OrderMutationError(
+            `Ligne introuvable dans la commande : ${l.cartId}`,
+            400
+          );
+        }
+      }
+
+      const updated = items.map((it) => {
+        const l = byCartId.get(it.cartId);
+        if (!l) return it;
+        return {
+          ...it,
+          discount: l.discount,
+          discountReason: l.reason ?? null,
+        };
+      });
+
+      const { total } = await updateOrderItems(id, updated);
+      return { ok: true, id, total };
     },
   },
 

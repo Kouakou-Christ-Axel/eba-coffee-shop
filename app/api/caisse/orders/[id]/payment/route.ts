@@ -9,9 +9,9 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import prisma from '@/lib/prisma';
 import { requireCashier } from '@/lib/auth-helpers';
 import { paymentModeSchema } from '@/lib/schemas/order';
+import { setOrderPayment, OrderMutationError } from '@/lib/order-mutations';
 
 const bodySchema = z
   .object({
@@ -54,48 +54,20 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const { isPaid, paymentMode } = parsed.data;
 
-  // Lecture pour vérifier le statut courant — on doit transitionner
-  // NEW → PREPARING en même temps que le paiement (comportement par défaut :
-  // payer envoie automatiquement la commande en cuisine).
-  const order = await prisma.order.findUnique({
-    where: { id },
-    select: { isPaid: true, status: true },
-  });
-  if (!order) {
-    return NextResponse.json(
-      { error: 'Commande introuvable' },
-      { status: 404 }
-    );
-  }
-  if (order.isPaid === isPaid) {
-    return NextResponse.json(
-      { error: 'État déjà à jour', currentIsPaid: order.isPaid },
-      { status: 409 }
-    );
-  }
-
-  // Si on encaisse une commande encore NEW, on la pousse aussi en cuisine.
-  const shouldStartPreparation = isPaid && order.status === 'NEW';
-
-  const result = await prisma.order.updateMany({
-    where: { id, isPaid: !isPaid },
-    data: {
+  try {
+    const { startedPreparation } = await setOrderPayment(
+      id,
       isPaid,
-      paymentMode: isPaid ? paymentMode : null,
-      paidAt: isPaid ? new Date() : null,
-      ...(shouldStartPreparation ? { status: 'PREPARING' as const } : {}),
-    },
-  });
-
-  if (result.count === 0) {
-    return NextResponse.json(
-      { error: 'État modifié entre temps, recharger' },
-      { status: 409 }
+      paymentMode
     );
+    return NextResponse.json({ ok: true, startedPreparation });
+  } catch (err) {
+    if (err instanceof OrderMutationError) {
+      return NextResponse.json(
+        { error: err.message },
+        { status: err.httpStatus }
+      );
+    }
+    throw err;
   }
-
-  return NextResponse.json({
-    ok: true,
-    startedPreparation: shouldStartPreparation,
-  });
 }

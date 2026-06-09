@@ -7,11 +7,10 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import prisma from '@/lib/prisma';
 import { requireCashier } from '@/lib/auth-helpers';
-import { canTransition } from '@/lib/order-permissions';
-import type { OrderStatus, UserRole } from '@/generated/prisma/client';
+import type { UserRole } from '@/generated/prisma/client';
 import { orderStatusSchema } from '@/lib/schemas/order';
+import { setOrderStatus, OrderMutationError } from '@/lib/order-mutations';
 
 const bodySchema = z.object({
   status: orderStatusSchema,
@@ -48,39 +47,16 @@ export async function PATCH(req: Request, { params }: Params) {
     );
   }
 
-  const order = await prisma.order.findUnique({
-    where: { id },
-    select: { status: true },
-  });
-  if (!order) {
-    return NextResponse.json(
-      { error: 'Commande introuvable' },
-      { status: 404 }
-    );
+  try {
+    await setOrderStatus(id, parsed.data.status, role);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    if (err instanceof OrderMutationError) {
+      return NextResponse.json(
+        { error: err.message },
+        { status: err.httpStatus }
+      );
+    }
+    throw err;
   }
-
-  const newStatus = parsed.data.status;
-  if (!canTransition(order.status as OrderStatus, newStatus, role)) {
-    return NextResponse.json(
-      {
-        error: `Transition non autorisée : ${order.status} → ${newStatus}`,
-      },
-      { status: 403 }
-    );
-  }
-
-  // Optimistic concurrency : ne modifie que si l'état actuel est toujours celui lu
-  const result = await prisma.order.updateMany({
-    where: { id, status: order.status as OrderStatus },
-    data: { status: newStatus },
-  });
-
-  if (result.count === 0) {
-    return NextResponse.json(
-      { error: 'État déjà modifié par un autre caissier' },
-      { status: 409 }
-    );
-  }
-
-  return NextResponse.json({ ok: true });
 }

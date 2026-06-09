@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { StatusButtons } from './status-buttons';
 import { EditOrderItems } from './edit-order-items';
+import { EncaisserButton } from '../encaisser-button';
 import { CopyRecapButton } from '../../_components/copy-recap-button';
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -90,6 +91,13 @@ export default async function CommandeDetailPage({
           </Badge>
           {order.status === 'CANCELLED' && order.isPaid && (
             <Badge variant="destructive">Remboursée</Badge>
+          )}
+          {!order.isPaid && order.status !== 'CANCELLED' && (
+            <EncaisserButton
+              orderId={order.id}
+              orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
+              amount={order.total}
+            />
           )}
         </div>
       </div>

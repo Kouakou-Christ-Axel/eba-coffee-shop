@@ -72,6 +72,10 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `list_cash_closings`           | lecture  | Historique des clôtures sur une plage            |
 | `save_cash_closing`            | écriture | Créer / mettre à jour la clôture d’un jour       |
 | `create_order`                 | écriture | Enregistrer une commande (antidatage possible)   |
+| `list_orders`                  | lecture  | Lister les commandes (filtres statut/date/texte) |
+| `set_order_status`             | écriture | Changer le statut (récupérée, annulée, …)        |
+| `mark_order_paid`              | écriture | Encaisser une commande (CASH/WAVE/OTHER)         |
+| `apply_order_discount`         | écriture | Appliquer une remise de ligne (FCFA)             |
 | `list_customers`               | lecture  | Lister / rechercher des clients (+ stats)        |
 | `get_customer`                 | lecture  | Détail d’un client (par `id` ou `phone`)         |
 | `get_loyalty_card`             | lecture  | Carte à tampons d’un client + récompenses dispo  |
@@ -122,6 +126,16 @@ menu — inutile de les fournir. Le total est calculé côté serveur (net aprè
 remises). `orderType` ∈ `DELIVERY`/`DINE_IN`/`TAKEAWAY` (défaut `TAKEAWAY`) ;
 `customerName`, `customerPhone` (normalisé, rattache la fidélité) et `note`
 sont optionnels.
+
+Le **suivi des commandes** : `list_orders` retrouve les commandes (filtres
+statut / plage de jours / recherche, 20 par page) et renvoie leur `id` ;
+`set_order_status` change le statut (NEW → PREPARING → READY → COMPLETED, ou
+CANCELLED — « récupérée » = `COMPLETED`, transitions invalides refusées) ;
+`mark_order_paid` encaisse (`CASH`/`WAVE`/`OTHER`), et pousse automatiquement en
+cuisine une commande encore `NEW`. `apply_order_discount` applique une **remise**
+(montant fixe FCFA, plafonnée) à une ou plusieurs lignes ciblées par leur
+`cartId` (visible dans les `items` de `list_orders`) et recalcule le total
+(0 pour retirer une remise ; refusé sur une commande terminée/annulée).
 
 Les outils **clients** (CRM, lecture seule) exposent les clients identifiés par
 **téléphone** (clé normalisée) avec leurs stats (nb de commandes, total dépensé,
