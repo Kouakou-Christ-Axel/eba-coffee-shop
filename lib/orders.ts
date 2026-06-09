@@ -21,8 +21,8 @@ export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 
 // ─── Génération de référence ──────────────────────────────────────────────────
 
-export function generateOrderReference(): string {
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+export function generateOrderReference(date: Date = new Date()): string {
+  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   const suffix = Array.from(
     { length: 4 },

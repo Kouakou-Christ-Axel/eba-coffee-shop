@@ -50,45 +50,46 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 
 ## Outils exposés
 
-| Outil                          | Type     | Description                                     |
-| ------------------------------ | -------- | ----------------------------------------------- |
-| `get_menu`                     | lecture  | Menu complet avec identifiants internes (`id`)  |
-| `get_daily_stats`              | lecture  | Stats agrégées de la journée en cours           |
-| `get_range_stats`              | lecture  | KPIs sur une plage (`from`/`to`, `YYYY-MM-DD`)  |
-| `get_daily_series`             | lecture  | Série jour par jour (commandes + CA) sur plage  |
-| `get_top_products`             | lecture  | Top produits vendus sur une plage (`limit?`)    |
-| `list_expense_categories`      | lecture  | Catégories de dépense (+ nombre de dépenses)    |
-| `create_expense_category`      | écriture | Créer une catégorie de dépense                  |
-| `update_expense_category`      | écriture | Renommer une catégorie de dépense               |
-| `delete_expense_category`      | écriture | Supprimer une catégorie (refusé si utilisée)    |
-| `list_expenses`                | lecture  | Lister les dépenses (filtres date/catégorie)    |
-| `get_expense_summary`          | lecture  | Total + ventilation des dépenses par catégorie  |
-| `create_expense`               | écriture | Enregistrer une dépense                         |
-| `update_expense`               | écriture | Modifier une dépense (mise à jour **partielle**)|
-| `delete_expense`               | écriture | Supprimer une dépense                           |
-| `set_expense_receipt`          | écriture | Joindre un justificatif (base64 ou URL)         |
+| Outil                          | Type     | Description                                      |
+| ------------------------------ | -------- | ------------------------------------------------ |
+| `get_menu`                     | lecture  | Menu complet avec identifiants internes (`id`)   |
+| `get_daily_stats`              | lecture  | Stats agrégées de la journée en cours            |
+| `get_range_stats`              | lecture  | KPIs sur une plage (`from`/`to`, `YYYY-MM-DD`)   |
+| `get_daily_series`             | lecture  | Série jour par jour (commandes + CA) sur plage   |
+| `get_top_products`             | lecture  | Top produits vendus sur une plage (`limit?`)     |
+| `list_expense_categories`      | lecture  | Catégories de dépense (+ nombre de dépenses)     |
+| `create_expense_category`      | écriture | Créer une catégorie de dépense                   |
+| `update_expense_category`      | écriture | Renommer une catégorie de dépense                |
+| `delete_expense_category`      | écriture | Supprimer une catégorie (refusé si utilisée)     |
+| `list_expenses`                | lecture  | Lister les dépenses (filtres date/catégorie)     |
+| `get_expense_summary`          | lecture  | Total + ventilation des dépenses par catégorie   |
+| `create_expense`               | écriture | Enregistrer une dépense                          |
+| `update_expense`               | écriture | Modifier une dépense (mise à jour **partielle**) |
+| `delete_expense`               | écriture | Supprimer une dépense                            |
+| `set_expense_receipt`          | écriture | Joindre un justificatif (base64 ou URL)          |
 | `get_cash_position`            | lecture  | Chiffres espèces d’un jour + clôture éventuelle  |
 | `get_cash_closing`             | lecture  | Lire la clôture d’un jour                        |
 | `list_cash_closings`           | lecture  | Historique des clôtures sur une plage            |
 | `save_cash_closing`            | écriture | Créer / mettre à jour la clôture d’un jour       |
+| `create_order`                 | écriture | Enregistrer une commande (antidatage possible)   |
 | `list_customers`               | lecture  | Lister / rechercher des clients (+ stats)        |
 | `get_customer`                 | lecture  | Détail d’un client (par `id` ou `phone`)         |
 | `get_loyalty_card`             | lecture  | Carte à tampons d’un client + récompenses dispo  |
 | `adjust_loyalty_stamps`        | écriture | Ajuster les tampons d’un client (correction)     |
 | `get_loyalty_settings`         | lecture  | Lire la config de la carte à tampons             |
 | `update_loyalty_settings`      | écriture | Modifier la config de la carte à tampons         |
-| `create_category`              | écriture | Créer une catégorie                             |
-| `update_category`              | écriture | Renommer une catégorie                          |
-| `delete_category`              | écriture | Supprimer une catégorie (cascade produits)      |
-| `toggle_category_availability` | écriture | Afficher / masquer une catégorie                |
-| `move_category`                | écriture | Réordonner une catégorie (`up` / `down`)        |
-| `create_product`               | écriture | Créer un produit                                |
-| `update_product`               | écriture | Modifier un produit (mise à jour **partielle**) |
-| `set_product_image`            | écriture | Téléverser (base64) ou rattacher une image      |
-| `move_product`                 | écriture | Réordonner un produit (`up` / `down`)           |
-| `delete_product`               | écriture | Supprimer un produit                            |
-| `toggle_product_availability`  | écriture | Afficher / masquer un produit                   |
-| `toggle_product_featured`      | écriture | Mettre en avant / retirer un produit            |
+| `create_category`              | écriture | Créer une catégorie                              |
+| `update_category`              | écriture | Renommer une catégorie                           |
+| `delete_category`              | écriture | Supprimer une catégorie (cascade produits)       |
+| `toggle_category_availability` | écriture | Afficher / masquer une catégorie                 |
+| `move_category`                | écriture | Réordonner une catégorie (`up` / `down`)         |
+| `create_product`               | écriture | Créer un produit                                 |
+| `update_product`               | écriture | Modifier un produit (mise à jour **partielle**)  |
+| `set_product_image`            | écriture | Téléverser (base64) ou rattacher une image       |
+| `move_product`                 | écriture | Réordonner un produit (`up` / `down`)            |
+| `delete_product`               | écriture | Supprimer un produit                             |
+| `toggle_product_availability`  | écriture | Afficher / masquer un produit                    |
+| `toggle_product_featured`      | écriture | Mettre en avant / retirer un produit             |
 
 Les prix et coûts (`coutMatiere`, `coutEmballage`) sont exprimés en **francs
 CFA** (nombres entiers) et `get_menu` les renvoie. Commence toujours par
@@ -110,6 +111,17 @@ Les outils **clôture de caisse** (espèces, une clôture par jour civil) :
 `save_cash_closing` l'enregistre (la caisse théorique et l'écart sont
 recalculés : fond + ventes espèces − dépenses espèces ; écart = comptées −
 théorique).
+
+L'outil **commande** `create_order` enregistre une commande, y compris
+**ancienne** : `orderDate` (`YYYY-MM-DD`, jour civil Abidjan) antidate la
+commande (le `createdAt` est aligné sur ce jour pour un tri chronologique
+correct) ; omis = jour en cours. Les `items` référencent les produits par
+`productId` (issu de `get_menu`) + `quantity` ; prix, coûts et prix des
+suppléments (désignés par `groupName` + `optionName`) sont résolus depuis le
+menu — inutile de les fournir. Le total est calculé côté serveur (net après
+remises). `orderType` ∈ `DELIVERY`/`DINE_IN`/`TAKEAWAY` (défaut `TAKEAWAY`) ;
+`customerName`, `customerPhone` (normalisé, rattache la fidélité) et `note`
+sont optionnels.
 
 Les outils **clients** (CRM, lecture seule) exposent les clients identifiés par
 **téléphone** (clé normalisée) avec leurs stats (nb de commandes, total dépensé,

@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { ORDER_NOTE_MAX } from '@/config/constants';
+import { todayDateString } from '@/lib/timezone';
 import type { OrderType } from '@/generated/prisma/client';
 import { OrderTypePicker } from './order-type-picker';
 
@@ -14,12 +15,14 @@ type Props = {
   orderType: OrderType;
   note: string;
   pickupTime: string | null;
+  orderDate: string | null;
   submitError: string | null;
   onCustomerNameChange: (value: string) => void;
   onCustomerPhoneChange: (value: string) => void;
   onOrderTypeChange: (value: OrderType) => void;
   onNoteChange: (value: string) => void;
   onPickupTimeChange: (value: string | null) => void;
+  onOrderDateChange: (value: string | null) => void;
 };
 
 function toLocalDatetimeValue(iso: string): string {
@@ -42,14 +45,24 @@ export function CustomerInfoStep({
   orderType,
   note,
   pickupTime,
+  orderDate,
   submitError,
   onCustomerNameChange,
   onCustomerPhoneChange,
   onOrderTypeChange,
   onNoteChange,
   onPickupTimeChange,
+  onOrderDateChange,
 }: Props) {
   const isScheduled = pickupTime !== null;
+  const today = todayDateString();
+  const isBackdated = orderDate !== null && orderDate !== today;
+
+  function handleOrderDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value;
+    // Vide ou égal à aujourd'hui → jour en cours (null).
+    onOrderDateChange(value && value !== today ? value : null);
+  }
 
   function handleScheduledToggle(checked: boolean) {
     onPickupTimeChange(checked ? defaultPickupTime() : null);
@@ -73,6 +86,26 @@ export function CustomerInfoStep({
   return (
     <div className="space-y-3">
       <OrderTypePicker value={orderType} onChange={onOrderTypeChange} />
+
+      <div className="rounded-xl border bg-card p-3">
+        <div className="grid gap-1">
+          <Label htmlFor="order-date" className="text-xs text-muted-foreground">
+            Date de la commande
+          </Label>
+          <Input
+            id="order-date"
+            type="date"
+            value={orderDate ?? today}
+            onChange={handleOrderDateChange}
+            max={today}
+          />
+          {isBackdated && (
+            <p className="mt-1 text-xs text-primary">
+              Commande antidatée — sera enregistrée au {orderDate}.
+            </p>
+          )}
+        </div>
+      </div>
 
       <div className="rounded-xl border bg-card p-3">
         <div className="mb-2 flex items-center justify-between">
