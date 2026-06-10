@@ -8,6 +8,7 @@ import { ORDER_NOTE_MAX } from '@/config/constants';
 import { todayDateString } from '@/lib/timezone';
 import type { OrderType } from '@/generated/prisma/client';
 import { OrderTypePicker } from './order-type-picker';
+import { CustomerPhoneAutocomplete } from './customer-phone-autocomplete';
 
 type Props = {
   customerName: string;
@@ -152,14 +153,13 @@ export function CustomerInfoStep({
                 <span className="ml-1 text-primary">* obligatoire</span>
               )}
             </Label>
-            <Input
-              id="customer-phone"
-              type="tel"
-              inputMode="tel"
+            <CustomerPhoneAutocomplete
               value={customerPhone}
-              onChange={(e) => onCustomerPhoneChange(e.target.value)}
-              placeholder="07 88 12 34 56"
-              autoComplete="off"
+              onChange={onCustomerPhoneChange}
+              onSelectCustomer={(c) => {
+                onCustomerPhoneChange(c.phone);
+                onCustomerNameChange(c.name ?? '');
+              }}
               required={isScheduled}
             />
           </div>
