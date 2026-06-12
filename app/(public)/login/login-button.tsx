@@ -8,7 +8,11 @@ import { Label } from '@/components/ui/label';
 
 type Step = 'email' | 'otp';
 
-export default function LoginButton() {
+export default function LoginButton({
+  redirectTo = '/dashboard',
+}: {
+  redirectTo?: string;
+}) {
   const router = useRouter();
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
@@ -55,7 +59,14 @@ export default function LoginButton() {
       );
       return;
     }
-    router.push('/dashboard');
+    // `/api/auth/mcp/authorize` (reprise du flux OAuth) n'est pas une page de
+    // l'App Router : on force une navigation pleine page. Sinon, navigation
+    // client classique vers le dashboard.
+    if (redirectTo.startsWith('/api/')) {
+      window.location.assign(redirectTo);
+      return;
+    }
+    router.push(redirectTo);
     router.refresh();
   };
 

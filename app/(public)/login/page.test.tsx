@@ -30,11 +30,11 @@ vi.mock('@/lib/auth', () => ({
 
 // Évite l'import de authClient (client-only) dans le contexte node
 vi.mock('./login-button', () => ({
-  default: () =>
+  default: ({ redirectTo }: { redirectTo?: string }) =>
     React.createElement(
       'form',
       null,
-      React.createElement('button', null, 'Recevoir un code')
+      React.createElement('button', { 'data-redirect': redirectTo }, 'Recevoir un code')
     ),
 }));
 
@@ -56,6 +56,22 @@ describe('LoginPage', () => {
       session: {},
     } as never);
     await expect(LoginPage()).rejects.toThrow('REDIRECT:/dashboard');
+  });
+
+  it('reprend le flux OAuth MCP après connexion (session existante)', async () => {
+    mockGetSession.mockResolvedValue({
+      user: { id: 'u1', email: 'admin@eba.ci', role: 'ADMIN' },
+      session: {},
+    } as never);
+    const searchParams = Promise.resolve({
+      client_id: 'abc',
+      response_type: 'code',
+      redirect_uri: 'https://claude.ai/cb',
+      state: 'xyz',
+    });
+    await expect(LoginPage({ searchParams })).rejects.toThrow(
+      /REDIRECT:\/api\/auth\/mcp\/authorize\?/
+    );
   });
 
   it('affiche le formulaire de connexion OTP si pas de session', async () => {

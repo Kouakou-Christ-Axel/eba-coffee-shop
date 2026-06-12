@@ -77,6 +77,63 @@ model Verification {
   @@map("verification")
 }
 
+// ─── OAuth (serveur MCP distant) ─────────────────────────────────────────────
+//
+// Tables du plugin MCP/OIDC de Better Auth (`lib/auth.ts`). Elles permettent à
+// un client comme Claude (web/mobile) de se connecter au serveur `/api/mcp` via
+// OAuth 2.0 : un administrateur s'authentifie avec SON compte, plutôt qu'avec un
+// jeton statique partagé. Gérées par l'adaptateur Better Auth — ne pas écrire
+// dessus à la main.
+
+model OauthApplication {
+  id           String   @id @default(cuid())
+  name         String
+  icon         String?
+  metadata     String?
+  clientId     String   @unique
+  clientSecret String?
+  redirectUrls String
+  type         String
+  disabled     Boolean  @default(false)
+  userId       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@map("oauth_application")
+}
+
+model OauthAccessToken {
+  id                    String   @id @default(cuid())
+  accessToken           String   @unique
+  refreshToken          String   @unique
+  accessTokenExpiresAt  DateTime
+  refreshTokenExpiresAt DateTime
+  clientId              String
+  userId                String?
+  scopes                String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([userId])
+  @@map("oauth_access_token")
+}
+
+model OauthConsent {
+  id           String   @id @default(cuid())
+  clientId     String
+  userId       String
+  scopes       String
+  consentGiven Boolean
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([userId])
+  @@map("oauth_consent")
+}
+
 enum UserRole {
   USER
   ADMIN

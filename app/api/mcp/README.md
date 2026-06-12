@@ -1,14 +1,76 @@
-# Serveur MCP — Gestion du menu
+# Serveur MCP — Administration EBA
 
-Serveur [MCP](https://modelcontextprotocol.io) distant qui expose la **gestion du
-menu** (catégories et produits) à un client compatible comme Claude. Il permet de
-consulter et modifier le menu en langage naturel.
+Serveur [MCP](https://modelcontextprotocol.io) distant qui expose
+l'**administration de l'app** (menu, stats, dépenses, caisse, clients, fidélité…)
+à un client compatible comme Claude, en langage naturel.
 
 - **Endpoint** : `POST https://<votre-domaine>/api/mcp`
 - **Transport** : Streamable HTTP (JSON-RPC 2.0), sans état
-- **Auth** : `Authorization: Bearer <MCP_API_KEY>`
 
-## Configuration
+## Deux façons de s'authentifier
+
+| Mode                          | Pour qui / quoi                              | Multi-utilisateurs ? |
+| ----------------------------- | -------------------------------------------- | -------------------- |
+| **OAuth 2.0** (recommandé)    | Claude **web / mobile / desktop**            | ✅ par compte ADMIN  |
+| **Clé statique** `MCP_API_KEY`| Clients « machine » : Claude Code CLI, curl  | ❌ secret partagé    |
+
+Le serveur tente d'abord la clé statique (si `MCP_API_KEY` est fournie en
+`Authorization: Bearer …`) ; sinon il bascule sur OAuth. **Toute requête sans
+identifiant valide reçoit 401** ; un compte sans rôle **ADMIN** reçoit **403**.
+
+---
+
+## 1. OAuth 2.0 — Claude web / mobile (+ desktop)
+
+C'est le **seul** mode utilisable sur claude.ai (web) et l'app mobile Claude :
+ces clients ne permettent pas de coller un en-tête Bearer, ils exigent un flux
+OAuth. Chaque administrateur se connecte avec **son propre compte** (OTP email /
+Google) — pas de secret à partager, accès traçable et révocable individuellement.
+
+Le provider OAuth est fourni par le plugin MCP de Better Auth (`lib/auth.ts`).
+Il publie automatiquement la découverte (RFC 8414 / 9728) :
+
+- `https://<votre-domaine>/.well-known/oauth-authorization-server`
+- `https://<votre-domaine>/.well-known/oauth-protected-resource`
+- endpoints OAuth sous `https://<votre-domaine>/api/auth/mcp/*`
+
+### Pré-requis
+
+- L'app est **déployée publiquement en HTTPS** et `BETTER_AUTH_URL`
+  (= `NEXT_PUBLIC_SITE_URL`) pointe vers ce domaine — l'OAuth `issuer` en dépend.
+- Les tables OAuth existent en base : après déploiement, lancer
+  `pnpm db:push` (puis `pnpm db:generate`). Modèles `OauthApplication`,
+  `OauthAccessToken`, `OauthConsent` dans `prisma/schema.prisma`.
+- Chaque utilisateur autorisé a le rôle **ADMIN** (voir « Donner accès à un
+  collaborateur » plus bas).
+- Côté Claude : un plan **Pro / Max / Team / Enterprise** (les connecteurs
+  personnalisés y sont disponibles).
+
+### Ajouter le connecteur (claude.ai / mobile)
+
+1. **Paramètres → Connecteurs → Ajouter un connecteur personnalisé**.
+2. Coller **uniquement l'URL** : `https://<votre-domaine>/api/mcp` (aucun en-tête
+   à saisir).
+3. Claude découvre l'OAuth et ouvre la page de connexion EBA (`/login`). Se
+   connecter avec un email **ADMIN** → le flux revient automatiquement vers
+   Claude, qui obtient un jeton.
+
+### Donner accès à un collaborateur
+
+1. Le collaborateur se connecte une première fois sur `https://<votre-domaine>/login`
+   (il reçoit un code OTP par email) — cela crée son compte (rôle `USER`).
+2. Un administrateur lui attribue le rôle **ADMIN** via
+   **Dashboard → Utilisateurs** (`/dashboard/utilisateurs`).
+3. Il peut alors ajouter le connecteur (étape ci-dessus). Pour **révoquer**
+   l'accès : repasser son rôle à `USER` (ou le supprimer).
+
+---
+
+## 2. Clé statique — Claude Code (CLI) / clients machine
+
+Pratique pour un usage « propriétaire » en ligne de commande. **Optionnelle** :
+si `MCP_API_KEY` n'est pas définie, ce mode est simplement désactivé (OAuth reste
+disponible).
 
 1. Générer un jeton fort :
 
@@ -21,11 +83,6 @@ consulter et modifier le menu en langage naturel.
    ```
    MCP_API_KEY=<le-jeton-généré>
    ```
-
-> Si `MCP_API_KEY` n'est pas définie, le serveur répond **503** : aucun accès
-> n'est possible sans clé (le menu étant modifiable en écriture).
-
-## Brancher un client
 
 ### Claude Code (CLI)
 
@@ -47,6 +104,9 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
   }
 }
 ```
+
+> Claude Desktop sait aussi faire de l'OAuth : tu peux y ajouter le serveur
+> **sans** en-tête (comme sur le web) pour utiliser ton compte ADMIN.
 
 ## Outils exposés
 
@@ -166,8 +226,17 @@ conserver les suppléments existants.
 
 ## Architecture
 
-- `app/api/mcp/route.ts` — transport HTTP : auth (Bearer, comparaison à temps
-  constant), parsing JSON-RPC, invalidation du cache menu après écriture.
+- `app/api/mcp/route.ts` — transport HTTP : auth (clé statique à temps constant
+  **puis** OAuth via `withMcpAuth` + garde-fou rôle ADMIN), parsing JSON-RPC,
+  CORS, invalidation du cache menu après écriture.
+- `lib/auth.ts` — provider OAuth : plugin `mcp({ loginPage: '/login' })` de
+  Better Auth + `baseURL` (issuer).
+- `app/.well-known/oauth-authorization-server/route.ts` et
+  `app/.well-known/oauth-protected-resource/route.ts` — découverte OAuth à la
+  racine de l'origine (déléguée au plugin via `oAuthDiscoveryMetadata` /
+  `oAuthProtectedResourceMetadata`).
+- `app/(public)/login/page.tsx` — sait **reprendre** le flux OAuth après
+  connexion (renvoie vers `/api/auth/mcp/authorize` avec les paramètres repris).
 - `lib/mcp/handler.ts` — dispatcher JSON-RPC (`initialize`, `tools/list`,
   `tools/call`, `ping`), agnostique du framework.
 - `lib/mcp/tools.ts` — registre des outils. Chaque outil **branche** la logique

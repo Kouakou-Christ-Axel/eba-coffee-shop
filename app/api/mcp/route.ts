@@ -1,62 +1,73 @@
 // app/api/mcp/route.ts
 //
 // Serveur MCP (Model Context Protocol) distant — transport « Streamable HTTP ».
-// Expose la gestion du menu (lecture + écriture) à un client MCP comme Claude.
+// Expose l'administration de l'app (menu, stats, dépenses, caisse, fidélité…) à
+// un client MCP comme Claude.
 //
-// Sécurité : ce serveur est protégé par un jeton statique (`MCP_API_KEY`) passé
-// en `Authorization: Bearer <token>`. Le menu étant administrable en écriture,
-// on REFUSE tout accès si la clé n’est pas configurée (503) plutôt que d’ouvrir
-// un serveur sans protection. La comparaison du jeton est à temps constant.
+// Deux façons de s'authentifier, dans cet ordre :
+//
+//   1. Jeton statique `MCP_API_KEY` en `Authorization: Bearer <token>`
+//      (comparaison à temps constant). Pratique pour un client « machine » qui
+//      gère ses en-têtes (Claude Code CLI, Claude Desktop, curl). Optionnel.
+//
+//   2. OAuth 2.0 (plugin MCP de Better Auth). Le client (Claude web/mobile) ne
+//      sait pas coller un en-tête Bearer : il suit le flux OAuth, l'utilisateur
+//      se connecte avec SON compte, et un jeton d'accès lui est délivré. On
+//      n'autorise alors que les comptes ayant le rôle ADMIN — chaque
+//      collaborateur a son propre accès, traçable et révocable.
 //
 // Le dispatch JSON-RPC vit dans `lib/mcp/handler.ts` ; cette route ne gère que
-// le transport HTTP (auth, parsing, réponse) et l’invalidation du cache.
+// le transport HTTP (auth, parsing, réponse, CORS) et l'invalidation du cache.
 
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { timingSafeEqual } from 'node:crypto';
+import { withMcpAuth } from 'better-auth/plugins';
+import { auth } from '@/lib/auth';
+import prisma from '@/lib/prisma';
 import { handleRpc } from '@/lib/mcp/handler';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// ─── Authentification ───────────────────────────────────────────────────────
+// ─── CORS ─────────────────────────────────────────────────────────────────
+//
+// Certains clients MCP (inspecteurs web, playgrounds) appellent l'endpoint
+// depuis un navigateur. On expose `WWW-Authenticate` pour que la découverte
+// OAuth (401 → resource_metadata) fonctionne côté navigateur.
 
-type AuthResult = { ok: true } | { ok: false; status: number; error: string };
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Mcp-Session-Id',
+  'Access-Control-Expose-Headers': 'WWW-Authenticate, Mcp-Session-Id',
+  'Access-Control-Max-Age': '86400',
+};
 
-function authenticate(req: Request): AuthResult {
+function withCors(res: Response): Response {
+  for (const [k, v] of Object.entries(CORS_HEADERS)) res.headers.set(k, v);
+  return res;
+}
+
+// ─── Authentification par jeton statique (optionnelle) ──────────────────────
+//
+// Retourne `true` UNIQUEMENT si `MCP_API_KEY` est configurée ET correspond au
+// Bearer fourni. Sinon `false` → on tente le chemin OAuth (le Bearer présenté
+// peut être un jeton d'accès OAuth, pas la clé statique).
+
+function matchesStaticKey(req: Request): boolean {
   const expected = process.env.MCP_API_KEY;
-  if (!expected) {
-    return {
-      ok: false,
-      status: 503,
-      error: 'Serveur MCP désactivé (MCP_API_KEY non configurée)',
-    };
-  }
+  if (!expected) return false;
 
   const header = req.headers.get('authorization') ?? '';
   const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match) {
-    return { ok: false, status: 401, error: 'Jeton Bearer manquant' };
-  }
+  if (!match) return false;
 
-  const provided = match[1];
   // Comparaison à temps constant. `timingSafeEqual` exige des buffers de même
-  // longueur — on encode les deux et on rejette d’abord les longueurs distinctes.
-  const a = Buffer.from(provided);
+  // longueur — on encode les deux et on rejette d'abord les longueurs distinctes.
+  const a = Buffer.from(match[1]);
   const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) {
-    return { ok: false, status: 401, error: 'Jeton invalide' };
-  }
-
-  return { ok: true };
-}
-
-function unauthorized(status: number, error: string) {
-  const res = NextResponse.json({ error }, { status });
-  if (status === 401) {
-    res.headers.set('WWW-Authenticate', 'Bearer realm="mcp"');
-  }
-  return res;
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 // ─── Invalidation du cache menu après écriture ──────────────────────────────
@@ -70,18 +81,15 @@ function revalidateMenu() {
     revalidatePath('/carte');
     revalidatePath('/');
   } catch (err) {
-    // En dehors d’un contexte de requête Next, revalidatePath peut échouer.
-    // L’écriture en base a déjà eu lieu : on ne fait pas échouer l’appel MCP.
+    // En dehors d'un contexte de requête Next, revalidatePath peut échouer.
+    // L'écriture en base a déjà eu lieu : on ne fait pas échouer l'appel MCP.
     console.warn('[mcp] revalidateMenu a échoué', err);
   }
 }
 
-// ─── POST : messages JSON-RPC ────────────────────────────────────────────────
+// ─── Traitement JSON-RPC (commun aux deux chemins d'auth) ───────────────────
 
-export async function POST(req: Request) {
-  const auth = authenticate(req);
-  if (!auth.ok) return unauthorized(auth.status, auth.error);
-
+async function processRpc(req: Request): Promise<Response> {
   let body: unknown;
   try {
     body = await req.json();
@@ -128,8 +136,54 @@ export async function POST(req: Request) {
   return NextResponse.json(response);
 }
 
+// ─── Chemin OAuth : jeton valide + rôle ADMIN ───────────────────────────────
+//
+// `withMcpAuth` valide le jeton d'accès OAuth (sinon 401 + `WWW-Authenticate`
+// pointant vers la métadonnée de ressource, ce qui amorce la découverte côté
+// client). On exige ensuite que l'utilisateur derrière le jeton soit ADMIN.
+
+const oauthHandler = withMcpAuth(auth, async (req, session) => {
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { role: true },
+  });
+
+  if (!user || user.role !== 'ADMIN') {
+    return NextResponse.json(
+      {
+        jsonrpc: '2.0',
+        id: null,
+        error: {
+          code: -32001,
+          message: 'Accès refusé : compte sans rôle administrateur',
+        },
+      },
+      { status: 403 }
+    );
+  }
+
+  return processRpc(req);
+});
+
+// ─── POST : messages JSON-RPC ────────────────────────────────────────────────
+
+export async function POST(req: Request): Promise<Response> {
+  // 1. Clé statique (propriétaire / clients « machine »).
+  if (matchesStaticKey(req)) {
+    return withCors(await processRpc(req));
+  }
+  // 2. OAuth (administrateurs via Claude web/mobile/desktop).
+  return withCors(await oauthHandler(req));
+}
+
+// ─── OPTIONS : préflight CORS ────────────────────────────────────────────────
+
+export function OPTIONS(): Response {
+  return withCors(new NextResponse(null, { status: 204 }));
+}
+
 // ─── GET : pas de flux SSE serveur→client (serveur sans état) ────────────────
 
-export async function GET() {
-  return new NextResponse('Method Not Allowed', { status: 405 });
+export function GET(): Response {
+  return withCors(new NextResponse('Method Not Allowed', { status: 405 }));
 }
