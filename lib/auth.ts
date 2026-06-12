@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { emailOTP } from 'better-auth/plugins/email-otp';
+import { mcp } from 'better-auth/plugins';
 import { nextCookies } from 'better-auth/next-js';
 import prisma from '@/lib/prisma';
 import { sendOtpEmail } from '@/lib/email';
@@ -16,6 +17,11 @@ export async function promoteAdminIfMatch(user: { id: string; email: string }) {
 }
 
 export const auth = betterAuth({
+  // `baseURL` explicite : le provider OAuth du plugin MCP s'en sert comme
+  // `issuer` (et pour construire les URLs de découverte). Sans valeur, la
+  // métadonnée OAuth refuse de se générer (`invalid_issuer`). On reprend
+  // `BETTER_AUTH_URL` (= `NEXT_PUBLIC_SITE_URL`, la racine du domaine public).
+  baseURL: process.env.BETTER_AUTH_URL,
   database: prismaAdapter(prisma, {
     provider: 'postgresql',
   }),
@@ -47,6 +53,13 @@ export const auth = betterAuth({
         await sendOtpEmail(email, otp);
       },
     }),
+    // Provider OAuth 2.0 pour le serveur MCP distant (`/api/mcp`). Permet aux
+    // clients Claude (web/mobile/desktop) de se connecter sans en-tête Bearer
+    // statique : l'administrateur s'authentifie avec son propre compte. Le
+    // contrôle « réservé aux ADMIN » est fait dans la route `/api/mcp`. Quand un
+    // client lance le flux et qu'aucune session n'existe, on renvoie vers
+    // `/login` (qui sait reprendre le flux après connexion).
+    mcp({ loginPage: '/login' }),
     nextCookies(),
   ],
   databaseHooks: {

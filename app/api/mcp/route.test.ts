@@ -5,6 +5,26 @@ vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }));
 
+// On mocke `auth` (provider OAuth) et `prisma` pour piloter le chemin OAuth
+// sans base de données. `getMcpSession` décide si un jeton OAuth est valide,
+// `user.findUnique` fournit le rôle de l'utilisateur derrière ce jeton.
+// `vi.hoisted` : les mocks sont remontés au-dessus des imports avec leurs refs.
+const { getMcpSession, userFindUnique } = vi.hoisted(() => ({
+  getMcpSession: vi.fn(),
+  userFindUnique: vi.fn(),
+}));
+
+vi.mock('@/lib/auth', () => ({
+  auth: {
+    options: { baseURL: 'http://localhost', basePath: '/api/auth' },
+    api: { getMcpSession },
+  },
+}));
+
+vi.mock('@/lib/prisma', () => ({
+  default: { user: { findUnique: userFindUnique } },
+}));
+
 import { POST, GET } from './route';
 
 const TOKEN = 'test-secret-token';
@@ -22,21 +42,28 @@ const authHeader = { authorization: `Bearer ${TOKEN}` };
 beforeEach(() => {
   vi.resetAllMocks();
   process.env.MCP_API_KEY = TOKEN;
+  // Par défaut : aucun jeton OAuth reconnu (chemin OAuth → 401).
+  getMcpSession.mockResolvedValue(null);
 });
 
 afterEach(() => {
   delete process.env.MCP_API_KEY;
 });
 
-describe('authentification', () => {
-  it('renvoie 503 si MCP_API_KEY n’est pas configurée', async () => {
-    delete process.env.MCP_API_KEY;
+describe('authentification — clé statique', () => {
+  it('accepte la clé statique MCP_API_KEY (chemin propriétaire)', async () => {
     const res = await POST(
-      makeRequest({ jsonrpc: '2.0', id: 1, method: 'ping' })
+      makeRequest({ jsonrpc: '2.0', id: 1, method: 'ping' }, authHeader)
     );
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.result).toEqual({});
+    // La clé statique court-circuite OAuth : pas d'appel à getMcpSession.
+    expect(getMcpSession).not.toHaveBeenCalled();
   });
+});
 
+describe('authentification — OAuth', () => {
   it('renvoie 401 sans en-tête Authorization', async () => {
     const res = await POST(
       makeRequest({ jsonrpc: '2.0', id: 1, method: 'ping' })
@@ -45,7 +72,8 @@ describe('authentification', () => {
     expect(res.headers.get('WWW-Authenticate')).toContain('Bearer');
   });
 
-  it('renvoie 401 avec un jeton invalide', async () => {
+  it('renvoie 401 avec un jeton OAuth invalide', async () => {
+    getMcpSession.mockResolvedValue(null);
     const res = await POST(
       makeRequest(
         { jsonrpc: '2.0', id: 1, method: 'ping' },
@@ -55,13 +83,38 @@ describe('authentification', () => {
     expect(res.status).toBe(401);
   });
 
-  it('accepte un jeton valide', async () => {
+  it('renvoie 401 même sans MCP_API_KEY configurée (plus de 503)', async () => {
+    delete process.env.MCP_API_KEY;
     const res = await POST(
-      makeRequest({ jsonrpc: '2.0', id: 1, method: 'ping' }, authHeader)
+      makeRequest({ jsonrpc: '2.0', id: 1, method: 'ping' })
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('accepte un jeton OAuth d’un ADMIN', async () => {
+    getMcpSession.mockResolvedValue({ userId: 'u1' });
+    userFindUnique.mockResolvedValue({ role: 'ADMIN' });
+    const res = await POST(
+      makeRequest(
+        { jsonrpc: '2.0', id: 1, method: 'ping' },
+        { authorization: 'Bearer jeton-oauth-valide' }
+      )
     );
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.result).toEqual({});
+  });
+
+  it('refuse (403) un jeton OAuth d’un non-ADMIN', async () => {
+    getMcpSession.mockResolvedValue({ userId: 'u2' });
+    userFindUnique.mockResolvedValue({ role: 'USER' });
+    const res = await POST(
+      makeRequest(
+        { jsonrpc: '2.0', id: 1, method: 'ping' },
+        { authorization: 'Bearer jeton-oauth-non-admin' }
+      )
+    );
+    expect(res.status).toBe(403);
   });
 });
 
