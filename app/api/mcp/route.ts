@@ -32,20 +32,31 @@ export const dynamic = 'force-dynamic';
 
 // ─── CORS ─────────────────────────────────────────────────────────────────
 //
-// Certains clients MCP (inspecteurs web, playgrounds) appellent l'endpoint
-// depuis un navigateur. On expose `WWW-Authenticate` pour que la découverte
-// OAuth (401 → resource_metadata) fonctionne côté navigateur.
+// Les clients MCP web (claude.ai, inspecteurs, playgrounds) appellent l'endpoint
+// depuis un navigateur : il faut un préflight CORS qui autorise TOUS les en-têtes
+// envoyés par le client. Plutôt qu'une liste figée (qui omettait par ex.
+// `MCP-Protocol-Version` → préflight rejeté → « Problème de connexion »), on
+// **reflète** les en-têtes demandés. `Authorization` est toujours ajouté
+// explicitement : le wildcard ne le couvre jamais. On expose `WWW-Authenticate`
+// pour que la découverte OAuth (401 → resource_metadata) marche côté navigateur.
 
-const CORS_HEADERS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Mcp-Session-Id',
-  'Access-Control-Expose-Headers': 'WWW-Authenticate, Mcp-Session-Id',
-  'Access-Control-Max-Age': '86400',
-};
+const DEFAULT_ALLOW_HEADERS =
+  'Content-Type, Authorization, Accept, Mcp-Session-Id, Mcp-Protocol-Version, Last-Event-ID';
 
-function withCors(res: Response): Response {
-  for (const [k, v] of Object.entries(CORS_HEADERS)) res.headers.set(k, v);
+function withCors(res: Response, req?: Request): Response {
+  const requested = req?.headers.get('access-control-request-headers');
+  const allowHeaders = requested
+    ? `${requested}, Authorization`
+    : DEFAULT_ALLOW_HEADERS;
+
+  res.headers.set('Access-Control-Allow-Origin', '*');
+  res.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.headers.set('Access-Control-Allow-Headers', allowHeaders);
+  res.headers.set(
+    'Access-Control-Expose-Headers',
+    'WWW-Authenticate, Mcp-Session-Id, Mcp-Protocol-Version'
+  );
+  res.headers.set('Access-Control-Max-Age', '86400');
   return res;
 }
 
@@ -170,20 +181,20 @@ const oauthHandler = withMcpAuth(auth, async (req, session) => {
 export async function POST(req: Request): Promise<Response> {
   // 1. Clé statique (propriétaire / clients « machine »).
   if (matchesStaticKey(req)) {
-    return withCors(await processRpc(req));
+    return withCors(await processRpc(req), req);
   }
   // 2. OAuth (administrateurs via Claude web/mobile/desktop).
-  return withCors(await oauthHandler(req));
+  return withCors(await oauthHandler(req), req);
 }
 
 // ─── OPTIONS : préflight CORS ────────────────────────────────────────────────
 
-export function OPTIONS(): Response {
-  return withCors(new NextResponse(null, { status: 204 }));
+export function OPTIONS(req: Request): Response {
+  return withCors(new NextResponse(null, { status: 204 }), req);
 }
 
 // ─── GET : pas de flux SSE serveur→client (serveur sans état) ────────────────
 
-export function GET(): Response {
-  return withCors(new NextResponse('Method Not Allowed', { status: 405 }));
+export function GET(req?: Request): Response {
+  return withCors(new NextResponse('Method Not Allowed', { status: 405 }), req);
 }
