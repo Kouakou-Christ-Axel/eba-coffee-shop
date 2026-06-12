@@ -169,9 +169,38 @@ describe('transport', () => {
   });
 });
 
-describe('GET', () => {
-  it('renvoie 405 (pas de flux SSE serveur)', async () => {
-    const res = await GET();
-    expect(res.status).toBe(405);
+describe('GET (flux SSE Streamable HTTP)', () => {
+  function makeGet(headers: Record<string, string> = {}) {
+    return new Request('http://localhost/api/mcp', { method: 'GET', headers });
+  }
+
+  it('ouvre un flux SSE avec la clé statique', async () => {
+    const res = await GET(makeGet(authHeader));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/event-stream');
+    await res.body?.cancel();
+  });
+
+  it('renvoie 401 sans jeton (amorce la découverte OAuth)', async () => {
+    getMcpSession.mockResolvedValue(null);
+    const res = await GET(makeGet());
+    expect(res.status).toBe(401);
+    expect(res.headers.get('WWW-Authenticate')).toContain('Bearer');
+  });
+
+  it('ouvre un flux SSE pour un jeton OAuth ADMIN', async () => {
+    getMcpSession.mockResolvedValue({ userId: 'u1' });
+    userFindUnique.mockResolvedValue({ role: 'ADMIN' });
+    const res = await GET(makeGet({ authorization: 'Bearer jeton-oauth' }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/event-stream');
+    await res.body?.cancel();
+  });
+
+  it('refuse (403) un jeton OAuth non-ADMIN', async () => {
+    getMcpSession.mockResolvedValue({ userId: 'u2' });
+    userFindUnique.mockResolvedValue({ role: 'USER' });
+    const res = await GET(makeGet({ authorization: 'Bearer jeton-oauth' }));
+    expect(res.status).toBe(403);
   });
 });

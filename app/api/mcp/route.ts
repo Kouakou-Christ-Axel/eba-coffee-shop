@@ -152,29 +152,78 @@ async function processRpc(req: Request): Promise<Response> {
 // `withMcpAuth` valide le jeton d'accès OAuth (sinon 401 + `WWW-Authenticate`
 // pointant vers la métadonnée de ressource, ce qui amorce la découverte côté
 // client). On exige ensuite que l'utilisateur derrière le jeton soit ADMIN.
+// `withAdminGuard` enveloppe un handler déjà autorisé (POST JSON-RPC ou flux
+// SSE GET) : même logique d'auth, deux usages.
 
-const oauthHandler = withMcpAuth(auth, async (req, session) => {
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: { role: true },
+function forbidden(): Response {
+  return NextResponse.json(
+    {
+      jsonrpc: '2.0',
+      id: null,
+      error: {
+        code: -32001,
+        message: 'Accès refusé : compte sans rôle administrateur',
+      },
+    },
+    { status: 403 }
+  );
+}
+
+function withAdminGuard(
+  handler: (req: Request) => Response | Promise<Response>
+) {
+  return withMcpAuth(auth, async (req, session) => {
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { role: true },
+    });
+    if (!user || user.role !== 'ADMIN') return forbidden();
+    return handler(req);
+  });
+}
+
+const oauthPostHandler = withAdminGuard(processRpc);
+const oauthGetHandler = withAdminGuard(() => sseStream());
+
+// ─── Flux SSE pour GET (transport « Streamable HTTP ») ───────────────────────
+//
+// Le transport MCP « Streamable HTTP » prévoit que le client ouvre un flux SSE
+// via GET pour recevoir d'éventuels messages serveur→client. Notre serveur est
+// sans état et ne pousse rien, mais les clients (dont le proxy de Claude) ont
+// besoin que ce flux EXISTE : répondre 405 fait échouer la connexion
+// (« impossible de se connecter au serveur »). On ouvre donc un flux vide
+// maintenu en vie par des commentaires keep-alive.
+
+function sseStream(): Response {
+  const encoder = new TextEncoder();
+  let keepAlive: ReturnType<typeof setInterval> | undefined;
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(': open\n\n'));
+      keepAlive = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(': keep-alive\n\n'));
+        } catch {
+          // Flux déjà fermé : on ignore.
+        }
+      }, 25000);
+    },
+    cancel() {
+      if (keepAlive) clearInterval(keepAlive);
+    },
   });
 
-  if (!user || user.role !== 'ADMIN') {
-    return NextResponse.json(
-      {
-        jsonrpc: '2.0',
-        id: null,
-        error: {
-          code: -32001,
-          message: 'Accès refusé : compte sans rôle administrateur',
-        },
-      },
-      { status: 403 }
-    );
-  }
-
-  return processRpc(req);
-});
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      // Empêche nginx de bufferiser le flux SSE (sinon le client ne voit rien).
+      'X-Accel-Buffering': 'no',
+    },
+  });
+}
 
 // ─── POST : messages JSON-RPC ────────────────────────────────────────────────
 
@@ -184,7 +233,7 @@ export async function POST(req: Request): Promise<Response> {
     return withCors(await processRpc(req), req);
   }
   // 2. OAuth (administrateurs via Claude web/mobile/desktop).
-  return withCors(await oauthHandler(req), req);
+  return withCors(await oauthPostHandler(req), req);
 }
 
 // ─── OPTIONS : préflight CORS ────────────────────────────────────────────────
@@ -193,8 +242,13 @@ export function OPTIONS(req: Request): Response {
   return withCors(new NextResponse(null, { status: 204 }), req);
 }
 
-// ─── GET : pas de flux SSE serveur→client (serveur sans état) ────────────────
+// ─── GET : flux SSE serveur→client (Streamable HTTP) ─────────────────────────
 
-export function GET(req?: Request): Response {
-  return withCors(new NextResponse('Method Not Allowed', { status: 405 }), req);
+export async function GET(req: Request): Promise<Response> {
+  // 1. Clé statique.
+  if (matchesStaticKey(req)) {
+    return withCors(sseStream(), req);
+  }
+  // 2. OAuth (+ garde ADMIN). Sans jeton valide → 401 + WWW-Authenticate.
+  return withCors(await oauthGetHandler(req), req);
 }
