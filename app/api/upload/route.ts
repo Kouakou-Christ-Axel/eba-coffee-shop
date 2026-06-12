@@ -7,6 +7,8 @@ import {
 } from '@/lib/schemas/upload';
 import { saveProductImage } from '@/lib/uploads';
 
+const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
+
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session || session.user.role !== 'ADMIN') {
@@ -21,7 +23,7 @@ export async function POST(req: Request) {
   }
   if (!isAllowedImageMimeType(file.type)) {
     return NextResponse.json(
-      { error: 'Format non supporté (JPEG, PNG, WebP, AVIF uniquement)' },
+      { error: 'Format non supporté (JPEG, PNG, WebP, AVIF, HEIC)' },
       { status: 400 }
     );
   }
@@ -30,12 +32,19 @@ export async function POST(req: Request) {
   }
   if (file.size > MAX_UPLOAD_SIZE_BYTES) {
     return NextResponse.json(
-      { error: 'Fichier trop volumineux (max 5 MB)' },
+      { error: `Fichier trop volumineux (max ${MAX_UPLOAD_SIZE_MB} MB)` },
       { status: 400 }
     );
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const url = await saveProductImage(buffer, file.type);
-  return NextResponse.json({ url });
+  try {
+    const url = await saveProductImage(buffer, file.type);
+    return NextResponse.json({ url });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Échec du traitement' },
+      { status: 400 }
+    );
+  }
 }

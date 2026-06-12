@@ -7,6 +7,8 @@ import {
 } from '@/lib/schemas/upload';
 import { saveReceiptImage } from '@/lib/uploads';
 
+const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
+
 // Upload d'un justificatif de dépense (photo). Réservé à l'ADMIN, même
 // validation que l'upload produit mais stocké sous /uploads/receipts/.
 export async function POST(req: Request) {
@@ -23,7 +25,7 @@ export async function POST(req: Request) {
   }
   if (!isAllowedImageMimeType(file.type)) {
     return NextResponse.json(
-      { error: 'Format non supporté (JPEG, PNG, WebP, AVIF uniquement)' },
+      { error: 'Format non supporté (JPEG, PNG, WebP, AVIF, HEIC)' },
       { status: 400 }
     );
   }
@@ -32,12 +34,19 @@ export async function POST(req: Request) {
   }
   if (file.size > MAX_UPLOAD_SIZE_BYTES) {
     return NextResponse.json(
-      { error: 'Fichier trop volumineux (max 5 MB)' },
+      { error: `Fichier trop volumineux (max ${MAX_UPLOAD_SIZE_MB} MB)` },
       { status: 400 }
     );
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const url = await saveReceiptImage(buffer, file.type);
-  return NextResponse.json({ url });
+  try {
+    const url = await saveReceiptImage(buffer, file.type);
+    return NextResponse.json({ url });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Échec du traitement' },
+      { status: 400 }
+    );
+  }
 }

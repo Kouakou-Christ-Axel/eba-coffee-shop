@@ -5,10 +5,23 @@
 // suppression du doublon dans la vague d'intégration suivante.
 
 /**
- * Taille maximale d'un upload d'image en octets (5 MB).
- * Source : app/api/upload/route.ts (MAX_BYTES).
+ * Taille maximale d'un upload d'image en octets (25 MB).
+ * Cap d'ENTRÉE : on accepte des photos de téléphone lourdes (et du HEIC), qui
+ * sont ensuite redimensionnées et ré-encodées en WebP léger côté serveur
+ * (lib/uploads.ts). Le fichier stocké est donc bien plus petit que cette borne.
  */
-export const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
+export const MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Plus grand côté (px) après redimensionnement. Les images plus grandes sont
+ * réduites « à l'intérieur » de ce carré (ratio conservé) ; les plus petites
+ * ne sont pas agrandies. 2200 px garde les reçus/factures lisibles.
+ * Source : lib/uploads.ts (traitement sharp).
+ */
+export const IMAGE_MAX_DIMENSION = 2200;
+
+/** Qualité WebP (0-100) à l'encodage des images stockées. */
+export const IMAGE_WEBP_QUALITY = 80;
 
 /**
  * Durée par défaut d'un créneau de retrait (Click & Collect), en minutes.

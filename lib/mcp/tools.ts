@@ -362,7 +362,7 @@ export const tools: McpTool[] = [
       'localement ; (2) `imageUrl` (chemin `/uploads/...` ou URL http(s)). ' +
       'Formats : ' +
       ALLOWED_IMAGE_MIME_TYPES.join(', ') +
-      ' (max 5 MB).',
+      ' (converties automatiquement en WebP, redimensionnées, max 25 MB).',
     inputSchema: z
       .object({
         id: idSchema,
@@ -518,7 +518,7 @@ export const tools: McpTool[] = [
       'localement ; (2) `imageUrl` (chemin `/uploads/...` ou URL http(s)). ' +
       'Formats : ' +
       ALLOWED_IMAGE_MIME_TYPES.join(', ') +
-      ' (max 5 MB).',
+      ' (converties automatiquement en WebP, redimensionnées, max 25 MB).',
     inputSchema: z
       .object({
         id: idSchema,
@@ -1065,7 +1065,7 @@ export const tools: McpTool[] = [
       'existante via `imageUrl` (chemin `/uploads/...` ou URL http(s)). Renvoie ' +
       'le produit mis à jour avec son `imageUrl`. Formats acceptés : ' +
       ALLOWED_IMAGE_MIME_TYPES.join(', ') +
-      ' (max 5 MB).',
+      ' (converties automatiquement en WebP, redimensionnées, max 25 MB).',
     inputSchema: z
       .object({
         id: idSchema,

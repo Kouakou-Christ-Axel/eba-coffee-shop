@@ -13,11 +13,14 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import sharp from 'sharp';
+import { IMAGE_MAX_DIMENSION, IMAGE_WEBP_QUALITY } from '@/config/constants';
 import {
   MAX_UPLOAD_SIZE_BYTES,
-  imageExtensionFromMime,
   isAllowedImageMimeType,
 } from '@/lib/schemas/upload';
+
+const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
 
 /** Sous-dossiers d'upload autorisés (whitelist — pas de chemin arbitraire). */
 export type UploadSubdir = 'products' | 'receipts';
@@ -28,29 +31,52 @@ function publicUrl(subdir: UploadSubdir, filename: string): string {
 }
 
 /**
- * Valide (MIME + taille) puis écrit un buffer image dans `subdir` et renvoie
- * son URL relative. Lève une `Error` (message lisible) si format/taille invalide.
+ * Valide (MIME déclaré + taille), retraite l'image avec sharp
+ * (auto-orientation EXIF, redimensionnement « à l'intérieur » de
+ * IMAGE_MAX_DIMENSION, ré-encodage WebP), puis l'écrit dans `subdir`. Renvoie
+ * l'URL relative du fichier WebP. Lève une `Error` (message lisible) si la
+ * taille dépasse, si le MIME déclaré n'est pas autorisé, ou si le contenu n'est
+ * pas une image décodable.
+ *
+ * Quel que soit le format d'entrée (JPEG/PNG/WebP/AVIF/HEIC…), la sortie stockée
+ * est un `.webp` léger — ce qui permet d'accepter des photos de téléphone
+ * volumineuses tout en gardant des fichiers compacts.
  */
 export async function saveImage(
   buffer: Buffer,
   mimeType: string,
   subdir: UploadSubdir
 ): Promise<string> {
-  const ext = imageExtensionFromMime(mimeType);
-  if (!ext) {
-    throw new Error('Format non supporté (JPEG, PNG, WebP, AVIF uniquement)');
+  if (!isAllowedImageMimeType(mimeType)) {
+    throw new Error('Format non supporté (JPEG, PNG, WebP, AVIF, HEIC)');
   }
   if (buffer.length === 0) {
     throw new Error('Fichier vide');
   }
   if (buffer.length > MAX_UPLOAD_SIZE_BYTES) {
-    throw new Error('Fichier trop volumineux (max 5 MB)');
+    throw new Error(`Fichier trop volumineux (max ${MAX_UPLOAD_SIZE_MB} MB)`);
   }
 
-  const filename = `${randomUUID()}.${ext}`;
+  let webp: Buffer;
+  try {
+    webp = await sharp(buffer, { failOn: 'none' })
+      .rotate() // applique l'orientation EXIF puis la supprime
+      .resize(IMAGE_MAX_DIMENSION, IMAGE_MAX_DIMENSION, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .webp({ quality: IMAGE_WEBP_QUALITY })
+      .toBuffer();
+  } catch {
+    // sharp valide réellement le contenu : un fichier corrompu ou un format
+    // non décodable (ex. HEIC sur un build sans libheif) échoue ici.
+    throw new Error('Image illisible ou format non supporté');
+  }
+
+  const filename = `${randomUUID()}.webp`;
   const dir = join(process.cwd(), 'public', 'uploads', subdir);
   await mkdir(dir, { recursive: true });
-  await writeFile(join(dir, filename), buffer);
+  await writeFile(join(dir, filename), webp);
   return publicUrl(subdir, filename);
 }
 
