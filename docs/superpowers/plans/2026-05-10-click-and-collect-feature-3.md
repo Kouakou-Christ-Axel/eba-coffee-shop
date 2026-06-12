@@ -12,18 +12,19 @@
 
 ## Structure des fichiers
 
-| Action | Fichier | Responsabilité |
-| ------ | ------- | -------------- |
-| Create | `lib/format-order.ts` | `formatPickupTime(date: Date): string` |
-| Create | `lib/format-order.test.ts` | Tests unitaires du formatage de date |
-| Create | `app/(public)/commande/[id]/page.tsx` | Server Component confirmation |
-| Create | `app/(public)/commande/[id]/page.test.tsx` | Tests rendu + 404 + metadata |
+| Action | Fichier                                    | Responsabilité                         |
+| ------ | ------------------------------------------ | -------------------------------------- |
+| Create | `lib/format-order.ts`                      | `formatPickupTime(date: Date): string` |
+| Create | `lib/format-order.test.ts`                 | Tests unitaires du formatage de date   |
+| Create | `app/(public)/commande/[id]/page.tsx`      | Server Component confirmation          |
+| Create | `app/(public)/commande/[id]/page.test.tsx` | Tests rendu + 404 + metadata           |
 
 ---
 
 ## Task 1 — TDD : `lib/format-order.ts`
 
 **Files:**
+
 - Create: `lib/format-order.ts`
 - Create: `lib/format-order.test.ts`
 
@@ -130,6 +131,7 @@ rtk git add lib/format-order.ts lib/format-order.test.ts && rtk git commit -m "f
 ## Task 2 — TDD : `app/(public)/commande/[id]/page.tsx`
 
 **Files:**
+
 - Create: `app/(public)/commande/[id]/page.tsx`
 - Create: `app/(public)/commande/[id]/page.test.tsx`
 
@@ -213,14 +215,18 @@ describe('CommandePage', () => {
 
   it('affiche la référence correcte pour un id valide', async () => {
     mockFindUnique.mockResolvedValue(mockOrder);
-    const element = await Page({ params: Promise.resolve({ id: 'clorder123' }) });
+    const element = await Page({
+      params: Promise.resolve({ id: 'clorder123' }),
+    });
     const html = renderToStaticMarkup(element);
     expect(html).toContain('EBA-20260510-AB12');
   });
 
   it('affiche le prénom et le téléphone du client', async () => {
     mockFindUnique.mockResolvedValue(mockOrder);
-    const element = await Page({ params: Promise.resolve({ id: 'clorder123' }) });
+    const element = await Page({
+      params: Promise.resolve({ id: 'clorder123' }),
+    });
     const html = renderToStaticMarkup(element);
     expect(html).toContain('Kofi');
     expect(html).toContain('07001234');
@@ -228,14 +234,18 @@ describe('CommandePage', () => {
 
   it("affiche l'heure de retrait formatée", async () => {
     mockFindUnique.mockResolvedValue(mockOrder);
-    const element = await Page({ params: Promise.resolve({ id: 'clorder123' }) });
+    const element = await Page({
+      params: Promise.resolve({ id: 'clorder123' }),
+    });
     const html = renderToStaticMarkup(element);
     expect(html).toMatch(/[A-Z][a-z]+ 10 mai · 14h30/);
   });
 
   it('affiche la liste des articles avec suppléments', async () => {
     mockFindUnique.mockResolvedValue(mockOrder);
-    const element = await Page({ params: Promise.resolve({ id: 'clorder123' }) });
+    const element = await Page({
+      params: Promise.resolve({ id: 'clorder123' }),
+    });
     const html = renderToStaticMarkup(element);
     expect(html).toContain('Cappuccino');
     expect(html).toContain('Lait de soja');
@@ -244,14 +254,16 @@ describe('CommandePage', () => {
 
   it('affiche le total formaté en FCFA', async () => {
     mockFindUnique.mockResolvedValue(mockOrder);
-    const element = await Page({ params: Promise.resolve({ id: 'clorder123' }) });
+    const element = await Page({
+      params: Promise.resolve({ id: 'clorder123' }),
+    });
     const html = renderToStaticMarkup(element);
     expect(html).toContain('FCFA');
     // Intl.NumberFormat('fr-FR').format(8000) → "8 000" (espace fine ou espace insécable)
     expect(html).toMatch(/8.000/);
   });
 
-  it("retourne 404 pour un id inexistant", async () => {
+  it('retourne 404 pour un id inexistant', async () => {
     mockFindUnique.mockResolvedValue(null);
     await expect(
       Page({ params: Promise.resolve({ id: 'inexistant' }) })
@@ -445,6 +457,7 @@ rtk git add "app/(public)/commande/[id]/page.tsx" "app/(public)/commande/[id]/pa
 ## Task 3 — Mettre à jour le statut dans la spec
 
 **Files:**
+
 - Modify: `docs/superpowers/specs/2026-05-10-click-and-collect-design.md`
 
 - [ ] **Step 1 : Mettre à jour la table des statuts**

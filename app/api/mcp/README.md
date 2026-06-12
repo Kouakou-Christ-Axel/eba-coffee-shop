@@ -9,10 +9,10 @@ l'**administration de l'app** (menu, stats, dépenses, caisse, clients, fidélit
 
 ## Deux façons de s'authentifier
 
-| Mode                          | Pour qui / quoi                              | Multi-utilisateurs ? |
-| ----------------------------- | -------------------------------------------- | -------------------- |
-| **OAuth 2.0** (recommandé)    | Claude **web / mobile / desktop**            | ✅ par compte ADMIN  |
-| **Clé statique** `MCP_API_KEY`| Clients « machine » : Claude Code CLI, curl  | ❌ secret partagé    |
+| Mode                           | Pour qui / quoi                             | Multi-utilisateurs ? |
+| ------------------------------ | ------------------------------------------- | -------------------- |
+| **OAuth 2.0** (recommandé)     | Claude **web / mobile / desktop**           | ✅ par compte ADMIN  |
+| **Clé statique** `MCP_API_KEY` | Clients « machine » : Claude Code CLI, curl | ❌ secret partagé    |
 
 Le serveur tente d'abord la clé statique (si `MCP_API_KEY` est fournie en
 `Authorization: Bearer …`) ; sinon il bascule sur OAuth. **Toute requête sans
@@ -127,6 +127,16 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `update_expense`               | écriture | Modifier une dépense (mise à jour **partielle**) |
 | `delete_expense`               | écriture | Supprimer une dépense                            |
 | `set_expense_receipt`          | écriture | Joindre un justificatif (base64 ou URL)          |
+| `list_investment_sources`      | lecture  | Sources de financement (+ nombre d’apports)      |
+| `create_investment_source`     | écriture | Créer une source de financement                  |
+| `update_investment_source`     | écriture | Renommer une source de financement               |
+| `delete_investment_source`     | écriture | Supprimer une source (refusé si utilisée)        |
+| `list_investments`             | lecture  | Lister les apports (filtres date/source/rembt)   |
+| `get_investment_summary`       | lecture  | Total + ventilation par source + restant dû      |
+| `create_investment`            | écriture | Enregistrer un apport / financement              |
+| `update_investment`            | écriture | Modifier un apport (mise à jour **partielle**)   |
+| `delete_investment`            | écriture | Supprimer un apport                              |
+| `set_investment_document`      | écriture | Joindre un justificatif (base64 ou URL)          |
 | `get_cash_position`            | lecture  | Chiffres espèces d’un jour + clôture éventuelle  |
 | `get_cash_closing`             | lecture  | Lire la clôture d’un jour                        |
 | `list_cash_closings`           | lecture  | Historique des clôtures sur une plage            |
@@ -169,6 +179,16 @@ dépenses, lecture **et** écriture) : on peut tout gérer sans ouvrir l'app.
 provient de `list_expense_categories`, et `paymentMethod` ∈
 `CASH`/`WAVE`/`BANK`/`OTHER`. Le justificatif photo se joint via
 `set_expense_receipt` (base64 ou URL).
+
+Les outils **investissements** (apports / financements injectés dans l'affaire :
+capital, prêt, apport d'associé, subvention…) couvrent l'administration complète
+(sources + apports, lecture **et** écriture). Distincts des dépenses
+d'exploitation, ils n'entrent pas dans la marge nette. `amount` est en francs CFA
+entiers, `date` au format `YYYY-MM-DD`, `sourceId` provient de
+`list_investment_sources`, et `paymentMethod` ∈ `CASH`/`WAVE`/`BANK`/`OTHER` (canal
+d'entrée des fonds). Pour un apport remboursable, `reimbursable: true` avec
+éventuellement `amountRepaid` (≤ `amount`) et `dueDate` ; le restant dû est
+calculé. Le justificatif se joint via `set_investment_document` (base64 ou URL).
 
 Les outils **clôture de caisse** (espèces, une clôture par jour civil) :
 `get_cash_position` prépare une clôture (ventes/dépenses espèces du jour),

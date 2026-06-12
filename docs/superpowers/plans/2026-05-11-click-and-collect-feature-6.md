@@ -12,25 +12,26 @@
 
 ## Fichiers créés/modifiés
 
-| Fichier | Action | Rôle |
-|---|---|---|
-| `lib/orders.ts` | Modifier | Ajouter `listOrders({ page, status })` et exporter `ListOrdersParams` |
-| `lib/orders.test.ts` | Créer | Tests TDD de `listOrders` |
-| `app/(dashboard)/dashboard/commandes/actions.ts` | Créer | Server Action `updateOrderStatus` — auth + transition validation |
-| `app/(dashboard)/dashboard/commandes/actions.test.ts` | Créer | Tests TDD de `updateOrderStatus` |
-| `app/(dashboard)/dashboard/commandes/status-tabs.tsx` | Créer | Client Component — tabs de filtre par statut |
-| `app/(dashboard)/dashboard/commandes/page.tsx` | Créer | Server Component — liste des commandes |
-| `app/(dashboard)/dashboard/commandes/page.test.tsx` | Créer | Tests TDD de la page liste |
-| `app/(dashboard)/dashboard/commandes/[id]/status-buttons.tsx` | Créer | Client Component — boutons d'action selon statut |
-| `app/(dashboard)/dashboard/commandes/[id]/status-buttons.test.tsx` | Créer | Tests TDD de StatusButtons |
-| `app/(dashboard)/dashboard/commandes/[id]/page.tsx` | Créer | Server Component — détail d'une commande |
-| `app/(dashboard)/dashboard/commandes/[id]/page.test.tsx` | Créer | Tests TDD de la page détail |
+| Fichier                                                            | Action   | Rôle                                                                  |
+| ------------------------------------------------------------------ | -------- | --------------------------------------------------------------------- |
+| `lib/orders.ts`                                                    | Modifier | Ajouter `listOrders({ page, status })` et exporter `ListOrdersParams` |
+| `lib/orders.test.ts`                                               | Créer    | Tests TDD de `listOrders`                                             |
+| `app/(dashboard)/dashboard/commandes/actions.ts`                   | Créer    | Server Action `updateOrderStatus` — auth + transition validation      |
+| `app/(dashboard)/dashboard/commandes/actions.test.ts`              | Créer    | Tests TDD de `updateOrderStatus`                                      |
+| `app/(dashboard)/dashboard/commandes/status-tabs.tsx`              | Créer    | Client Component — tabs de filtre par statut                          |
+| `app/(dashboard)/dashboard/commandes/page.tsx`                     | Créer    | Server Component — liste des commandes                                |
+| `app/(dashboard)/dashboard/commandes/page.test.tsx`                | Créer    | Tests TDD de la page liste                                            |
+| `app/(dashboard)/dashboard/commandes/[id]/status-buttons.tsx`      | Créer    | Client Component — boutons d'action selon statut                      |
+| `app/(dashboard)/dashboard/commandes/[id]/status-buttons.test.tsx` | Créer    | Tests TDD de StatusButtons                                            |
+| `app/(dashboard)/dashboard/commandes/[id]/page.tsx`                | Créer    | Server Component — détail d'une commande                              |
+| `app/(dashboard)/dashboard/commandes/[id]/page.test.tsx`           | Créer    | Tests TDD de la page détail                                           |
 
 ---
 
 ## Task 1 — Composants Shadcn : table, tabs, badge
 
 **Files:**
+
 - Creates: `components/ui/table.tsx`, `components/ui/tabs.tsx`, `components/ui/badge.tsx`
 
 - [ ] **Step 1 : Installer les composants**
@@ -59,6 +60,7 @@ rtk git commit -m "feat: add Shadcn table, tabs, badge components"
 ## Task 2 — `listOrders` dans lib/orders.ts (TDD)
 
 **Files:**
+
 - Modify: `lib/orders.ts`
 - Create: `lib/orders.test.ts`
 
@@ -249,6 +251,7 @@ rtk git commit -m "feat: add listOrders with pagination and status filter"
 ## Task 3 — Server Action `updateOrderStatus` (TDD)
 
 **Files:**
+
 - Create: `app/(dashboard)/dashboard/commandes/actions.ts`
 - Create: `app/(dashboard)/dashboard/commandes/actions.test.ts`
 
@@ -347,7 +350,10 @@ describe('updateOrderStatus', () => {
 
   it('lève une erreur pour transition invalide (PICKED_UP → PENDING)', async () => {
     mockGetSession.mockResolvedValue(adminSession);
-    mockFindUnique.mockResolvedValue({ id: 'o1', status: 'PICKED_UP' } as never);
+    mockFindUnique.mockResolvedValue({
+      id: 'o1',
+      status: 'PICKED_UP',
+    } as never);
 
     await expect(updateOrderStatus('o1', 'PENDING')).rejects.toThrow(
       'Transition invalide'
@@ -357,7 +363,10 @@ describe('updateOrderStatus', () => {
 
   it('lève une erreur pour transition invalide (CANCELLED → CONFIRMED)', async () => {
     mockGetSession.mockResolvedValue(adminSession);
-    mockFindUnique.mockResolvedValue({ id: 'o1', status: 'CANCELLED' } as never);
+    mockFindUnique.mockResolvedValue({
+      id: 'o1',
+      status: 'CANCELLED',
+    } as never);
 
     await expect(updateOrderStatus('o1', 'CONFIRMED')).rejects.toThrow(
       'Transition invalide'
@@ -366,7 +375,10 @@ describe('updateOrderStatus', () => {
 
   it('autorise CONFIRMED → READY', async () => {
     mockGetSession.mockResolvedValue(adminSession);
-    mockFindUnique.mockResolvedValue({ id: 'o1', status: 'CONFIRMED' } as never);
+    mockFindUnique.mockResolvedValue({
+      id: 'o1',
+      status: 'CONFIRMED',
+    } as never);
     mockUpdate.mockResolvedValue({} as never);
 
     await updateOrderStatus('o1', 'READY');
@@ -454,6 +466,7 @@ rtk git commit -m "feat: add updateOrderStatus server action with auth and trans
 ## Task 4 — Page liste des commandes (TDD)
 
 **Files:**
+
 - Create: `app/(dashboard)/dashboard/commandes/status-tabs.tsx`
 - Create: `app/(dashboard)/dashboard/commandes/page.tsx`
 - Create: `app/(dashboard)/dashboard/commandes/page.test.tsx`
@@ -485,13 +498,8 @@ vi.mock('./status-tabs', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({
-    href,
-    children,
-  }: {
-    href: string;
-    children: React.ReactNode;
-  }) => React.createElement('a', { href }, children),
+  default: ({ href, children }: { href: string; children: React.ReactNode }) =>
+    React.createElement('a', { href }, children),
 }));
 
 import { listOrders } from '@/lib/orders';
@@ -804,6 +812,7 @@ rtk git commit -m "feat: add commandes list page with status filter tabs and pag
 ## Task 5 — StatusButtons + Page détail (TDD)
 
 **Files:**
+
 - Create: `app/(dashboard)/dashboard/commandes/[id]/status-buttons.tsx`
 - Create: `app/(dashboard)/dashboard/commandes/[id]/status-buttons.test.tsx`
 - Create: `app/(dashboard)/dashboard/commandes/[id]/page.tsx`
@@ -934,13 +943,8 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({
-    href,
-    children,
-  }: {
-    href: string;
-    children: React.ReactNode;
-  }) => React.createElement('a', { href }, children),
+  default: ({ href, children }: { href: string; children: React.ReactNode }) =>
+    React.createElement('a', { href }, children),
 }));
 
 vi.mock('./status-buttons', () => ({
@@ -1124,12 +1128,7 @@ import type { CartItem } from '@/lib/cart-store';
 import type { OrderStatus } from '@/generated/prisma';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { StatusButtons } from './status-buttons';
 
@@ -1179,7 +1178,9 @@ export default async function CommandeDetailPage({
             <Link href="/dashboard/commandes">← Retour</Link>
           </Button>
           <h1 className="font-mono text-2xl font-bold">{order.reference}</h1>
-          <p className="text-muted-foreground">{formatPickupTime(order.pickupTime)}</p>
+          <p className="text-muted-foreground">
+            {formatPickupTime(order.pickupTime)}
+          </p>
         </div>
         <Badge variant="secondary">{STATUS_LABELS[order.status]}</Badge>
       </div>
@@ -1274,13 +1275,13 @@ rtk git commit -m "feat: add commande detail page with articles, supplements, an
 
 ## Vérification de couverture spec
 
-| Test spec F6 | Couvert par |
-|---|---|
-| La liste affiche toutes les commandes triées par date | Task 2 — listOrders sort test + Task 4 — page test |
-| Le filtre "En attente" n'affiche que les PENDING | Task 2 — listOrders filter test + Task 4 — page test |
-| La pagination retourne max 20 résultats par page | Task 2 — listOrders take:20 test |
-| `updateOrderStatus(id, CONFIRMED)` avec session admin → met à jour | Task 3 — actions test |
-| `updateOrderStatus` sans session admin → lève une erreur | Task 3 — actions test |
-| `updateOrderStatus` avec transition invalide → lève une erreur | Task 3 — actions test |
-| La vue détail affiche les articles avec leurs suppléments | Task 5 — detail page test |
-| Les boutons d'action correspondent au statut courant | Task 5 — StatusButtons test |
+| Test spec F6                                                       | Couvert par                                          |
+| ------------------------------------------------------------------ | ---------------------------------------------------- |
+| La liste affiche toutes les commandes triées par date              | Task 2 — listOrders sort test + Task 4 — page test   |
+| Le filtre "En attente" n'affiche que les PENDING                   | Task 2 — listOrders filter test + Task 4 — page test |
+| La pagination retourne max 20 résultats par page                   | Task 2 — listOrders take:20 test                     |
+| `updateOrderStatus(id, CONFIRMED)` avec session admin → met à jour | Task 3 — actions test                                |
+| `updateOrderStatus` sans session admin → lève une erreur           | Task 3 — actions test                                |
+| `updateOrderStatus` avec transition invalide → lève une erreur     | Task 3 — actions test                                |
+| La vue détail affiche les articles avec leurs suppléments          | Task 5 — detail page test                            |
+| Les boutons d'action correspondent au statut courant               | Task 5 — StatusButtons test                          |

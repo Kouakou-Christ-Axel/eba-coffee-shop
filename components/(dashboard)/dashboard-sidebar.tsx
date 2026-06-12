@@ -12,6 +12,7 @@ import {
   Contact,
   LayoutDashboard,
   LogOut,
+  PiggyBank,
   Settings,
   ShoppingBag,
   UtensilsCrossed,
@@ -58,6 +59,12 @@ const navItems: NavItem[] = [
     label: 'Dépenses',
     href: '/dashboard/depenses',
     icon: Wallet,
+    roles: ['ADMIN'],
+  },
+  {
+    label: 'Investissements',
+    href: '/dashboard/investissements',
+    icon: PiggyBank,
     roles: ['ADMIN'],
   },
   {

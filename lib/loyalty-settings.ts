@@ -19,7 +19,8 @@ export const loyaltySettingsSchema = z
     oneStampPerDay: z.boolean(),
   })
   .refine((v) => v.tier1Stamps < v.stampsPerCard, {
-    message: 'Le palier intermédiaire doit être inférieur à la taille de la carte',
+    message:
+      'Le palier intermédiaire doit être inférieur à la taille de la carte',
     path: ['tier1Stamps'],
   });
 

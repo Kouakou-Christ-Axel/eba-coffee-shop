@@ -12,24 +12,25 @@
 
 ## Fichiers créés/modifiés
 
-| Fichier | Action | Rôle |
-|---|---|---|
-| `prisma/schema.prisma` | Modifier | Ajouter `UserRole` enum + champ `role` sur `User` |
-| `.env.schema` | Modifier | Ajouter `ADMIN_EMAIL` |
-| `lib/auth.ts` | Modifier | Exporter `promoteAdminIfMatch` + `databaseHooks` |
-| `lib/auth.test.ts` | Créer | Tests de `promoteAdminIfMatch` |
-| `app/(public)/login/login-button.tsx` | Créer | Composant client — bouton Google |
-| `app/(public)/login/page.tsx` | Créer | Page login (server component) — redirect si connecté |
-| `app/(public)/login/page.test.tsx` | Créer | Tests de la page login |
-| `app/(dashboard)/layout.tsx` | Créer | Layout dashboard — vérifie session + sidebar |
-| `app/(dashboard)/layout.test.tsx` | Créer | Tests des redirections du layout |
-| `app/(dashboard)/dashboard/page.tsx` | Créer | Page d'accueil dashboard minimale |
+| Fichier                               | Action   | Rôle                                                 |
+| ------------------------------------- | -------- | ---------------------------------------------------- |
+| `prisma/schema.prisma`                | Modifier | Ajouter `UserRole` enum + champ `role` sur `User`    |
+| `.env.schema`                         | Modifier | Ajouter `ADMIN_EMAIL`                                |
+| `lib/auth.ts`                         | Modifier | Exporter `promoteAdminIfMatch` + `databaseHooks`     |
+| `lib/auth.test.ts`                    | Créer    | Tests de `promoteAdminIfMatch`                       |
+| `app/(public)/login/login-button.tsx` | Créer    | Composant client — bouton Google                     |
+| `app/(public)/login/page.tsx`         | Créer    | Page login (server component) — redirect si connecté |
+| `app/(public)/login/page.test.tsx`    | Créer    | Tests de la page login                               |
+| `app/(dashboard)/layout.tsx`          | Créer    | Layout dashboard — vérifie session + sidebar         |
+| `app/(dashboard)/layout.test.tsx`     | Créer    | Tests des redirections du layout                     |
+| `app/(dashboard)/dashboard/page.tsx`  | Créer    | Page d'accueil dashboard minimale                    |
 
 ---
 
 ## Task 1 — Schéma Prisma : UserRole
 
 **Files:**
+
 - Modify: `prisma/schema.prisma`
 
 - [ ] **Step 1 : Ajouter l'enum et le champ role**
@@ -80,6 +81,7 @@ rtk git commit -m "feat: add UserRole enum and role field to User model"
 ## Task 2 — Env : ADMIN_EMAIL
 
 **Files:**
+
 - Modify: `.env.schema`
 
 - [ ] **Step 1 : Ajouter ADMIN_EMAIL à .env.schema**
@@ -105,6 +107,7 @@ rtk git commit -m "feat: add ADMIN_EMAIL to env schema"
 ## Task 3 — Auth hook : promoteAdminIfMatch (TDD)
 
 **Files:**
+
 - Modify: `lib/auth.ts`
 - Create: `lib/auth.test.ts`
 
@@ -147,7 +150,9 @@ vi.mock('@/lib/prisma', () => ({
 import prisma from '@/lib/prisma';
 import { promoteAdminIfMatch } from './auth';
 
-const mockUpdate = prisma.user.update as MockedFunction<typeof prisma.user.update>;
+const mockUpdate = prisma.user.update as MockedFunction<
+  typeof prisma.user.update
+>;
 
 describe('promoteAdminIfMatch', () => {
   const savedAdminEmail = process.env.ADMIN_EMAIL;
@@ -195,10 +200,10 @@ Résultat attendu : FAIL — `promoteAdminIfMatch` n'est pas encore exportée.
 Remplacer le contenu de `lib/auth.ts` :
 
 ```ts
-import { betterAuth } from "better-auth";
-import { prismaAdapter } from "better-auth/adapters/prisma";
-import prisma from "@/lib/prisma";
-import { nextCookies } from "better-auth/next-js";
+import { betterAuth } from 'better-auth';
+import { prismaAdapter } from 'better-auth/adapters/prisma';
+import prisma from '@/lib/prisma';
+import { nextCookies } from 'better-auth/next-js';
 
 export async function promoteAdminIfMatch(user: { id: string; email: string }) {
   const adminEmail = process.env.ADMIN_EMAIL;
@@ -212,7 +217,7 @@ export async function promoteAdminIfMatch(user: { id: string; email: string }) {
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
-    provider: "postgresql",
+    provider: 'postgresql',
   }),
   socialProviders: {
     google: {
@@ -251,6 +256,7 @@ rtk git commit -m "feat: export promoteAdminIfMatch and wire databaseHooks in Be
 ## Task 4 — Dashboard layout (TDD)
 
 **Files:**
+
 - Create: `app/(dashboard)/layout.tsx`
 - Create: `app/(dashboard)/layout.test.tsx`
 
@@ -282,13 +288,8 @@ vi.mock('next/headers', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({
-    href,
-    children,
-  }: {
-    href: string;
-    children: React.ReactNode;
-  }) => React.createElement('a', { href }, children),
+  default: ({ href, children }: { href: string; children: React.ReactNode }) =>
+    React.createElement('a', { href }, children),
 }));
 
 vi.mock('@/lib/auth', () => ({
@@ -429,6 +430,7 @@ rtk git commit -m "feat: add dashboard layout with session guard (admin only)"
 ## Task 5 — Page login (TDD)
 
 **Files:**
+
 - Create: `app/(public)/login/login-button.tsx`
 - Create: `app/(public)/login/page.tsx`
 - Create: `app/(public)/login/page.test.tsx`
@@ -470,7 +472,8 @@ vi.mock('@/lib/auth', () => ({
 
 // Évite l'import de authClient (client-only) dans le contexte node
 vi.mock('./login-button', () => ({
-  default: () => React.createElement('button', null, 'Se connecter avec Google'),
+  default: () =>
+    React.createElement('button', null, 'Se connecter avec Google'),
 }));
 
 import { auth } from '@/lib/auth';
@@ -522,7 +525,10 @@ export default function LoginButton() {
   return (
     <button
       onClick={() =>
-        authClient.signIn.social({ provider: 'google', callbackURL: '/dashboard' })
+        authClient.signIn.social({
+          provider: 'google',
+          callbackURL: '/dashboard',
+        })
       }
       className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
     >
@@ -555,7 +561,9 @@ export default async function LoginPage() {
         <h1 className="mb-2 text-2xl font-bold text-gray-900">
           EBA Coffee Shop
         </h1>
-        <p className="mb-8 text-sm text-gray-500">Accès réservé aux administrateurs</p>
+        <p className="mb-8 text-sm text-gray-500">
+          Accès réservé aux administrateurs
+        </p>
         <LoginButton />
       </div>
     </main>
@@ -583,6 +591,7 @@ rtk git commit -m "feat: add login page with Google OAuth redirect guard"
 ## Task 6 — Page d'accueil dashboard minimale
 
 **Files:**
+
 - Create: `app/(dashboard)/dashboard/page.tsx`
 
 - [ ] **Step 1 : Créer la page**
@@ -623,11 +632,11 @@ rtk git commit -m "feat: add minimal dashboard home page"
 
 ## Vérification de couverture spec
 
-| Test spec F5 | Couvert par |
-|---|---|
-| `GET /dashboard` sans session → redirect `/login` | Task 4 — layout test |
-| `GET /dashboard` avec session `USER` → redirect `/` | Task 4 — layout test |
-| `GET /dashboard` avec session `ADMIN` → 200 | Task 4 — layout test |
-| `GET /login` avec session existante → redirect `/dashboard` | Task 5 — login page test |
-| Email = `ADMIN_EMAIL` → rôle `ADMIN` après login | Task 3 — auth.test.ts |
-| Email différent → rôle `USER` (défaut Prisma) | Task 3 — "n'appelle pas prisma si email différent" |
+| Test spec F5                                                | Couvert par                                        |
+| ----------------------------------------------------------- | -------------------------------------------------- |
+| `GET /dashboard` sans session → redirect `/login`           | Task 4 — layout test                               |
+| `GET /dashboard` avec session `USER` → redirect `/`         | Task 4 — layout test                               |
+| `GET /dashboard` avec session `ADMIN` → 200                 | Task 4 — layout test                               |
+| `GET /login` avec session existante → redirect `/dashboard` | Task 5 — login page test                           |
+| Email = `ADMIN_EMAIL` → rôle `ADMIN` après login            | Task 3 — auth.test.ts                              |
+| Email différent → rôle `USER` (défaut Prisma)               | Task 3 — "n'appelle pas prisma si email différent" |

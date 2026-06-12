@@ -74,10 +74,11 @@ export const expenseInputSchema = z.object({
 export type ExpenseInput = z.infer<typeof expenseInputSchema>;
 
 // Mise à jour partielle : tous les champs deviennent optionnels.
-export const expenseUpdateSchema = expenseInputSchema.partial().refine(
-  (v) => Object.values(v).some((x) => x !== undefined),
-  { message: 'Au moins un champ à mettre à jour est requis' }
-);
+export const expenseUpdateSchema = expenseInputSchema
+  .partial()
+  .refine((v) => Object.values(v).some((x) => x !== undefined), {
+    message: 'Au moins un champ à mettre à jour est requis',
+  });
 
 export type ExpenseUpdateInput = z.infer<typeof expenseUpdateSchema>;
 

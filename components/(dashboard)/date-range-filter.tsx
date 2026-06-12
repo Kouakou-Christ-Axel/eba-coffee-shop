@@ -4,10 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  todayDateString,
-  shiftDateString,
-} from '@/lib/timezone';
+import { todayDateString, shiftDateString } from '@/lib/timezone';
 
 export type RangePreset = {
   label: string;

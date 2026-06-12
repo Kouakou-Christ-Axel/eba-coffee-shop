@@ -50,7 +50,9 @@ export function DonutChart({
           content={<ChartTooltipContent nameKey="key" hideLabel />}
         />
         <Pie
-          data={hasData ? data : [{ key: 'empty', value: 1, fill: 'var(--muted)' }]}
+          data={
+            hasData ? data : [{ key: 'empty', value: 1, fill: 'var(--muted)' }]
+          }
           dataKey="value"
           nameKey="key"
           innerRadius={60}

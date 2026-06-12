@@ -34,7 +34,11 @@ vi.mock('./login-button', () => ({
     React.createElement(
       'form',
       null,
-      React.createElement('button', { 'data-redirect': redirectTo }, 'Recevoir un code')
+      React.createElement(
+        'button',
+        { 'data-redirect': redirectTo },
+        'Recevoir un code'
+      )
     ),
 }));
 

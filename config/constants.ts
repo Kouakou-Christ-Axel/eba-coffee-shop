@@ -71,3 +71,13 @@ export const EXPENSE_CATEGORY_NAME_MAX = 50;
 export const EXPENSE_SUPPLIER_MAX = 100;
 export const EXPENSE_NOTE_MAX = 500;
 export const EXPENSE_AMOUNT_MAX = 100_000_000;
+
+/**
+ * Investissements (apports / financements). Longueurs max des champs et plafond
+ * de montant. Le plafond est plus élevé que celui des dépenses : un apport en
+ * capital ou un prêt peut représenter une somme importante (en francs CFA).
+ */
+export const INVESTMENT_SOURCE_NAME_MAX = 50;
+export const INVESTMENT_FINANCIER_MAX = 100;
+export const INVESTMENT_NOTE_MAX = 500;
+export const INVESTMENT_AMOUNT_MAX = 1_000_000_000;

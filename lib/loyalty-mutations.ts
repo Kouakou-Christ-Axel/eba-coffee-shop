@@ -68,7 +68,12 @@ export async function awardLoyaltyForOrder(
 
   for (const r of rewards) {
     await tx.loyaltyReward.create({
-      data: { customerId, tier: r.tier, capAmount: r.capAmount, earnedOrderId: orderId },
+      data: {
+        customerId,
+        tier: r.tier,
+        capAmount: r.capAmount,
+        earnedOrderId: orderId,
+      },
     });
     await tx.loyaltyLedger.create({
       data: {

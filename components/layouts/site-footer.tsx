@@ -5,10 +5,7 @@ import React from 'react';
 import { Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { MapPin, MessageCircle, Mail } from 'lucide-react';
-import {
-  IconBrandInstagram,
-  IconBrandTiktok,
-} from '@tabler/icons-react';
+import { IconBrandInstagram, IconBrandTiktok } from '@tabler/icons-react';
 import { brandConfig } from '@/config/brand.config';
 
 const socialItems = [

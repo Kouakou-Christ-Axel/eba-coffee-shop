@@ -11,10 +11,7 @@ describe('toCsv', () => {
   });
 
   it('échappe les champs contenant ; " ou retour ligne', () => {
-    const csv = toCsv(
-      ['col'],
-      [['a;b'], ['dit "salut"'], ['ligne1\nligne2']]
-    );
+    const csv = toCsv(['col'], [['a;b'], ['dit "salut"'], ['ligne1\nligne2']]);
     expect(csv).toContain('"a;b"');
     expect(csv).toContain('"dit ""salut"""');
     expect(csv).toContain('"ligne1\nligne2"');

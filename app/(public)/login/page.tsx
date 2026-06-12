@@ -22,7 +22,8 @@ function buildContinueUrl(searchParams: SearchParams): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(searchParams)) {
     if (typeof value === 'string') params.set(key, value);
-    else if (Array.isArray(value) && value[0] != null) params.set(key, value[0]);
+    else if (Array.isArray(value) && value[0] != null)
+      params.set(key, value[0]);
   }
   if (params.get('client_id') && params.get('response_type')) {
     return `/api/auth/mcp/authorize?${params.toString()}`;

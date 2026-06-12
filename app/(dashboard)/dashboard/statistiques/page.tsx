@@ -2,6 +2,8 @@ import {
   Banknote,
   ClipboardList,
   Download,
+  Landmark,
+  PiggyBank,
   ShoppingBasket,
   TrendingDown,
   Wallet,
@@ -10,6 +12,7 @@ import {
 import { requireAdmin } from '@/lib/auth-helpers';
 import { getRangeStats, getDailySeries, getTopProducts } from '@/lib/stats';
 import { getExpenseSummary } from '@/lib/expenses';
+import { getInvestmentSummary } from '@/lib/investments';
 import {
   parseDateOnlyToUTC,
   todayDateString,
@@ -25,6 +28,7 @@ import { PaymentModeChart } from '@/components/(dashboard)/charts/payment-mode-c
 import { StatusBreakdownChart } from '@/components/(dashboard)/charts/status-breakdown-chart';
 import { TopProductsChart } from '@/components/(dashboard)/charts/top-products-chart';
 import { ExpensesByCategoryChart } from '@/components/(dashboard)/charts/expenses-by-category-chart';
+import { InvestmentsBySourceChart } from '@/components/(dashboard)/charts/investments-by-source-chart';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,13 +52,17 @@ export default async function StatistiquesPage({
   const from = parseDateOnlyToUTC(fromStr)!;
   const to = parseDateOnlyToUTC(toStr)!;
 
-  const [stats, series, topProducts, expenseSummary] = await Promise.all([
-    getRangeStats(from, to),
-    getDailySeries(from, to),
-    getTopProducts(from, to),
-    getExpenseSummary(from, to),
-  ]);
+  const [stats, series, topProducts, expenseSummary, investmentSummary] =
+    await Promise.all([
+      getRangeStats(from, to),
+      getDailySeries(from, to),
+      getTopProducts(from, to),
+      getExpenseSummary(from, to),
+      getInvestmentSummary(from, to),
+    ]);
 
+  // La marge nette d'exploitation reste CA − dépenses : les investissements
+  // (apports/financements) sont du capital, suivis dans un bloc séparé.
   const netMargin = stats.revenue - expenseSummary.total;
 
   return (
@@ -152,9 +160,7 @@ export default async function StatistiquesPage({
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">
-              CA par mode de paiement
-            </CardTitle>
+            <CardTitle className="text-base">CA par mode de paiement</CardTitle>
           </CardHeader>
           <CardContent>
             <PaymentModeChart revenueByMode={stats.revenueByPaymentMode} />
@@ -185,6 +191,43 @@ export default async function StatistiquesPage({
           </CardHeader>
           <CardContent>
             <ExpensesByCategoryChart data={expenseSummary.byCategory} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Investissements (apports/financements) — bloc séparé, n'entre pas dans
+          la marge nette d'exploitation. */}
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold">Investissements</h2>
+          <p className="text-sm text-muted-foreground">
+            Apports et financements injectés sur la période. Hors marge nette
+            d’exploitation.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <Kpi
+            label="Total investi"
+            value={`${priceFormatter.format(investmentSummary.total)} F`}
+            Icon={PiggyBank}
+          />
+          <Kpi
+            label="Restant dû"
+            value={`${priceFormatter.format(investmentSummary.totalOutstanding)} F`}
+            Icon={Landmark}
+            valueClassName={
+              investmentSummary.totalOutstanding > 0
+                ? 'text-amber-600'
+                : undefined
+            }
+          />
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Apports par source</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <InvestmentsBySourceChart data={investmentSummary.bySource} />
           </CardContent>
         </Card>
       </div>

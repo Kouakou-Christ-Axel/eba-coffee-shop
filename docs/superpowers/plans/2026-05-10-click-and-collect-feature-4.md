@@ -12,23 +12,24 @@
 
 ## Structure des fichiers
 
-| Action  | Fichier                                          | Responsabilité                                           |
-| ------- | ------------------------------------------------ | -------------------------------------------------------- |
-| Modify  | `package.json`                                   | Ajouter resend, @react-email/components, @react-email/render |
-| Modify  | `.env.schema`                                    | Déclarer RESEND_API_KEY et OWNER_EMAIL                   |
-| Create  | `lib/email.tsx`                                  | `sendNewOrderEmail(order)` — wrapper Resend              |
-| Create  | `lib/email.test.ts`                              | Tests unitaires de sendNewOrderEmail (Resend mocké)      |
-| Create  | `emails/new-order.tsx`                           | Template React Email pour le propriétaire                |
-| Create  | `emails/new-order.test.tsx`                      | Tests de contenu du template (renderToStaticMarkup)      |
-| Modify  | `app/api/commandes/route.ts`                     | Appel non-bloquant de sendNewOrderEmail après createOrder |
-| Modify  | `app/api/commandes/route.test.ts`                | Ajouter le test : échec email → ne cause pas un 500      |
-| Modify  | `docs/superpowers/specs/2026-05-10-click-and-collect-design.md` | Marquer F4 comme Terminé            |
+| Action | Fichier                                                         | Responsabilité                                               |
+| ------ | --------------------------------------------------------------- | ------------------------------------------------------------ |
+| Modify | `package.json`                                                  | Ajouter resend, @react-email/components, @react-email/render |
+| Modify | `.env.schema`                                                   | Déclarer RESEND_API_KEY et OWNER_EMAIL                       |
+| Create | `lib/email.tsx`                                                 | `sendNewOrderEmail(order)` — wrapper Resend                  |
+| Create | `lib/email.test.ts`                                             | Tests unitaires de sendNewOrderEmail (Resend mocké)          |
+| Create | `emails/new-order.tsx`                                          | Template React Email pour le propriétaire                    |
+| Create | `emails/new-order.test.tsx`                                     | Tests de contenu du template (renderToStaticMarkup)          |
+| Modify | `app/api/commandes/route.ts`                                    | Appel non-bloquant de sendNewOrderEmail après createOrder    |
+| Modify | `app/api/commandes/route.test.ts`                               | Ajouter le test : échec email → ne cause pas un 500          |
+| Modify | `docs/superpowers/specs/2026-05-10-click-and-collect-design.md` | Marquer F4 comme Terminé                                     |
 
 ---
 
 ## Task 0 — Installer les dépendances + configurer l'environnement
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `.env.schema`
 
@@ -64,6 +65,7 @@ rtk git add package.json bun.lock .env.schema && rtk git commit -m "chore: add r
 ## Task 1 — TDD : `lib/email.tsx`
 
 **Files:**
+
 - Create: `lib/email.test.ts`
 - Create: `lib/email.tsx`
 
@@ -127,7 +129,7 @@ describe('sendNewOrderEmail', () => {
     );
   });
 
-  it('envoie l\'email au bon destinataire (OWNER_EMAIL)', async () => {
+  it("envoie l'email au bon destinataire (OWNER_EMAIL)", async () => {
     process.env.OWNER_EMAIL = 'owner@test.com';
     mockSend.mockResolvedValue({ data: { id: 'email-id' }, error: null });
 
@@ -138,7 +140,7 @@ describe('sendNewOrderEmail', () => {
     );
   });
 
-  it('le sujet de l\'email contient la référence de commande', async () => {
+  it("le sujet de l'email contient la référence de commande", async () => {
     process.env.OWNER_EMAIL = 'owner@test.com';
     mockSend.mockResolvedValue({ data: { id: 'email-id' }, error: null });
 
@@ -191,13 +193,7 @@ Voici le fichier de test complet et corrigé :
 
 ```ts
 // lib/email.test.ts
-import {
-  describe,
-  it,
-  expect,
-  vi,
-  beforeEach,
-} from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockSend = vi.fn();
 
@@ -252,7 +248,7 @@ describe('sendNewOrderEmail', () => {
     );
   });
 
-  it('le sujet de l\'email contient la référence de commande', async () => {
+  it("le sujet de l'email contient la référence de commande", async () => {
     process.env.OWNER_EMAIL = 'owner@test.com';
 
     await sendNewOrderEmail(mockOrder);
@@ -324,9 +320,7 @@ export async function sendNewOrderEmail(order: OrderData): Promise<void> {
   }
 
   const resend = new Resend(process.env.RESEND_API_KEY);
-  const html = await renderAsync(
-    React.createElement(NewOrderEmail, { order })
-  );
+  const html = await renderAsync(React.createElement(NewOrderEmail, { order }));
 
   await resend.emails.send({
     from: 'EBA Coffee Shop <noreply@ebacoffeeshop.ci>',
@@ -367,6 +361,7 @@ rtk git add lib/email.tsx lib/email.test.ts && rtk git commit -m "feat: add send
 ## Task 2 — TDD : `emails/new-order.tsx`
 
 **Files:**
+
 - Create: `emails/new-order.test.tsx`
 - Create: `emails/new-order.tsx`
 
@@ -492,7 +487,9 @@ export default function NewOrderEmail({ order }: Props) {
   return (
     <Html lang="fr">
       <Body style={{ fontFamily: 'sans-serif', color: '#333' }}>
-        <Container style={{ maxWidth: '600px', margin: '0 auto', padding: '24px' }}>
+        <Container
+          style={{ maxWidth: '600px', margin: '0 auto', padding: '24px' }}
+        >
           <Heading as="h1">🛎️ Nouvelle commande EBA Coffee Shop</Heading>
 
           <Text>
@@ -523,9 +520,7 @@ export default function NewOrderEmail({ order }: Props) {
             </Text>
           ))}
           <Text>
-            <strong>
-              Total : {priceFormatter.format(order.total)} FCFA
-            </strong>
+            <strong>Total : {priceFormatter.format(order.total)} FCFA</strong>
           </Text>
 
           <Hr />
@@ -574,6 +569,7 @@ rtk git add "emails/new-order.tsx" "emails/new-order.test.tsx" && rtk git commit
 ## Task 3 — Modifier la route + ajouter le test d'intégration email
 
 **Files:**
+
 - Modify: `app/api/commandes/route.test.ts`
 - Modify: `app/api/commandes/route.ts`
 
@@ -829,6 +825,7 @@ rtk git add "app/api/commandes/route.ts" "app/api/commandes/route.test.ts" && rt
 ## Task 4 — Mettre à jour le statut dans la spec
 
 **Files:**
+
 - Modify: `docs/superpowers/specs/2026-05-10-click-and-collect-design.md`
 
 - [ ] **Step 1 : Mettre à jour la table des statuts**

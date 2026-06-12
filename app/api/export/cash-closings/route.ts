@@ -36,7 +36,9 @@ export async function GET(req: NextRequest) {
     : today;
   if (fromStr > toStr) [fromStr, toStr] = [toStr, fromStr];
 
-  const from = isAll ? parseDateOnlyToUTC('2000-01-01')! : parseDateOnlyToUTC(fromStr)!;
+  const from = isAll
+    ? parseDateOnlyToUTC('2000-01-01')!
+    : parseDateOnlyToUTC(fromStr)!;
   const to = parseDateOnlyToUTC(toStr)!;
 
   const closings = await listCashClosings(from, to);

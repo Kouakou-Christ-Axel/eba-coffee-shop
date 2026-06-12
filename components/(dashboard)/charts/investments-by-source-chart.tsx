@@ -9,19 +9,19 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart';
 
-type Product = { name: string; quantity: number; revenue: number };
+type Slice = { name: string; amount: number };
 
 const config = {
-  quantity: { label: 'Quantité', color: 'var(--chart-1)' },
+  amount: { label: 'Apports (F)', color: 'var(--chart-2)' },
 } satisfies ChartConfig;
 
-export function TopProductsChart({ data }: { data: Product[] }) {
+export function InvestmentsBySourceChart({ data }: { data: Slice[] }) {
   const reduced = useReducedMotion();
 
   if (data.length === 0) {
     return (
       <div className="flex h-[240px] items-center justify-center text-sm text-muted-foreground">
-        Aucune vente sur la période.
+        Aucun apport sur la période.
       </div>
     );
   }
@@ -33,7 +33,7 @@ export function TopProductsChart({ data }: { data: Product[] }) {
       style={{ height: Math.max(200, data.length * 40) }}
     >
       <BarChart data={data} layout="vertical" margin={{ left: 8, right: 16 }}>
-        <XAxis type="number" dataKey="quantity" hide />
+        <XAxis type="number" dataKey="amount" hide />
         <YAxis
           type="category"
           dataKey="name"
@@ -44,8 +44,8 @@ export function TopProductsChart({ data }: { data: Product[] }) {
         />
         <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
         <Bar
-          dataKey="quantity"
-          fill="var(--color-quantity)"
+          dataKey="amount"
+          fill="var(--color-amount)"
           radius={[0, 6, 6, 0]}
           isAnimationActive={!reduced}
         />

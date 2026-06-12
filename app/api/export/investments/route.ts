@@ -1,10 +1,11 @@
-// app/api/export/expenses/route.ts
+// app/api/export/investments/route.ts
 //
-// Export CSV des dépenses sur une plage de dates + catégorie (admin-only).
+// Export CSV des investissements (apports / financements) sur une plage de dates
+// + source (admin-only). Miroir de app/api/export/expenses/route.ts.
 
 import type { NextRequest } from 'next/server';
 import { getCurrentSession } from '@/lib/auth-helpers';
-import { listExpenses } from '@/lib/expenses';
+import { listInvestments } from '@/lib/investments';
 import { toCsv, csvResponse } from '@/lib/csv';
 import {
   parseDateOnlyToUTC,
@@ -51,33 +52,44 @@ export async function GET(req: NextRequest) {
     dateTo = parseDateOnlyToUTC(toStr);
   }
 
-  const categoryId = sp.get('category') || undefined;
-  const { expenses, total } = await listExpenses({
+  const sourceId = sp.get('source') || undefined;
+  const { investments, total, totalOutstanding } = await listInvestments({
     dateFrom,
     dateTo,
-    categoryId,
+    sourceId,
   });
 
   const headers = [
     'Date',
-    'Catégorie',
+    'Source',
     'Montant (FCFA)',
-    'Paiement',
-    'Fournisseur',
+    'Canal',
+    'Financeur',
+    'À rembourser',
+    'Remboursé (FCFA)',
+    'Restant dû (FCFA)',
+    'Échéance',
     'Note',
     'Justificatif',
   ];
-  const rows = expenses.map((e) => [
-    formatLocalDateOnly(e.date),
-    e.category.name,
-    e.amount,
-    PAYMENT_LABELS[e.paymentMethod] ?? e.paymentMethod,
-    e.supplier ?? '',
-    e.note ?? '',
-    e.receiptUrl ?? '',
+  const rows = investments.map((i) => [
+    formatLocalDateOnly(i.date),
+    i.source.name,
+    i.amount,
+    PAYMENT_LABELS[i.paymentMethod] ?? i.paymentMethod,
+    i.financier ?? '',
+    i.reimbursable ? 'Oui' : 'Non',
+    i.reimbursable ? i.amountRepaid : '',
+    i.reimbursable ? Math.max(0, i.amount - i.amountRepaid) : '',
+    i.dueDate ? formatLocalDateOnly(i.dueDate) : '',
+    i.note ?? '',
+    i.documentUrl ?? '',
   ]);
-  // Ligne de total.
-  rows.push(['', 'TOTAL', total, '', '', '', '']);
+  // Ligne de total (montant investi + restant dû).
+  rows.push(['', 'TOTAL', total, '', '', '', '', totalOutstanding, '', '', '']);
 
-  return csvResponse(`depenses_${fromStr}_${toStr}.csv`, toCsv(headers, rows));
+  return csvResponse(
+    `investissements_${fromStr}_${toStr}.csv`,
+    toCsv(headers, rows)
+  );
 }

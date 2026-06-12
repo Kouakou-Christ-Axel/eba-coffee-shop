@@ -224,7 +224,11 @@ export function ExpenseForm({ categories }: { categories: Category[] }) {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <Button onClick={submit} disabled={busy} className={cn(busy && 'opacity-70')}>
+      <Button
+        onClick={submit}
+        disabled={busy}
+        className={cn(busy && 'opacity-70')}
+      >
         {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
         Enregistrer la dépense
       </Button>
