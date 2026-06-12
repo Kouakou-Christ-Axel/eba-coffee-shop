@@ -168,3 +168,37 @@ export const updateOrderSchema = z
   });
 
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
+
+// ─── setOrderCustomerSchema ───────────────────────────────────────────────────
+//
+// Association (a posteriori) d'une commande existante à un client (CRM). Trois
+// usages couverts par un seul schéma :
+//   - lier à un client existant      → { customerId: "<id>" }
+//   - lier via téléphone (upsert)    → { phone: "07…", name?: "…" }
+//   - détacher (rendre anonyme)      → { customerId: null }
+//
+// La logique de résolution (priorité customerId > phone, upsert, fidélité) vit
+// dans `setOrderCustomer` (lib/order-mutations.ts).
+
+export const setOrderCustomerSchema = z
+  .object({
+    // `null` = détacher ; chaîne non vide = lier au client existant.
+    customerId: z.string().min(1).nullable().optional(),
+    phone: z
+      .string()
+      .trim()
+      .min(1, 'Téléphone requis')
+      .max(30, 'Téléphone trop long (max 30 caractères)')
+      .optional(),
+    name: z
+      .string()
+      .trim()
+      .max(50, 'Nom trop long (max 50 caractères)')
+      .nullable()
+      .optional(),
+  })
+  .refine((d) => d.customerId !== undefined || d.phone !== undefined, {
+    message: 'customerId ou téléphone requis',
+  });
+
+export type SetOrderCustomerInput = z.infer<typeof setOrderCustomerSchema>;

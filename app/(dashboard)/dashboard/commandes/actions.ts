@@ -6,7 +6,9 @@ import {
   setOrderStatus,
   setOrderPayment,
   updateOrderItems,
+  setOrderCustomer,
 } from '@/lib/order-mutations';
+import type { SetOrderCustomerInput } from '@/lib/schemas/order';
 import type { CartItem } from '@/lib/cart-store';
 import type {
   OrderStatus,
@@ -50,4 +52,22 @@ export async function updateOrderItemsAction(
 
   await updateOrderItems(id, items);
   revalidateOrder(id);
+}
+
+/**
+ * Associe (ou détache) un client à une commande depuis la page de détail.
+ * Revalide aussi la fiche client concernée (ses stats / commandes changent).
+ */
+export async function setOrderCustomerAction(
+  id: string,
+  input: SetOrderCustomerInput
+): Promise<void> {
+  const session = await requireCashier();
+
+  const { customerId } = await setOrderCustomer(id, input, session.user.id);
+  revalidateOrder(id);
+  if (customerId) {
+    revalidatePath(`/dashboard/clients/${customerId}`);
+    revalidatePath('/dashboard/clients');
+  }
 }
