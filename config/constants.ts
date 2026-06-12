@@ -71,6 +71,8 @@ export const EXPENSE_CATEGORY_NAME_MAX = 50;
 export const EXPENSE_SUPPLIER_MAX = 100;
 export const EXPENSE_NOTE_MAX = 500;
 export const EXPENSE_AMOUNT_MAX = 100_000_000;
+/** Libellé d'un modèle de dépense récurrente (ex. « Loyer »). */
+export const EXPENSE_RECURRING_LABEL_MAX = 50;
 
 /**
  * Investissements (apports / financements). Longueurs max des champs et plafond

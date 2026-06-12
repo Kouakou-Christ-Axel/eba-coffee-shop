@@ -365,10 +365,29 @@ model ExpenseCategory {
   name      String    @unique
   sortOrder Int       @default(0)
   expenses  Expense[]
+  recurring RecurringExpense[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   @@map("expense_category")
+}
+
+// Modèle (template) de dépense récurrente : sert d'aide-mémoire. On alerte si
+// aucune dépense de la même catégorie n'a été saisie dans le mois civil courant
+// (loyer, abonnements, salaires…). Ne crée pas de dépense automatiquement.
+model RecurringExpense {
+  id             String          @id @default(cuid())
+  label          String // ex. « Loyer », « Internet »
+  categoryId     String
+  category       ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  expectedAmount Int? // montant indicatif (FCFA)
+  dayOfMonth     Int? // jour du mois indicatif (1-31)
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([categoryId])
+  @@map("recurring_expense")
 }
 
 model Expense {

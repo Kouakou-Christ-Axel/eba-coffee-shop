@@ -27,6 +27,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { todayDateString } from '@/lib/timezone';
 import { deleteExpenseAction } from './actions';
 import {
@@ -35,6 +36,7 @@ import {
   type ExpenseFormValues,
 } from './expense-form';
 import { CategoryManager } from './category-manager';
+import { RecurringManager, type RecurringRow } from './recurring-manager';
 
 type Category = { id: string; name: string };
 type CategoryWithCount = Category & { _count: { expenses: number } };
@@ -73,10 +75,12 @@ function rowToValues(
 export function ExpensesTable({
   expenses,
   categories,
+  recurring,
   total,
 }: {
   expenses: ExpenseRow[];
   categories: CategoryWithCount[];
+  recurring: RecurringRow[];
   total: number;
 }) {
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -296,13 +300,27 @@ export function ExpensesTable({
       <Sheet open={categoriesOpen} onOpenChange={setCategoriesOpen}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           <SheetHeader>
-            <SheetTitle>Catégories de dépense</SheetTitle>
+            <SheetTitle>Catégories & récurrentes</SheetTitle>
             <SheetDescription>
-              Emballages, loyer, salaires, matières premières…
+              Catégories de dépense et modèles récurrents (loyer, abonnements…).
             </SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-4">
-            <CategoryManager categories={categories} />
+            <Tabs defaultValue="categories">
+              <TabsList className="mb-4">
+                <TabsTrigger value="categories">Catégories</TabsTrigger>
+                <TabsTrigger value="recurring">Récurrentes</TabsTrigger>
+              </TabsList>
+              <TabsContent value="categories">
+                <CategoryManager categories={categories} />
+              </TabsContent>
+              <TabsContent value="recurring">
+                <RecurringManager
+                  recurring={recurring}
+                  categories={plainCategories}
+                />
+              </TabsContent>
+            </Tabs>
           </div>
         </SheetContent>
       </Sheet>

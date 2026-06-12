@@ -2,6 +2,10 @@ import { Download, Layers, ReceiptText, Sigma, Wallet } from 'lucide-react';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { listExpenses, listExpenseCategories } from '@/lib/expenses';
 import {
+  listRecurringExpenses,
+  getMissingRecurringExpenses,
+} from '@/lib/recurring-expenses';
+import {
   parseDateOnlyToUTC,
   todayDateString,
   shiftDateString,
@@ -15,6 +19,7 @@ import { ExpensesByCategoryChart } from '@/components/(dashboard)/charts/expense
 import { ExpensesTable, type ExpenseRow } from './expenses-table';
 import { CategoryFilter } from './category-filter';
 import { ExpenseFilters } from './expense-filters';
+import { RecurringAlert } from './recurring-alert';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,10 +74,27 @@ export default async function DepensesPage({
     : undefined;
   const search = params.search?.trim() || undefined;
 
-  const [categories, { expenses, total, count }] = await Promise.all([
+  const [
+    categories,
+    { expenses, total, count },
+    recurringList,
+    missingRecurring,
+  ] = await Promise.all([
     listExpenseCategories(),
     listExpenses({ dateFrom, dateTo, categoryId, paymentMethod, search }),
+    listRecurringExpenses(),
+    getMissingRecurringExpenses(),
   ]);
+
+  const recurringRows = recurringList.map((r) => ({
+    id: r.id,
+    label: r.label,
+    categoryId: r.categoryId,
+    categoryName: r.category.name,
+    expectedAmount: r.expectedAmount,
+    active: r.active,
+  }));
+  const plainCategories = categories.map((c) => ({ id: c.id, name: c.name }));
 
   // Ventilation par catégorie (sur la sélection courante) : graphique + KPI.
   const byCategoryMap = new Map<string, number>();
@@ -121,6 +143,8 @@ export default async function DepensesPage({
           Suivi des dépenses catégorisées du restaurant.
         </p>
       </div>
+
+      <RecurringAlert missing={missingRecurring} categories={plainCategories} />
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -171,6 +195,7 @@ export default async function DepensesPage({
           <ExpensesTable
             expenses={rows}
             categories={categories}
+            recurring={recurringRows}
             total={total}
           />
         </CardContent>
