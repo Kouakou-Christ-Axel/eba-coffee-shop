@@ -106,7 +106,7 @@ export async function saveImageFromBase64(
     );
   }
   if (!isAllowedImageMimeType(mime)) {
-    throw new Error('Format non supporté (JPEG, PNG, WebP, AVIF uniquement)');
+    throw new Error('Format non supporté (JPEG, PNG, WebP, AVIF, HEIC)');
   }
 
   return saveImage(Buffer.from(data, 'base64'), mime, subdir);
