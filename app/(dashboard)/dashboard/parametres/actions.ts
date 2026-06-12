@@ -27,7 +27,10 @@ export async function savePickupSettings(
   await requireAdmin();
   const parsed = pickupSettingsSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Données invalides' };
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Données invalides',
+    };
   }
   await updatePickupSettings(parsed.data);
   revalidatePath('/dashboard/parametres');

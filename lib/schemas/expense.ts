@@ -10,6 +10,7 @@ import {
   EXPENSE_SUPPLIER_MAX,
   EXPENSE_NOTE_MAX,
   EXPENSE_AMOUNT_MAX,
+  EXPENSE_RECURRING_LABEL_MAX,
 } from '@/config/constants';
 import { imageUrlSchema } from '@/lib/schemas/upload';
 
@@ -74,18 +75,53 @@ export const expenseInputSchema = z.object({
 export type ExpenseInput = z.infer<typeof expenseInputSchema>;
 
 // Mise à jour partielle : tous les champs deviennent optionnels.
-export const expenseUpdateSchema = expenseInputSchema.partial().refine(
-  (v) => Object.values(v).some((x) => x !== undefined),
-  { message: 'Au moins un champ à mettre à jour est requis' }
-);
+export const expenseUpdateSchema = expenseInputSchema
+  .partial()
+  .refine((v) => Object.values(v).some((x) => x !== undefined), {
+    message: 'Au moins un champ à mettre à jour est requis',
+  });
 
 export type ExpenseUpdateInput = z.infer<typeof expenseUpdateSchema>;
 
-// Filtres de liste (plage de jours civils + catégorie).
+// Filtres de liste (plage de jours civils + catégorie + paiement + recherche).
 export const expenseFiltersSchema = z.object({
   from: dateOnly.optional(),
   to: dateOnly.optional(),
   categoryId: z.string().min(1).optional(),
+  paymentMethod: expensePaymentMethodSchema.optional(),
+  search: z.string().trim().min(1).optional(),
 });
 
 export type ExpenseFiltersInput = z.infer<typeof expenseFiltersSchema>;
+
+// ─── Dépenses récurrentes (modèles / aide-mémoire) ─────────────────────────────
+
+export const recurringExpenseInputSchema = z.object({
+  label: z
+    .string()
+    .trim()
+    .min(1, 'Libellé requis')
+    .max(EXPENSE_RECURRING_LABEL_MAX, 'Libellé trop long'),
+  categoryId: z.string().min(1, 'Catégorie requise'),
+  expectedAmount: z
+    .number()
+    .int('Montant entier (FCFA)')
+    .positive('Montant invalide')
+    .max(EXPENSE_AMOUNT_MAX, 'Montant trop élevé')
+    .nullable()
+    .optional(),
+  dayOfMonth: z.number().int().min(1).max(31).nullable().optional(),
+  active: z.boolean().optional(),
+});
+
+export type RecurringExpenseInput = z.infer<typeof recurringExpenseInputSchema>;
+
+export const recurringExpenseUpdateSchema = recurringExpenseInputSchema
+  .partial()
+  .refine((v) => Object.values(v).some((x) => x !== undefined), {
+    message: 'Au moins un champ à mettre à jour est requis',
+  });
+
+export type RecurringExpenseUpdateInput = z.infer<
+  typeof recurringExpenseUpdateSchema
+>;

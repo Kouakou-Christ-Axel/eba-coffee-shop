@@ -10,11 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { LoyaltySettings } from '@/lib/loyalty-settings';
 import { saveLoyaltySettings } from './actions';
 
-export function LoyaltySettingsForm({
-  initial,
-}: {
-  initial: LoyaltySettings;
-}) {
+export function LoyaltySettingsForm({ initial }: { initial: LoyaltySettings }) {
   const [s, setS] = useState<LoyaltySettings>(initial);
   const [pending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<{

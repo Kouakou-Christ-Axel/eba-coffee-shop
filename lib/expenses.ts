@@ -11,12 +11,18 @@ export interface ExpenseFilters {
   dateFrom?: Date;
   dateTo?: Date;
   categoryId?: string;
+  /** Mode de paiement (CASH/WAVE/BANK/OTHER). */
+  paymentMethod?: Prisma.ExpenseWhereInput['paymentMethod'];
+  /** Recherche texte (fournisseur ou note, insensible à la casse). */
+  search?: string;
 }
 
 function buildExpenseWhere({
   dateFrom,
   dateTo,
   categoryId,
+  paymentMethod,
+  search,
 }: ExpenseFilters): Prisma.ExpenseWhereInput {
   const where: Prisma.ExpenseWhereInput = {};
   if (dateFrom || dateTo) {
@@ -26,6 +32,14 @@ function buildExpenseWhere({
     };
   }
   if (categoryId) where.categoryId = categoryId;
+  if (paymentMethod) where.paymentMethod = paymentMethod;
+  const q = search?.trim();
+  if (q) {
+    where.OR = [
+      { supplier: { contains: q, mode: 'insensitive' } },
+      { note: { contains: q, mode: 'insensitive' } },
+    ];
+  }
   return where;
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import {
   Copy,
   Loader2,
@@ -27,61 +27,66 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { todayDateString } from '@/lib/timezone';
-import { deleteExpenseAction } from './actions';
+import { deleteInvestmentAction } from './actions';
 import {
-  ExpenseForm,
-  emptyExpense,
-  type ExpenseFormValues,
-} from './expense-form';
-import { CategoryManager } from './category-manager';
-import { RecurringManager, type RecurringRow } from './recurring-manager';
+  InvestmentForm,
+  emptyInvestment,
+  type InvestmentFormValues,
+} from './investment-form';
+import { SourceManager } from './source-manager';
 
-type Category = { id: string; name: string };
-type CategoryWithCount = Category & { _count: { expenses: number } };
+type Source = { id: string; name: string };
+type SourceWithCount = Source & { _count: { investments: number } };
 
-export type ExpenseRow = {
+export type InvestmentRow = {
   id: string;
   date: string;
   amount: number;
   paymentLabel: string;
   paymentMethod: string;
-  supplier: string | null;
+  sourceId: string;
+  sourceName: string;
+  financier: string | null;
   note: string | null;
-  receiptUrl: string | null;
-  categoryId: string;
-  categoryName: string;
+  documentUrl: string | null;
+  reimbursable: boolean;
+  amountRepaid: number;
+  outstanding: number;
+  dueDate: string | null;
 };
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
 
 function rowToValues(
-  r: ExpenseRow,
+  r: InvestmentRow,
   mode: 'edit' | 'duplicate'
-): ExpenseFormValues {
+): InvestmentFormValues {
   return {
     id: mode === 'edit' ? r.id : undefined,
     date: mode === 'duplicate' ? todayDateString() : r.date,
     amount: String(r.amount),
-    categoryId: r.categoryId,
+    sourceId: r.sourceId,
     paymentMethod: r.paymentMethod,
-    supplier: r.supplier ?? '',
+    financier: r.financier ?? '',
     note: r.note ?? '',
-    receiptUrl: mode === 'duplicate' ? null : r.receiptUrl,
+    documentUrl: mode === 'duplicate' ? null : r.documentUrl,
+    reimbursable: r.reimbursable,
+    amountRepaid: r.reimbursable ? String(r.amountRepaid) : '',
+    dueDate: r.dueDate ?? '',
   };
 }
 
-export function ExpensesTable({
-  expenses,
-  categories,
-  recurring,
+export function InvestmentsTable({
+  investments,
+  sources,
   total,
+  totalOutstanding,
 }: {
-  expenses: ExpenseRow[];
-  categories: CategoryWithCount[];
-  recurring: RecurringRow[];
+  investments: InvestmentRow[];
+  sources: SourceWithCount[];
   total: number;
+  totalOutstanding: number;
 }) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -90,39 +95,30 @@ export function ExpensesTable({
   // Sheet de saisie (création / édition / duplication).
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
-  const [formInitial, setFormInitial] = useState<ExpenseFormValues>(() =>
-    emptyExpense(categories)
+  const [formInitial, setFormInitial] = useState<InvestmentFormValues>(() =>
+    emptyInvestment(sources)
   );
-  // Sheet de gestion des catégories.
-  const [categoriesOpen, setCategoriesOpen] = useState(false);
+  // Sheet de gestion des sources.
+  const [sourcesOpen, setSourcesOpen] = useState(false);
 
-  const plainCategories: Category[] = categories.map((c) => ({
-    id: c.id,
-    name: c.name,
+  const plainSources: Source[] = sources.map((s) => ({
+    id: s.id,
+    name: s.name,
   }));
-
-  // Sous-totaux par mode de paiement sur la sélection courante.
-  const byPaymentMethod = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const e of expenses) {
-      map.set(e.paymentLabel, (map.get(e.paymentLabel) ?? 0) + e.amount);
-    }
-    return [...map.entries()].sort((a, b) => b[1] - a[1]);
-  }, [expenses]);
 
   function openCreate() {
     setFormMode('create');
-    setFormInitial(emptyExpense(categories));
+    setFormInitial(emptyInvestment(sources));
     setFormOpen(true);
   }
 
-  function openEdit(r: ExpenseRow) {
+  function openEdit(r: InvestmentRow) {
     setFormMode('edit');
     setFormInitial(rowToValues(r, 'edit'));
     setFormOpen(true);
   }
 
-  function openDuplicate(r: ExpenseRow) {
+  function openDuplicate(r: InvestmentRow) {
     setFormMode('create');
     setFormInitial(rowToValues(r, 'duplicate'));
     setFormOpen(true);
@@ -132,7 +128,7 @@ export function ExpensesTable({
     setError(null);
     setPendingId(id);
     startTransition(async () => {
-      const r = await deleteExpenseAction(id);
+      const r = await deleteInvestmentAction(id);
       setPendingId(null);
       if (!r.ok) setError(r.error);
     });
@@ -144,14 +140,14 @@ export function ExpensesTable({
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setCategoriesOpen(true)}
+          onClick={() => setSourcesOpen(true)}
         >
           <Settings2 className="mr-1.5 h-4 w-4" />
-          Gérer les catégories
+          Gérer les sources
         </Button>
         <Button size="sm" onClick={openCreate}>
           <Plus className="mr-1.5 h-4 w-4" />
-          Nouvelle dépense
+          Nouvel apport
         </Button>
       </div>
 
@@ -162,36 +158,48 @@ export function ExpensesTable({
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>
-              <TableHead>Catégorie</TableHead>
+              <TableHead>Source</TableHead>
               <TableHead>Montant</TableHead>
-              <TableHead>Paiement</TableHead>
-              <TableHead>Fournisseur</TableHead>
-              <TableHead>Note</TableHead>
+              <TableHead>Canal</TableHead>
+              <TableHead>Financeur</TableHead>
+              <TableHead>Remboursement</TableHead>
               <TableHead>Justif.</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {expenses.map((e) => (
-              <TableRow key={e.id}>
+            {investments.map((i) => (
+              <TableRow key={i.id}>
                 <TableCell className="whitespace-nowrap font-mono text-sm">
-                  {e.date}
+                  {i.date}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{e.categoryName}</Badge>
+                  <Badge variant="secondary">{i.sourceName}</Badge>
                 </TableCell>
                 <TableCell className="tabular-nums">
-                  {priceFmt.format(e.amount)} F
+                  {priceFmt.format(i.amount)} F
                 </TableCell>
-                <TableCell className="text-sm">{e.paymentLabel}</TableCell>
-                <TableCell className="text-sm">{e.supplier ?? '—'}</TableCell>
-                <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">
-                  {e.note ?? '—'}
+                <TableCell className="text-sm">{i.paymentLabel}</TableCell>
+                <TableCell className="text-sm">{i.financier ?? '—'}</TableCell>
+                <TableCell className="text-sm">
+                  {!i.reimbursable ? (
+                    <span className="text-muted-foreground">
+                      Non remboursable
+                    </span>
+                  ) : i.outstanding === 0 ? (
+                    <Badge variant="outline" className="text-green-600">
+                      Soldé
+                    </Badge>
+                  ) : (
+                    <span className="tabular-nums">
+                      Reste {priceFmt.format(i.outstanding)} F
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell>
-                  {e.receiptUrl ? (
+                  {i.documentUrl ? (
                     <a
-                      href={e.receiptUrl}
+                      href={i.documentUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center text-primary hover:underline"
@@ -208,27 +216,27 @@ export function ExpensesTable({
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => openEdit(e)}
-                      aria-label="Modifier la dépense"
+                      onClick={() => openEdit(i)}
+                      aria-label="Modifier l’apport"
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => openDuplicate(e)}
-                      aria-label="Dupliquer la dépense"
+                      onClick={() => openDuplicate(i)}
+                      aria-label="Dupliquer l’apport"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => remove(e.id)}
-                      disabled={pendingId === e.id}
-                      aria-label="Supprimer la dépense"
+                      onClick={() => remove(i.id)}
+                      disabled={pendingId === i.id}
+                      aria-label="Supprimer l’apport"
                     >
-                      {pendingId === e.id ? (
+                      {pendingId === i.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -238,13 +246,13 @@ export function ExpensesTable({
                 </TableCell>
               </TableRow>
             ))}
-            {expenses.length === 0 && (
+            {investments.length === 0 && (
               <TableRow>
                 <TableCell
                   colSpan={8}
                   className="py-8 text-center text-sm text-muted-foreground"
                 >
-                  Aucune dépense sur cette sélection.
+                  Aucun apport sur cette sélection.
                 </TableCell>
               </TableRow>
             )}
@@ -252,24 +260,21 @@ export function ExpensesTable({
         </Table>
       </div>
 
-      {/* Sous-totaux par mode de paiement + total global. */}
-      <div className="flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          {byPaymentMethod.map(([label, amount]) => (
-            <span key={label}>
-              {label} :{' '}
-              <span className="font-medium tabular-nums text-foreground">
-                {priceFmt.format(amount)} F
-              </span>
+      <div className="flex flex-wrap justify-end gap-x-6 gap-y-1 text-sm">
+        {totalOutstanding > 0 && (
+          <span className="text-muted-foreground">
+            Restant dû :{' '}
+            <span className="font-semibold tabular-nums text-foreground">
+              {priceFmt.format(totalOutstanding)} F
             </span>
-          ))}
-        </div>
-        <div className="flex justify-end gap-2 text-sm">
-          <span className="text-muted-foreground">Total :</span>
-          <span className="font-bold tabular-nums">
+          </span>
+        )}
+        <span className="text-muted-foreground">
+          Total investi :{' '}
+          <span className="font-bold tabular-nums text-foreground">
             {priceFmt.format(total)} F
           </span>
-        </div>
+        </span>
       </div>
 
       {/* Sheet de saisie */}
@@ -277,17 +282,17 @@ export function ExpensesTable({
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           <SheetHeader>
             <SheetTitle>
-              {formMode === 'edit' ? 'Modifier la dépense' : 'Nouvelle dépense'}
+              {formMode === 'edit' ? 'Modifier l’apport' : 'Nouvel apport'}
             </SheetTitle>
             <SheetDescription>
-              Dépense d’exploitation catégorisée.
+              Apport ou financement injecté dans l’affaire.
             </SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-4">
-            <ExpenseForm
+            <InvestmentForm
               // Remonte le formulaire à chaque ouverture (reset des champs).
               key={`${formMode}-${formInitial.id ?? 'new'}-${formOpen}`}
-              categories={plainCategories}
+              sources={plainSources}
               mode={formMode}
               initial={formInitial}
               onSuccess={() => setFormOpen(false)}
@@ -296,31 +301,17 @@ export function ExpensesTable({
         </SheetContent>
       </Sheet>
 
-      {/* Sheet de gestion des catégories */}
-      <Sheet open={categoriesOpen} onOpenChange={setCategoriesOpen}>
+      {/* Sheet de gestion des sources */}
+      <Sheet open={sourcesOpen} onOpenChange={setSourcesOpen}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           <SheetHeader>
-            <SheetTitle>Catégories & récurrentes</SheetTitle>
+            <SheetTitle>Sources de financement</SheetTitle>
             <SheetDescription>
-              Catégories de dépense et modèles récurrents (loyer, abonnements…).
+              Capital propre, prêt, apport d’associé, subvention…
             </SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-4">
-            <Tabs defaultValue="categories">
-              <TabsList className="mb-4">
-                <TabsTrigger value="categories">Catégories</TabsTrigger>
-                <TabsTrigger value="recurring">Récurrentes</TabsTrigger>
-              </TabsList>
-              <TabsContent value="categories">
-                <CategoryManager categories={categories} />
-              </TabsContent>
-              <TabsContent value="recurring">
-                <RecurringManager
-                  recurring={recurring}
-                  categories={plainCategories}
-                />
-              </TabsContent>
-            </Tabs>
+            <SourceManager sources={sources} />
           </div>
         </SheetContent>
       </Sheet>

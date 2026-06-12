@@ -25,9 +25,10 @@ model User {
   image         String?
   sessions        Session[]
   accounts        Account[]
-  createdOrders   Order[]        @relation("OrderCreatedBy")
-  createdExpenses Expense[]      @relation("ExpenseCreatedBy")
-  cashClosings    CashClosing[]  @relation("CashClosingClosedBy")
+  createdOrders      Order[]        @relation("OrderCreatedBy")
+  createdExpenses    Expense[]      @relation("ExpenseCreatedBy")
+  createdInvestments Investment[]   @relation("InvestmentCreatedBy")
+  cashClosings       CashClosing[]  @relation("CashClosingClosedBy")
 
   @@map("user")
 }
@@ -364,10 +365,29 @@ model ExpenseCategory {
   name      String    @unique
   sortOrder Int       @default(0)
   expenses  Expense[]
+  recurring RecurringExpense[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   @@map("expense_category")
+}
+
+// Modèle (template) de dépense récurrente : sert d'aide-mémoire. On alerte si
+// aucune dépense de la même catégorie n'a été saisie dans le mois civil courant
+// (loyer, abonnements, salaires…). Ne crée pas de dépense automatiquement.
+model RecurringExpense {
+  id             String          @id @default(cuid())
+  label          String // ex. « Loyer », « Internet »
+  categoryId     String
+  category       ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  expectedAmount Int? // montant indicatif (FCFA)
+  dayOfMonth     Int? // jour du mois indicatif (1-31)
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([categoryId])
+  @@map("recurring_expense")
 }
 
 model Expense {
@@ -420,4 +440,59 @@ model CashClosing {
 
   @@index([date(sort: Desc)])
   @@map("cash_closing")
+}
+
+// ─── Investissements (apports / financements) ──────────────────────────────────
+// Distincts des dépenses d'exploitation : argent INJECTÉ dans l'affaire (capital
+// propre, prêt, apport d'associé, subvention…). On suit la source de financement
+// et, pour les apports remboursables, un suivi de remboursement léger
+// (montant remboursé / restant dû calculé). N'impacte PAS la marge nette.
+
+enum InvestmentPaymentMethod {
+  CASH
+  WAVE
+  BANK
+  OTHER
+}
+
+model InvestmentSource {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  sortOrder   Int          @default(0)
+  investments Investment[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("investment_source")
+}
+
+model Investment {
+  id            String                  @id @default(cuid())
+  // Jour civil de l'apport (cohérent avec Order.dailyDate / Expense.date).
+  date          DateTime                @db.Date
+  amount        Int // montant injecté, en francs CFA
+  paymentMethod InvestmentPaymentMethod @default(CASH) // canal d'entrée des fonds
+  financier     String? // nom du financeur (associé, banque…)
+  note          String?
+  // Justificatif optionnel : chemin /uploads/receipts/... ou URL http(s).
+  documentUrl   String?
+
+  // Suivi de remboursement léger. `reimbursable` = false → apport non remboursable
+  // (capital, subvention). Restant dû = amount - amountRepaid (calculé, jamais stocké).
+  reimbursable Boolean   @default(false)
+  amountRepaid Int       @default(0) // cumul déjà remboursé (FCFA)
+  dueDate      DateTime? @db.Date // échéance indicative (optionnelle)
+
+  sourceId String
+  source   InvestmentSource @relation(fields: [sourceId], references: [id], onDelete: Restrict)
+
+  createdById String?
+  createdBy   User?   @relation("InvestmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date(sort: Desc)])
+  @@index([sourceId])
+  @@map("investment")
 }

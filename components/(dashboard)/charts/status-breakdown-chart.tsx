@@ -36,7 +36,10 @@ export function StatusBreakdownChart({
   counts: Record<OrderStatus, number>;
 }) {
   const reduced = useReducedMotion();
-  const data = ORDER.map((s) => ({ status: STATUS_LABELS[s], value: counts[s] }));
+  const data = ORDER.map((s) => ({
+    status: STATUS_LABELS[s],
+    value: counts[s],
+  }));
 
   return (
     <ChartContainer config={config} className="aspect-auto h-[240px] w-full">
@@ -48,7 +51,12 @@ export function StatusBreakdownChart({
           axisLine={false}
           tickMargin={8}
         />
-        <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={28} />
+        <YAxis
+          allowDecimals={false}
+          tickLine={false}
+          axisLine={false}
+          width={28}
+        />
         <ChartTooltip content={<ChartTooltipContent hideLabel />} />
         <Bar
           dataKey="value"

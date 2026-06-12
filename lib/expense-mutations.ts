@@ -33,7 +33,10 @@ export async function createExpenseCategory(input: unknown) {
 export async function updateExpenseCategory(id: string, input: unknown) {
   const { name } = expenseCategoryUpdateSchema.parse(input);
   try {
-    return await prisma.expenseCategory.update({ where: { id }, data: { name } });
+    return await prisma.expenseCategory.update({
+      where: { id },
+      data: { name },
+    });
   } catch (err) {
     throw rethrowUniqueName(err);
   }
@@ -78,7 +81,9 @@ export async function updateExpense(id: string, input: unknown) {
   return prisma.expense.update({
     where: { id },
     data: {
-      ...(data.date !== undefined ? { date: parseDateOnlyToUTC(data.date)! } : {}),
+      ...(data.date !== undefined
+        ? { date: parseDateOnlyToUTC(data.date)! }
+        : {}),
       ...(data.amount !== undefined ? { amount: data.amount } : {}),
       ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
       ...(data.paymentMethod !== undefined

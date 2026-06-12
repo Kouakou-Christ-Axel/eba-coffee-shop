@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { getCurrentSession } from '@/lib/auth-helpers';
 import * as expenses from '@/lib/expense-mutations';
+import * as recurring from '@/lib/recurring-expense-mutations';
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -77,4 +78,28 @@ export async function updateExpenseAction(
 export async function deleteExpenseAction(id: string): Promise<ActionResult> {
   await requireAdminId();
   return run(() => expenses.deleteExpense(id));
+}
+
+// ── Dépenses récurrentes (modèles) ──
+
+export async function createRecurringExpenseAction(
+  input: unknown
+): Promise<ActionResult> {
+  await requireAdminId();
+  return run(() => recurring.createRecurringExpense(input));
+}
+
+export async function updateRecurringExpenseAction(
+  id: string,
+  input: unknown
+): Promise<ActionResult> {
+  await requireAdminId();
+  return run(() => recurring.updateRecurringExpense(id, input));
+}
+
+export async function deleteRecurringExpenseAction(
+  id: string
+): Promise<ActionResult> {
+  await requireAdminId();
+  return run(() => recurring.deleteRecurringExpense(id));
 }

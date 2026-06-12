@@ -69,7 +69,9 @@ export function todayDateString(): string {
  * exactement la valeur stockée dans Order.dailyDate (@db.Date) — indépendamment
  * du fuseau du runtime (contrairement à `new Date(y, m-1, d)` qui est local).
  */
-export function parseDateOnlyToUTC(value: string | undefined): Date | undefined {
+export function parseDateOnlyToUTC(
+  value: string | undefined
+): Date | undefined {
   if (!value) return undefined;
   const m = DATE_ONLY_RE.exec(value);
   if (!m) return undefined;

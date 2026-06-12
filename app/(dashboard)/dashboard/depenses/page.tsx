@@ -1,23 +1,30 @@
-import { Download } from 'lucide-react';
+import { Download, Layers, ReceiptText, Sigma, Wallet } from 'lucide-react';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { listExpenses, listExpenseCategories } from '@/lib/expenses';
+import {
+  listRecurringExpenses,
+  getMissingRecurringExpenses,
+} from '@/lib/recurring-expenses';
 import {
   parseDateOnlyToUTC,
   todayDateString,
   shiftDateString,
   formatLocalDateOnly,
 } from '@/lib/timezone';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DateRangeFilter } from '@/components/(dashboard)/date-range-filter';
-import { ExpenseForm } from './expense-form';
-import { CategoryManager } from './category-manager';
+import { ExpensesByCategoryChart } from '@/components/(dashboard)/charts/expenses-by-category-chart';
 import { ExpensesTable, type ExpenseRow } from './expenses-table';
 import { CategoryFilter } from './category-filter';
+import { ExpenseFilters } from './expense-filters';
+import { RecurringAlert } from './recurring-alert';
 
 export const dynamic = 'force-dynamic';
 
 const DEFAULT_RANGE_DAYS = 30;
+const priceFmt = new Intl.NumberFormat('fr-FR');
 
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Espèces',
@@ -25,6 +32,9 @@ const PAYMENT_LABELS: Record<string, string> = {
   BANK: 'Banque',
   OTHER: 'Autre',
 };
+
+const PAYMENT_METHODS = ['CASH', 'WAVE', 'BANK', 'OTHER'] as const;
+type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export default async function DepensesPage({
   searchParams,
@@ -34,6 +44,8 @@ export default async function DepensesPage({
     to?: string;
     range?: string;
     category?: string;
+    payment?: string;
+    search?: string;
   }>;
 }) {
   await requireAdmin();
@@ -55,11 +67,49 @@ export default async function DepensesPage({
   }
 
   const categoryId = params.category || undefined;
+  const paymentMethod = PAYMENT_METHODS.includes(
+    params.payment as PaymentMethod
+  )
+    ? (params.payment as PaymentMethod)
+    : undefined;
+  const search = params.search?.trim() || undefined;
 
-  const [categories, { expenses, total }] = await Promise.all([
+  const [
+    categories,
+    { expenses, total, count },
+    recurringList,
+    missingRecurring,
+  ] = await Promise.all([
     listExpenseCategories(),
-    listExpenses({ dateFrom, dateTo, categoryId }),
+    listExpenses({ dateFrom, dateTo, categoryId, paymentMethod, search }),
+    listRecurringExpenses(),
+    getMissingRecurringExpenses(),
   ]);
+
+  const recurringRows = recurringList.map((r) => ({
+    id: r.id,
+    label: r.label,
+    categoryId: r.categoryId,
+    categoryName: r.category.name,
+    expectedAmount: r.expectedAmount,
+    active: r.active,
+  }));
+  const plainCategories = categories.map((c) => ({ id: c.id, name: c.name }));
+
+  // Ventilation par catégorie (sur la sélection courante) : graphique + KPI.
+  const byCategoryMap = new Map<string, number>();
+  for (const e of expenses) {
+    byCategoryMap.set(
+      e.category.id,
+      (byCategoryMap.get(e.category.id) ?? 0) + e.amount
+    );
+  }
+  const byCategory = categories
+    .map((c) => ({ name: c.name, amount: byCategoryMap.get(c.id) ?? 0 }))
+    .filter((c) => c.amount > 0)
+    .sort((a, b) => b.amount - a.amount);
+  const topCategory = byCategory[0];
+  const avg = count > 0 ? Math.round(total / count) : 0;
 
   const exportSp = new URLSearchParams();
   if (isAll) exportSp.set('range', 'all');
@@ -68,6 +118,8 @@ export default async function DepensesPage({
     exportSp.set('to', toStr);
   }
   if (categoryId) exportSp.set('category', categoryId);
+  if (paymentMethod) exportSp.set('payment', paymentMethod);
+  if (search) exportSp.set('search', search);
   const exportHref = `/api/export/expenses?${exportSp.toString()}`;
 
   const rows: ExpenseRow[] = expenses.map((e) => ({
@@ -75,9 +127,11 @@ export default async function DepensesPage({
     date: formatLocalDateOnly(e.date),
     amount: e.amount,
     paymentLabel: PAYMENT_LABELS[e.paymentMethod] ?? e.paymentMethod,
+    paymentMethod: e.paymentMethod,
     supplier: e.supplier,
     note: e.note,
     receiptUrl: e.receiptUrl,
+    categoryId: e.category.id,
     categoryName: e.category.name,
   }));
 
@@ -90,23 +144,26 @@ export default async function DepensesPage({
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Nouvelle dépense</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ExpenseForm categories={categories} />
-        </CardContent>
-      </Card>
+      <RecurringAlert missing={missingRecurring} categories={plainCategories} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Catégories</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CategoryManager categories={categories} />
-        </CardContent>
-      </Card>
+      {/* KPIs */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi
+          label="Total période"
+          value={`${priceFmt.format(total)} F`}
+          Icon={Wallet}
+        />
+        <Kpi label="Nombre" value={priceFmt.format(count)} Icon={ReceiptText} />
+        <Kpi label="Moyenne" value={`${priceFmt.format(avg)} F`} Icon={Sigma} />
+        <Kpi
+          label="Top catégorie"
+          value={topCategory ? topCategory.name : '—'}
+          hint={
+            topCategory ? `${priceFmt.format(topCategory.amount)} F` : undefined
+          }
+          Icon={Layers}
+        />
+      </div>
 
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -121,6 +178,10 @@ export default async function DepensesPage({
               categories={categories}
               selected={categoryId ?? ''}
             />
+            <ExpenseFilters
+              payment={paymentMethod ?? ''}
+              search={search ?? ''}
+            />
             <DateRangeFilter from={fromStr} to={toStr} isAll={isAll} />
             <Button asChild variant="outline" size="sm">
               <a href={exportHref}>
@@ -131,9 +192,61 @@ export default async function DepensesPage({
           </div>
         </CardHeader>
         <CardContent>
-          <ExpensesTable expenses={rows} total={total} />
+          <ExpensesTable
+            expenses={rows}
+            categories={categories}
+            recurring={recurringRows}
+            total={total}
+          />
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Dépenses par catégorie</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ExpensesByCategoryChart data={byCategory} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function Kpi({
+  label,
+  value,
+  hint,
+  Icon,
+  valueClassName,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  Icon: typeof Wallet;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <p
+        className={cn(
+          'mt-2 truncate text-2xl font-bold tabular-nums',
+          valueClassName
+        )}
+      >
+        {value}
+      </p>
+      {hint && (
+        <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }

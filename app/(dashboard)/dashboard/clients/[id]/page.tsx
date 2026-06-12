@@ -104,7 +104,8 @@ export default async function CustomerDetailPage({
               <div className="flex flex-wrap gap-2">
                 {card.availableRewards.map((r) => (
                   <Badge key={r.id} className="bg-green-600">
-                    🎁 Récompense dispo — jusqu&apos;à {priceFmt.format(r.capAmount)} F
+                    🎁 Récompense dispo — jusqu&apos;à{' '}
+                    {priceFmt.format(r.capAmount)} F
                   </Badge>
                 ))}
               </div>

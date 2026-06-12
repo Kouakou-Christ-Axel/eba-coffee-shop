@@ -140,7 +140,11 @@ export function CustomerPhoneAutocomplete({
           className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-card py-1 text-sm shadow-md"
         >
           {results.map((hit, index) => (
-            <li key={hit.id} role="option" aria-selected={index === activeIndex}>
+            <li
+              key={hit.id}
+              role="option"
+              aria-selected={index === activeIndex}
+            >
               <button
                 type="button"
                 // onMouseDown plutôt que onClick : se déclenche avant le blur de

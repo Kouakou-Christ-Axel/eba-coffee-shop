@@ -12,25 +12,26 @@
 
 ## Fichiers créés/modifiés
 
-| Fichier | Action | Rôle |
-|---|---|---|
-| `prisma/schema.prisma` | Modifier | Ajouter `MenuCategory`, `Product`, `SupplementGroup`, `SupplementOption` |
-| `prisma/seed.ts` | Créer | Script seed — lit `config/menu.ts`, insère en DB |
-| `prisma/seed.test.ts` | Créer | Tests TDD de `seedMenu` |
-| `package.json` | Modifier | Ajouter script `db:seed` |
-| `lib/menu.ts` | Créer | `getMenu()` — query DB + mapping vers types `config/menu.ts` |
-| `lib/menu.test.ts` | Créer | Tests TDD de `getMenu` |
-| `app/api/menu/route.ts` | Créer | `GET /api/menu` avec revalidation 60s |
-| `app/api/menu/route.test.ts` | Créer | Tests TDD de la route |
-| `components/(public)/carte/carte-menu-section-client.tsx` | Créer | Client Component — interactivité (extrait de l'actuel `carte-menu-section.tsx`) |
-| `components/(public)/carte/carte-menu-section.tsx` | Modifier | Devient Server Component async — appelle `getMenu()`, passe données au Client Component |
-| `components/(public)/carte/carte-menu-section.test.tsx` | Créer | Test Server Component |
+| Fichier                                                   | Action   | Rôle                                                                                    |
+| --------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------- |
+| `prisma/schema.prisma`                                    | Modifier | Ajouter `MenuCategory`, `Product`, `SupplementGroup`, `SupplementOption`                |
+| `prisma/seed.ts`                                          | Créer    | Script seed — lit `config/menu.ts`, insère en DB                                        |
+| `prisma/seed.test.ts`                                     | Créer    | Tests TDD de `seedMenu`                                                                 |
+| `package.json`                                            | Modifier | Ajouter script `db:seed`                                                                |
+| `lib/menu.ts`                                             | Créer    | `getMenu()` — query DB + mapping vers types `config/menu.ts`                            |
+| `lib/menu.test.ts`                                        | Créer    | Tests TDD de `getMenu`                                                                  |
+| `app/api/menu/route.ts`                                   | Créer    | `GET /api/menu` avec revalidation 60s                                                   |
+| `app/api/menu/route.test.ts`                              | Créer    | Tests TDD de la route                                                                   |
+| `components/(public)/carte/carte-menu-section-client.tsx` | Créer    | Client Component — interactivité (extrait de l'actuel `carte-menu-section.tsx`)         |
+| `components/(public)/carte/carte-menu-section.tsx`        | Modifier | Devient Server Component async — appelle `getMenu()`, passe données au Client Component |
+| `components/(public)/carte/carte-menu-section.test.tsx`   | Créer    | Test Server Component                                                                   |
 
 ---
 
 ## Task 1 — Schéma Prisma : 4 nouveaux modèles
 
 **Files:**
+
 - Modify: `prisma/schema.prisma`
 
 - [ ] **Step 1 : Ajouter les modèles à la fin de `prisma/schema.prisma`**
@@ -113,6 +114,7 @@ rtk git commit -m "feat: add MenuCategory, Product, SupplementGroup, SupplementO
 ## Task 2 — Script de seed (TDD)
 
 **Files:**
+
 - Create: `prisma/seed.ts`
 - Create: `prisma/seed.test.ts`
 - Modify: `package.json`
@@ -285,6 +287,7 @@ rtk git commit -m "feat: add menu seed script and db:seed command"
 ## Task 3 — `lib/menu.ts` : `getMenu()` (TDD)
 
 **Files:**
+
 - Create: `lib/menu.ts`
 - Create: `lib/menu.test.ts`
 
@@ -344,7 +347,12 @@ const mockDbData = [
             sortOrder: 0,
             productId: 'prod1',
             options: [
-              { id: 'opt1', name: 'Shot espresso', price: 300, groupId: 'grp1' },
+              {
+                id: 'opt1',
+                name: 'Shot espresso',
+                price: 300,
+                groupId: 'grp1',
+              },
             ],
           },
         ],
@@ -519,6 +527,7 @@ rtk git commit -m "feat: add getMenu with DB query, available filter, sortOrder,
 ## Task 4 — Route `GET /api/menu` (TDD)
 
 **Files:**
+
 - Create: `app/api/menu/route.ts`
 - Create: `app/api/menu/route.test.ts`
 
@@ -635,6 +644,7 @@ rtk git commit -m "feat: add GET /api/menu route with 60s revalidation"
 ## Task 5 — Migration CarteMenuSection (Server + Client split)
 
 **Files:**
+
 - Create: `components/(public)/carte/carte-menu-section-client.tsx`
 - Modify: `components/(public)/carte/carte-menu-section.tsx`
 - Create: `components/(public)/carte/carte-menu-section.test.tsx`
@@ -894,12 +904,12 @@ rtk git commit -m "feat: migrate CarteMenuSection to Server Component fetching f
 
 ## Vérification de couverture spec
 
-| Test spec F7 | Couvert par |
-|---|---|
-| `GET /api/menu` retourne les catégories avec leurs produits et suppléments | Task 4 — route test |
-| `GET /api/menu` exclut les produits `available: false` | Task 3 — `getMenu` test (filtre products) |
-| `GET /api/menu` exclut les catégories `available: false` | Task 3 — `getMenu` test (filtre catégories) |
-| `GET /api/menu` trie les catégories par `sortOrder` ASC | Task 3 — `getMenu` test (orderBy) |
-| Le seed insère exactement le même nombre de catégories que `config/menu.ts` | Task 2 — seed test |
-| Le seed insère tous les produits avec leurs groupes et options de suppléments | Task 2 — seed test (cappuccino) |
-| La page `/carte` affiche le même menu après migration qu'avant | Task 5 — CarteMenuSection test |
+| Test spec F7                                                                  | Couvert par                                 |
+| ----------------------------------------------------------------------------- | ------------------------------------------- |
+| `GET /api/menu` retourne les catégories avec leurs produits et suppléments    | Task 4 — route test                         |
+| `GET /api/menu` exclut les produits `available: false`                        | Task 3 — `getMenu` test (filtre products)   |
+| `GET /api/menu` exclut les catégories `available: false`                      | Task 3 — `getMenu` test (filtre catégories) |
+| `GET /api/menu` trie les catégories par `sortOrder` ASC                       | Task 3 — `getMenu` test (orderBy)           |
+| Le seed insère exactement le même nombre de catégories que `config/menu.ts`   | Task 2 — seed test                          |
+| Le seed insère tous les produits avec leurs groupes et options de suppléments | Task 2 — seed test (cappuccino)             |
+| La page `/carte` affiche le même menu après migration qu'avant                | Task 5 — CarteMenuSection test              |

@@ -1,6 +1,10 @@
 import { Download } from 'lucide-react';
 import { requireCashier } from '@/lib/auth-helpers';
-import { getCashFigures, getCashClosing, listCashClosings } from '@/lib/cash-closing';
+import {
+  getCashFigures,
+  getCashClosing,
+  listCashClosings,
+} from '@/lib/cash-closing';
 import {
   parseDateOnlyToUTC,
   todayDateString,
