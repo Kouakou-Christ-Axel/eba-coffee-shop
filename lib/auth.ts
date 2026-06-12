@@ -16,6 +16,17 @@ export async function promoteAdminIfMatch(user: { id: string; email: string }) {
   }
 }
 
+// URL canonique du serveur MCP, annoncée comme `resource` dans la métadonnée
+// OAuth de ressource protégée (RFC 8707 / RFC 9728). DOIT correspondre
+// exactement à l'URL du connecteur (`<domaine>/api/mcp`) : les clients stricts
+// comme Claude comparent ce champ à l'URL du serveur et refusent la connexion
+// en cas d'écart. Sans cette option, le plugin annonce l'origine seule
+// (`https://eba.otw.ci`) ≠ `https://eba.otw.ci/api/mcp` → « Authorization failed »
+// avant même l'écran de connexion.
+const mcpResource = process.env.BETTER_AUTH_URL
+  ? `${process.env.BETTER_AUTH_URL.replace(/\/+$/, '')}/api/mcp`
+  : undefined;
+
 export const auth = betterAuth({
   // `baseURL` explicite : le provider OAuth du plugin MCP s'en sert comme
   // `issuer` (et pour construire les URLs de découverte). Sans valeur, la
@@ -59,7 +70,7 @@ export const auth = betterAuth({
     // contrôle « réservé aux ADMIN » est fait dans la route `/api/mcp`. Quand un
     // client lance le flux et qu'aucune session n'existe, on renvoie vers
     // `/login` (qui sait reprendre le flux après connexion).
-    mcp({ loginPage: '/login' }),
+    mcp({ loginPage: '/login', resource: mcpResource }),
     nextCookies(),
   ],
   databaseHooks: {
