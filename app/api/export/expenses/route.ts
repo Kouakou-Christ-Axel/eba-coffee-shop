@@ -52,10 +52,19 @@ export async function GET(req: NextRequest) {
   }
 
   const categoryId = sp.get('category') || undefined;
+  const paymentParam = sp.get('payment');
+  const paymentMethod = (['CASH', 'WAVE', 'BANK', 'OTHER'] as const).includes(
+    paymentParam as 'CASH' | 'WAVE' | 'BANK' | 'OTHER'
+  )
+    ? (paymentParam as 'CASH' | 'WAVE' | 'BANK' | 'OTHER')
+    : undefined;
+  const search = sp.get('search')?.trim() || undefined;
   const { expenses, total } = await listExpenses({
     dateFrom,
     dateTo,
     categoryId,
+    paymentMethod,
+    search,
   });
 
   const headers = [

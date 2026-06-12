@@ -8,9 +8,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { todayDateString } from '@/lib/timezone';
-import { createExpenseAction } from './actions';
+import { createExpenseAction, updateExpenseAction } from './actions';
 
 type Category = { id: string; name: string };
+
+export type ExpenseFormValues = {
+  id?: string;
+  date: string;
+  amount: string;
+  categoryId: string;
+  paymentMethod: string;
+  supplier: string;
+  note: string;
+  receiptUrl: string | null;
+};
 
 const PAYMENT_METHODS = [
   { value: 'CASH', label: 'Espèces' },
@@ -22,18 +33,43 @@ const PAYMENT_METHODS = [
 const selectClass =
   'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
-export function ExpenseForm({ categories }: { categories: Category[] }) {
-  const [date, setDate] = useState(todayDateString());
-  const [amount, setAmount] = useState('');
-  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? '');
-  const [paymentMethod, setPaymentMethod] = useState('CASH');
-  const [supplier, setSupplier] = useState('');
-  const [note, setNote] = useState('');
-  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+/** Valeurs par défaut d'une nouvelle dépense (formulaire vierge). */
+export function emptyExpense(categories: Category[]): ExpenseFormValues {
+  return {
+    date: todayDateString(),
+    amount: '',
+    categoryId: categories[0]?.id ?? '',
+    paymentMethod: 'CASH',
+    supplier: '',
+    note: '',
+    receiptUrl: null,
+  };
+}
+
+export function ExpenseForm({
+  categories,
+  mode,
+  initial,
+  onSuccess,
+}: {
+  categories: Category[];
+  mode: 'create' | 'edit';
+  initial: ExpenseFormValues;
+  /** Appelé après une écriture réussie (fermeture du Sheet par le parent). */
+  onSuccess: () => void;
+}) {
+  const [values, setValues] = useState<ExpenseFormValues>(initial);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
+
+  function set<K extends keyof ExpenseFormValues>(
+    key: K,
+    value: ExpenseFormValues[K]
+  ) {
+    setValues((v) => ({ ...v, [key]: value }));
+  }
 
   async function onPickFile(file: File) {
     setError(null);
@@ -47,7 +83,7 @@ export function ExpenseForm({ categories }: { categories: Category[] }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Échec de l’upload');
-      setReceiptUrl(data.url);
+      set('receiptUrl', data.url);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Échec de l’upload');
     } finally {
@@ -57,35 +93,36 @@ export function ExpenseForm({ categories }: { categories: Category[] }) {
 
   function submit() {
     setError(null);
-    const amountInt = Number(amount);
+    const amountInt = Number(values.amount);
     if (!Number.isFinite(amountInt) || amountInt <= 0) {
       setError('Montant invalide');
       return;
     }
-    if (!categoryId) {
+    if (!values.categoryId) {
       setError('Choisis une catégorie');
       return;
     }
+
+    const payload = {
+      date: values.date,
+      amount: Math.round(amountInt),
+      categoryId: values.categoryId,
+      paymentMethod: values.paymentMethod,
+      supplier: values.supplier.trim() || null,
+      note: values.note.trim() || null,
+      receiptUrl: values.receiptUrl,
+    };
+
     startTransition(async () => {
-      const result = await createExpenseAction({
-        date,
-        amount: Math.round(amountInt),
-        categoryId,
-        paymentMethod,
-        supplier: supplier.trim() || null,
-        note: note.trim() || null,
-        receiptUrl,
-      });
+      const result =
+        mode === 'edit' && values.id
+          ? await updateExpenseAction(values.id, payload)
+          : await createExpenseAction(payload);
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      // Reset (on garde la date et la catégorie pour des saisies en série).
-      setAmount('');
-      setSupplier('');
-      setNote('');
-      setReceiptUrl(null);
-      if (fileRef.current) fileRef.current.value = '';
+      onSuccess();
     });
   }
 
@@ -101,14 +138,14 @@ export function ExpenseForm({ categories }: { categories: Category[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="exp-date">Date</Label>
           <Input
             id="exp-date"
             type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
+            value={values.date}
+            onChange={(e) => set('date', e.target.value)}
           />
         </div>
         <div className="space-y-1.5">
@@ -118,8 +155,8 @@ export function ExpenseForm({ categories }: { categories: Category[] }) {
             type="number"
             min={1}
             inputMode="numeric"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            value={values.amount}
+            onChange={(e) => set('amount', e.target.value)}
             placeholder="0"
           />
         </div>
@@ -128,8 +165,8 @@ export function ExpenseForm({ categories }: { categories: Category[] }) {
           <select
             id="exp-cat"
             className={selectClass}
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
+            value={values.categoryId}
+            onChange={(e) => set('categoryId', e.target.value)}
           >
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
@@ -143,8 +180,8 @@ export function ExpenseForm({ categories }: { categories: Category[] }) {
           <select
             id="exp-pay"
             className={selectClass}
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
+            value={values.paymentMethod}
+            onChange={(e) => set('paymentMethod', e.target.value)}
           >
             {PAYMENT_METHODS.map((p) => (
               <option key={p.value} value={p.value}>
@@ -157,8 +194,8 @@ export function ExpenseForm({ categories }: { categories: Category[] }) {
           <Label htmlFor="exp-supplier">Fournisseur (optionnel)</Label>
           <Input
             id="exp-supplier"
-            value={supplier}
-            onChange={(e) => setSupplier(e.target.value)}
+            value={values.supplier}
+            onChange={(e) => set('supplier', e.target.value)}
             placeholder="Ex. Boulangerie du coin"
           />
         </div>
@@ -166,8 +203,8 @@ export function ExpenseForm({ categories }: { categories: Category[] }) {
           <Label htmlFor="exp-note">Note (optionnel)</Label>
           <Input
             id="exp-note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
+            value={values.note}
+            onChange={(e) => set('note', e.target.value)}
             placeholder="Détail…"
           />
         </div>
@@ -186,10 +223,10 @@ export function ExpenseForm({ categories }: { categories: Category[] }) {
             if (f) onPickFile(f);
           }}
         />
-        {receiptUrl ? (
+        {values.receiptUrl ? (
           <div className="flex items-center gap-2">
             <Image
-              src={receiptUrl}
+              src={values.receiptUrl}
               alt="Justificatif"
               width={40}
               height={40}
@@ -199,7 +236,7 @@ export function ExpenseForm({ categories }: { categories: Category[] }) {
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => setReceiptUrl(null)}
+              onClick={() => set('receiptUrl', null)}
             >
               <X className="mr-1 h-4 w-4" /> Retirer
             </Button>
@@ -230,7 +267,9 @@ export function ExpenseForm({ categories }: { categories: Category[] }) {
         className={cn(busy && 'opacity-70')}
       >
         {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-        Enregistrer la dépense
+        {mode === 'edit'
+          ? 'Enregistrer les modifications'
+          : 'Enregistrer la dépense'}
       </Button>
     </div>
   );

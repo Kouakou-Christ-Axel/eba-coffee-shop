@@ -82,11 +82,13 @@ export const expenseUpdateSchema = expenseInputSchema
 
 export type ExpenseUpdateInput = z.infer<typeof expenseUpdateSchema>;
 
-// Filtres de liste (plage de jours civils + catégorie).
+// Filtres de liste (plage de jours civils + catégorie + paiement + recherche).
 export const expenseFiltersSchema = z.object({
   from: dateOnly.optional(),
   to: dateOnly.optional(),
   categoryId: z.string().min(1).optional(),
+  paymentMethod: expensePaymentMethodSchema.optional(),
+  search: z.string().trim().min(1).optional(),
 });
 
 export type ExpenseFiltersInput = z.infer<typeof expenseFiltersSchema>;

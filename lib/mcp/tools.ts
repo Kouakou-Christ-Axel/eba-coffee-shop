@@ -284,16 +284,25 @@ export const tools: McpTool[] = [
     title: 'Lister les dépenses',
     description:
       'Renvoie les dépenses filtrées par plage de dates (`from`/`to`, ' +
-      '`YYYY-MM-DD`, jour civil Abidjan) et/ou `categoryId`, avec le total. ' +
-      'Tous les filtres sont optionnels.',
+      '`YYYY-MM-DD`, jour civil Abidjan), `categoryId`, `paymentMethod` ' +
+      '(CASH/WAVE/BANK/OTHER) et/ou `search` (fournisseur ou note), avec le ' +
+      'total. Tous les filtres sont optionnels.',
     inputSchema: expenseFiltersSchema,
     readOnly: true,
     handler: (args) => {
-      const f = args as { from?: string; to?: string; categoryId?: string };
+      const f = args as {
+        from?: string;
+        to?: string;
+        categoryId?: string;
+        paymentMethod?: 'CASH' | 'WAVE' | 'BANK' | 'OTHER';
+        search?: string;
+      };
       return listExpenses({
         dateFrom: parseDateOnlyToUTC(f.from),
         dateTo: parseDateOnlyToUTC(f.to),
         categoryId: f.categoryId,
+        paymentMethod: f.paymentMethod,
+        search: f.search,
       });
     },
   },
