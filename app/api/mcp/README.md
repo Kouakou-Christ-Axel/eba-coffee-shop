@@ -110,60 +110,65 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 
 ## Outils exposés
 
-| Outil                          | Type     | Description                                      |
-| ------------------------------ | -------- | ------------------------------------------------ |
-| `get_menu`                     | lecture  | Menu complet avec identifiants internes (`id`)   |
-| `get_daily_stats`              | lecture  | Stats agrégées de la journée en cours            |
-| `get_range_stats`              | lecture  | KPIs sur une plage (`from`/`to`, `YYYY-MM-DD`)   |
-| `get_daily_series`             | lecture  | Série jour par jour (commandes + CA) sur plage   |
-| `get_top_products`             | lecture  | Top produits vendus sur une plage (`limit?`)     |
-| `list_expense_categories`      | lecture  | Catégories de dépense (+ nombre de dépenses)     |
-| `create_expense_category`      | écriture | Créer une catégorie de dépense                   |
-| `update_expense_category`      | écriture | Renommer une catégorie de dépense                |
-| `delete_expense_category`      | écriture | Supprimer une catégorie (refusé si utilisée)     |
-| `list_expenses`                | lecture  | Lister les dépenses (filtres date/catégorie)     |
-| `get_expense_summary`          | lecture  | Total + ventilation des dépenses par catégorie   |
-| `create_expense`               | écriture | Enregistrer une dépense                          |
-| `update_expense`               | écriture | Modifier une dépense (mise à jour **partielle**) |
-| `delete_expense`               | écriture | Supprimer une dépense                            |
-| `set_expense_receipt`          | écriture | Joindre un justificatif (base64 ou URL)          |
-| `list_investment_sources`      | lecture  | Sources de financement (+ nombre d’apports)      |
-| `create_investment_source`     | écriture | Créer une source de financement                  |
-| `update_investment_source`     | écriture | Renommer une source de financement               |
-| `delete_investment_source`     | écriture | Supprimer une source (refusé si utilisée)        |
-| `list_investments`             | lecture  | Lister les apports (filtres date/source/rembt)   |
-| `get_investment_summary`       | lecture  | Total + ventilation par source + restant dû      |
-| `create_investment`            | écriture | Enregistrer un apport / financement              |
-| `update_investment`            | écriture | Modifier un apport (mise à jour **partielle**)   |
-| `delete_investment`            | écriture | Supprimer un apport                              |
-| `set_investment_document`      | écriture | Joindre un justificatif (base64 ou URL)          |
-| `get_cash_position`            | lecture  | Chiffres espèces d’un jour + clôture éventuelle  |
-| `get_cash_closing`             | lecture  | Lire la clôture d’un jour                        |
-| `list_cash_closings`           | lecture  | Historique des clôtures sur une plage            |
-| `save_cash_closing`            | écriture | Créer / mettre à jour la clôture d’un jour       |
-| `create_order`                 | écriture | Enregistrer une commande (antidatage possible)   |
-| `list_orders`                  | lecture  | Lister les commandes (filtres statut/date/texte) |
-| `set_order_status`             | écriture | Changer le statut (récupérée, annulée, …)        |
-| `mark_order_paid`              | écriture | Encaisser une commande (CASH/WAVE/OTHER)         |
-| `apply_order_discount`         | écriture | Appliquer une remise de ligne (FCFA)             |
-| `list_customers`               | lecture  | Lister / rechercher des clients (+ stats)        |
-| `get_customer`                 | lecture  | Détail d’un client (par `id` ou `phone`)         |
-| `get_loyalty_card`             | lecture  | Carte à tampons d’un client + récompenses dispo  |
-| `adjust_loyalty_stamps`        | écriture | Ajuster les tampons d’un client (correction)     |
-| `get_loyalty_settings`         | lecture  | Lire la config de la carte à tampons             |
-| `update_loyalty_settings`      | écriture | Modifier la config de la carte à tampons         |
-| `create_category`              | écriture | Créer une catégorie                              |
-| `update_category`              | écriture | Renommer une catégorie                           |
-| `delete_category`              | écriture | Supprimer une catégorie (cascade produits)       |
-| `toggle_category_availability` | écriture | Afficher / masquer une catégorie                 |
-| `move_category`                | écriture | Réordonner une catégorie (`up` / `down`)         |
-| `create_product`               | écriture | Créer un produit                                 |
-| `update_product`               | écriture | Modifier un produit (mise à jour **partielle**)  |
-| `set_product_image`            | écriture | Téléverser (base64) ou rattacher une image       |
-| `move_product`                 | écriture | Réordonner un produit (`up` / `down`)            |
-| `delete_product`               | écriture | Supprimer un produit                             |
-| `toggle_product_availability`  | écriture | Afficher / masquer un produit                    |
-| `toggle_product_featured`      | écriture | Mettre en avant / retirer un produit             |
+| Outil                            | Type     | Description                                      |
+| -------------------------------- | -------- | ------------------------------------------------ |
+| `get_menu`                       | lecture  | Menu complet avec identifiants internes (`id`)   |
+| `get_daily_stats`                | lecture  | Stats agrégées de la journée en cours            |
+| `get_range_stats`                | lecture  | KPIs sur une plage (`from`/`to`, `YYYY-MM-DD`)   |
+| `get_daily_series`               | lecture  | Série jour par jour (commandes + CA) sur plage   |
+| `get_top_products`               | lecture  | Top produits vendus sur une plage (`limit?`)     |
+| `list_expense_categories`        | lecture  | Catégories de dépense (+ nombre de dépenses)     |
+| `create_expense_category`        | écriture | Créer une catégorie de dépense                   |
+| `update_expense_category`        | écriture | Renommer une catégorie de dépense                |
+| `delete_expense_category`        | écriture | Supprimer une catégorie (refusé si utilisée)     |
+| `list_expenses`                  | lecture  | Lister les dépenses (filtres date/catégorie)     |
+| `get_expense_summary`            | lecture  | Total + ventilation des dépenses par catégorie   |
+| `create_expense`                 | écriture | Enregistrer une dépense                          |
+| `update_expense`                 | écriture | Modifier une dépense (mise à jour **partielle**) |
+| `delete_expense`                 | écriture | Supprimer une dépense                            |
+| `set_expense_receipt`            | écriture | Joindre un justificatif (base64 ou URL)          |
+| `list_investment_sources`        | lecture  | Sources de financement (+ nombre d’apports)      |
+| `create_investment_source`       | écriture | Créer une source de financement                  |
+| `update_investment_source`       | écriture | Renommer une source de financement               |
+| `delete_investment_source`       | écriture | Supprimer une source (refusé si utilisée)        |
+| `list_investments`               | lecture  | Lister les apports (filtres date/source/rembt)   |
+| `get_investment_summary`         | lecture  | Total + ventilation par source + restant dû      |
+| `create_investment`              | écriture | Enregistrer un apport / financement              |
+| `update_investment`              | écriture | Modifier un apport (mise à jour **partielle**)   |
+| `delete_investment`              | écriture | Supprimer un apport                              |
+| `set_investment_document`        | écriture | Joindre un justificatif (base64 ou URL)          |
+| `list_revenue_adjustments`       | lecture  | Lister les régularisations de recette (+ total)  |
+| `get_revenue_adjustment_summary` | lecture  | Total net + ventilation par mode de paiement     |
+| `create_revenue_adjustment`      | écriture | Ajuster le CA sans commande (montant signé)      |
+| `update_revenue_adjustment`      | écriture | Modifier une régularisation (partiel)            |
+| `delete_revenue_adjustment`      | écriture | Supprimer une régularisation                     |
+| `get_cash_position`              | lecture  | Chiffres espèces d’un jour + clôture éventuelle  |
+| `get_cash_closing`               | lecture  | Lire la clôture d’un jour                        |
+| `list_cash_closings`             | lecture  | Historique des clôtures sur une plage            |
+| `save_cash_closing`              | écriture | Créer / mettre à jour la clôture d’un jour       |
+| `create_order`                   | écriture | Enregistrer une commande (antidatage possible)   |
+| `list_orders`                    | lecture  | Lister les commandes (filtres statut/date/texte) |
+| `set_order_status`               | écriture | Changer le statut (récupérée, annulée, …)        |
+| `mark_order_paid`                | écriture | Encaisser une commande (CASH/WAVE/OTHER)         |
+| `apply_order_discount`           | écriture | Appliquer une remise de ligne (FCFA)             |
+| `list_customers`                 | lecture  | Lister / rechercher des clients (+ stats)        |
+| `get_customer`                   | lecture  | Détail d’un client (par `id` ou `phone`)         |
+| `get_loyalty_card`               | lecture  | Carte à tampons d’un client + récompenses dispo  |
+| `adjust_loyalty_stamps`          | écriture | Ajuster les tampons d’un client (correction)     |
+| `get_loyalty_settings`           | lecture  | Lire la config de la carte à tampons             |
+| `update_loyalty_settings`        | écriture | Modifier la config de la carte à tampons         |
+| `create_category`                | écriture | Créer une catégorie                              |
+| `update_category`                | écriture | Renommer une catégorie                           |
+| `delete_category`                | écriture | Supprimer une catégorie (cascade produits)       |
+| `toggle_category_availability`   | écriture | Afficher / masquer une catégorie                 |
+| `move_category`                  | écriture | Réordonner une catégorie (`up` / `down`)         |
+| `create_product`                 | écriture | Créer un produit                                 |
+| `update_product`                 | écriture | Modifier un produit (mise à jour **partielle**)  |
+| `set_product_image`              | écriture | Téléverser (base64) ou rattacher une image       |
+| `move_product`                   | écriture | Réordonner un produit (`up` / `down`)            |
+| `delete_product`                 | écriture | Supprimer un produit                             |
+| `toggle_product_availability`    | écriture | Afficher / masquer un produit                    |
+| `toggle_product_featured`        | écriture | Mettre en avant / retirer un produit             |
 
 Les prix et coûts (`coutMatiere`, `coutEmballage`) sont exprimés en **francs
 CFA** (nombres entiers) et `get_menu` les renvoie. Commence toujours par
@@ -189,6 +194,15 @@ entiers, `date` au format `YYYY-MM-DD`, `sourceId` provient de
 d'entrée des fonds). Pour un apport remboursable, `reimbursable: true` avec
 éventuellement `amountRepaid` (≤ `amount`) et `dueDate` ; le restant dû est
 calculé. Le justificatif se joint via `set_investment_document` (base64 ou URL).
+
+Les outils **régularisation de recette** permettent d'ajuster le CA **sans créer
+de commande** (ventes non saisies en temps réel, anciennes commandes perdues…).
+`amount` est en francs CFA entiers **signés** (positif = recette ajoutée, négatif
+= retirée), `date` au format `YYYY-MM-DD`, `paymentMode` ∈ `CASH`/`WAVE`/`OTHER`
+(défaut CASH). L'ajustement est injecté dans `lib/stats.ts` : il remonte dans les
+statistiques, la série journalière et — pour le mode espèces — la **clôture de
+caisse** (qui dérive de `getDailyStats`). Il n'affecte ni le nombre de commandes
+ni le panier moyen.
 
 Les outils **clôture de caisse** (espèces, une clôture par jour civil) :
 `get_cash_position` prépare une clôture (ventes/dépenses espèces du jour),

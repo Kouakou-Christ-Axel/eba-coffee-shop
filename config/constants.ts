@@ -96,3 +96,10 @@ export const INVESTMENT_SOURCE_NAME_MAX = 50;
 export const INVESTMENT_FINANCIER_MAX = 100;
 export const INVESTMENT_NOTE_MAX = 500;
 export const INVESTMENT_AMOUNT_MAX = 1_000_000_000;
+
+/**
+ * Régularisation de recette (ajustement manuel du CA). Le montant est signé
+ * (+ ajout / − retrait) ; le plafond porte sur sa valeur absolue.
+ */
+export const REVENUE_ADJUSTMENT_NOTE_MAX = 500;
+export const REVENUE_ADJUSTMENT_AMOUNT_MAX = 100_000_000;

@@ -13,6 +13,7 @@ import { requireAdmin } from '@/lib/auth-helpers';
 import { getRangeStats, getDailySeries, getTopProducts } from '@/lib/stats';
 import { getExpenseSummary } from '@/lib/expenses';
 import { getInvestmentSummary } from '@/lib/investments';
+import { getRevenueAdjustmentSummary } from '@/lib/revenue-adjustments';
 import {
   parseDateOnlyToUTC,
   todayDateString,
@@ -52,17 +53,25 @@ export default async function StatistiquesPage({
   const from = parseDateOnlyToUTC(fromStr)!;
   const to = parseDateOnlyToUTC(toStr)!;
 
-  const [stats, series, topProducts, expenseSummary, investmentSummary] =
-    await Promise.all([
-      getRangeStats(from, to),
-      getDailySeries(from, to),
-      getTopProducts(from, to),
-      getExpenseSummary(from, to),
-      getInvestmentSummary(from, to),
-    ]);
+  const [
+    stats,
+    series,
+    topProducts,
+    expenseSummary,
+    investmentSummary,
+    adjustmentSummary,
+  ] = await Promise.all([
+    getRangeStats(from, to),
+    getDailySeries(from, to),
+    getTopProducts(from, to),
+    getExpenseSummary(from, to),
+    getInvestmentSummary(from, to),
+    getRevenueAdjustmentSummary(from, to),
+  ]);
 
   // La marge nette d'exploitation reste CA − dépenses : les investissements
-  // (apports/financements) sont du capital, suivis dans un bloc séparé.
+  // (apports/financements) sont du capital, suivis dans un bloc séparé. Le CA
+  // (stats.revenue) inclut déjà les régularisations de recette.
   const netMargin = stats.revenue - expenseSummary.total;
 
   return (
@@ -107,6 +116,11 @@ export default async function StatistiquesPage({
           label="CA encaissé"
           value={`${priceFormatter.format(stats.revenue)} F`}
           Icon={Banknote}
+          hint={
+            adjustmentSummary.total !== 0
+              ? `dont régularisations : ${adjustmentSummary.total < 0 ? '−' : '+'}${priceFormatter.format(Math.abs(adjustmentSummary.total))} F`
+              : undefined
+          }
         />
         <Kpi
           label="Dépenses"
@@ -240,11 +254,13 @@ function Kpi({
   value,
   Icon,
   valueClassName,
+  hint,
 }: {
   label: string;
   value: string;
   Icon: typeof Banknote;
   valueClassName?: string;
+  hint?: string;
 }) {
   return (
     <div className="rounded-xl border bg-card p-4">
@@ -257,6 +273,11 @@ function Kpi({
       <p className={cn('mt-2 text-2xl font-bold tabular-nums', valueClassName)}>
         {value}
       </p>
+      {hint && (
+        <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
