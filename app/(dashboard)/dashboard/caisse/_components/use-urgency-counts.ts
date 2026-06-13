@@ -2,7 +2,12 @@
 
 import { useMemo } from 'react';
 import type { CashierOrder } from '@/lib/cashier-queue';
-import { getUrgencyLevel, type TabKey, type UrgencyLevel } from '../urgency';
+import {
+  getUrgencyLevel,
+  isScheduledAhead,
+  type TabKey,
+  type UrgencyLevel,
+} from '../urgency';
 
 const URGENCY_ORDER: UrgencyLevel[] = [
   'normal',
@@ -21,7 +26,11 @@ function maxUrgency(
   if (!order.isPaid && order.status !== 'CANCELLED') {
     tabs.push('to-pay');
   }
-  if (order.status === 'PREPARING') tabs.push('in-progress');
+  // Une commande programmée encore en avance reste dans « Programmées » : elle
+  // n'entre dans « En cours » qu'à l'approche du retrait (cf. SCHEDULED_LEAD_IN_MINUTES).
+  if (order.status === 'PREPARING' && !isScheduledAhead(order, now)) {
+    tabs.push('in-progress');
+  }
   if (order.status === 'READY') tabs.push('ready');
 
   if (tabs.length === 0) return { level: 'normal', tabs };
@@ -78,15 +87,35 @@ export function useUrgencyCounts(
 
 export function filterByTab(
   orders: CashierOrder[],
-  tab: TabKey
+  tab: TabKey,
+  now: Date
 ): CashierOrder[] {
   switch (tab) {
     case 'to-pay':
       // Inclut les commandes récupérées (COMPLETED) mais pas encore encaissées.
       return orders.filter((o) => !o.isPaid && o.status !== 'CANCELLED');
     case 'in-progress':
-      return orders.filter((o) => o.status === 'PREPARING');
+      // Les programmées en avance restent dans « Programmées », pas ici.
+      return orders.filter(
+        (o) => o.status === 'PREPARING' && !isScheduledAhead(o, now)
+      );
     case 'ready':
       return orders.filter((o) => o.status === 'READY');
   }
+}
+
+/**
+ * Commandes programmées encore en avance (section « Programmées »), triées par heure de
+ * retrait croissante (le prochain retrait en haut).
+ */
+export function filterScheduledAhead(
+  orders: CashierOrder[],
+  now: Date
+): CashierOrder[] {
+  return orders
+    .filter((o) => isScheduledAhead(o, now))
+    .sort(
+      (a, b) =>
+        (a.pickupTime?.getTime() ?? 0) - (b.pickupTime?.getTime() ?? 0)
+    );
 }

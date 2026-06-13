@@ -7,6 +7,7 @@ import {
   ShoppingBag,
   StickyNote,
   AlertTriangle,
+  CalendarClock,
   Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -15,7 +16,9 @@ import { getItemGross, getItemNet } from '@/lib/orders/totals';
 import type { OrderType } from '@/generated/prisma/client';
 import {
   formatElapsedShort,
+  formatPickup,
   isPickupOverdue,
+  isScheduledAhead,
   URGENCY_STYLES,
   type UrgencyLevel,
 } from './urgency';
@@ -60,12 +63,19 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
   const elapsed = formatElapsedShort(order.createdAt, tickNow);
   const overdue = isPickupOverdue(order, tickNow);
   const urgencyStyle = URGENCY_STYLES[urgency];
+  const scheduledAhead = isScheduledAhead(order, tickNow);
+  // Tant que le retrait est lointain (urgence « normal »), une bordure indigo dédiée
+  // signale la commande programmée ; l'urgence de proximité reprend la main ensuite.
+  const borderClass =
+    scheduledAhead && urgency === 'normal'
+      ? 'border-indigo-300 dark:border-indigo-800'
+      : urgencyStyle.borderClass;
 
   return (
     <article
       className={cn(
         'animate-in fade-in-0 slide-in-from-top-2 duration-300 rounded-2xl border-2 bg-card p-4 shadow-sm transition-shadow hover:shadow-md',
-        urgencyStyle.borderClass
+        borderClass
       )}
     >
       {/* Ligne 1 : type icon + numéro + nom + badge paiement */}
@@ -103,6 +113,12 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
                 <Clock className="h-3 w-3" aria-hidden="true" />
                 {elapsed}
               </span>
+              {order.pickupTime && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-900 dark:bg-indigo-950 dark:text-indigo-100">
+                  <CalendarClock className="h-3 w-3" aria-hidden="true" />
+                  Planifiée · {formatPickup(order.pickupTime, tickNow)}
+                </span>
+              )}
             </p>
           </div>
         </div>

@@ -77,6 +77,17 @@ export const MAX_LINE_DISCOUNT_RATIO = 0.5;
 export const ORDER_DISCOUNT_REASON_MAX = 100;
 
 /**
+ * Commandes programmées (avec créneau de retrait `pickupTime`) sur l'écran caisse.
+ * - `SCHEDULED_LEAD_IN_MINUTES` : en-deçà de ce délai avant le retrait, une commande
+ *   programmée quitte la section « Programmées » et rejoint le flux normal (« En cours »).
+ * - `SCHEDULED_ALERT_MINUTES` : délai avant le retrait à partir duquel on signale (carillon)
+ *   une commande programmée — elles ne sonnent pas à l'arrivée, seulement à l'approche.
+ * Sources : app/(dashboard)/dashboard/caisse/urgency.ts + caisse-view.tsx.
+ */
+export const SCHEDULED_LEAD_IN_MINUTES = 60;
+export const SCHEDULED_ALERT_MINUTES = 15;
+
+/**
  * Suivi des dépenses (back-office). Longueurs max des champs de saisie et
  * plafond de montant (garde-fou anti-faute de frappe, en francs CFA).
  */

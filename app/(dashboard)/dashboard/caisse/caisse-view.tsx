@@ -9,15 +9,22 @@ import {
   useSoundPreference,
 } from '@/lib/hooks/use-orders-stream';
 import { normalizeOrderDates } from '@/lib/orders/format';
-import { pickFirstCriticalTab, type TabKey } from './urgency';
+import {
+  minutesUntilPickup,
+  pickFirstCriticalTab,
+  type TabKey,
+} from './urgency';
 import { useNowTick } from './use-now-tick';
 import { CaisseHeader } from './_components/caisse-header';
 import { AlertBanner } from './_components/alert-banner';
+import { ScheduledSection } from './_components/scheduled-section';
 import { UrgencyTabs } from './_components/urgency-tabs';
 import {
   filterByTab,
+  filterScheduledAhead,
   useUrgencyCounts,
 } from './_components/use-urgency-counts';
+import { SCHEDULED_ALERT_MINUTES } from '@/config/constants';
 
 const SSE_URL = '/api/caisse/stream';
 const SOUND_STORAGE_KEY = 'eba.caisse.sound-enabled';
@@ -45,6 +52,8 @@ export function CaisseView({
   const { soundEnabled, soundEnabledRef, toggleSound } =
     useSoundPreference(SOUND_STORAGE_KEY);
   const lastChimedAtRef = useRef<Map<string, number>>(new Map());
+  // Commandes programmées déjà signalées à l'approche du retrait (carillon unique à −15 min).
+  const scheduledAlertedRef = useRef<Set<string>>(new Set());
 
   const now = useNowTick(30_000);
 
@@ -54,9 +63,15 @@ export function CaisseView({
     normalize,
     getId: (o) => o.id,
     onNewOrders: (newOrders) => {
-      if (newOrders.length > 0 && soundEnabledRef.current) {
-        playNewOrderChime();
-      }
+      if (!soundEnabledRef.current) return;
+      // On ne carillonne à l'arrivée que pour les commandes « immédiates ».
+      // Les programmées (retrait lointain) ne sonneront qu'à −SCHEDULED_ALERT_MINUTES.
+      const arrivedNow = new Date();
+      const hasImmediate = newOrders.some((o) => {
+        const m = minutesUntilPickup(o, arrivedNow);
+        return m === null || m <= SCHEDULED_ALERT_MINUTES;
+      });
+      if (hasImmediate) playNewOrderChime();
     },
   });
 
@@ -93,7 +108,36 @@ export function CaisseView({
     if (shouldChime) playNewOrderChime();
   }, [now, queue, urgencyIndex, soundEnabledRef]);
 
-  const visibleOrders = useMemo(() => filterByTab(queue, tab), [queue, tab]);
+  // Carillon unique au passage sous −SCHEDULED_ALERT_MINUTES d'une commande programmée.
+  useEffect(() => {
+    const alerted = scheduledAlertedRef.current;
+    const liveIds = new Set(queue.map((o) => o.id));
+    for (const id of alerted) {
+      if (!liveIds.has(id)) alerted.delete(id);
+    }
+
+    let shouldChime = false;
+    for (const o of queue) {
+      if (o.status !== 'NEW' && o.status !== 'PREPARING') continue;
+      const m = minutesUntilPickup(o, now);
+      if (m === null || m > SCHEDULED_ALERT_MINUTES || m <= 0) continue;
+      if (!alerted.has(o.id)) {
+        alerted.add(o.id);
+        shouldChime = true;
+      }
+    }
+    if (shouldChime && soundEnabledRef.current) playNewOrderChime();
+  }, [now, queue, soundEnabledRef]);
+
+  const scheduledOrders = useMemo(
+    () => filterScheduledAhead(queue, now),
+    [queue, now]
+  );
+
+  const visibleOrders = useMemo(
+    () => filterByTab(queue, tab, now),
+    [queue, tab, now]
+  );
 
   function handleBannerSeeClick() {
     const criticals: Record<TabKey, number> = {
@@ -121,6 +165,8 @@ export function CaisseView({
           onSeeClick={handleBannerSeeClick}
         />
       )}
+
+      <ScheduledSection orders={scheduledOrders} menu={menu} now={now} />
 
       <UrgencyTabs
         tab={tab}

@@ -8,6 +8,10 @@
 // Seuils centralisés ici : facile à ajuster sans toucher au reste.
 
 import type { CashierOrder } from '@/lib/cashier-queue';
+import {
+  SCHEDULED_ALERT_MINUTES,
+  SCHEDULED_LEAD_IN_MINUTES,
+} from '@/config/constants';
 
 export type UrgencyLevel = 'normal' | 'attention' | 'alert' | 'critical';
 
@@ -44,12 +48,58 @@ export function isPickupOverdue(order: CashierOrder, now: Date): boolean {
   return order.pickupTime.getTime() < now.getTime();
 }
 
+/** Minutes (arrondies) avant le retrait ; null si la commande n'a pas de `pickupTime`. */
+export function minutesUntilPickup(
+  order: CashierOrder,
+  now: Date
+): number | null {
+  if (!order.pickupTime) return null;
+  return Math.round((order.pickupTime.getTime() - now.getTime()) / 60_000);
+}
+
+/**
+ * True si la commande est une commande programmée encore « en avance » : créneau de retrait
+ * défini, à plus de `SCHEDULED_LEAD_IN_MINUTES` minutes, et toujours active (NEW/PREPARING).
+ * Ces commandes vivent dans la section « Programmées » et n'entrent pas encore dans « En cours ».
+ */
+export function isScheduledAhead(order: CashierOrder, now: Date): boolean {
+  if (order.status !== 'NEW' && order.status !== 'PREPARING') return false;
+  const m = minutesUntilPickup(order, now);
+  return m !== null && m > SCHEDULED_LEAD_IN_MINUTES;
+}
+
+/**
+ * Libellé court du créneau de retrait pour la carte caisse :
+ *   « aujourd'hui 15:30 » / « demain 15:30 » / « 14/06 15:30 ».
+ */
+export function formatPickup(pickup: Date, now: Date): string {
+  const time = pickup.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const dayDiff = Math.floor(
+    (new Date(pickup).setHours(0, 0, 0, 0) - startOfToday.getTime()) / 86_400_000
+  );
+  if (dayDiff <= 0) return `aujourd'hui ${time}`;
+  if (dayDiff === 1) return `demain ${time}`;
+  const date = pickup.toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+  });
+  return `${date} ${time}`;
+}
+
 /**
  * Niveau d'urgence pour une commande dans le contexte d'un tab donné.
  *
  * Règles :
  *   - pickupTime dépassé (commande online en retard) → critical, peu importe l'âge
- *   - sinon, niveau dérivé de l'âge depuis createdAt avec les seuils du tab
+ *   - commande AVEC pickupTime → urgence dérivée de la proximité du retrait (et non de
+ *     l'âge) : elle reste « normal » tant que le retrait est lointain, puis monte à
+ *     l'approche. Évite qu'une programmée créée il y a des heures soit faussement critique.
+ *   - commande SANS pickupTime (walk-in) → niveau dérivé de l'âge depuis createdAt
  */
 export function getUrgencyLevel(
   order: CashierOrder,
@@ -57,6 +107,14 @@ export function getUrgencyLevel(
   now: Date
 ): UrgencyLevel {
   if (isPickupOverdue(order, now)) return 'critical';
+
+  const untilPickup = minutesUntilPickup(order, now);
+  if (untilPickup !== null) {
+    if (untilPickup <= 5) return 'critical';
+    if (untilPickup <= 10) return 'alert';
+    if (untilPickup <= SCHEDULED_ALERT_MINUTES) return 'attention';
+    return 'normal';
+  }
 
   const age = getOrderAgeMinutes(order.createdAt, now);
   const [attentionAt, alertAt, criticalAt] = THRESHOLDS[tab];
