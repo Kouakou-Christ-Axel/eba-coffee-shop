@@ -68,6 +68,7 @@
     "recharts": "^3.8.1",
     "resend": "^6.12.3",
     "schema-dts": "^1.1.5",
+    "sharp": "^0.35.1",
     "tailwind-merge": "^3.5.0",
     "varlock": "^1.1.0",
     "zod": "^4.4.3",

@@ -234,9 +234,10 @@ automatiquement à la création de commande (≥ montant min, 1/jour/numéro).
 produit** sans passer par le dashboard :
 
 - **Téléversement** : `imageBase64` (contenu encodé base64 ou data URI
-  `data:image/png;base64,...`) + `mimeType`. L'image est enregistrée localement
-  (`/uploads/products/<uuid>.<ext>`, max 5 MB, JPEG/PNG/WebP/AVIF) et rattachée
-  au produit.
+  `data:image/png;base64,...`) + `mimeType`. Formats d'entrée acceptés :
+  JPEG/PNG/WebP/AVIF/HEIC (max 25 MB). L'image est **redimensionnée** (≤ 2200 px)
+  et **ré-encodée en WebP** côté serveur, puis enregistrée localement
+  (`/uploads/products/<uuid>.webp`) et rattachée au produit.
 - **Référence** : `imageUrl` pour pointer une image déjà hébergée (chemin
   `/uploads/...` ou URL http(s)).
 

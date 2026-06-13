@@ -1,19 +1,27 @@
 // lib/schemas/upload.ts
 //
 // Constantes et helpers centralisés pour la validation des uploads d'images.
-// Source : app/api/upload/route.ts (MAX_BYTES, ALLOWED_MIMES, extension
-// derivation). On élargit la whitelist à AVIF pour préparer la prochaine vague
-// de l'intégration ; les routes existantes ne sont pas touchées dans ce lot.
+// La whitelist couvre les formats d'ENTRÉE acceptés (dont HEIC/HEIF des
+// iPhone) ; quel que soit le format reçu, l'image est redimensionnée et
+// ré-encodée en WebP côté serveur (lib/uploads.ts → saveImage). Le plafond de
+// taille est centralisé dans config/constants.ts (ré-exporté ci-dessous).
 
 import { z } from 'zod';
+import { MAX_UPLOAD_SIZE_BYTES } from '@/config/constants';
 
-// ─── MIME types autorisés (whitelist) ─────────────────────────────────────────
+export { MAX_UPLOAD_SIZE_BYTES };
+
+const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
+
+// ─── MIME types autorisés en entrée (whitelist) ───────────────────────────────
 
 export const ALLOWED_IMAGE_MIME_TYPES = [
   'image/jpeg',
   'image/png',
   'image/webp',
   'image/avif',
+  'image/heic',
+  'image/heif',
 ] as const;
 
 export type AllowedImageMimeType = (typeof ALLOWED_IMAGE_MIME_TYPES)[number];
@@ -28,19 +36,16 @@ export function isAllowedImageMimeType(
   return ALLOWED_IMAGE_MIME_SET.has(mime);
 }
 
-// ─── Taille maximale ──────────────────────────────────────────────────────────
-// 5 MB en octets (valeur historique de app/api/upload/route.ts).
-
-export const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024;
-
 // ─── Extension à partir du MIME ───────────────────────────────────────────────
 //
-// Whitelist explicite — pas de split('/'), pour éviter qu'un Content-Type
-// frauduleux (ex. "image/svg+xml") n'aboutisse à une extension non prévue.
+// Note : les images stockées sont TOUJOURS en WebP (cf. lib/uploads.ts). Ce
+// helper ne sert donc plus à dériver l'extension de sortie ; il reste exposé
+// comme mapping explicite (pas de split('/'), pour éviter qu'un Content-Type
+// frauduleux n'aboutisse à une extension non prévue) et renvoie `null` pour les
+// formats sans extension « brute » canonique (HEIC/HEIF → reconvertis).
 
-const MIME_TO_EXTENSION: Record<
-  AllowedImageMimeType,
-  'jpg' | 'png' | 'webp' | 'avif'
+const MIME_TO_EXTENSION: Partial<
+  Record<AllowedImageMimeType, 'jpg' | 'png' | 'webp' | 'avif'>
 > = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -52,7 +57,7 @@ export function imageExtensionFromMime(
   mime: string
 ): 'jpg' | 'png' | 'webp' | 'avif' | null {
   if (!isAllowedImageMimeType(mime)) return null;
-  return MIME_TO_EXTENSION[mime];
+  return MIME_TO_EXTENSION[mime] ?? null;
 }
 
 // ─── Schéma Zod (validation File côté serveur) ────────────────────────────────
@@ -63,11 +68,11 @@ export function imageExtensionFromMime(
 export const uploadFileSchema = z
   .instanceof(File, { message: 'Fichier manquant' })
   .refine((file) => isAllowedImageMimeType(file.type), {
-    message: 'Format non supporté (JPEG, PNG, WebP, AVIF uniquement)',
+    message: 'Format non supporté (JPEG, PNG, WebP, AVIF, HEIC)',
   })
   .refine((file) => file.size > 0, { message: 'Fichier vide' })
   .refine((file) => file.size <= MAX_UPLOAD_SIZE_BYTES, {
-    message: 'Fichier trop volumineux (max 5 MB)',
+    message: `Fichier trop volumineux (max ${MAX_UPLOAD_SIZE_MB} MB)`,
   });
 
 export type UploadFileInput = z.infer<typeof uploadFileSchema>;
