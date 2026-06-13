@@ -12,6 +12,14 @@ import type {
 import type { CartItemInput } from '@/lib/schemas/order';
 import { todayDailyDate } from '@/lib/daily-numbering';
 import { formatLocalDateOnly } from '@/lib/timezone';
+import {
+  sumAdjustmentsByMode,
+  sumAdjustmentsByModeForDay,
+  sumAdjustmentsByDay,
+} from '@/lib/revenue-adjustments';
+
+// Modes de paiement (pour l'ajout des régularisations de recette au CA).
+const PAYMENT_MODES: PaymentMode[] = ['CASH', 'WAVE', 'OTHER'];
 
 export type DailyStats = {
   date: Date;
@@ -29,16 +37,19 @@ export type DailyStats = {
 export async function getDailyStats(
   date: Date = todayDailyDate()
 ): Promise<DailyStats> {
-  const orders = await prisma.order.findMany({
-    where: { dailyDate: date },
-    select: {
-      status: true,
-      orderType: true,
-      isPaid: true,
-      paymentMode: true,
-      total: true,
-    },
-  });
+  const [orders, adjustments] = await Promise.all([
+    prisma.order.findMany({
+      where: { dailyDate: date },
+      select: {
+        status: true,
+        orderType: true,
+        isPaid: true,
+        paymentMode: true,
+        total: true,
+      },
+    }),
+    sumAdjustmentsByModeForDay(date),
+  ]);
 
   const stats: DailyStats = {
     date,
@@ -68,6 +79,13 @@ export async function getDailyStats(
         stats.revenueByPaymentMode[o.paymentMode] += o.total;
       }
     }
+  }
+
+  // Régularisations de recette : ajoutées au CA (et par mode), sans toucher les
+  // compteurs de commandes.
+  for (const mode of PAYMENT_MODES) {
+    stats.revenue += adjustments[mode];
+    stats.revenueByPaymentMode[mode] += adjustments[mode];
   }
 
   return stats;
@@ -103,16 +121,19 @@ export type RangeStats = {
  * que `getDailyStats` : `revenue` = somme des totaux encaissés (isPaid).
  */
 export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
-  const orders = await prisma.order.findMany({
-    where: { dailyDate: { gte: from, lte: to } },
-    select: {
-      status: true,
-      orderType: true,
-      isPaid: true,
-      paymentMode: true,
-      total: true,
-    },
-  });
+  const [orders, adjustments] = await Promise.all([
+    prisma.order.findMany({
+      where: { dailyDate: { gte: from, lte: to } },
+      select: {
+        status: true,
+        orderType: true,
+        isPaid: true,
+        paymentMode: true,
+        total: true,
+      },
+    }),
+    sumAdjustmentsByMode(from, to),
+  ]);
 
   const stats: RangeStats = {
     from,
@@ -150,10 +171,18 @@ export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
     }
   }
 
+  // Panier moyen : calculé sur le CA DES COMMANDES (avant régularisations), car
+  // une régularisation n'est pas une commande.
   stats.avgBasket =
     stats.paidOrders > 0 ? Math.round(stats.revenue / stats.paidOrders) : 0;
   stats.cancellationRate =
     stats.totalOrders > 0 ? stats.cancelledOrders / stats.totalOrders : 0;
+
+  // Régularisations de recette : ajoutées au CA total et par mode de paiement.
+  for (const mode of PAYMENT_MODES) {
+    stats.revenue += adjustments[mode];
+    stats.revenueByPaymentMode[mode] += adjustments[mode];
+  }
 
   return stats;
 }
@@ -168,10 +197,13 @@ export async function getDailySeries(
   from: Date,
   to: Date
 ): Promise<DailyPoint[]> {
-  const rows = await prisma.order.findMany({
-    where: { dailyDate: { gte: from, lte: to } },
-    select: { dailyDate: true, total: true, isPaid: true },
-  });
+  const [rows, adjByDay] = await Promise.all([
+    prisma.order.findMany({
+      where: { dailyDate: { gte: from, lte: to } },
+      select: { dailyDate: true, total: true, isPaid: true },
+    }),
+    sumAdjustmentsByDay(from, to),
+  ]);
 
   const agg = new Map<string, { orders: number; revenue: number }>();
   for (const r of rows) {
@@ -187,7 +219,9 @@ export async function getDailySeries(
   while (cursor.getTime() <= to.getTime()) {
     const key = formatLocalDateOnly(cursor);
     const point = agg.get(key) ?? { orders: 0, revenue: 0 };
-    series.push({ date: key, orders: point.orders, revenue: point.revenue });
+    // Régularisations du jour ajoutées au CA (le nombre de commandes reste tel quel).
+    const revenue = point.revenue + (adjByDay.get(key) ?? 0);
+    series.push({ date: key, orders: point.orders, revenue });
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 

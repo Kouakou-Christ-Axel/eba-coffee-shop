@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LogOut,
   PiggyBank,
+  Scale,
   Settings,
   ShoppingBag,
   UtensilsCrossed,
@@ -65,6 +66,12 @@ const navItems: NavItem[] = [
     label: 'Investissements',
     href: '/dashboard/investissements',
     icon: PiggyBank,
+    roles: ['ADMIN'],
+  },
+  {
+    label: 'Régularisations',
+    href: '/dashboard/regularisations',
+    icon: Scale,
     roles: ['ADMIN'],
   },
   {

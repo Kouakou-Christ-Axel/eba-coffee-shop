@@ -28,6 +28,7 @@ model User {
   createdOrders      Order[]        @relation("OrderCreatedBy")
   createdExpenses    Expense[]      @relation("ExpenseCreatedBy")
   createdInvestments Investment[]   @relation("InvestmentCreatedBy")
+  revenueAdjustments RevenueAdjustment[] @relation("RevenueAdjustmentCreatedBy")
   cashClosings       CashClosing[]  @relation("CashClosingClosedBy")
 
   @@map("user")
@@ -495,4 +496,28 @@ model Investment {
   @@index([date(sort: Desc)])
   @@index([sourceId])
   @@map("investment")
+}
+
+// ─── Régularisation de recette (ajustement manuel du CA) ───────────────────────
+// Permet d'enregistrer un montant de CA SANS commande (ventes non saisies en
+// temps réel, anciennes commandes perdues…). Injecté dans lib/stats.ts → remonte
+// dans les statistiques, la série journalière et la clôture de caisse (mode
+// espèces). Réutilise l'enum PaymentMode (cohérent avec les commandes).
+
+model RevenueAdjustment {
+  id          String      @id @default(cuid())
+  // Jour civil de la recette (cohérent avec Order.dailyDate / Expense.date).
+  date        DateTime    @db.Date
+  amount      Int // FCFA, SIGNÉ : + = recette ajoutée, − = recette retirée
+  paymentMode PaymentMode @default(CASH) // canal (alimente la clôture si CASH)
+  note        String? // motif de la régularisation
+
+  createdById String?
+  createdBy   User?   @relation("RevenueAdjustmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date(sort: Desc)])
+  @@map("revenue_adjustment")
 }
