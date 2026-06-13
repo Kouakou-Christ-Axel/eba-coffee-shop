@@ -43,12 +43,24 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
 
   const orders = await prisma.order.findMany({
     where: {
-      createdAt: { gte: dayStart, lte: dayEnd },
       // Une commande annulée (ou remboursée) quitte la file caisse.
       status: { not: 'CANCELLED' },
-      OR: [
-        { status: { in: ['NEW', 'PREPARING', 'READY'] } },
-        { isPaid: false },
+      AND: [
+        // Toujours active (en cuisine/prête) OU encore impayée.
+        {
+          OR: [
+            { status: { in: ['NEW', 'PREPARING', 'READY'] } },
+            { isPaid: false },
+          ],
+        },
+        // Du jour (walk-in) OU programmée pour aujourd'hui/à venir : on inclut ainsi
+        // une commande passée la veille pour un retrait aujourd'hui ou demain.
+        {
+          OR: [
+            { createdAt: { gte: dayStart, lte: dayEnd } },
+            { pickupTime: { gte: dayStart } },
+          ],
+        },
       ],
     },
     // FIFO strict : la commande la plus ancienne en haut.
