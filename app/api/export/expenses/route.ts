@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
     'Justificatif',
   ];
   const rows = expenses.map((e) => [
-    e.receiptNo,
+    e.receiptNo ?? '',
     formatLocalDateOnly(e.date),
     e.category.name,
     e.amount,

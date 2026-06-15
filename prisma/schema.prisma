@@ -408,9 +408,13 @@ model Expense {
   // Le compteur (receiptSeq) est remis à zéro chaque mois civil, scopé par
   // receiptPeriod ("YYYY-MM" du mois d'attribution). receiptNo est le libellé
   // formaté affiché/exporté : DEP-YYYY-MM-NNNN (ex. DEP-2026-06-0001).
-  receiptNo     String  @unique
-  receiptPeriod String // mois d'attribution "YYYY-MM"
-  receiptSeq    Int // séquence dans le mois (1-based)
+  // Nullable pour permettre un `db push` sans valeur par défaut sur les lignes
+  // existantes ; les dépenses déjà en base sont numérotées via le script de
+  // backfill (`pnpm db:backfill-expense-receipts`). Toute dépense créée par
+  // l'app reçoit toujours son numéro.
+  receiptNo     String? @unique
+  receiptPeriod String? // mois d'attribution "YYYY-MM"
+  receiptSeq    Int? // séquence dans le mois (1-based)
 
   categoryId String
   category   ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)

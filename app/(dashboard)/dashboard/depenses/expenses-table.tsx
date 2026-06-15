@@ -43,7 +43,7 @@ type CategoryWithCount = Category & { _count: { expenses: number } };
 
 export type ExpenseRow = {
   id: string;
-  receiptNo: string;
+  receiptNo: string | null;
   date: string;
   amount: number;
   paymentLabel: string;
@@ -177,7 +177,7 @@ export function ExpensesTable({
             {expenses.map((e) => (
               <TableRow key={e.id}>
                 <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
-                  {e.receiptNo}
+                  {e.receiptNo ?? '—'}
                 </TableCell>
                 <TableCell className="whitespace-nowrap font-mono text-sm">
                   {e.date}
