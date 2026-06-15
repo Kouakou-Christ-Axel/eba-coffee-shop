@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
   });
 
   const headers = [
+    'N° reçu',
     'Date',
     'Catégorie',
     'Montant (FCFA)',
@@ -77,6 +78,7 @@ export async function GET(req: NextRequest) {
     'Justificatif',
   ];
   const rows = expenses.map((e) => [
+    e.receiptNo,
     formatLocalDateOnly(e.date),
     e.category.name,
     e.amount,
@@ -86,7 +88,7 @@ export async function GET(req: NextRequest) {
     e.receiptUrl ?? '',
   ]);
   // Ligne de total.
-  rows.push(['', 'TOTAL', total, '', '', '', '']);
+  rows.push(['', '', 'TOTAL', total, '', '', '', '']);
 
   return csvResponse(`depenses_${fromStr}_${toStr}.csv`, toCsv(headers, rows));
 }

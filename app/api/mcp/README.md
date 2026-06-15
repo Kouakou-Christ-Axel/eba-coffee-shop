@@ -183,7 +183,10 @@ dépenses, lecture **et** écriture) : on peut tout gérer sans ouvrir l'app.
 `amount` est en francs CFA entiers, `date` au format `YYYY-MM-DD`, `categoryId`
 provient de `list_expense_categories`, et `paymentMethod` ∈
 `CASH`/`WAVE`/`BANK`/`OTHER`. Le justificatif photo se joint via
-`set_expense_receipt` (base64 ou URL).
+`set_expense_receipt` (base64 ou URL). Chaque dépense reçoit à la création un
+**numéro de reçu** `receiptNo` (`DEP-YYYY-MM-NNNN`, séquence remise à zéro chaque
+mois civil) ; ce numéro est **immuable** (il ne change pas si la `date` est
+modifiée ensuite).
 
 Les outils **investissements** (apports / financements injectés dans l'affaire :
 capital, prêt, apport d'associé, subvention…) couvrent l'administration complète
