@@ -1,15 +1,16 @@
 -- Numérotation des reçus de dépense (DEP-YYYY-MM-NNNN), avec rétroactivité.
 --
--- Stratégie sûre en prod :
---   1) on ajoute les colonnes en NULLABLE (l'ALTER ne peut pas poser NOT NULL
---      sur une table déjà remplie sans valeur par défaut) ;
---   2) on BACKFILL chaque dépense existante : numérotation chronologique par
---      mois civil de la `date` (ordre date ASC, createdAt ASC, id ASC) ;
---   3) on durcit en NOT NULL ;
---   4) on pose les contraintes d'unicité (après le backfill pour éviter tout
---      conflit pendant le remplissage).
+-- Les colonnes restent NULLABLE (pour rester compatibles avec un `db push` sur
+-- une base déjà remplie). On BACKFILL tout de même les lignes existantes ici,
+-- pour les déploiements qui passent par `migrate deploy` :
+--   1) ajout des colonnes ;
+--   2) backfill chronologique par mois civil de la `date`
+--      (ordre date ASC, createdAt ASC, id ASC) ;
+--   3) contraintes d'unicité (après le backfill pour éviter tout conflit).
+-- NB : si tu déploies via `db push`, la migration n'est pas exécutée — lance
+-- alors `pnpm db:backfill-expense-receipts` pour numéroter l'existant.
 
--- 1) Colonnes (nullable le temps du backfill)
+-- 1) Colonnes (nullable)
 ALTER TABLE "expense" ADD COLUMN "receiptNo" TEXT;
 ALTER TABLE "expense" ADD COLUMN "receiptPeriod" TEXT;
 ALTER TABLE "expense" ADD COLUMN "receiptSeq" INTEGER;
@@ -33,11 +34,7 @@ SET
 FROM numbered n
 WHERE e."id" = n."id";
 
--- 3) Durcissement NOT NULL (toutes les lignes sont désormais renseignées)
-ALTER TABLE "expense" ALTER COLUMN "receiptNo" SET NOT NULL;
-ALTER TABLE "expense" ALTER COLUMN "receiptPeriod" SET NOT NULL;
-ALTER TABLE "expense" ALTER COLUMN "receiptSeq" SET NOT NULL;
-
--- 4) Unicité (libellé global + couple mois/séquence)
+-- 3) Unicité (libellé global + couple mois/séquence). NULL autorisé et distinct
+-- en Postgres, donc compatible avec d'éventuelles lignes non numérotées.
 CREATE UNIQUE INDEX "expense_receiptNo_key" ON "expense"("receiptNo");
 CREATE UNIQUE INDEX "expense_receiptPeriod_receiptSeq_key" ON "expense"("receiptPeriod", "receiptSeq");
