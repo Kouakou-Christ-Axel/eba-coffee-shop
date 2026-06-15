@@ -300,7 +300,9 @@ export const tools: McpTool[] = [
       'Renvoie les dépenses filtrées par plage de dates (`from`/`to`, ' +
       '`YYYY-MM-DD`, jour civil Abidjan), `categoryId`, `paymentMethod` ' +
       '(CASH/WAVE/BANK/OTHER) et/ou `search` (fournisseur ou note), avec le ' +
-      'total. Tous les filtres sont optionnels.',
+      'total. Chaque dépense porte un numéro de reçu `receiptNo` ' +
+      '(DEP-YYYY-MM-NNNN, séquence remise à zéro chaque mois). Tous les ' +
+      'filtres sont optionnels.',
     inputSchema: expenseFiltersSchema,
     readOnly: true,
     handler: (args) => {
@@ -341,7 +343,8 @@ export const tools: McpTool[] = [
       'francs CFA entiers, `categoryId` issu de `list_expense_categories`. ' +
       '`paymentMethod` ∈ CASH/WAVE/BANK/OTHER (défaut CASH). `supplier`, ' +
       '`note` et `receiptUrl` sont optionnels ; pour joindre une photo encodée, ' +
-      'utilise `set_expense_receipt` après création.',
+      'utilise `set_expense_receipt` après création. Un numéro de reçu ' +
+      '`receiptNo` (DEP-YYYY-MM-NNNN) est attribué automatiquement et renvoyé.',
     inputSchema: expenseInputSchema,
     readOnly: false,
     handler: (args) => createExpense(args),
@@ -351,7 +354,8 @@ export const tools: McpTool[] = [
     title: 'Modifier une dépense',
     description:
       'Met à jour une dépense de façon PARTIELLE : ne fournis que les champs à ' +
-      'modifier.',
+      'modifier. Le numéro de reçu (`receiptNo`) est immuable et ne change ' +
+      'jamais, même si la `date` est modifiée.',
     inputSchema: expenseInputSchema.partial().extend({ id: idSchema }),
     readOnly: false,
     handler: (args) => {

@@ -124,6 +124,7 @@ export default async function DepensesPage({
 
   const rows: ExpenseRow[] = expenses.map((e) => ({
     id: e.id,
+    receiptNo: e.receiptNo,
     date: formatLocalDateOnly(e.date),
     amount: e.amount,
     paymentLabel: PAYMENT_LABELS[e.paymentMethod] ?? e.paymentMethod,

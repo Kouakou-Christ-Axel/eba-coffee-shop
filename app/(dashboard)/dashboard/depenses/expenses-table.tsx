@@ -43,6 +43,7 @@ type CategoryWithCount = Category & { _count: { expenses: number } };
 
 export type ExpenseRow = {
   id: string;
+  receiptNo: string;
   date: string;
   amount: number;
   paymentLabel: string;
@@ -161,6 +162,7 @@ export function ExpensesTable({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>N° reçu</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Catégorie</TableHead>
               <TableHead>Montant</TableHead>
@@ -174,6 +176,9 @@ export function ExpensesTable({
           <TableBody>
             {expenses.map((e) => (
               <TableRow key={e.id}>
+                <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+                  {e.receiptNo}
+                </TableCell>
                 <TableCell className="whitespace-nowrap font-mono text-sm">
                   {e.date}
                 </TableCell>
@@ -241,7 +246,7 @@ export function ExpensesTable({
             {expenses.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={9}
                   className="py-8 text-center text-sm text-muted-foreground"
                 >
                   Aucune dépense sur cette sélection.

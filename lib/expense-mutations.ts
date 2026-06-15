@@ -8,6 +8,12 @@ import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { parseDateOnlyToUTC } from '@/lib/timezone';
 import {
+  getNextReceiptSeq,
+  receiptPeriodFromDate,
+  formatReceiptNo,
+  RECEIPT_NUMBER_MAX_RETRIES,
+} from '@/lib/expense-numbering';
+import {
   expenseCategoryInputSchema,
   expenseCategoryUpdateSchema,
   expenseInputSchema,
@@ -62,20 +68,49 @@ export async function deleteExpenseCategory(id: string) {
 
 export async function createExpense(input: unknown, createdById?: string) {
   const data = expenseInputSchema.parse(input);
-  return prisma.expense.create({
-    data: {
-      date: parseDateOnlyToUTC(data.date)!,
-      amount: data.amount,
-      categoryId: data.categoryId,
-      paymentMethod: data.paymentMethod ?? 'CASH',
-      supplier: data.supplier ?? null,
-      note: data.note ?? null,
-      receiptUrl: data.receiptUrl ?? null,
-      createdById: createdById ?? null,
-    },
-  });
+  const date = parseDateOnlyToUTC(data.date)!;
+  // Numéro de reçu : compteur du mois civil de la dépense. Figé à la création.
+  const receiptPeriod = receiptPeriodFromDate(date);
+
+  // Retry sur conflit de l'index unique (receiptPeriod, receiptSeq) en cas de
+  // saisies concurrentes sur le même mois.
+  for (let attempt = 0; attempt < RECEIPT_NUMBER_MAX_RETRIES; attempt++) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const receiptSeq = await getNextReceiptSeq(tx, receiptPeriod);
+        return tx.expense.create({
+          data: {
+            date,
+            amount: data.amount,
+            categoryId: data.categoryId,
+            paymentMethod: data.paymentMethod ?? 'CASH',
+            supplier: data.supplier ?? null,
+            note: data.note ?? null,
+            receiptUrl: data.receiptUrl ?? null,
+            createdById: createdById ?? null,
+            receiptPeriod,
+            receiptSeq,
+            receiptNo: formatReceiptNo(receiptPeriod, receiptSeq),
+          },
+        });
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002' &&
+        attempt < RECEIPT_NUMBER_MAX_RETRIES - 1
+      ) {
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw new Error('Impossible de générer un numéro de reçu de dépense');
 }
 
+// Note : le numéro de reçu (receiptNo/receiptPeriod/receiptSeq) est IMMUABLE et
+// n'est donc jamais modifié ici — même si la `date` est éditée vers un autre mois.
 export async function updateExpense(id: string, input: unknown) {
   const data = expenseUpdateSchema.parse(input);
   return prisma.expense.update({

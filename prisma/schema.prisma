@@ -403,6 +403,15 @@ model Expense {
   // Justificatif (photo) optionnel : chemin /uploads/receipts/... ou URL http(s).
   receiptUrl    String?
 
+  // Numéro de reçu séquentiel, attribué à la création et IMMUABLE (principe
+  // comptable : un document numéroté ne change pas, même si on modifie sa date).
+  // Le compteur (receiptSeq) est remis à zéro chaque mois civil, scopé par
+  // receiptPeriod ("YYYY-MM" du mois d'attribution). receiptNo est le libellé
+  // formaté affiché/exporté : DEP-YYYY-MM-NNNN (ex. DEP-2026-06-0001).
+  receiptNo     String  @unique
+  receiptPeriod String // mois d'attribution "YYYY-MM"
+  receiptSeq    Int // séquence dans le mois (1-based)
+
   categoryId String
   category   ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
@@ -412,6 +421,7 @@ model Expense {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([receiptPeriod, receiptSeq])
   @@index([date(sort: Desc)])
   @@index([categoryId])
   @@map("expense")
