@@ -1,6 +1,10 @@
 import { Download, Layers, ReceiptText, Sigma, Wallet } from 'lucide-react';
 import { requireAdmin } from '@/lib/auth-helpers';
-import { listExpenses, listExpenseCategories } from '@/lib/expenses';
+import {
+  listExpenses,
+  listExpenseCategories,
+  countUnnumberedExpenses,
+} from '@/lib/expenses';
 import {
   listRecurringExpenses,
   getMissingRecurringExpenses,
@@ -20,6 +24,7 @@ import { ExpensesTable, type ExpenseRow } from './expenses-table';
 import { CategoryFilter } from './category-filter';
 import { ExpenseFilters } from './expense-filters';
 import { RecurringAlert } from './recurring-alert';
+import { ReceiptBackfillAlert } from './receipt-backfill-alert';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,11 +84,13 @@ export default async function DepensesPage({
     { expenses, total, count },
     recurringList,
     missingRecurring,
+    unnumberedCount,
   ] = await Promise.all([
     listExpenseCategories(),
     listExpenses({ dateFrom, dateTo, categoryId, paymentMethod, search }),
     listRecurringExpenses(),
     getMissingRecurringExpenses(),
+    countUnnumberedExpenses(),
   ]);
 
   const recurringRows = recurringList.map((r) => ({
@@ -144,6 +151,8 @@ export default async function DepensesPage({
           Suivi des dépenses catégorisées du restaurant.
         </p>
       </div>
+
+      <ReceiptBackfillAlert count={unnumberedCount} />
 
       <RecurringAlert missing={missingRecurring} categories={plainCategories} />
 
