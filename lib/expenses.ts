@@ -43,6 +43,11 @@ function buildExpenseWhere({
   return where;
 }
 
+/** Nombre de dépenses sans numéro de reçu (toutes périodes confondues). */
+export function countUnnumberedExpenses() {
+  return prisma.expense.count({ where: { receiptNo: null } });
+}
+
 /** Catégories triées, avec le nombre de dépenses rattachées. */
 export async function listExpenseCategories() {
   return prisma.expenseCategory.findMany({

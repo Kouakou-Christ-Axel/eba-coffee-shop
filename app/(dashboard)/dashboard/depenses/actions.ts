@@ -80,6 +80,26 @@ export async function deleteExpenseAction(id: string): Promise<ActionResult> {
   return run(() => expenses.deleteExpense(id));
 }
 
+/**
+ * Numérote rétroactivement les dépenses sans numéro de reçu. Idempotent.
+ * Renvoie le nombre de dépenses numérotées pour le retour visuel.
+ */
+export async function backfillExpenseReceiptsAction(): Promise<
+  { ok: true; updated: number; total: number } | { ok: false; error: string }
+> {
+  await requireAdminId();
+  try {
+    const res = await expenses.backfillExpenseReceipts();
+    revalidate();
+    return { ok: true, ...res };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erreur inattendue',
+    };
+  }
+}
+
 // ── Dépenses récurrentes (modèles) ──
 
 export async function createRecurringExpenseAction(
