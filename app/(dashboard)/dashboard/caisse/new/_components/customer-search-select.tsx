@@ -1,14 +1,17 @@
 'use client';
 
-// Champ « Téléphone » de la caisse avec autocomplétion des clients déjà
-// enregistrés. En tapant un numéro OU un nom, une liste de clients correspondants
-// s'affiche sous le champ ; un clic remplit téléphone + prénom (via
-// `onSelectCustomer`). La saisie libre (client inconnu) reste possible.
+// Recherche d'un client existant depuis la caisse, PAR NOM OU TÉLÉPHONE.
+// Champ texte (clavier complet, contrairement à un champ `tel`), avec
+// autocomplétion : en tapant un nom ou un numéro, la liste des clients
+// correspondants s'affiche ; un clic remplit téléphone + nom de la commande
+// (via `onSelect`). La saisie manuelle d'un nouveau client reste possible via
+// les champs Téléphone / Nom en dessous.
 //
-// Recherche : GET /api/customers/search (réutilise `listCustomers`). Debounce et
-// wrapper `relative` calqués sur `dashboard/clients/customer-search.tsx`.
+// Recherche : GET /api/customers/search (réutilise `listCustomers`, qui cherche
+// déjà par nom OU chiffres du téléphone).
 
 import { useEffect, useRef, useState } from 'react';
+import { Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { formatPhoneForDisplay } from '@/lib/phone';
 
@@ -22,31 +25,24 @@ type CustomerHit = {
 };
 
 type Props = {
-  value: string;
-  onChange: (value: string) => void;
-  onSelectCustomer: (customer: { name: string | null; phone: string }) => void;
-  required?: boolean;
+  onSelect: (customer: { name: string | null; phone: string }) => void;
 };
 
-export function CustomerPhoneAutocomplete({
-  value,
-  onChange,
-  onSelectCustomer,
-  required,
-}: Props) {
+export function CustomerSearchSelect({ onSelect }: Props) {
+  const [query, setQuery] = useState('');
   const [results, setResults] = useState<CustomerHit[]>([]);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Évite de relancer une recherche / rouvrir la liste juste après une sélection.
-  const skipNextSearch = useRef(false);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
       if (timer.current) clearTimeout(timer.current);
       if (blurTimer.current) clearTimeout(blurTimer.current);
+      abortRef.current?.abort();
     };
   }, []);
 
@@ -57,7 +53,9 @@ export function CustomerPhoneAutocomplete({
       setOpen(false);
       return;
     }
+    abortRef.current?.abort();
     const controller = new AbortController();
+    abortRef.current = controller;
     fetch(`/api/customers/search?q=${encodeURIComponent(q)}`, {
       signal: controller.signal,
     })
@@ -69,24 +67,25 @@ export function CustomerPhoneAutocomplete({
         setOpen(hits.length > 0);
       })
       .catch(() => {
-        // Erreur réseau / requête annulée : on n'affiche pas de suggestions.
+        // Erreur réseau / requête annulée : pas de suggestions.
       });
   }
 
   function handleChange(next: string) {
-    onChange(next);
+    setQuery(next);
     if (timer.current) clearTimeout(timer.current);
-    if (skipNextSearch.current) {
-      skipNextSearch.current = false;
-      return;
-    }
     timer.current = setTimeout(() => runSearch(next), DEBOUNCE_MS);
   }
 
   function handleSelect(hit: CustomerHit) {
     if (timer.current) clearTimeout(timer.current);
-    skipNextSearch.current = true;
-    onSelectCustomer({ name: hit.name, phone: hit.phone });
+    onSelect({ name: hit.name, phone: hit.phone });
+    // Feedback : on affiche le client retenu dans le champ de recherche.
+    setQuery(
+      hit.name
+        ? `${hit.name} · ${formatPhoneForDisplay(hit.phone)}`
+        : formatPhoneForDisplay(hit.phone)
+    );
     setResults([]);
     setOpen(false);
     setActiveIndex(-1);
@@ -112,24 +111,22 @@ export function CustomerPhoneAutocomplete({
 
   return (
     <div className="relative">
+      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
-        id="customer-phone"
-        type="tel"
-        inputMode="tel"
-        value={value}
+        id="customer-search"
+        type="search"
+        value={query}
         onChange={(e) => handleChange(e.target.value)}
         onKeyDown={handleKeyDown}
         onFocus={() => {
           if (results.length > 0) setOpen(true);
         }}
         onBlur={() => {
-          // Délai : laisse le clic sur une suggestion se déclencher avant la
-          // fermeture.
           blurTimer.current = setTimeout(() => setOpen(false), 120);
         }}
-        placeholder="07 88 12 34 56"
+        placeholder="Rechercher un client (nom ou téléphone)…"
         autoComplete="off"
-        required={required}
+        className="pl-8"
         role="combobox"
         aria-expanded={open}
         aria-autocomplete="list"
@@ -147,8 +144,7 @@ export function CustomerPhoneAutocomplete({
             >
               <button
                 type="button"
-                // onMouseDown plutôt que onClick : se déclenche avant le blur de
-                // l'input, donc la sélection passe même si l'input perd le focus.
+                // onMouseDown : se déclenche avant le blur de l'input.
                 onMouseDown={(e) => {
                   e.preventDefault();
                   handleSelect(hit);
