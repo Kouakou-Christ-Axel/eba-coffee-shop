@@ -6,14 +6,15 @@ import type { CartItem } from '@/lib/cart-store';
 import { getItemGross, getItemNet } from '@/lib/orders/totals';
 import type { OrderStatus } from '@/generated/prisma/client';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { StatusButtons } from './status-buttons';
 import { EditOrderItems } from './edit-order-items';
 import { AssociateCustomer } from './associate-customer';
 import { EncaisserButton } from '../encaisser-button';
+import { ExpressCompleteButton } from '../express-complete-button';
 import { CopyRecapButton } from '../../_components/copy-recap-button';
+import { BackButton } from '@/components/(dashboard)/back-button';
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   NEW: 'Nouvelle',
@@ -70,9 +71,10 @@ export default async function CommandeDetailPage({
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <Button variant="ghost" size="sm" asChild className="-ml-3 mb-2">
-            <Link href="/dashboard/commandes">← Retour</Link>
-          </Button>
+          <BackButton
+            fallbackHref="/dashboard/commandes"
+            className="-ml-3 mb-2"
+          />
           <h1 className="font-mono text-2xl font-bold">
             #{String(order.dailyNumber).padStart(3, '0')}
           </h1>
@@ -98,6 +100,15 @@ export default async function CommandeDetailPage({
               orderId={order.id}
               orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
               amount={order.total}
+            />
+          )}
+          {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
+            <ExpressCompleteButton
+              orderId={order.id}
+              orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
+              amount={order.total}
+              isPaid={order.isPaid}
+              currentPaymentMode={order.paymentMode}
             />
           )}
         </div>

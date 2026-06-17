@@ -1,6 +1,10 @@
 // lib/orders.ts
 import { z } from 'zod';
-import type { OrderStatus, OrderType } from '@/generated/prisma/client';
+import type {
+  OrderStatus,
+  OrderType,
+  PaymentMode,
+} from '@/generated/prisma/client';
 import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { getNextDailyNumber, todayDailyDate } from '@/lib/daily-numbering';
@@ -97,6 +101,17 @@ export async function getOrder(id: string) {
 
 // ─── listOrders ───────────────────────────────────────────────────────────────
 
+/** Filtre paiement : `unpaid` (non encaissée) ou un mode précis. */
+export type PaymentFilter = 'unpaid' | PaymentMode;
+
+/** Tri de la liste des commandes (list-only, hors export). */
+export type OrderSort =
+  | 'recent'
+  | 'oldest'
+  | 'total_desc'
+  | 'total_asc'
+  | 'number';
+
 export interface ListOrdersParams {
   page: number;
   status?: OrderStatus;
@@ -107,11 +122,16 @@ export interface ListOrdersParams {
    */
   dateFrom?: Date;
   dateTo?: Date;
-  /** Recherche plein texte sur référence, nom et téléphone client. */
+  /** Recherche plein texte sur référence, nom, téléphone et n° du jour. */
   search?: string;
+  /** Filtre par état/moyen de paiement. */
+  payment?: PaymentFilter;
+  /** Ordre de tri (défaut : `recent`). */
+  sort?: OrderSort;
 }
 
-export type OrderFilters = Omit<ListOrdersParams, 'page'>;
+/** Filtres partagés liste + export (le tri reste propre à la liste). */
+export type OrderFilters = Omit<ListOrdersParams, 'page' | 'sort'>;
 
 /** Construit le `where` Prisma partagé entre la liste paginée et l'export. */
 export function buildOrdersWhere({
@@ -119,9 +139,17 @@ export function buildOrdersWhere({
   dateFrom,
   dateTo,
   search,
+  payment,
 }: OrderFilters): Prisma.OrderWhereInput {
   const where: Prisma.OrderWhereInput = {};
   if (status) where.status = status;
+
+  if (payment === 'unpaid') {
+    where.isPaid = false;
+  } else if (payment) {
+    where.isPaid = true;
+    where.paymentMode = payment;
+  }
 
   if (dateFrom || dateTo) {
     where.dailyDate = {
@@ -132,17 +160,38 @@ export function buildOrdersWhere({
 
   const term = search?.trim();
   if (term) {
-    where.OR = [
+    const or: Prisma.OrderWhereInput[] = [
       { reference: { contains: term, mode: 'insensitive' } },
       { customerName: { contains: term, mode: 'insensitive' } },
       { customerPhone: { contains: term, mode: 'insensitive' } },
     ];
+    // Terme purement numérique → match exact du n° du jour (#003 → 3).
+    if (/^\d+$/.test(term)) {
+      const n = Number(term);
+      if (Number.isSafeInteger(n) && n > 0 && n <= 2_147_483_647) {
+        or.push({ dailyNumber: n });
+      }
+    }
+    where.OR = or;
   }
 
   return where;
 }
 
-export async function listOrders({ page, ...filters }: ListOrdersParams) {
+/** Mappe un tri vers la clause `orderBy` Prisma correspondante. */
+const ORDER_BY: Record<
+  OrderSort,
+  Prisma.OrderOrderByWithRelationInput | Prisma.OrderOrderByWithRelationInput[]
+> = {
+  recent: { createdAt: 'desc' },
+  oldest: { createdAt: 'asc' },
+  total_desc: { total: 'desc' },
+  total_asc: { total: 'asc' },
+  // dailyNumber repart à 1 chaque jour → trier d'abord par jour.
+  number: [{ dailyDate: 'desc' }, { dailyNumber: 'desc' }],
+};
+
+export async function listOrders({ page, sort, ...filters }: ListOrdersParams) {
   const pageSize = ORDERS_PAGE_SIZE;
   const skip = (page - 1) * pageSize;
   const where = buildOrdersWhere(filters);
@@ -150,7 +199,7 @@ export async function listOrders({ page, ...filters }: ListOrdersParams) {
   const [orders, total] = await Promise.all([
     prisma.order.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: ORDER_BY[sort ?? 'recent'],
       skip,
       take: pageSize,
     }),

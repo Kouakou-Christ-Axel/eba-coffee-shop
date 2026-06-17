@@ -12,6 +12,11 @@ export type RangePreset = {
   days: number;
 };
 
+type Navigate = (
+  mutate: (params: URLSearchParams) => void,
+  options?: { keepPage?: boolean }
+) => void;
+
 type Props = {
   /** Borne basse courante (YYYY-MM-DD) résolue côté serveur. */
   from: string;
@@ -25,6 +30,11 @@ type Props = {
   allowAll?: boolean;
   /** Affiche les flèches jour précédent / suivant (mode jour unique). */
   showDayNav?: boolean;
+  /**
+   * Navigation partagée (transition + scroll figé). Si absente, le composant
+   * pousse l'URL lui-même (comportement par défaut sur les autres pages).
+   */
+  navigate?: Navigate;
 };
 
 const DEFAULT_PRESETS: RangePreset[] = [
@@ -40,13 +50,15 @@ export function DateRangeFilter({
   presets = DEFAULT_PRESETS,
   allowAll = true,
   showDayNav = false,
+  navigate,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  function apply(next: { from?: string; to?: string; all?: boolean }) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('page');
+  function mutate(
+    params: URLSearchParams,
+    next: { from?: string; to?: string; all?: boolean }
+  ) {
     if (next.all) {
       params.set('range', 'all');
       params.delete('from');
@@ -56,6 +68,16 @@ export function DateRangeFilter({
       if (next.from) params.set('from', next.from);
       if (next.to) params.set('to', next.to);
     }
+  }
+
+  function apply(next: { from?: string; to?: string; all?: boolean }) {
+    if (navigate) {
+      navigate((params) => mutate(params, next));
+      return;
+    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('page');
+    mutate(params, next);
     router.push(`?${params.toString()}`);
   }
 

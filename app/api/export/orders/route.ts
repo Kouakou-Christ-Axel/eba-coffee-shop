@@ -13,6 +13,7 @@ import {
   formatLocalDateOnly,
   ABIDJAN_TZ,
 } from '@/lib/timezone';
+import type { PaymentFilter } from '@/lib/orders';
 import type { OrderStatus, OrderType } from '@/generated/prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -37,6 +38,13 @@ const VALID_STATUSES = new Set<OrderStatus>([
   'READY',
   'COMPLETED',
   'CANCELLED',
+]);
+
+const VALID_PAYMENTS = new Set<PaymentFilter>([
+  'unpaid',
+  'CASH',
+  'WAVE',
+  'OTHER',
 ]);
 
 const dateTimeFmt = new Intl.DateTimeFormat('fr-FR', {
@@ -84,8 +92,17 @@ export async function GET(req: NextRequest) {
   const status =
     rawStatus && VALID_STATUSES.has(rawStatus) ? rawStatus : undefined;
   const search = sp.get('search')?.trim() || undefined;
+  const rawPayment = sp.get('payment') as PaymentFilter | null;
+  const payment =
+    rawPayment && VALID_PAYMENTS.has(rawPayment) ? rawPayment : undefined;
 
-  const orders = await getOrdersForExport({ status, dateFrom, dateTo, search });
+  const orders = await getOrdersForExport({
+    status,
+    dateFrom,
+    dateTo,
+    search,
+    payment,
+  });
 
   const headers = [
     'Référence',

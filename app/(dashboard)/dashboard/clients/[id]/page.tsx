@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
 import { requireAdmin } from '@/lib/auth-helpers';
+import { BackButton } from '@/components/(dashboard)/back-button';
 import { getCustomer } from '@/lib/customers';
 import { getLoyaltyCard } from '@/lib/loyalty';
 import { formatPhoneForDisplay } from '@/lib/phone';
@@ -64,11 +64,11 @@ export default async function CustomerDetailPage({
   return (
     <div className="space-y-6">
       <div>
-        <Button variant="ghost" size="sm" asChild className="-ml-3 mb-2">
-          <Link href="/dashboard/clients">
-            <ArrowLeft /> Clients
-          </Link>
-        </Button>
+        <BackButton
+          fallbackHref="/dashboard/clients"
+          label="Clients"
+          className="-ml-3 mb-2"
+        />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">{customer.name ?? 'Client'}</h1>

@@ -1,8 +1,7 @@
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import prisma from '@/lib/prisma';
-import { Button } from '@/components/ui/button';
 import { ProductForm, type ProductFormInitial } from '../product-form';
+import { BackButton } from '@/components/(dashboard)/back-button';
 
 export default async function EditProductPage({
   params,
@@ -53,9 +52,11 @@ export default async function EditProductPage({
   return (
     <div className="space-y-6">
       <div>
-        <Button variant="ghost" size="sm" asChild className="-ml-3 mb-2">
-          <Link href={`/dashboard/menu/${categoryId}`}>← {category.name}</Link>
-        </Button>
+        <BackButton
+          fallbackHref={`/dashboard/menu/${categoryId}`}
+          label={category.name}
+          className="-ml-3 mb-2"
+        />
         <h1 className="text-2xl font-bold">Modifier {product.name}</h1>
       </div>
       <ProductForm categoryId={categoryId} initial={initial} />
