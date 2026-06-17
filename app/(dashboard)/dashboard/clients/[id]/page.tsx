@@ -9,6 +9,7 @@ import type { OrderStatus } from '@/generated/prisma/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { CustomerFormSheet } from '../customer-form';
 import {
   Table,
   TableBody,
@@ -68,10 +69,20 @@ export default async function CustomerDetailPage({
             <ArrowLeft /> Clients
           </Link>
         </Button>
-        <h1 className="text-2xl font-bold">{customer.name ?? 'Client'}</h1>
-        <p className="font-mono text-sm text-muted-foreground">
-          {formatPhoneForDisplay(customer.phone)}
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">{customer.name ?? 'Client'}</h1>
+            <p className="font-mono text-sm text-muted-foreground">
+              {formatPhoneForDisplay(customer.phone)}
+            </p>
+          </div>
+          <CustomerFormSheet
+            mode="edit"
+            id={customer.id}
+            name={customer.name}
+            phone={customer.phone}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">

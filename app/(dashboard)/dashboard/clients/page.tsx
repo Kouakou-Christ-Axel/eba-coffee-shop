@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { CustomerSearch } from './customer-search';
+import { CustomerFormSheet } from './customer-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,7 +53,10 @@ export default async function ClientsPage({
             {total > 1 ? 's' : ''} par téléphone.
           </p>
         </div>
-        <CustomerSearch initial={search ?? ''} />
+        <div className="flex flex-wrap items-center gap-2">
+          <CustomerSearch initial={search ?? ''} />
+          <CustomerFormSheet mode="create" />
+        </div>
       </div>
 
       <div className="overflow-x-auto">

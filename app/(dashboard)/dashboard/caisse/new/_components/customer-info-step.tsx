@@ -8,7 +8,7 @@ import { ORDER_NOTE_MAX } from '@/config/constants';
 import { todayDateString } from '@/lib/timezone';
 import type { OrderType } from '@/generated/prisma/client';
 import { OrderTypePicker } from './order-type-picker';
-import { CustomerPhoneAutocomplete } from './customer-phone-autocomplete';
+import { CustomerSearchSelect } from './customer-search-select';
 
 type Props = {
   customerName: string;
@@ -145,6 +145,20 @@ export function CustomerInfoStep({
         <div className="grid gap-2">
           <div className="grid gap-1">
             <Label
+              htmlFor="customer-search"
+              className="text-xs text-muted-foreground"
+            >
+              Rechercher un client existant
+            </Label>
+            <CustomerSearchSelect
+              onSelect={(c) => {
+                onCustomerPhoneChange(c.phone);
+                onCustomerNameChange(c.name ?? '');
+              }}
+            />
+          </div>
+          <div className="grid gap-1">
+            <Label
               htmlFor="customer-phone"
               className="text-xs text-muted-foreground"
             >
@@ -153,13 +167,14 @@ export function CustomerInfoStep({
                 <span className="ml-1 text-primary">* obligatoire</span>
               )}
             </Label>
-            <CustomerPhoneAutocomplete
+            <Input
+              id="customer-phone"
+              type="tel"
+              inputMode="tel"
               value={customerPhone}
-              onChange={onCustomerPhoneChange}
-              onSelectCustomer={(c) => {
-                onCustomerPhoneChange(c.phone);
-                onCustomerNameChange(c.name ?? '');
-              }}
+              onChange={(e) => onCustomerPhoneChange(e.target.value)}
+              placeholder="07 88 12 34 56"
+              autoComplete="off"
               required={isScheduled}
             />
           </div>
