@@ -1,16 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { useOrdersNav } from './use-orders-nav';
 
 const DEBOUNCE_MS = 350;
 
 export function OrderSearch({ initial }: { initial: string }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const { navigate } = useOrdersNav();
   const [value, setValue] = useState(initial);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -20,12 +19,11 @@ export function OrderSearch({ initial }: { initial: string }) {
   }, [initial]);
 
   function pushSearch(next: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('page');
     const trimmed = next.trim();
-    if (trimmed) params.set('search', trimmed);
-    else params.delete('search');
-    router.push(`?${params.toString()}`);
+    navigate((params) => {
+      if (trimmed) params.set('search', trimmed);
+      else params.delete('search');
+    });
   }
 
   function onChange(next: string) {
@@ -47,7 +45,7 @@ export function OrderSearch({ initial }: { initial: string }) {
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Référence, nom ou téléphone…"
+        placeholder="N°, référence, nom ou téléphone…"
         className="pl-8 pr-8 h-9"
       />
       {value && (

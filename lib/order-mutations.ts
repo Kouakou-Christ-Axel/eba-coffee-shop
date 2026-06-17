@@ -33,7 +33,7 @@ import {
 import { generateOrderReference } from '@/lib/orders';
 import { upsertCustomerForOrder } from '@/lib/customer-mutations';
 import { awardLoyaltyForOrder } from '@/lib/loyalty-mutations';
-import { canTransition } from '@/lib/order-permissions';
+import { canTransition, canTogglePayment } from '@/lib/order-permissions';
 import { normalizeIvorianPhone } from '@/lib/phone';
 import { computeItemsTotal, getMaxItemDiscount } from '@/lib/orders/totals';
 import { parseDateOnlyToUTC } from '@/lib/timezone';
@@ -311,6 +311,65 @@ export async function setOrderPayment(
   }
 
   return { startedPreparation: shouldStartPreparation };
+}
+
+/**
+ * Finalise une commande en un seul geste : la marque payée (si elle ne l'est pas
+ * déjà) ET la passe `COMPLETED` (récupérée). Raccourci caisse pour un walk-in qui
+ * paie et repart, sans dérouler NEW → PREPARING → READY → COMPLETED.
+ *
+ * NEW → COMPLETED n'est pas une transition `canTransition` classique : on contrôle
+ * donc directement le rôle (`canTogglePayment`) et on écrit dans une transaction
+ * atomique avec garde de concurrence sur `status` ET `isPaid`.
+ *
+ * Lève `OrderMutationError` (403 rôle, 404 introuvable, 409 conflit/déjà finale).
+ * Renvoie `alreadyPaid` (vrai si la commande était déjà encaissée avant l'appel).
+ */
+export async function payAndComplete(
+  id: string,
+  paymentMode: PaymentMode,
+  role: UserRole
+): Promise<{ alreadyPaid: boolean }> {
+  if (!canTogglePayment(role)) {
+    throw new OrderMutationError('Action réservée à la caisse', 403);
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id },
+      select: { status: true, isPaid: true },
+    });
+    if (!order) {
+      throw new OrderMutationError('Commande introuvable', 404);
+    }
+    if (order.status === 'CANCELLED') {
+      throw new OrderMutationError('Commande annulée', 409);
+    }
+    if (order.status === 'COMPLETED' && order.isPaid) {
+      throw new OrderMutationError('Commande déjà finalisée', 409);
+    }
+
+    const alreadyPaid = order.isPaid;
+
+    const result = await tx.order.updateMany({
+      // Garde optimiste sur les deux champs lus : un autre caissier peut avoir
+      // encaissé ou avancé la commande entre la lecture et l'écriture.
+      where: { id, status: order.status, isPaid: order.isPaid },
+      data: {
+        status: 'COMPLETED',
+        // Ne pas écraser le mode / l'horodatage d'une commande déjà payée.
+        ...(alreadyPaid
+          ? {}
+          : { isPaid: true, paymentMode, paidAt: new Date() }),
+      },
+    });
+
+    if (result.count === 0) {
+      throw new OrderMutationError('État modifié entre temps, recharger', 409);
+    }
+
+    return { alreadyPaid };
+  });
 }
 
 // ─── Association d'un client (CRM) à une commande existante ───────────────────

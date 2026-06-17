@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { Bike, Coffee, Download, ShoppingBag } from 'lucide-react';
+import { Bike, Coffee, ShoppingBag } from 'lucide-react';
 import { listOrders } from '@/lib/orders';
+import type { OrderSort, PaymentFilter } from '@/lib/orders';
 import { parseDateOnlyToUTC, todayDateString } from '@/lib/timezone';
 import type { OrderStatus, OrderType } from '@/generated/prisma/client';
 import {
@@ -13,10 +14,10 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { StatusTabs } from './status-tabs';
-import { OrderSearch } from './order-search';
 import { EncaisserButton } from './encaisser-button';
-import { DateRangeFilter } from '@/components/(dashboard)/date-range-filter';
+import { ExpressCompleteButton } from './express-complete-button';
+import { OrdersToolbar } from './orders-toolbar';
+import { Pagination } from './pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,21 @@ const VALID_STATUSES = new Set<OrderStatus>([
   'CANCELLED',
 ]);
 
+const VALID_PAYMENTS = new Set<PaymentFilter>([
+  'unpaid',
+  'CASH',
+  'WAVE',
+  'OTHER',
+]);
+
+const VALID_SORTS = new Set<OrderSort>([
+  'recent',
+  'oldest',
+  'total_desc',
+  'total_asc',
+  'number',
+]);
+
 function formatPickupTime(date: Date | null): string {
   if (!date) return '—';
   return new Intl.DateTimeFormat('fr-FR', {
@@ -81,6 +97,8 @@ export default async function CommandesPage({
     to?: string;
     range?: string;
     search?: string;
+    payment?: string;
+    sort?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -89,6 +107,11 @@ export default async function CommandesPage({
   const status =
     rawStatus && VALID_STATUSES.has(rawStatus) ? rawStatus : undefined;
   const search = params.search?.trim() || undefined;
+  const rawPayment = params.payment as PaymentFilter | undefined;
+  const payment =
+    rawPayment && VALID_PAYMENTS.has(rawPayment) ? rawPayment : undefined;
+  const rawSort = params.sort as OrderSort | undefined;
+  const sort = rawSort && VALID_SORTS.has(rawSort) ? rawSort : 'recent';
 
   // Plage de dates (jour civil Abidjan). Défaut : aujourd'hui → aujourd'hui.
   // `range=all` désactive le filtre de date (historique complet).
@@ -112,6 +135,8 @@ export default async function CommandesPage({
     dateFrom,
     dateTo,
     search,
+    payment,
+    sort,
   });
   const totalPages = Math.ceil(total / pageSize);
 
@@ -121,6 +146,7 @@ export default async function CommandesPage({
       ? `Jour de commande : ${fromStr}`
       : `Du ${fromStr} au ${toStr}`;
 
+  // Filtres partagés avec l'export CSV (le tri reste propre à la liste).
   function filterParams(): URLSearchParams {
     const sp = new URLSearchParams();
     if (status) sp.set('status', status);
@@ -130,13 +156,8 @@ export default async function CommandesPage({
       sp.set('to', toStr);
     }
     if (search) sp.set('search', search);
+    if (payment) sp.set('payment', payment);
     return sp;
-  }
-
-  function pageHref(p: number): string {
-    const sp = filterParams();
-    sp.set('page', String(p));
-    return `?${sp.toString()}`;
   }
 
   const exportHref = `/api/export/orders?${filterParams().toString()}`;
@@ -152,21 +173,18 @@ export default async function CommandesPage({
             {total} résultat{total > 1 ? 's' : ''}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <DateRangeFilter from={fromStr} to={toStr} isAll={isAll} showDayNav />
-          <Button asChild variant="outline" size="sm">
-            <a href={exportHref}>
-              <Download className="mr-1.5 h-4 w-4" />
-              Exporter CSV
-            </a>
-          </Button>
-        </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <StatusTabs activeStatus={status} />
-        <OrderSearch initial={search ?? ''} />
-      </div>
+      <OrdersToolbar
+        status={status}
+        payment={payment}
+        sort={sort}
+        search={search ?? ''}
+        from={fromStr}
+        to={toStr}
+        isAll={isAll}
+        exportHref={exportHref}
+      />
 
       <div className="overflow-x-auto">
         <Table>
@@ -237,6 +255,18 @@ export default async function CommandesPage({
                           size="sm"
                         />
                       )}
+                      {order.status !== 'CANCELLED' &&
+                        order.status !== 'COMPLETED' && (
+                          <ExpressCompleteButton
+                            orderId={order.id}
+                            orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
+                            amount={order.total}
+                            isPaid={order.isPaid}
+                            currentPaymentMode={order.paymentMode}
+                            variant="outline"
+                            size="sm"
+                          />
+                        )}
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/dashboard/commandes/${order.id}`}>
                           Voir
@@ -261,23 +291,7 @@ export default async function CommandesPage({
         </Table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center gap-3">
-          {page > 1 && (
-            <Button variant="outline" size="sm" asChild>
-              <Link href={pageHref(page - 1)}>Précédent</Link>
-            </Button>
-          )}
-          <span className="text-sm text-muted-foreground">
-            Page {page} / {totalPages}
-          </span>
-          {page < totalPages && (
-            <Button variant="outline" size="sm" asChild>
-              <Link href={pageHref(page + 1)}>Suivant</Link>
-            </Button>
-          )}
-        </div>
-      )}
+      {totalPages > 1 && <Pagination page={page} totalPages={totalPages} />}
     </div>
   );
 }

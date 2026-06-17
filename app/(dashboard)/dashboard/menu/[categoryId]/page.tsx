@@ -3,7 +3,7 @@ import Link from 'next/link';
 import prisma from '@/lib/prisma';
 import { Button } from '@/components/ui/button';
 import { ProductsTable } from './products-table';
-import { ArrowLeft } from 'lucide-react';
+import { BackButton } from '@/components/(dashboard)/back-button';
 
 export default async function CategoryProductsPage({
   params,
@@ -37,11 +37,11 @@ export default async function CategoryProductsPage({
   return (
     <div className="space-y-6">
       <div>
-        <Button variant="ghost" size="sm" asChild className="-ml-3 mb-2">
-          <Link href="/dashboard/menu">
-            <ArrowLeft /> Catégories
-          </Link>
-        </Button>
+        <BackButton
+          fallbackHref="/dashboard/menu"
+          label="Catégories"
+          className="-ml-3 mb-2"
+        />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">{category.name}</h1>
           <Button asChild>

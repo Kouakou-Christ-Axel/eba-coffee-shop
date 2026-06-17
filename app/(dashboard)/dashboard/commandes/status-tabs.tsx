@@ -1,6 +1,6 @@
 'use client';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useOrdersNav } from './use-orders-nav';
 
 const TABS = [
   { value: 'all', label: 'Toutes' },
@@ -12,18 +12,13 @@ const TABS = [
 ];
 
 export function StatusTabs({ activeStatus }: { activeStatus?: string }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const { navigate } = useOrdersNav();
 
   const handleChange = (value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (value === 'all') {
-      params.delete('status');
-    } else {
-      params.set('status', value);
-    }
-    params.delete('page');
-    router.push(`?${params.toString()}`);
+    navigate((params) => {
+      if (value === 'all') params.delete('status');
+      else params.set('status', value);
+    });
   };
 
   return (

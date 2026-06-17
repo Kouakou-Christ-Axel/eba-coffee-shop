@@ -5,6 +5,7 @@ import { requireCashier } from '@/lib/auth-helpers';
 import {
   setOrderStatus,
   setOrderPayment,
+  payAndComplete,
   updateOrderItems,
   setOrderCustomer,
 } from '@/lib/order-mutations';
@@ -41,6 +42,20 @@ export async function markOrderPaidAction(
   await requireCashier();
 
   await setOrderPayment(id, true, paymentMode);
+  revalidateOrder(id);
+}
+
+/**
+ * Action express : marque la commande payée (si besoin) ET récupérée en un clic.
+ */
+export async function payAndCompleteAction(
+  id: string,
+  paymentMode: PaymentMode
+): Promise<void> {
+  const session = await requireCashier();
+  const role = session.user.role as UserRole;
+
+  await payAndComplete(id, paymentMode, role);
   revalidateOrder(id);
 }
 
