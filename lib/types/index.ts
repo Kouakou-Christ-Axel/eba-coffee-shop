@@ -84,3 +84,33 @@ export type {
   Product,
   MenuCategory,
 } from '@/config/menu';
+
+// ─── Inventaire ───────────────────────────────────────────────────────────────
+
+export type {
+  InventoryUnitInput,
+  InventoryItemInput,
+  InventoryItemUpdateInput,
+  InventoryPurchaseLineInput,
+  BatchRestockInput,
+  BatchCountInput,
+  InventoryImportRowInput,
+  InventoryImportMode,
+  InventoryFiltersInput,
+} from '@/lib/schemas/inventory';
+
+export {
+  inventoryUnitSchema,
+  inventoryItemObjectSchema,
+  inventoryItemInputSchema,
+  inventoryItemUpdateSchema,
+  inventoryPurchaseLineSchema,
+  batchRestockSchema,
+  batchCountSchema,
+  inventoryImportRowSchema,
+  inventoryImportModeSchema,
+  inventoryFiltersSchema,
+} from '@/lib/schemas/inventory';
+
+export type { InventorySettings } from '@/lib/inventory-settings';
+export { inventorySettingsSchema } from '@/lib/inventory-settings';

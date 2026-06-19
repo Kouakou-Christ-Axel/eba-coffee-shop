@@ -4,6 +4,7 @@ import {
   Banknote,
   BarChart3,
   Bike,
+  Boxes,
   ChefHat,
   CheckCheck,
   Clock,
@@ -15,6 +16,8 @@ import {
 } from 'lucide-react';
 import { requireDashboardAccess } from '@/lib/auth-helpers';
 import { getDailyStats, getDailySeries } from '@/lib/stats';
+import { listLowStockItems } from '@/lib/inventory';
+import { maybeSendInventoryReminder } from '@/lib/inventory-mutations';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +25,7 @@ import { RevenueTrendChart } from '@/components/(dashboard)/charts/revenue-trend
 import { OrdersByTypeChart } from '@/components/(dashboard)/charts/orders-by-type-chart';
 
 const priceFormatter = new Intl.NumberFormat('fr-FR');
+const stockFormatter = new Intl.NumberFormat('fr-FR');
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +36,13 @@ export default async function DashboardPage() {
   if (role === 'CASHIER') redirect('/dashboard/caisse');
   if (role === 'KITCHEN') redirect('/dashboard/preparation');
 
-  const stats = await getDailyStats();
+  // Rappel d'inventaire (idempotent, fire-and-forget, ne lève jamais).
+  void maybeSendInventoryReminder().catch(() => {});
+
+  const [stats, lowStock] = await Promise.all([
+    getDailyStats(),
+    listLowStockItems(),
+  ]);
 
   // Tendance des 7 derniers jours (jour courant inclus).
   const seriesFrom = new Date(stats.date.getTime());
@@ -204,6 +214,41 @@ export default async function DashboardPage() {
             total={stats.totalOrders}
             destructive
           />
+        </CardContent>
+      </Card>
+
+      {/* Stock bas */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Stock bas</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {lowStock.length > 0 ? (
+            lowStock.slice(0, 5).map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between gap-3"
+              >
+                <span className="flex items-center gap-2 text-sm">
+                  <Boxes className="h-4 w-4 text-muted-foreground" />
+                  {item.name}
+                </span>
+                <span className="text-sm font-semibold tabular-nums">
+                  {`${stockFormatter.format(item.currentQuantity)} ${item.unit}`}
+                </span>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Aucune alerte de stock.
+            </p>
+          )}
+          <Button asChild size="sm" variant="outline">
+            <Link href="/dashboard/inventaire">
+              <Boxes className="mr-1.5 h-4 w-4" />
+              Voir l&apos;inventaire
+            </Link>
+          </Button>
         </CardContent>
       </Card>
     </div>

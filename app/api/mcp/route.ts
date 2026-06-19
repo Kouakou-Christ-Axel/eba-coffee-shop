@@ -91,6 +91,7 @@ function revalidateMenu() {
     revalidatePath('/api/menu');
     revalidatePath('/carte');
     revalidatePath('/');
+    revalidatePath('/dashboard/inventaire');
   } catch (err) {
     // En dehors d'un contexte de requête Next, revalidatePath peut échouer.
     // L'écriture en base a déjà eu lieu : on ne fait pas échouer l'appel MCP.

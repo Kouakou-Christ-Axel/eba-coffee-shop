@@ -5,6 +5,9 @@ import { render } from '@react-email/render';
 import NewOrderEmail from '@/emails/new-order';
 import OtpCodeEmail from '@/emails/otp-code';
 import InviteStaffEmail from '@/emails/invite-staff';
+import InventoryReminderEmail, {
+  type InventoryReminderItem,
+} from '@/emails/inventory-reminder';
 import type { CartItem } from '@/lib/cart-store';
 
 type OrderData = {
@@ -53,6 +56,36 @@ export async function sendOtpEmail(to: string, code: string): Promise<void> {
     throw new Error(`Resend a refusé l'envoi : ${error.message}`);
   }
   console.log('[email] OTP envoyé, id Resend:', data?.id);
+}
+
+export async function sendInventoryReminderEmail(params: {
+  daysSince: number;
+  recipients: string[];
+  lowStockItems: InventoryReminderItem[];
+}): Promise<void> {
+  if (params.recipients.length === 0) return;
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const html = await render(
+    React.createElement(InventoryReminderEmail, {
+      daysSince: params.daysSince,
+      lowStockItems: params.lowStockItems,
+    })
+  );
+  const from =
+    process.env.RESEND_FROM ?? 'EBA Coffee Shop <onboarding@resend.dev>';
+
+  const { error } = await resend.emails.send({
+    from,
+    to: params.recipients,
+    subject: `📦 Inventaire à mettre à jour (${params.daysSince} j sans comptage)`,
+    html,
+  });
+
+  if (error) {
+    console.error('[email] Resend inventory reminder error:', error);
+    throw new Error(`Resend a refusé l'envoi : ${error.message}`);
+  }
 }
 
 export async function sendStaffInviteEmail(params: {

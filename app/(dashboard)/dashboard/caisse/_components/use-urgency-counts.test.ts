@@ -68,13 +68,13 @@ describe('filterByTab — onglet "à encaisser"', () => {
 });
 
 describe('filterByTab — onglet "en cours" et commandes programmées', () => {
-  it('exclut une commande programmée à plus d\'1 h du retrait', () => {
+  it("exclut une commande programmée à plus d'1 h du retrait", () => {
     // Retrait dans 3 h : doit rester dans « Programmées », pas dans « En cours ».
     const orders = [makeOrder('a', 'PREPARING', true, pickupIn(180))];
     expect(filterByTab(orders, 'in-progress', NOW)).toHaveLength(0);
   });
 
-  it('inclut une commande programmée à moins d\'1 h du retrait', () => {
+  it("inclut une commande programmée à moins d'1 h du retrait", () => {
     const orders = [makeOrder('a', 'PREPARING', true, pickupIn(45))];
     expect(filterByTab(orders, 'in-progress', NOW).map((o) => o.id)).toEqual([
       'a',
@@ -90,7 +90,7 @@ describe('filterByTab — onglet "en cours" et commandes programmées', () => {
 });
 
 describe('filterScheduledAhead', () => {
-  it('ne garde que les programmées NEW/PREPARING à plus d\'1 h, triées par retrait', () => {
+  it("ne garde que les programmées NEW/PREPARING à plus d'1 h, triées par retrait", () => {
     const orders = [
       makeOrder('far', 'PREPARING', true, pickupIn(180)),
       makeOrder('soon', 'NEW', false, pickupIn(45)), // <1 h → flux normal

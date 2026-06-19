@@ -30,6 +30,9 @@ model User {
   createdInvestments Investment[]   @relation("InvestmentCreatedBy")
   revenueAdjustments RevenueAdjustment[] @relation("RevenueAdjustmentCreatedBy")
   cashClosings       CashClosing[]  @relation("CashClosingClosedBy")
+  inventoryPurchasesCreated InventoryPurchase[]     @relation("InventoryPurchaseCreatedBy")
+  inventoryCountsCreated    InventoryCount[]        @relation("InventoryCountCreatedBy")
+  restockBatchesCreated     InventoryRestockBatch[] @relation("RestockBatchCreatedBy")
 
   @@map("user")
 }
@@ -422,6 +425,11 @@ model Expense {
   createdById String?
   createdBy   User?   @relation("ExpenseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  // Liens depuis l'inventaire : une dépense peut matérialiser un réappro
+  // (achats de matières premières). Relation inverse, posée par le module stock.
+  inventoryPurchases InventoryPurchase[]     @relation("ExpenseInventoryPurchases")
+  restockBatches     InventoryRestockBatch[] @relation("ExpenseRestockBatch")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -534,4 +542,150 @@ model RevenueAdjustment {
 
   @@index([date(sort: Desc)])
   @@map("revenue_adjustment")
+}
+
+// ─── Inventaire (matières premières & consommables) ────────────────────────────
+// Suivi de stock PÉRIODIQUE (inventaire intermittent) de références indépendantes
+// du menu (grains, lait, gobelets, sirops…). On enregistre un comptage physique
+// par période ; le système déduit la consommation (= stock initial + achats −
+// stock final). Les achats portent fournisseur + coût unitaire → prix moyen
+// pondéré (PMP). Quantités en Decimal (kg/L fractionnaires), montants en Int FCFA.
+
+enum InventoryUnit {
+  UNIT // unité / pièce
+  KG
+  G
+  L
+  ML
+  BOX // carton / lot
+}
+
+enum InventoryBatchSource {
+  MANUAL // saisie manuelle (grille réappro)
+  IMPORT // import Excel
+}
+
+// La référence stockable. `currentQuantity` et `avgUnitCost` (PMP) sont
+// dénormalisés et maintenus dans la même transaction que les achats/comptages
+// (les tables purchase/countLine restent la source d'audit).
+model InventoryItem {
+  id              String        @id @default(cuid())
+  sku             String        @unique // clé d'upsert à l'import
+  name            String
+  category        String?
+  unit            InventoryUnit @default(UNIT)
+  currentQuantity Decimal       @default(0) @db.Decimal(12, 3) // dernier comptage + achats depuis
+  avgUnitCost     Int           @default(0) // prix moyen pondéré (FCFA)
+  safetyStock     Decimal       @default(0) @db.Decimal(12, 3)
+  reorderPoint    Decimal?      @db.Decimal(12, 3)
+  supplier        String?
+  notes           String?
+  active          Boolean       @default(true)
+  lastCountedAt   DateTime?     @db.Date
+
+  purchases  InventoryPurchase[]
+  countLines InventoryCountLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, category])
+  @@index([name])
+  @@map("inventory_item")
+}
+
+// Lot de réappro : regroupe les achats d'une même opération (saisie ou import)
+// pour permettre une annulation en une fois. `expenseId` = dépense auto-créée.
+model InventoryRestockBatch {
+  id          String               @id @default(cuid())
+  date        DateTime             @db.Date
+  supplier    String?
+  note        String?
+  source      InventoryBatchSource @default(MANUAL)
+  expenseId   String?
+  expense     Expense?             @relation("ExpenseRestockBatch", fields: [expenseId], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?                @relation("RestockBatchCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  canceledAt  DateTime?
+  createdAt   DateTime             @default(now())
+
+  purchases InventoryPurchase[]
+
+  @@index([date(sort: Desc)])
+  @@map("inventory_restock_batch")
+}
+
+// Une entrée (achat) : ligne d'un lot de réappro.
+model InventoryPurchase {
+  id        String        @id @default(cuid())
+  itemId    String
+  item      InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  date      DateTime      @db.Date
+  quantity  Decimal       @db.Decimal(12, 3)
+  unitCost  Int // coût unitaire à l'achat (FCFA)
+  totalCost Int // quantity * unitCost (FCFA, arrondi)
+  supplier  String?
+  note      String?
+
+  batchId String?
+  batch   InventoryRestockBatch? @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  expenseId String?
+  expense   Expense? @relation("ExpenseInventoryPurchases", fields: [expenseId], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User?   @relation("InventoryPurchaseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([itemId, date(sort: Desc)])
+  @@index([date(sort: Desc)])
+  @@index([batchId])
+  @@index([expenseId])
+  @@map("inventory_purchase")
+}
+
+// Session de comptage périodique (= « enregistrer l'inventaire »).
+model InventoryCount {
+  id          String   @id @default(cuid())
+  date        DateTime @db.Date
+  label       String?
+  note        String?
+  createdById String?
+  createdBy   User?    @relation("InventoryCountCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  lines InventoryCountLine[]
+
+  @@index([date(sort: Desc)])
+  @@map("inventory_count")
+}
+
+// Ligne de comptage : fige le calcul entrées/sorties de la période pour un item.
+model InventoryCountLine {
+  id                String         @id @default(cuid())
+  countId           String
+  count             InventoryCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  itemId            String
+  item              InventoryItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  openingQuantity   Decimal        @db.Decimal(12, 3) // comptage précédent (snapshot), 0 si premier
+  purchasesQuantity Decimal        @db.Decimal(12, 3) // achats entre les 2 comptages (snapshot)
+  countedQuantity   Decimal        @db.Decimal(12, 3) // saisie physique
+  consumption       Decimal        @db.Decimal(12, 3) // = opening + purchases − counted (figé)
+  unitCostSnapshot  Int // PMP au moment du comptage (valorisation)
+
+  @@unique([countId, itemId])
+  @@index([itemId])
+  @@map("inventory_count_line")
+}
+
+// Réglages d'inventaire (singleton) : rappel email si pas de comptage depuis N jours.
+model InventorySettings {
+  id                 String    @id @default("singleton")
+  reminderDays       Int       @default(7)
+  reminderEnabled    Boolean   @default(true)
+  lastReminderSentAt DateTime?
+  updatedAt          DateTime  @updatedAt
+
+  @@map("inventory_settings")
 }

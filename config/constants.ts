@@ -114,3 +114,18 @@ export const INVESTMENT_AMOUNT_MAX = 1_000_000_000;
  */
 export const REVENUE_ADJUSTMENT_NOTE_MAX = 500;
 export const REVENUE_ADJUSTMENT_AMOUNT_MAX = 100_000_000;
+
+/**
+ * Inventaire (matières premières & consommables). Longueurs max des champs et
+ * plafonds (garde-fous anti-faute de frappe). Quantités fractionnaires (kg/L) ;
+ * coûts unitaires en francs CFA. `IMPORT_MAX_ROWS` borne la taille d'un import
+ * Excel pour éviter un traitement trop lourd en une requête.
+ */
+export const INVENTORY_SKU_MAX = 40;
+export const INVENTORY_NAME_MAX = 100;
+export const INVENTORY_CATEGORY_MAX = 50;
+export const INVENTORY_SUPPLIER_MAX = 100;
+export const INVENTORY_NOTE_MAX = 500;
+export const INVENTORY_QUANTITY_MAX = 1_000_000;
+export const INVENTORY_UNIT_COST_MAX = 100_000_000;
+export const INVENTORY_IMPORT_MAX_ROWS = 1000;

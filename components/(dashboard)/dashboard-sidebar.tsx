@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   BarChart3,
+  Boxes,
   Calculator,
   ChefHat,
   ClipboardList,
@@ -109,6 +110,12 @@ const navItems: NavItem[] = [
     href: '/dashboard/menu',
     icon: UtensilsCrossed,
     roles: ['ADMIN'],
+  },
+  {
+    label: 'Inventaire',
+    href: '/dashboard/inventaire',
+    icon: Boxes,
+    roles: ['ADMIN', 'CASHIER', 'KITCHEN'],
   },
   {
     label: 'Paramètres',

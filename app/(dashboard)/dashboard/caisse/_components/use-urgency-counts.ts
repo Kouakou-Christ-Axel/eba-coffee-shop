@@ -115,7 +115,6 @@ export function filterScheduledAhead(
   return orders
     .filter((o) => isScheduledAhead(o, now))
     .sort(
-      (a, b) =>
-        (a.pickupTime?.getTime() ?? 0) - (b.pickupTime?.getTime() ?? 0)
+      (a, b) => (a.pickupTime?.getTime() ?? 0) - (b.pickupTime?.getTime() ?? 0)
     );
 }
