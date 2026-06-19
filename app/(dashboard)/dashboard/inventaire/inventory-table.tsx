@@ -102,12 +102,11 @@ export function InventoryTable({
   function submitCreate() {
     setError(null);
     const v = createValues;
-    if (!v.sku.trim() || !v.name.trim()) {
-      setError('Référence et nom sont obligatoires.');
+    if (!v.name.trim()) {
+      setError('Le nom est obligatoire.');
       return;
     }
     const input = {
-      sku: v.sku.trim(),
       name: v.name.trim(),
       unit: v.unit,
       category: strOrUndef(v.category),
@@ -133,12 +132,11 @@ export function InventoryTable({
     if (!editItem) return;
     setError(null);
     const v = editValues;
-    if (!v.sku.trim() || !v.name.trim()) {
-      setError('Référence et nom sont obligatoires.');
+    if (!v.name.trim()) {
+      setError('Le nom est obligatoire.');
       return;
     }
     const input = {
-      sku: v.sku.trim(),
       name: v.name.trim(),
       unit: v.unit,
       category: strOrUndef(v.category) ?? null,
