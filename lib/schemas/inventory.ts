@@ -48,13 +48,9 @@ const unitCost = z
 // ─── Références (articles) ────────────────────────────────────────────────────
 
 // Champs « métier » d'un article, hors quantité/PMP (gérés via mouvements).
+// Le SKU n'y figure pas : il est GÉNÉRÉ par le système (jamais saisi/édité).
 // Exporté pour `.extend({ id })` côté MCP.
 export const inventoryItemObjectSchema = z.object({
-  sku: z
-    .string()
-    .trim()
-    .min(1, 'Référence (SKU) requise')
-    .max(INVENTORY_SKU_MAX, 'Référence trop longue'),
   name: z
     .string()
     .trim()
@@ -182,11 +178,14 @@ export type BatchCountInput = z.infer<typeof batchCountSchema>;
 // stricte (et l'écriture) vit dans les mutations (bulkUpsertInventoryItems).
 
 export const inventoryImportRowSchema = z.object({
+  // SKU optionnel : laissé vide pour une NOUVELLE référence (généré par le
+  // système). Renseigné uniquement pour cibler/mettre à jour une référence
+  // existante (clé d'upsert).
   sku: z
     .string()
     .trim()
-    .min(1, 'Référence (SKU) requise')
-    .max(INVENTORY_SKU_MAX, 'Référence trop longue'),
+    .max(INVENTORY_SKU_MAX, 'Référence trop longue')
+    .optional(),
   name: z
     .string()
     .trim()

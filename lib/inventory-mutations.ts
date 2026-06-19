@@ -134,6 +134,39 @@ function rethrowUniqueSku(err: unknown): unknown {
   return err;
 }
 
+// ─── Génération de SKU (système) ──────────────────────────────────────────────
+//
+// Le SKU n'est jamais saisi par l'utilisateur : on le dérive du nom de la
+// référence (préfixe lisible) puis on garantit l'unicité avec un suffixe
+// incrémental. La recherche se fait dans la transaction courante, donc les
+// références créées plus tôt dans le même import sont bien prises en compte.
+
+function skuBase(name: string): string {
+  const base = name
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 12)
+    .replace(/-+$/g, '');
+  return base || 'REF';
+}
+
+async function generateUniqueSku(tx: Tx, name: string): Promise<string> {
+  const base = skuBase(name);
+  for (let i = 1; i <= 999; i++) {
+    const candidate = i === 1 ? base : `${base}-${i}`;
+    const exists = await tx.inventoryItem.findUnique({
+      where: { sku: candidate },
+      select: { id: true },
+    });
+    if (!exists) return candidate;
+  }
+  // Repli improbable : suffixe aléatoire.
+  return `${base}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
+
 // ─── Références (articles) ────────────────────────────────────────────────────
 
 export async function createInventoryItem(
@@ -145,9 +178,10 @@ export async function createInventoryItem(
   const initialCost = data.initialUnitCost ?? 0;
   try {
     return await prisma.$transaction(async (tx) => {
+      const sku = await generateUniqueSku(tx, data.name);
       const item = await tx.inventoryItem.create({
         data: {
-          sku: data.sku,
+          sku,
           name: data.name,
           unit: data.unit ?? 'UNIT',
           category: data.category ?? null,
@@ -179,7 +213,6 @@ export async function updateInventoryItem(id: string, input: unknown) {
     return await prisma.inventoryItem.update({
       where: { id },
       data: {
-        ...(data.sku !== undefined ? { sku: data.sku } : {}),
         ...(data.name !== undefined ? { name: data.name } : {}),
         ...(data.unit !== undefined ? { unit: data.unit } : {}),
         ...(data.category !== undefined ? { category: data.category } : {}),
@@ -450,10 +483,14 @@ export async function bulkUpsertInventoryItems(
           continue;
         }
         const r: InventoryImportRowInput = parsed.data;
-        const existing = await tx.inventoryItem.findUnique({
-          where: { sku: r.sku },
-          select: { id: true },
-        });
+        // SKU fourni → on cible une référence existante (mise à jour).
+        // SKU absent → nouvelle référence : SKU généré par le système.
+        const existing = r.sku
+          ? await tx.inventoryItem.findUnique({
+              where: { sku: r.sku },
+              select: { id: true },
+            })
+          : null;
         if (existing) {
           await tx.inventoryItem.update({
             where: { id: existing.id },
@@ -472,9 +509,10 @@ export async function bulkUpsertInventoryItems(
           });
           result.updated++;
         } else {
+          const sku = r.sku ?? (await generateUniqueSku(tx, r.name));
           const created = await tx.inventoryItem.create({
             data: {
-              sku: r.sku,
+              sku,
               name: r.name,
               category: r.category ?? null,
               unit: r.unit ?? 'UNIT',

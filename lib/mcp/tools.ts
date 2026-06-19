@@ -1363,8 +1363,9 @@ export const tools: McpTool[] = [
     name: 'create_inventory_item',
     title: 'Créer une référence d’inventaire',
     description:
-      'Crée une référence d’inventaire (matière première ou consommable). `sku` ' +
-      'est la clé unique, `name` le libellé. `unit` ∈ UNIT/KG/G/L/ML/BOX (défaut ' +
+      'Crée une référence d’inventaire (matière première ou consommable). Le ' +
+      '`sku` est GÉNÉRÉ par le système (ne pas le fournir). `name` est le ' +
+      'libellé. `unit` ∈ UNIT/KG/G/L/ML/BOX (défaut ' +
       'UNIT). `safetyStock` (stock de sécurité) et `reorderPoint` (seuil de ' +
       'réappro) sont optionnels. `category`, `supplier`, `notes` optionnels. Pour ' +
       'un stock d’ouverture, renseigne `initialQuantity` et `initialUnitCost` (en ' +

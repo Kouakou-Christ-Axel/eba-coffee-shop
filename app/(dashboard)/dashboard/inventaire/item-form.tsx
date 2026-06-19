@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import type { InventoryItemView } from '@/lib/inventory';
 
 export type ItemFormValues = {
-  sku: string;
   name: string;
   unit: string;
   category: string;
@@ -20,7 +19,6 @@ export type ItemFormValues = {
 };
 
 export const emptyItem: ItemFormValues = {
-  sku: '',
   name: '',
   unit: 'UNIT',
   category: '',
@@ -34,7 +32,6 @@ export const emptyItem: ItemFormValues = {
 
 export function itemFromView(v: InventoryItemView): ItemFormValues {
   return {
-    sku: v.sku,
     name: v.name,
     unit: v.unit,
     category: v.category ?? '',
@@ -75,15 +72,6 @@ export function ItemForm({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="inv-sku">Référence (SKU)</Label>
-          <Input
-            id="inv-sku"
-            value={values.sku}
-            onChange={(e) => set('sku', e.target.value)}
-            placeholder="Ex. CAFE-ARABICA-1KG"
-          />
-        </div>
         <div className="space-y-1.5">
           <Label htmlFor="inv-name">Nom</Label>
           <Input
