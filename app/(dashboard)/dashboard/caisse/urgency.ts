@@ -80,7 +80,8 @@ export function formatPickup(pickup: Date, now: Date): string {
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
   const dayDiff = Math.floor(
-    (new Date(pickup).setHours(0, 0, 0, 0) - startOfToday.getTime()) / 86_400_000
+    (new Date(pickup).setHours(0, 0, 0, 0) - startOfToday.getTime()) /
+      86_400_000
   );
   if (dayDiff <= 0) return `aujourd'hui ${time}`;
   if (dayDiff === 1) return `demain ${time}`;
