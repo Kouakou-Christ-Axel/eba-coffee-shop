@@ -94,6 +94,22 @@ export async function recordInventoryCountAction(
   return run(() => inventory.recordInventoryCount(input, userId));
 }
 
+export async function cancelInventoryCountAction(
+  countId: string
+): Promise<ActionResult> {
+  await requireStaffId();
+  return run(() => inventory.cancelInventoryCount(countId));
+}
+
+// ── Imports ──
+
+export async function cancelImportBatchAction(
+  importBatchId: string
+): Promise<ActionResult> {
+  await requireStaffId();
+  return run(() => inventory.cancelImportBatch(importBatchId));
+}
+
 // ── Réglages ──
 
 export async function updateInventorySettingsAction(

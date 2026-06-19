@@ -2,7 +2,14 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Archive, Loader2, Pencil, Plus } from 'lucide-react';
+import {
+  Archive,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Pencil,
+  Plus,
+} from 'lucide-react';
 import { Select, SelectItem } from '@heroui/react';
 import {
   Table,
@@ -36,6 +43,7 @@ import {
 } from './item-form';
 
 const f = new Intl.NumberFormat('fr-FR');
+const PAGE_SIZE = 25;
 
 /** '' → undefined, sinon valeur trimée. */
 function strOrUndef(s: string): string | undefined {
@@ -65,6 +73,7 @@ export function InventoryTable({
 
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [page, setPage] = useState(1);
 
   // Sheet de création.
   const [createOpen, setCreateOpen] = useState(false);
@@ -86,6 +95,17 @@ export function InventoryTable({
       );
     });
   }, [items, search, categoryFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = useMemo(
+    () =>
+      filtered.slice(
+        (currentPage - 1) * PAGE_SIZE,
+        currentPage * PAGE_SIZE
+      ),
+    [filtered, currentPage]
+  );
 
   function openCreate() {
     setError(null);
@@ -183,7 +203,10 @@ export function InventoryTable({
       <div className="flex flex-wrap items-center gap-2">
         <Input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
           placeholder="Rechercher (nom, réf.)…"
           className="w-full sm:max-w-xs"
         />
@@ -193,9 +216,10 @@ export function InventoryTable({
           className="w-full sm:max-w-[200px]"
           selectedKeys={[categoryFilter]}
           disallowEmptySelection
-          onSelectionChange={(keys) =>
-            setCategoryFilter(String(Array.from(keys)[0] ?? 'all'))
-          }
+          onSelectionChange={(keys) => {
+            setCategoryFilter(String(Array.from(keys)[0] ?? 'all'));
+            setPage(1);
+          }}
         >
           <>
             <SelectItem key="all">Toutes les catégories</SelectItem>
@@ -232,7 +256,7 @@ export function InventoryTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((it) => (
+            {paged.map((it) => (
               <TableRow key={it.id}>
                 <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
                   {it.sku}
@@ -304,6 +328,37 @@ export function InventoryTable({
           </TableBody>
         </Table>
       </div>
+
+      {filtered.length > 0 && (
+        <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+          <span className="tabular-nums">
+            {filtered.length} référence{filtered.length > 1 ? 's' : ''}
+            {totalPages > 1 && ` · page ${currentPage}/${totalPages}`}
+          </span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                aria-label="Page précédente"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+                aria-label="Page suivante"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sheet de création */}
       <Sheet open={createOpen} onOpenChange={setCreateOpen}>

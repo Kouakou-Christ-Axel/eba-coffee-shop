@@ -150,6 +150,7 @@ import {
   batchRestock,
   cancelRestockBatch,
   recordInventoryCount,
+  cancelInventoryCount,
 } from '@/lib/inventory-mutations';
 import {
   getInventorySettings,
@@ -1440,6 +1441,18 @@ export const tools: McpTool[] = [
     inputSchema: batchCountSchema,
     readOnly: false,
     handler: (args) => recordInventoryCount(args),
+  },
+  {
+    name: 'cancel_inventory_count',
+    title: 'Annuler un comptage d’inventaire',
+    description:
+      'Annule un comptage (manuel ou importé) : supprime le comptage et restaure ' +
+      'le stock + le PMP de chaque référence depuis l’historique. Refusé si un ' +
+      'comptage postérieur existe. `countId` provient de la liste des comptages.',
+    inputSchema: z.object({ countId: idSchema }),
+    readOnly: false,
+    handler: (args) =>
+      cancelInventoryCount((args as { countId: string }).countId),
   },
   {
     name: 'get_inventory_settings',

@@ -13,11 +13,12 @@ import {
   listInventoryCategories,
   listRestockBatches,
   listInventoryCounts,
+  listImportBatches,
   getDaysSinceLastCount,
 } from '@/lib/inventory';
 import { listExpenseCategories } from '@/lib/expenses';
 import { cn } from '@/lib/utils';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InventoryTable } from './inventory-table';
@@ -26,6 +27,7 @@ import { InventoryCountGrid } from './inventory-count-grid';
 import { RestockGrid } from './restock-grid';
 import { CountHistory } from './count-history';
 import { RestockBatches } from './restock-batches';
+import { ImportHistory } from './import-history';
 import { ImportDialog } from './import-dialog';
 
 export const dynamic = 'force-dynamic';
@@ -35,16 +37,25 @@ const priceFmt = new Intl.NumberFormat('fr-FR');
 export default async function InventairePage() {
   await requireKitchen();
 
-  const [items, summary, categories, expenseCats, batches, counts, daysSince] =
-    await Promise.all([
-      listInventoryItems(),
-      getInventorySummary(),
-      listInventoryCategories(),
-      listExpenseCategories(),
-      listRestockBatches(),
-      listInventoryCounts(),
-      getDaysSinceLastCount(),
-    ]);
+  const [
+    items,
+    summary,
+    categories,
+    expenseCats,
+    batches,
+    counts,
+    imports,
+    daysSince,
+  ] = await Promise.all([
+    listInventoryItems(),
+    getInventorySummary(),
+    listInventoryCategories(),
+    listExpenseCategories(),
+    listRestockBatches(),
+    listInventoryCounts(),
+    listImportBatches(),
+    getDaysSinceLastCount(),
+  ]);
 
   const expenseCategories = expenseCats.map((c) => ({
     id: c.id,
@@ -140,24 +151,9 @@ export default async function InventairePage() {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                Historique des comptages
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CountHistory counts={counts} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Réapprovisionnements</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RestockBatches batches={batches} />
-            </CardContent>
-          </Card>
+          <CountHistory counts={counts} />
+          <RestockBatches batches={batches} />
+          <ImportHistory imports={imports} />
         </TabsContent>
       </Tabs>
     </div>

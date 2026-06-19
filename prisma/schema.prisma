@@ -33,6 +33,7 @@ model User {
   inventoryPurchasesCreated InventoryPurchase[]     @relation("InventoryPurchaseCreatedBy")
   inventoryCountsCreated    InventoryCount[]        @relation("InventoryCountCreatedBy")
   restockBatchesCreated     InventoryRestockBatch[] @relation("RestockBatchCreatedBy")
+  inventoryImportsCreated   InventoryImportBatch[]  @relation("ImportBatchCreatedBy")
 
   @@map("user")
 }
@@ -677,6 +678,29 @@ model InventoryCountLine {
   @@unique([countId, itemId])
   @@index([itemId])
   @@map("inventory_count_line")
+}
+
+// Trace d'un import de CATALOGUE (références) pour permettre une annulation
+// groupée. Les imports d'achats créent un InventoryRestockBatch (annulable) et
+// les imports de comptage un InventoryCount (annulable) : seuls les imports de
+// références ont besoin de cette table dédiée. `updatedSnapshot` mémorise l'état
+// AVANT mise à jour pour pouvoir restaurer ; `createdItemIds` liste les
+// références créées (archivées à l'annulation).
+model InventoryImportBatch {
+  id              String    @id @default(cuid())
+  mode            String // 'references'
+  createdItemIds  String[] // références créées par l'import
+  updatedSnapshot Json? // [{id,name,category,unit,safetyStock,reorderPoint,supplier}] avant maj
+  openingCountId  String? // comptage « Stock initial (import) » éventuellement créé
+  createdCount    Int       @default(0)
+  updatedCount    Int       @default(0)
+  createdById     String?
+  createdBy       User?     @relation("ImportBatchCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  canceledAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@map("inventory_import_batch")
 }
 
 // Réglages d'inventaire (singleton) : rappel email si pas de comptage depuis N jours.

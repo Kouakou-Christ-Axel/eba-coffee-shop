@@ -287,7 +287,11 @@ export async function listRestockBatches(limit = 50) {
   }));
 }
 
-/** Liste des comptages (sessions), avec totaux agrégés. */
+/**
+ * Liste des comptages (sessions), avec totaux agrégés. `cancelable` = true pour
+ * les comptages de la date la plus récente (aucun comptage postérieur ne les
+ * fige), cohérent avec le garde-fou de `cancelInventoryCount`.
+ */
 export async function listInventoryCounts(limit = 50) {
   const counts = await prisma.inventoryCount.findMany({
     orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
@@ -297,6 +301,7 @@ export async function listInventoryCounts(limit = 50) {
       _count: { select: { lines: true } },
     },
   });
+  const maxTime = counts.length > 0 ? counts[0].date.getTime() : 0;
   return counts.map((c) => ({
     id: c.id,
     date: c.date.toISOString().slice(0, 10),
@@ -304,6 +309,25 @@ export async function listInventoryCounts(limit = 50) {
     note: c.note,
     lineCount: c._count.lines,
     by: c.createdBy?.name ?? null,
+    cancelable: c.date.getTime() === maxTime,
+  }));
+}
+
+/** Liste des imports de catalogue (pour l'historique + annulation). */
+export async function listImportBatches(limit = 50) {
+  const batches = await prisma.inventoryImportBatch.findMany({
+    orderBy: [{ createdAt: 'desc' }],
+    take: limit,
+    include: { createdBy: { select: { name: true } } },
+  });
+  return batches.map((b) => ({
+    id: b.id,
+    date: b.createdAt.toISOString().slice(0, 10),
+    mode: b.mode,
+    createdCount: b.createdCount,
+    updatedCount: b.updatedCount,
+    canceled: Boolean(b.canceledAt),
+    by: b.createdBy?.name ?? null,
   }));
 }
 

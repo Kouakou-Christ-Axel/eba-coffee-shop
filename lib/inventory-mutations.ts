@@ -27,6 +27,7 @@ import {
 } from '@/lib/schemas/inventory';
 
 type Tx = PrismaNS.TransactionClient;
+type UnitValue = 'UNIT' | 'KG' | 'G' | 'L' | 'ML' | 'BOX';
 
 /** Decimal Prisma → number. */
 function num(d: Prisma.Decimal | number | null | undefined): number {
@@ -97,7 +98,7 @@ async function createOpeningCount(
   lines: { itemId: string; qty: number; unitCost: number }[],
   createdById?: string,
   label = 'Stock initial'
-): Promise<void> {
+): Promise<string> {
   const count = await tx.inventoryCount.create({
     data: { date, label, createdById: createdById ?? null },
   });
@@ -122,6 +123,7 @@ async function createOpeningCount(
       },
     });
   }
+  return count.id;
 }
 
 function rethrowUniqueSku(err: unknown): unknown {
@@ -454,15 +456,78 @@ export async function recordInventoryCount(
   );
 }
 
+/**
+ * Annule un comptage (manuel ou importé) : supprime le comptage et restaure,
+ * pour chaque article concerné, le stock + le PMP depuis l'historique (comptage
+ * précédent + achats). Refusé si un comptage POSTÉRIEUR existe (période close).
+ */
+export async function cancelInventoryCount(countId: string) {
+  return prisma.$transaction(async (tx) => {
+    const count = await tx.inventoryCount.findUnique({
+      where: { id: countId },
+      include: { lines: { select: { itemId: true } } },
+    });
+    if (!count) throw new Error('Comptage introuvable.');
+
+    const laterCount = await tx.inventoryCount.findFirst({
+      where: { date: { gt: count.date }, id: { not: countId } },
+      select: { id: true },
+    });
+    if (laterCount) {
+      throw new Error(
+        'Annulation impossible : un comptage postérieur existe déjà.'
+      );
+    }
+
+    const itemIds = [...new Set(count.lines.map((l) => l.itemId))];
+    // Supprime le comptage (les lignes suivent en cascade).
+    await tx.inventoryCount.delete({ where: { id: countId } });
+
+    for (const itemId of itemIds) {
+      await recomputeItemFromHistory(tx, itemId);
+      // Recale lastCountedAt sur le comptage le plus récent restant (ou null).
+      const prev = await tx.inventoryCountLine.findFirst({
+        where: { itemId },
+        orderBy: [{ count: { date: 'desc' } }],
+        include: { count: { select: { date: true } } },
+      });
+      await tx.inventoryItem.update({
+        where: { id: itemId },
+        data: { lastCountedAt: prev?.count.date ?? null },
+      });
+    }
+    return { countId, itemsRestored: itemIds.length };
+  });
+}
+
 // ─── Import catalogue ─────────────────────────────────────────────────────────
 
 export type BulkImportResult = {
   created: number;
   updated: number;
   errors: string[];
+  importBatchId?: string;
 };
 
-/** Upsert d'un catalogue de références par `sku`. Idempotent ; renvoie un bilan. */
+// Champs de métadonnée d'une référence mémorisés avant mise à jour (pour
+// restauration à l'annulation d'un import).
+type ItemSnapshot = {
+  id: string;
+  name: string;
+  category: string | null;
+  unit: string;
+  safetyStock: number;
+  reorderPoint: number | null;
+  supplier: string | null;
+};
+
+/**
+ * Upsert d'un catalogue de références. La correspondance se fait par `sku`
+ * (fourni) SINON par `name` (insensible à la casse, références actives) → un
+ * ré-import du même fichier sans SKU est IDEMPOTENT (pas de doublon). Les
+ * nouvelles références reçoivent un SKU généré. L'opération est tracée dans un
+ * `InventoryImportBatch` pour permettre une annulation groupée.
+ */
 export async function bulkUpsertInventoryItems(
   rows: unknown[],
   createdById?: string
@@ -475,6 +540,9 @@ export async function bulkUpsertInventoryItems(
         qty: number;
         unitCost: number;
       }[] = [];
+      const createdItemIds: string[] = [];
+      const updatedSnapshots: ItemSnapshot[] = [];
+
       for (let i = 0; i < rows.length; i++) {
         const parsed = inventoryImportRowSchema.safeParse(rows[i]);
         if (!parsed.success) {
@@ -483,15 +551,23 @@ export async function bulkUpsertInventoryItems(
           continue;
         }
         const r: InventoryImportRowInput = parsed.data;
-        // SKU fourni → on cible une référence existante (mise à jour).
-        // SKU absent → nouvelle référence : SKU généré par le système.
+        // SKU fourni → cible une référence existante. Sinon → recherche par nom
+        // (idempotence) parmi les références actives ; à défaut, création.
         const existing = r.sku
           ? await tx.inventoryItem.findUnique({
               where: { sku: r.sku },
-              select: { id: true },
+              select: snapshotSelect,
             })
-          : null;
+          : await tx.inventoryItem.findFirst({
+              where: {
+                active: true,
+                name: { equals: r.name, mode: 'insensitive' },
+              },
+              select: snapshotSelect,
+            });
+
         if (existing) {
+          updatedSnapshots.push(toSnapshot(existing));
           await tx.inventoryItem.update({
             where: { id: existing.id },
             data: {
@@ -521,6 +597,7 @@ export async function bulkUpsertInventoryItems(
               supplier: r.supplier ?? null,
             },
           });
+          createdItemIds.push(created.id);
           result.created++;
           if (r.initialQuantity && r.initialQuantity > 0) {
             openingLines.push({
@@ -531,8 +608,10 @@ export async function bulkUpsertInventoryItems(
           }
         }
       }
+
+      let openingCountId: string | null = null;
       if (openingLines.length > 0) {
-        await createOpeningCount(
+        openingCountId = await createOpeningCount(
           tx,
           new Date(),
           openingLines,
@@ -540,10 +619,105 @@ export async function bulkUpsertInventoryItems(
           'Stock initial (import)'
         );
       }
+
+      if (result.created > 0 || result.updated > 0) {
+        const batch = await tx.inventoryImportBatch.create({
+          data: {
+            mode: 'references',
+            createdItemIds,
+            updatedSnapshot: updatedSnapshots,
+            openingCountId,
+            createdCount: result.created,
+            updatedCount: result.updated,
+            createdById: createdById ?? null,
+          },
+        });
+        result.importBatchId = batch.id;
+      }
     },
     { timeout: 60000 }
   );
   return result;
+}
+
+const snapshotSelect = {
+  id: true,
+  name: true,
+  category: true,
+  unit: true,
+  safetyStock: true,
+  reorderPoint: true,
+  supplier: true,
+} as const;
+
+function toSnapshot(item: {
+  id: string;
+  name: string;
+  category: string | null;
+  unit: string;
+  safetyStock: Prisma.Decimal;
+  reorderPoint: Prisma.Decimal | null;
+  supplier: string | null;
+}): ItemSnapshot {
+  return {
+    id: item.id,
+    name: item.name,
+    category: item.category,
+    unit: item.unit,
+    safetyStock: num(item.safetyStock),
+    reorderPoint: item.reorderPoint === null ? null : num(item.reorderPoint),
+    supplier: item.supplier,
+  };
+}
+
+/**
+ * Annule un import de catalogue : archive les références créées et restaure les
+ * champs des références mises à jour (depuis le snapshot). Idempotent côté
+ * stock : un import de références ne modifie pas le stock, hormis le comptage
+ * d'ouverture des références créées (qui sont archivées).
+ */
+export async function cancelImportBatch(importBatchId: string) {
+  return prisma.$transaction(async (tx) => {
+    const batch = await tx.inventoryImportBatch.findUnique({
+      where: { id: importBatchId },
+    });
+    if (!batch) throw new Error('Import introuvable.');
+    if (batch.canceledAt) throw new Error('Cet import est déjà annulé.');
+
+    // Archive les références créées (soft delete — préserve le journal).
+    if (batch.createdItemIds.length > 0) {
+      await tx.inventoryItem.updateMany({
+        where: { id: { in: batch.createdItemIds } },
+        data: { active: false },
+      });
+    }
+
+    // Restaure les champs des références mises à jour.
+    const snapshots = (batch.updatedSnapshot ?? []) as unknown as ItemSnapshot[];
+    for (const s of snapshots) {
+      await tx.inventoryItem.update({
+        where: { id: s.id },
+        data: {
+          name: s.name,
+          category: s.category,
+          unit: s.unit as UnitValue,
+          safetyStock: s.safetyStock,
+          reorderPoint: s.reorderPoint,
+          supplier: s.supplier,
+        },
+      });
+    }
+
+    await tx.inventoryImportBatch.update({
+      where: { id: importBatchId },
+      data: { canceledAt: new Date() },
+    });
+    return {
+      importBatchId,
+      archived: batch.createdItemIds.length,
+      restored: snapshots.length,
+    };
+  });
 }
 
 // ─── Rappel email (dernier comptage trop ancien) ──────────────────────────────
