@@ -169,6 +169,46 @@ export const updateOrderSchema = z
 
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
 
+// ─── updateOrderDetailsSchema ─────────────────────────────────────────────────
+//
+// Édition « administrative » des métadonnées d'une commande existante, réservée
+// à l'ADMIN (cf. requireAdmin dans la server action / le garde-fou MCP) :
+//   - moyen de paiement (paymentMode)
+//   - type de commande (orderType)
+//   - date & heure de récupération (pickupTime)
+//   - note
+//
+// Distinct de `updateOrderSchema` (statut / encaissement / livreur) : ici on ne
+// touche ni au statut ni à `isPaid`, uniquement à ces champs descriptifs. Mise à
+// jour partielle : seuls les champs fournis sont modifiés.
+
+export const updateOrderDetailsSchema = z
+  .object({
+    orderType: orderTypeSchema.optional(),
+    pickupTime: z
+      .string()
+      .datetime({ message: 'Date de retrait invalide' })
+      .nullable()
+      .optional(),
+    paymentMode: paymentModeSchema.nullable().optional(),
+    note: z
+      .string()
+      .trim()
+      .max(500, 'Note trop longue (max 500 caractères)')
+      .nullable()
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      data.orderType !== undefined ||
+      data.pickupTime !== undefined ||
+      data.paymentMode !== undefined ||
+      data.note !== undefined,
+    { message: 'Au moins un champ à mettre à jour est requis' }
+  );
+
+export type UpdateOrderDetailsInput = z.infer<typeof updateOrderDetailsSchema>;
+
 // ─── setOrderCustomerSchema ───────────────────────────────────────────────────
 //
 // Association (a posteriori) d'une commande existante à un client (CRM). Trois

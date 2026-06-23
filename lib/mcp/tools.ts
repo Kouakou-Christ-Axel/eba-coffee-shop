@@ -116,6 +116,7 @@ import {
   setOrderStatus,
   setOrderPayment,
   updateOrderItems,
+  updateOrderDetails,
   OrderMutationError,
   type OrderItemRef,
 } from '@/lib/order-mutations';
@@ -884,6 +885,35 @@ export const tools: McpTool[] = [
         paymentMode
       );
       return { ok: true, id, paymentMode, startedPreparation };
+    },
+  },
+  {
+    name: 'update_order',
+    title: 'Modifier les détails d’une commande',
+    description:
+      'Met à jour de façon PARTIELLE les métadonnées d’une commande existante : ' +
+      '`orderType` (DELIVERY/DINE_IN/TAKEAWAY), `pickupTime` (créneau de retrait, ' +
+      'datetime ISO 8601 ou null pour walk-in), `paymentMode` (CASH/WAVE/OTHER, ou ' +
+      'null si non payée) et `note`. Ne modifie ni le statut ni l’état de paiement ' +
+      '(utilise `set_order_status` / `mark_order_paid`). On ne peut pas retirer le ' +
+      'mode de paiement d’une commande déjà payée. `id` provient de `list_orders`.',
+    inputSchema: z.object({
+      id: idSchema,
+      orderType: orderTypeSchema.optional(),
+      pickupTime: z
+        .string()
+        .datetime({ message: 'Date de retrait invalide' })
+        .nullable()
+        .optional()
+        .describe('Créneau de retrait (ISO 8601) ou null pour walk-in.'),
+      paymentMode: paymentModeSchema.nullable().optional(),
+      note: z.string().max(500).nullable().optional(),
+    }),
+    readOnly: false,
+    handler: async (args) => {
+      const { id, ...rest } = args as { id: string } & Record<string, unknown>;
+      await updateOrderDetails(id, rest);
+      return { ok: true, id };
     },
   },
   {

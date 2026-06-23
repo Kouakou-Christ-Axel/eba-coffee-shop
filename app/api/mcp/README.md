@@ -150,6 +150,7 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `list_orders`                    | lecture  | Lister les commandes (filtres statut/date/texte)   |
 | `set_order_status`               | écriture | Changer le statut (récupérée, annulée, …)          |
 | `mark_order_paid`                | écriture | Encaisser une commande (CASH/WAVE/OTHER)           |
+| `update_order`                   | écriture | Modifier détails (paiement, type, créneau, note)   |
 | `apply_order_discount`           | écriture | Appliquer une remise de ligne (FCFA)               |
 | `list_customers`                 | lecture  | Lister / rechercher des clients (+ stats)          |
 | `get_customer`                   | lecture  | Détail d’un client (par `id` ou `phone`)           |
@@ -244,7 +245,11 @@ statut / plage de jours / recherche, 20 par page) et renvoie leur `id` ;
 `set_order_status` change le statut (NEW → PREPARING → READY → COMPLETED, ou
 CANCELLED — « récupérée » = `COMPLETED`, transitions invalides refusées) ;
 `mark_order_paid` encaisse (`CASH`/`WAVE`/`OTHER`), et pousse automatiquement en
-cuisine une commande encore `NEW`. `apply_order_discount` applique une **remise**
+cuisine une commande encore `NEW`. `update_order` modifie de façon **partielle**
+les métadonnées d'une commande (moyen de paiement, type de commande, créneau de
+retrait `pickupTime`, note) sans toucher au statut ni à l'encaissement — côté
+dashboard cette édition est **réservée à l'ADMIN**.
+`apply_order_discount` applique une **remise**
 (montant fixe FCFA, plafonnée) à une ou plusieurs lignes ciblées par leur
 `cartId` (visible dans les `items` de `list_orders`) et recalcule le total
 (0 pour retirer une remise ; refusé sur une commande terminée/annulée).
