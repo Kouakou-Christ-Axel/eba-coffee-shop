@@ -11,6 +11,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatAbidjanTime } from '@/lib/timezone';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import { getItemGross, getItemNet } from '@/lib/orders/totals';
 import type { OrderType } from '@/generated/prisma/client';
@@ -131,17 +132,7 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
           <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span>
             Créneau de retrait dépassé
-            {order.pickupTime && (
-              <>
-                {' '}
-                (
-                {order.pickupTime.toLocaleTimeString('fr-FR', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-                )
-              </>
-            )}
+            {order.pickupTime && <> ({formatAbidjanTime(order.pickupTime)})</>}
           </span>
         </div>
       )}

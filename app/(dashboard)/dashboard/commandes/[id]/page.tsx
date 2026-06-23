@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getOrder } from '@/lib/orders';
 import { getMenu } from '@/lib/menu';
 import { getCurrentSession } from '@/lib/auth-helpers';
+import { formatAbidjanDateTime } from '@/lib/timezone';
 import type { CartItem } from '@/lib/cart-store';
 import { getItemGross, getItemNet } from '@/lib/orders/totals';
 import type {
@@ -54,20 +55,9 @@ const PAYMENT_MODE_LABELS: Record<PaymentMode, string> = {
 };
 
 function formatPickupTime(date: Date | null): string {
+  // Toujours en heure Abidjan : déterministe quel que soit le fuseau du serveur.
   if (!date) return 'Sans créneau (walk-in)';
-  const dayMonth = new Intl.DateTimeFormat('fr-FR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  }).format(date);
-  const time = new Intl.DateTimeFormat('fr-FR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  })
-    .format(date)
-    .replace(':', 'h');
-  return `${dayMonth} · ${time}`;
+  return formatAbidjanDateTime(date);
 }
 
 export default async function CommandeDetailPage({

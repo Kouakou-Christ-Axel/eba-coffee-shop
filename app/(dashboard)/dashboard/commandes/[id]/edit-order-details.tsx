@@ -22,6 +22,10 @@ import {
 } from '@heroui/react';
 import { Pencil } from 'lucide-react';
 import type { OrderType, PaymentMode } from '@/generated/prisma/client';
+import {
+  abidjanDatetimeLocalToISO,
+  isoToAbidjanDatetimeLocal,
+} from '@/lib/timezone';
 import { updateOrderDetailsAction } from '../actions';
 
 const ORDER_TYPE_OPTIONS: { key: OrderType; label: string }[] = [
@@ -49,16 +53,6 @@ type Props = {
   isPaid: boolean;
 };
 
-// Abidjan = UTC+0 : l'ISO UTC reflète directement l'heure locale affichée, on
-// peut donc tronquer/composer la chaîne `datetime-local` (YYYY-MM-DDTHH:mm)
-// sans conversion de fuseau.
-function isoToLocalInput(iso: string | null): string {
-  return iso ? iso.slice(0, 16) : '';
-}
-function localInputToIso(value: string): string | null {
-  return value ? `${value}:00.000Z` : null;
-}
-
 export function EditOrderDetails({
   orderId,
   initialOrderType,
@@ -69,7 +63,9 @@ export function EditOrderDetails({
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [orderType, setOrderType] = useState<OrderType>(initialOrderType);
-  const [pickup, setPickup] = useState(isoToLocalInput(initialPickupTime));
+  const [pickup, setPickup] = useState(
+    isoToAbidjanDatetimeLocal(initialPickupTime)
+  );
   const [paymentMode, setPaymentMode] = useState<string>(
     initialPaymentMode ?? NO_PAYMENT_KEY
   );
@@ -79,7 +75,7 @@ export function EditOrderDetails({
 
   function resetState() {
     setOrderType(initialOrderType);
-    setPickup(isoToLocalInput(initialPickupTime));
+    setPickup(isoToAbidjanDatetimeLocal(initialPickupTime));
     setPaymentMode(initialPaymentMode ?? NO_PAYMENT_KEY);
     setNote(initialNote ?? '');
     setError(null);
@@ -97,7 +93,7 @@ export function EditOrderDetails({
       try {
         await updateOrderDetailsAction(orderId, {
           orderType,
-          pickupTime: localInputToIso(pickup),
+          pickupTime: abidjanDatetimeLocalToISO(pickup),
           paymentMode:
             paymentMode === NO_PAYMENT_KEY
               ? null

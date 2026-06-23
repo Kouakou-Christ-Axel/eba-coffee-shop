@@ -1,7 +1,7 @@
 'use client';
 
-import { format, isPast, differenceInMinutes } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { isPast, differenceInMinutes } from 'date-fns';
+import { formatAbidjanTime } from '@/lib/timezone';
 import {
   AlertTriangle,
   Bike,
@@ -81,7 +81,7 @@ export function PreparationQueueList({ orders, selectedId, onSelect }: Props) {
                 >
                   <Clock className="mb-0.5 h-3.5 w-3.5" />
                   <span className="text-sm font-bold leading-none">
-                    {pickup ? format(pickup, 'HH:mm', { locale: fr }) : 'ASAP'}
+                    {pickup ? formatAbidjanTime(pickup) : 'ASAP'}
                   </span>
                 </div>
                 <div className="min-w-0 flex-1">
