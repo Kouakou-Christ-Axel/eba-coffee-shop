@@ -6,11 +6,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-export type SupplementOption = { name: string; price: number };
+export type SupplementOption = {
+  name: string;
+  price: number;
+  available: boolean;
+};
 export type SupplementGroup = {
   name: string;
   type: 'single' | 'multiple';
   required: boolean;
+  available: boolean;
   options: SupplementOption[];
 };
 
@@ -23,7 +28,13 @@ export function SupplementsEditor({ groups, onChange }: Props) {
   function addGroup() {
     onChange([
       ...groups,
-      { name: '', type: 'single', required: false, options: [] },
+      {
+        name: '',
+        type: 'single',
+        required: false,
+        available: true,
+        options: [],
+      },
     ]);
   }
   function removeGroup(gi: number) {
@@ -34,7 +45,7 @@ export function SupplementsEditor({ groups, onChange }: Props) {
   }
   function addOption(gi: number) {
     updateGroup(gi, {
-      options: [...groups[gi].options, { name: '', price: 0 }],
+      options: [...groups[gi].options, { name: '', price: 0, available: true }],
     });
   }
   function removeOption(gi: number, oi: number) {
@@ -106,6 +117,16 @@ export function SupplementsEditor({ groups, onChange }: Props) {
                 />
                 Requis
               </label>
+              <label className="flex h-9 items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={g.available}
+                  onChange={(e) =>
+                    updateGroup(gi, { available: e.target.checked })
+                  }
+                />
+                Disponible
+              </label>
               <Button
                 type="button"
                 variant="ghost"
@@ -141,6 +162,16 @@ export function SupplementsEditor({ groups, onChange }: Props) {
                     }
                     className="w-32"
                   />
+                  <label className="flex h-9 shrink-0 items-center gap-1.5 text-xs whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={o.available}
+                      onChange={(e) =>
+                        updateOption(gi, oi, { available: e.target.checked })
+                      }
+                    />
+                    Dispo.
+                  </label>
                   <Button
                     type="button"
                     variant="ghost"

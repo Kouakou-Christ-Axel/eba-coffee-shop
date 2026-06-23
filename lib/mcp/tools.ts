@@ -1109,8 +1109,10 @@ export const tools: McpTool[] = [
     name: 'delete_category',
     title: 'Supprimer une catégorie',
     description:
-      'Supprime une catégorie et, par cascade, tous ses produits. Action ' +
-      'irréversible.',
+      'Supprime une catégorie et, en cascade, tous ses produits. Soft delete : ' +
+      'la catégorie et ses produits sont masqués partout mais conservés en base ' +
+      '(et n’apparaissent plus dans `get_menu`). Recréer une catégorie du même ' +
+      'nom repart d’une catégorie neuve.',
     inputSchema: z.object({ id: idSchema }),
     readOnly: false,
     handler: (args) => deleteCategory((args as { id: string }).id),
@@ -1152,7 +1154,10 @@ export const tools: McpTool[] = [
     description:
       'Crée un produit dans une catégorie (via `categoryId`). Les prix et coûts ' +
       '(`coutMatiere`, `coutEmballage`) sont en francs CFA entiers. ' +
-      '`supplementGroups` peut être un tableau vide. `imageUrl` accepte un ' +
+      '`supplementGroups` peut être un tableau vide. Chaque groupe et chaque ' +
+      'option (« goût ») accepte un drapeau `available` (défaut true) : passé à ' +
+      'false, l’élément reste configuré mais n’est plus proposé côté client. ' +
+      '`imageUrl` accepte un ' +
       'chemin local (`/uploads/products/...`, obtenu via `set_product_image`) ou ' +
       'une URL http(s) ; pour téléverser un fichier, utilise plutôt ' +
       '`set_product_image`.',
@@ -1245,7 +1250,9 @@ export const tools: McpTool[] = [
   {
     name: 'delete_product',
     title: 'Supprimer un produit',
-    description: 'Supprime définitivement un produit. Action irréversible.',
+    description:
+      'Supprime un produit. Soft delete : le produit est masqué partout (et ' +
+      'retiré de `get_menu`) mais conservé en base.',
     inputSchema: z.object({ id: idSchema }),
     readOnly: false,
     handler: (args) => deleteProduct((args as { id: string }).id),

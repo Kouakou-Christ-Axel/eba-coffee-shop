@@ -5,7 +5,12 @@ import IncontournablesSectionClient, {
 
 async function getFeaturedProducts(): Promise<FeaturedProduct[]> {
   return prisma.product.findMany({
-    where: { featured: true, available: true },
+    where: {
+      featured: true,
+      available: true,
+      deletedAt: null,
+      category: { deletedAt: null },
+    },
     orderBy: [{ featuredOrder: 'asc' }, { name: 'asc' }],
     take: 6,
     select: {

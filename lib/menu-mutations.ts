@@ -73,7 +73,10 @@ export const productUpdateSchema = z.object({
 
 export async function createCategory(input: { name: string }) {
   const { name } = createCategorySchema.parse(input);
-  const existing = await prisma.menuCategory.findMany({ select: { id: true } });
+  const existing = await prisma.menuCategory.findMany({
+    where: { deletedAt: null },
+    select: { id: true },
+  });
   return prisma.menuCategory.create({
     data: { name, slug: slugify(name), sortOrder: existing.length },
   });
@@ -84,8 +87,26 @@ export async function updateCategory(id: string, input: { name: string }) {
   return prisma.menuCategory.update({ where: { id }, data: { name } });
 }
 
+// Soft delete : on marque la catégorie ET ses produits comme supprimés (au lieu
+// d'un DELETE en cascade). Le `slug` (unique) est dé-collisionné pour autoriser
+// la recréation ultérieure d'une catégorie du même nom.
 export async function deleteCategory(id: string) {
-  return prisma.menuCategory.delete({ where: { id } });
+  const now = new Date();
+  return prisma.$transaction(async (tx) => {
+    const cat = await tx.menuCategory.findUnique({
+      where: { id },
+      select: { slug: true, deletedAt: true },
+    });
+    if (!cat) throw new Error('Catégorie introuvable');
+    await tx.product.updateMany({
+      where: { categoryId: id, deletedAt: null },
+      data: { deletedAt: now },
+    });
+    return tx.menuCategory.update({
+      where: { id },
+      data: { deletedAt: now, slug: `${cat.slug}-deleted-${id}` },
+    });
+  });
 }
 
 export async function toggleCategoryAvailability(id: string) {
@@ -99,6 +120,7 @@ export async function toggleCategoryAvailability(id: string) {
 
 export async function moveCategory(id: string, direction: 'up' | 'down') {
   const all = await prisma.menuCategory.findMany({
+    where: { deletedAt: null },
     orderBy: { sortOrder: 'asc' },
     select: { id: true, sortOrder: true },
   });
@@ -127,7 +149,7 @@ export type ProductUpdate = z.infer<typeof productUpdateSchema>;
 export async function createProduct(input: ProductInput) {
   const data = productInputSchema.parse(input);
   const existing = await prisma.product.findMany({
-    where: { categoryId: data.categoryId },
+    where: { categoryId: data.categoryId, deletedAt: null },
     select: { id: true },
   });
   return prisma.product.create({
@@ -148,9 +170,14 @@ export async function createProduct(input: ProductInput) {
           name: g.name,
           type: g.type,
           required: g.required,
+          available: g.available,
           sortOrder: gi,
           options: {
-            create: g.options.map((o) => ({ name: o.name, price: o.price })),
+            create: g.options.map((o) => ({
+              name: o.name,
+              price: o.price,
+              available: o.available,
+            })),
           },
         })),
       },
@@ -202,9 +229,14 @@ export async function updateProduct(id: string, input: ProductUpdate) {
             name: g.name,
             type: g.type,
             required: g.required,
+            available: g.available,
             sortOrder: gi,
             options: {
-              create: g.options.map((o) => ({ name: o.name, price: o.price })),
+              create: g.options.map((o) => ({
+                name: o.name,
+                price: o.price,
+                available: o.available,
+              })),
             },
           })),
         },
@@ -223,7 +255,7 @@ export async function moveProduct(id: string, direction: 'up' | 'down') {
   if (!product) throw new Error('Produit introuvable');
 
   const all = await prisma.product.findMany({
-    where: { categoryId: product.categoryId },
+    where: { categoryId: product.categoryId, deletedAt: null },
     orderBy: { sortOrder: 'asc' },
     select: { id: true, sortOrder: true },
   });
@@ -243,8 +275,13 @@ export async function moveProduct(id: string, direction: 'up' | 'down') {
   });
 }
 
+// Soft delete : on marque le produit comme supprimé (conservé en base, masqué
+// partout). Ses suppléments restent rattachés.
 export async function deleteProduct(id: string) {
-  return prisma.product.delete({ where: { id } });
+  return prisma.product.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
 }
 
 export async function toggleProductAvailability(id: string) {

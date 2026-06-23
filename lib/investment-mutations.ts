@@ -19,9 +19,23 @@ import {
 
 export async function createInvestmentSource(input: unknown) {
   const { name } = investmentSourceInputSchema.parse(input);
+  // Le nom reste unique globalement. Si une source du même nom a été soft delete,
+  // on la « ressuscite » (deletedAt → null) au lieu d'échouer.
+  const existing = await prisma.investmentSource.findUnique({
+    where: { name },
+  });
   const max = await prisma.investmentSource.aggregate({
     _max: { sortOrder: true },
   });
+  if (existing) {
+    if (existing.deletedAt === null) {
+      throw new Error('Une source porte déjà ce nom.');
+    }
+    return prisma.investmentSource.update({
+      where: { id: existing.id },
+      data: { deletedAt: null, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+    });
+  }
   try {
     return await prisma.investmentSource.create({
       data: { name, sortOrder: (max._max.sortOrder ?? -1) + 1 },
@@ -43,20 +57,13 @@ export async function updateInvestmentSource(id: string, input: unknown) {
   }
 }
 
+// Soft delete : on retire la source des sélecteurs/listes sans toucher aux
+// apports rattachés (qui conservent leur libellé via la relation).
 export async function deleteInvestmentSource(id: string) {
-  try {
-    return await prisma.investmentSource.delete({ where: { id } });
-  } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === 'P2003'
-    ) {
-      throw new Error(
-        'Impossible de supprimer : des apports utilisent cette source.'
-      );
-    }
-    throw err;
-  }
+  return prisma.investmentSource.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
 }
 
 // ─── Apports ────────────────────────────────────────────────────────────────────

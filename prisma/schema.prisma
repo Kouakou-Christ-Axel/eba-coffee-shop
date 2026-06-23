@@ -289,10 +289,15 @@ model MenuCategory {
   slug      String    @unique
   sortOrder Int       @default(0)
   available Boolean   @default(true)
+  // Soft delete : `deletedAt` non nul = catégorie « supprimée » (masquée partout
+  // mais conservée en base, ainsi que ses produits). Le `slug` est dé-collisionné
+  // à la suppression pour pouvoir réutiliser le même nom ensuite.
+  deletedAt DateTime?
   products  Product[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  @@index([deletedAt])
   @@map("menu_category")
 }
 
@@ -309,6 +314,9 @@ model Product {
   featured         Boolean           @default(false)
   featuredOrder    Int               @default(0)
   featuredBadge    String?
+  // Soft delete : `deletedAt` non nul = produit « supprimé » (masqué partout mais
+  // conservé). Posé aussi en cascade quand sa catégorie est supprimée.
+  deletedAt        DateTime?
   categoryId       String
   category         MenuCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   supplementGroups SupplementGroup[]
@@ -316,6 +324,7 @@ model Product {
   updatedAt        DateTime          @updatedAt
 
   @@index([featured, featuredOrder])
+  @@index([deletedAt])
   @@map("product")
 }
 
@@ -325,6 +334,9 @@ model SupplementGroup {
   type      String
   required  Boolean            @default(false)
   sortOrder Int                @default(0)
+  // Disponibilité : un groupe désactivé reste configuré mais n'est plus proposé
+  // côté client (ni en caisse). Permet de masquer temporairement tout un groupe.
+  available Boolean            @default(true)
   productId String
   product   Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   options   SupplementOption[]
@@ -336,6 +348,8 @@ model SupplementOption {
   id      String          @id @default(cuid())
   name    String
   price   Int
+  // Disponibilité d'un « goût » : désactivé = conservé mais non sélectionnable.
+  available Boolean       @default(true)
   groupId String
   group   SupplementGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
@@ -368,11 +382,17 @@ model ExpenseCategory {
   id        String    @id @default(cuid())
   name      String    @unique
   sortOrder Int       @default(0)
+  // Soft delete : `deletedAt` non nul = catégorie « supprimée » (retirée des
+  // listes/sélecteurs) mais conservée — les dépenses rattachées gardent leur
+  // libellé. Recréer une catégorie du même nom « ressuscite » la version
+  // supprimée (le nom reste unique).
+  deletedAt DateTime?
   expenses  Expense[]
   recurring RecurringExpense[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  @@index([deletedAt])
   @@map("expense_category")
 }
 
@@ -482,10 +502,14 @@ model InvestmentSource {
   id          String       @id @default(cuid())
   name        String       @unique
   sortOrder   Int          @default(0)
+  // Soft delete : voir ExpenseCategory. Retirée des sélecteurs mais conservée ;
+  // recréer une source du même nom ressuscite la version supprimée.
+  deletedAt   DateTime?
   investments Investment[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
+  @@index([deletedAt])
   @@map("investment_source")
 }
 

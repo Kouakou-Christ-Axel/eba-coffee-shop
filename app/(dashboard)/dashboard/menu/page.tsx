@@ -15,8 +15,11 @@ import { CategoryRowActions } from './category-row-actions';
 
 export default async function MenuPage() {
   const categories = await prisma.menuCategory.findMany({
+    where: { deletedAt: null },
     orderBy: { sortOrder: 'asc' },
-    include: { _count: { select: { products: true } } },
+    include: {
+      _count: { select: { products: { where: { deletedAt: null } } } },
+    },
   });
 
   return (

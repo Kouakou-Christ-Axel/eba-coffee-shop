@@ -16,6 +16,9 @@ export const supplementOptionSchema = z.object({
     .min(1, 'Nom requis')
     .max(80, 'Nom trop long (max 80 caractères)'),
   price: z.number().int().nonnegative('Prix invalide'),
+  // Disponibilité d'un « goût » : désactivé = conservé mais non sélectionnable
+  // côté client. Optionnel (défaut true) pour la compat ascendante des payloads.
+  available: z.boolean().optional().default(true),
 });
 
 export const supplementGroupSchema = z.object({
@@ -26,6 +29,8 @@ export const supplementGroupSchema = z.object({
     .max(80, 'Nom trop long (max 80 caractères)'),
   type: z.enum(['single', 'multiple']),
   required: z.boolean(),
+  // Disponibilité d'un groupe entier (ex. « Sirops ») : désactivé = masqué.
+  available: z.boolean().optional().default(true),
   options: z
     .array(supplementOptionSchema)
     .min(1, 'Au moins une option requise'),
