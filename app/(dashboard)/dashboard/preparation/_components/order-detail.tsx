@@ -1,12 +1,12 @@
 'use client';
 
 import {
-  format,
   formatDistanceToNowStrict,
   isPast,
   differenceInMinutes,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { formatAbidjanTime } from '@/lib/timezone';
 import {
   Bike,
   Check,
@@ -111,7 +111,7 @@ export function OrderDetail({
           >
             <div className="flex items-center gap-2 text-4xl font-bold tabular-nums">
               <Clock className="h-7 w-7" />
-              {pickup ? format(pickup, 'HH:mm', { locale: fr }) : '—'}
+              {pickup ? formatAbidjanTime(pickup) : '—'}
             </div>
             <p className="mt-1 text-sm font-medium">{pickupRelative}</p>
           </div>

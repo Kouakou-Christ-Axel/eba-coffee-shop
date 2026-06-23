@@ -10,6 +10,10 @@ import {
   shiftDateString,
   formatLocalDateOnly,
   todayDateString,
+  abidjanDatetimeLocalToISO,
+  isoToAbidjanDatetimeLocal,
+  formatAbidjanTime,
+  formatAbidjanDateTime,
 } from '@/lib/timezone';
 
 describe('parseDateOnlyToUTC', () => {
@@ -49,5 +53,40 @@ describe('shiftDateString', () => {
 describe('todayDateString', () => {
   it("renvoie le jour civil d'Abidjan au format YYYY-MM-DD", () => {
     expect(todayDateString()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe('créneaux de retrait (datetime-local ⇄ ISO, ancrés Abidjan)', () => {
+  it('interprète la valeur datetime-local comme heure Abidjan (= UTC)', () => {
+    expect(abidjanDatetimeLocalToISO('2026-06-23T10:00')).toBe(
+      '2026-06-23T10:00:00.000Z'
+    );
+  });
+
+  it('chaîne vide ou invalide → null', () => {
+    expect(abidjanDatetimeLocalToISO('')).toBeNull();
+    expect(abidjanDatetimeLocalToISO('pas une date')).toBeNull();
+  });
+
+  it('roundtrip ISO → datetime-local → ISO est stable', () => {
+    const iso = '2026-06-23T10:00:00.000Z';
+    const local = isoToAbidjanDatetimeLocal(iso);
+    expect(local).toBe('2026-06-23T10:00');
+    expect(abidjanDatetimeLocalToISO(local)).toBe(iso);
+  });
+
+  it('accepte une Date et gère null', () => {
+    expect(
+      isoToAbidjanDatetimeLocal(new Date('2026-06-23T09:05:00.000Z'))
+    ).toBe('2026-06-23T09:05');
+    expect(isoToAbidjanDatetimeLocal(null)).toBe('');
+  });
+
+  it('formate l’heure et la date en Abidjan (pas d’heure machine)', () => {
+    // 10:00 UTC = 10:00 Abidjan, indépendamment du fuseau du runtime.
+    expect(formatAbidjanTime('2026-06-23T10:00:00.000Z')).toBe('10h00');
+    expect(formatAbidjanDateTime('2026-06-23T10:00:00.000Z')).toContain(
+      '10h00'
+    );
   });
 });

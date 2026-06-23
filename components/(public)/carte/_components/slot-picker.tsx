@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Clock } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ABIDJAN_TZ, formatAbidjanTime } from '@/lib/timezone';
 
 type SlotPickerProps = {
   value: string | null;
@@ -38,18 +39,20 @@ const PERIOD_LABELS: Record<Period, string> = {
   evening: 'Soir',
 };
 
+// Jour civil Abidjan (= UTC) : composantes UTC, déterministes côté navigateur.
 function dateKey(d: Date): string {
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
 }
 
 function dayLabel(slotDate: Date, today: Date): string {
   const slotK = dateKey(slotDate);
   const todayK = dateKey(today);
   const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
+  tomorrow.setUTCDate(today.getUTCDate() + 1);
   if (slotK === todayK) return "Aujourd'hui";
   if (slotK === dateKey(tomorrow)) return 'Demain';
   return slotDate.toLocaleDateString('fr-FR', {
+    timeZone: ABIDJAN_TZ,
     weekday: 'long',
     day: 'numeric',
     month: 'short',
@@ -57,7 +60,7 @@ function dayLabel(slotDate: Date, today: Date): string {
 }
 
 function periodOf(slot: Date): Period {
-  const h = slot.getHours();
+  const h = slot.getUTCHours();
   if (h < 12) return 'morning';
   if (h < 14) return 'noon';
   if (h < 18) return 'afternoon';
@@ -65,9 +68,7 @@ function periodOf(slot: Date): Period {
 }
 
 function formatHour(slot: Date): string {
-  const h = String(slot.getHours()).padStart(2, '0');
-  const m = String(slot.getMinutes()).padStart(2, '0');
-  return `${h}h${m}`;
+  return formatAbidjanTime(slot);
 }
 
 type SlotsState =
@@ -99,8 +100,11 @@ export function SlotPicker({ value, onChange, error }: SlotPickerProps) {
   }, []);
 
   const today = useMemo(() => {
+    // Minuit du jour civil Abidjan (= UTC).
     const n = new Date();
-    return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+    return new Date(
+      Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate())
+    );
   }, []);
 
   const slotsByDay = useMemo(() => {

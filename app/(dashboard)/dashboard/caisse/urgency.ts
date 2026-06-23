@@ -12,6 +12,7 @@ import {
   SCHEDULED_ALERT_MINUTES,
   SCHEDULED_LEAD_IN_MINUTES,
 } from '@/config/constants';
+import { formatAbidjanTime, startOfLocalDay } from '@/lib/timezone';
 
 export type UrgencyLevel = 'normal' | 'attention' | 'alert' | 'critical';
 
@@ -73,22 +74,19 @@ export function isScheduledAhead(order: CashierOrder, now: Date): boolean {
  *   « aujourd'hui 15:30 » / « demain 15:30 » / « 14/06 15:30 ».
  */
 export function formatPickup(pickup: Date, now: Date): string {
-  const time = pickup.toLocaleTimeString('fr-FR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-  const startOfToday = new Date(now);
-  startOfToday.setHours(0, 0, 0, 0);
-  const dayDiff = Math.floor(
-    (new Date(pickup).setHours(0, 0, 0, 0) - startOfToday.getTime()) /
+  // Heure et bornes de jour ancrées sur Abidjan (déterministe hors UTC).
+  const time = formatAbidjanTime(pickup);
+  const dayDiff = Math.round(
+    (startOfLocalDay(pickup).getTime() - startOfLocalDay(now).getTime()) /
       86_400_000
   );
   if (dayDiff <= 0) return `aujourd'hui ${time}`;
   if (dayDiff === 1) return `demain ${time}`;
-  const date = pickup.toLocaleDateString('fr-FR', {
+  const date = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Africa/Abidjan',
     day: '2-digit',
     month: '2-digit',
-  });
+  }).format(pickup);
   return `${date} ${time}`;
 }
 

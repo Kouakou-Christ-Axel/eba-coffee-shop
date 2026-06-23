@@ -89,3 +89,75 @@ export function shiftDateString(value: string, delta: number): string {
   base.setUTCDate(base.getUTCDate() + delta);
   return formatLocalDateOnly(base);
 }
+
+// ─── Créneaux de retrait : datetime-local ⇄ instant, ancrés Abidjan ────────────
+//
+// Le widget <input type="datetime-local"> n'a AUCUNE notion de fuseau : sa valeur
+// « YYYY-MM-DDTHH:mm » est une heure « murale » brute. Pour un commerce mono-site
+// (Abidjan, UTC+0), on interprète TOUJOURS cette heure comme Abidjan et on
+// l'affiche TOUJOURS en Abidjan — indépendamment du fuseau du navigateur ou du
+// serveur. Sans cela, un environnement hors UTC introduit un décalage (ex. +2h)
+// entre la saisie et la relecture. Comme Abidjan = UTC, l'heure murale Abidjan
+// correspond directement aux composantes UTC de l'instant.
+
+const LOCAL_DT_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/;
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * Valeur d'un <input datetime-local> (heure Abidjan) → ISO 8601 (UTC).
+ * Chaîne vide ou invalide → null.
+ */
+export function abidjanDatetimeLocalToISO(value: string): string | null {
+  const m = LOCAL_DT_RE.exec(value);
+  if (!m) return null;
+  const d = new Date(
+    Date.UTC(
+      Number(m[1]),
+      Number(m[2]) - 1,
+      Number(m[3]),
+      Number(m[4]),
+      Number(m[5])
+    )
+  );
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/**
+ * Instant (ISO ou Date) → valeur d'un <input datetime-local> en heure Abidjan.
+ * null/invalide → chaîne vide. Composantes UTC (Abidjan = UTC), donc résultat
+ * identique côté serveur et navigateur.
+ */
+export function isoToAbidjanDatetimeLocal(value: string | Date | null): string {
+  if (!value) return '';
+  const d = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return '';
+  return (
+    `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}` +
+    `T${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`
+  );
+}
+
+/** Instant → « 10h00 » (heure Abidjan). Déterministe serveur + client. */
+export function formatAbidjanTime(value: string | Date): string {
+  const d = typeof value === 'string' ? new Date(value) : value;
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: ABIDJAN_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+    .format(d)
+    .replace(':', 'h');
+}
+
+/** Instant → « lundi 23 juin · 10h00 » (heure Abidjan). */
+export function formatAbidjanDateTime(value: string | Date): string {
+  const d = typeof value === 'string' ? new Date(value) : value;
+  const dayMonth = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: ABIDJAN_TZ,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(d);
+  return `${dayMonth} · ${formatAbidjanTime(d)}`;
+}

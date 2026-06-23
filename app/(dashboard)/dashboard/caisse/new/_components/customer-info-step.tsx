@@ -5,7 +5,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { ORDER_NOTE_MAX } from '@/config/constants';
-import { todayDateString } from '@/lib/timezone';
+import {
+  todayDateString,
+  abidjanDatetimeLocalToISO,
+  isoToAbidjanDatetimeLocal,
+} from '@/lib/timezone';
 import type { OrderType } from '@/generated/prisma/client';
 import { OrderTypePicker } from './order-type-picker';
 import { CustomerSearchSelect } from './customer-search-select';
@@ -26,18 +30,10 @@ type Props = {
   onOrderDateChange: (value: string | null) => void;
 };
 
-function toLocalDatetimeValue(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
+// Créneau par défaut : maintenant + 60 min, exprimé en heure murale Abidjan
+// (cohérent avec l'affichage et la relecture, quel que soit le fuseau navigateur).
 function defaultPickupTime(): string {
-  const d = new Date();
-  d.setMinutes(d.getMinutes() + 60);
-  d.setSeconds(0, 0);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return isoToAbidjanDatetimeLocal(new Date(Date.now() + 60 * 60_000));
 }
 
 export function CustomerInfoStep({
@@ -70,19 +66,14 @@ export function CustomerInfoStep({
   }
 
   function handleDatetimeChange(e: React.ChangeEvent<HTMLInputElement>) {
-    if (!e.target.value) return;
-    const local = e.target.value;
-    const iso = new Date(local).toISOString();
+    const iso = abidjanDatetimeLocalToISO(e.target.value);
+    if (!iso) return;
     onPickupTimeChange(iso);
   }
 
-  const minDatetime = (() => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() + 5);
-    d.setSeconds(0, 0);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  })();
+  const minDatetime = isoToAbidjanDatetimeLocal(
+    new Date(new Date().getTime() + 5 * 60_000)
+  );
 
   return (
     <div className="space-y-3">
@@ -130,7 +121,7 @@ export function CustomerInfoStep({
             <Input
               id="pickup-time"
               type="datetime-local"
-              value={pickupTime ? toLocalDatetimeValue(pickupTime) : ''}
+              value={isoToAbidjanDatetimeLocal(pickupTime)}
               onChange={handleDatetimeChange}
               min={minDatetime}
             />

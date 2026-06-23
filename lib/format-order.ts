@@ -1,9 +1,11 @@
+import { formatAbidjanDateTime } from '@/lib/timezone';
+
+/**
+ * Créneau de retrait pour l'affichage public : « Dimanche 10 mai · 14h30 ».
+ * Toujours en heure Abidjan (déterministe quel que soit le fuseau du runtime),
+ * première lettre capitalisée.
+ */
 export function formatPickupTime(date: Date): string {
-  const dayName = date.toLocaleDateString('fr-FR', { weekday: 'long' });
-  const day = date.getDate();
-  const monthName = date.toLocaleDateString('fr-FR', { month: 'long' });
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const capitalizedDay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
-  return `${capitalizedDay} ${day} ${monthName} · ${hours}h${minutes}`;
+  const s = formatAbidjanDateTime(date);
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
