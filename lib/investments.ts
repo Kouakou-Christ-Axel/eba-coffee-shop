@@ -36,6 +36,7 @@ function buildInvestmentWhere({
 /** Sources de financement triées, avec le nombre d'apports rattachés. */
 export async function listInvestmentSources() {
   return prisma.investmentSource.findMany({
+    where: { deletedAt: null },
     orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     include: { _count: { select: { investments: true } } },
   });

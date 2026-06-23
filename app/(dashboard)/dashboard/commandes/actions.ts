@@ -1,15 +1,19 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireCashier } from '@/lib/auth-helpers';
+import { requireCashier, requireAdmin } from '@/lib/auth-helpers';
 import {
   setOrderStatus,
   setOrderPayment,
   payAndComplete,
   updateOrderItems,
   setOrderCustomer,
+  updateOrderDetails,
 } from '@/lib/order-mutations';
-import type { SetOrderCustomerInput } from '@/lib/schemas/order';
+import type {
+  SetOrderCustomerInput,
+  UpdateOrderDetailsInput,
+} from '@/lib/schemas/order';
 import type { CartItem } from '@/lib/cart-store';
 import type {
   OrderStatus,
@@ -66,6 +70,21 @@ export async function updateOrderItemsAction(
   await requireCashier();
 
   await updateOrderItems(id, items);
+  revalidateOrder(id);
+}
+
+/**
+ * Édite les métadonnées d'une commande (moyen de paiement, type de commande,
+ * créneau de retrait, note). RÉSERVÉ À L'ADMIN : `requireAdmin` rejette CASHIER
+ * et KITCHEN même s'ils ont accès au reste du dashboard.
+ */
+export async function updateOrderDetailsAction(
+  id: string,
+  input: UpdateOrderDetailsInput
+): Promise<void> {
+  await requireAdmin();
+
+  await updateOrderDetails(id, input);
   revalidateOrder(id);
 }
 

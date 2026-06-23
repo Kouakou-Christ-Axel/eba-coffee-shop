@@ -51,6 +51,7 @@ export function countUnnumberedExpenses() {
 /** Catégories triées, avec le nombre de dépenses rattachées. */
 export async function listExpenseCategories() {
   return prisma.expenseCategory.findMany({
+    where: { deletedAt: null },
     orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     include: { _count: { select: { expenses: true } } },
   });

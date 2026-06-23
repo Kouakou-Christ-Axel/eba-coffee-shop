@@ -13,7 +13,7 @@ export default async function EditProductPage({
   const [category, product] = await Promise.all([
     prisma.menuCategory.findUnique({
       where: { id: categoryId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, deletedAt: true },
     }),
     prisma.product.findUnique({
       where: { id: productId },
@@ -26,7 +26,13 @@ export default async function EditProductPage({
     }),
   ]);
 
-  if (!category || !product || product.categoryId !== categoryId) {
+  if (
+    !category ||
+    category.deletedAt ||
+    !product ||
+    product.deletedAt ||
+    product.categoryId !== categoryId
+  ) {
     notFound();
   }
 
@@ -45,7 +51,12 @@ export default async function EditProductPage({
       name: g.name,
       type: g.type as 'single' | 'multiple',
       required: g.required,
-      options: g.options.map((o) => ({ name: o.name, price: o.price })),
+      available: g.available,
+      options: g.options.map((o) => ({
+        name: o.name,
+        price: o.price,
+        available: o.available,
+      })),
     })),
   };
 

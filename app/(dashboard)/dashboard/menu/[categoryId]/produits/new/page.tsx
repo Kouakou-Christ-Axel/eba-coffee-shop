@@ -11,9 +11,9 @@ export default async function NewProductPage({
   const { categoryId } = await params;
   const category = await prisma.menuCategory.findUnique({
     where: { id: categoryId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, deletedAt: true },
   });
-  if (!category) notFound();
+  if (!category || category.deletedAt) notFound();
 
   return (
     <div className="space-y-6">

@@ -120,7 +120,7 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `list_expense_categories`        | lecture  | Catégories de dépense (+ nombre de dépenses)       |
 | `create_expense_category`        | écriture | Créer une catégorie de dépense                     |
 | `update_expense_category`        | écriture | Renommer une catégorie de dépense                  |
-| `delete_expense_category`        | écriture | Supprimer une catégorie (refusé si utilisée)       |
+| `delete_expense_category`        | écriture | Supprimer une catégorie (soft delete, conserve les dépenses) |
 | `list_expenses`                  | lecture  | Lister les dépenses (filtres date/catégorie)       |
 | `get_expense_summary`            | lecture  | Total + ventilation des dépenses par catégorie     |
 | `create_expense`                 | écriture | Enregistrer une dépense                            |
@@ -130,7 +130,7 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `list_investment_sources`        | lecture  | Sources de financement (+ nombre d’apports)        |
 | `create_investment_source`       | écriture | Créer une source de financement                    |
 | `update_investment_source`       | écriture | Renommer une source de financement                 |
-| `delete_investment_source`       | écriture | Supprimer une source (refusé si utilisée)          |
+| `delete_investment_source`       | écriture | Supprimer une source (soft delete, conserve les apports) |
 | `list_investments`               | lecture  | Lister les apports (filtres date/source/rembt)     |
 | `get_investment_summary`         | lecture  | Total + ventilation par source + restant dû        |
 | `create_investment`              | écriture | Enregistrer un apport / financement                |
@@ -150,6 +150,7 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `list_orders`                    | lecture  | Lister les commandes (filtres statut/date/texte)   |
 | `set_order_status`               | écriture | Changer le statut (récupérée, annulée, …)          |
 | `mark_order_paid`                | écriture | Encaisser une commande (CASH/WAVE/OTHER)           |
+| `update_order`                   | écriture | Modifier détails (paiement, type, créneau, note)   |
 | `apply_order_discount`           | écriture | Appliquer une remise de ligne (FCFA)               |
 | `list_customers`                 | lecture  | Lister / rechercher des clients (+ stats)          |
 | `get_customer`                   | lecture  | Détail d’un client (par `id` ou `phone`)           |
@@ -159,14 +160,14 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `update_loyalty_settings`        | écriture | Modifier la config de la carte à tampons           |
 | `create_category`                | écriture | Créer une catégorie                                |
 | `update_category`                | écriture | Renommer une catégorie                             |
-| `delete_category`                | écriture | Supprimer une catégorie (cascade produits)         |
+| `delete_category`                | écriture | Supprimer une catégorie (soft delete, cascade produits) |
 | `toggle_category_availability`   | écriture | Afficher / masquer une catégorie                   |
 | `move_category`                  | écriture | Réordonner une catégorie (`up` / `down`)           |
 | `create_product`                 | écriture | Créer un produit                                   |
 | `update_product`                 | écriture | Modifier un produit (mise à jour **partielle**)    |
 | `set_product_image`              | écriture | Téléverser (base64) ou rattacher une image         |
 | `move_product`                   | écriture | Réordonner un produit (`up` / `down`)              |
-| `delete_product`                 | écriture | Supprimer un produit                               |
+| `delete_product`                 | écriture | Supprimer un produit (soft delete)                 |
 | `toggle_product_availability`    | écriture | Afficher / masquer un produit                      |
 | `toggle_product_featured`        | écriture | Mettre en avant / retirer un produit               |
 | `list_inventory_items`           | lecture  | Lister les références (filtres + stock/PMP)        |
@@ -244,7 +245,11 @@ statut / plage de jours / recherche, 20 par page) et renvoie leur `id` ;
 `set_order_status` change le statut (NEW → PREPARING → READY → COMPLETED, ou
 CANCELLED — « récupérée » = `COMPLETED`, transitions invalides refusées) ;
 `mark_order_paid` encaisse (`CASH`/`WAVE`/`OTHER`), et pousse automatiquement en
-cuisine une commande encore `NEW`. `apply_order_discount` applique une **remise**
+cuisine une commande encore `NEW`. `update_order` modifie de façon **partielle**
+les métadonnées d'une commande (moyen de paiement, type de commande, créneau de
+retrait `pickupTime`, note) sans toucher au statut ni à l'encaissement — côté
+dashboard cette édition est **réservée à l'ADMIN**.
+`apply_order_discount` applique une **remise**
 (montant fixe FCFA, plafonnée) à une ou plusieurs lignes ciblées par leur
 `cartId` (visible dans les `items` de `list_orders`) et recalcule le total
 (0 pour retirer une remise ; refusé sur une commande terminée/annulée).
@@ -291,6 +296,19 @@ produit** sans passer par le dashboard :
 `update_product` est **partiel** : ne fournis que les champs à changer. ⚠️ Si tu
 passes `supplementGroups`, la liste entière est remplacée ; omets-la pour
 conserver les suppléments existants.
+
+Chaque groupe de suppléments et chaque option (« goût ») porte un drapeau
+`available` (défaut `true`). Mis à `false`, l'élément reste configuré mais
+disparaît du menu public (et de la caisse) — utile pour masquer temporairement
+un parfum en rupture sans le supprimer.
+
+**Soft delete** : `delete_category` et `delete_product` ne suppriment plus
+réellement les lignes. Elles posent un `deletedAt` (la catégorie entraîne ses
+produits) : les éléments sont masqués partout (y compris de `get_menu`) mais
+conservés en base. Idem côté référentiels comptables — `delete_expense_category`
+et `delete_investment_source` masquent sans casser les écritures rattachées, qui
+gardent leur libellé ; recréer un libellé identique « ressuscite » la version
+supprimée.
 
 ## Architecture
 

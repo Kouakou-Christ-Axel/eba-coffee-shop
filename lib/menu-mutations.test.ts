@@ -8,33 +8,32 @@ import {
   type MockedFunction,
 } from 'vitest';
 
-vi.mock('@/lib/prisma', () => ({
-  default: {
+vi.mock('@/lib/prisma', () => {
+  const client = {
     menuCategory: {
       create: vi.fn(),
       update: vi.fn(),
-      delete: vi.fn(),
       findUnique: vi.fn(),
       findMany: vi.fn(),
     },
     product: {
       create: vi.fn(),
       update: vi.fn(),
-      delete: vi.fn(),
+      updateMany: vi.fn(),
       findUnique: vi.fn(),
       findMany: vi.fn().mockResolvedValue([]),
     },
     supplementGroup: {
       deleteMany: vi.fn(),
     },
+    // Les transactions reçoivent le même client mocké : les assertions sur les
+    // mocks de premier niveau couvrent donc aussi les opérations transactionnelles.
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
-      fn({
-        supplementGroup: { deleteMany: vi.fn() },
-        product: { update: vi.fn() },
-      })
+      fn(client)
     ),
-  },
-}));
+  };
+  return { default: client };
+});
 
 import prisma from '@/lib/prisma';
 import {
@@ -57,9 +56,6 @@ const mockCatCreate = prisma.menuCategory.create as MockedFunction<
 const mockCatUpdate = prisma.menuCategory.update as MockedFunction<
   typeof prisma.menuCategory.update
 >;
-const mockCatDelete = prisma.menuCategory.delete as MockedFunction<
-  typeof prisma.menuCategory.delete
->;
 const mockCatFindUnique = prisma.menuCategory.findUnique as MockedFunction<
   typeof prisma.menuCategory.findUnique
 >;
@@ -72,8 +68,8 @@ const mockProdCreate = prisma.product.create as MockedFunction<
 const mockProdUpdate = prisma.product.update as MockedFunction<
   typeof prisma.product.update
 >;
-const mockProdDelete = prisma.product.delete as MockedFunction<
-  typeof prisma.product.delete
+const mockProdUpdateMany = prisma.product.updateMany as MockedFunction<
+  typeof prisma.product.updateMany
 >;
 const mockProdFindUnique = prisma.product.findUnique as MockedFunction<
   typeof prisma.product.findUnique
@@ -132,10 +128,29 @@ describe('updateCategory', () => {
 describe('deleteCategory', () => {
   beforeEach(() => vi.resetAllMocks());
 
-  it("supprime la catégorie (cascade DB s'occupe des produits)", async () => {
-    mockCatDelete.mockResolvedValue({} as never);
+  it('soft delete : marque la catégorie ET ses produits, dé-collisionne le slug', async () => {
+    mockCatFindUnique.mockResolvedValue({
+      slug: 'cafes',
+      deletedAt: null,
+    } as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 2 } as never);
+    mockCatUpdate.mockResolvedValue({} as never);
+
     await deleteCategory('cat1');
-    expect(mockCatDelete).toHaveBeenCalledWith({ where: { id: 'cat1' } });
+
+    expect(mockProdUpdateMany).toHaveBeenCalledWith({
+      where: { categoryId: 'cat1', deletedAt: null },
+      data: { deletedAt: expect.any(Date) },
+    });
+    expect(mockCatUpdate).toHaveBeenCalledWith({
+      where: { id: 'cat1' },
+      data: { deletedAt: expect.any(Date), slug: 'cafes-deleted-cat1' },
+    });
+  });
+
+  it('rejette si la catégorie est introuvable', async () => {
+    mockCatFindUnique.mockResolvedValue(null);
+    await expect(deleteCategory('x')).rejects.toThrow('Catégorie introuvable');
   });
 });
 
@@ -257,8 +272,8 @@ describe('createProduct', () => {
               sortOrder: 0,
               options: {
                 create: [
-                  { name: 'Avoine', price: 500 },
-                  { name: 'Amande', price: 500 },
+                  { name: 'Avoine', price: 500, available: true },
+                  { name: 'Amande', price: 500, available: true },
                 ],
               },
             }),
@@ -403,10 +418,13 @@ describe('moveProduct', () => {
 describe('deleteProduct', () => {
   beforeEach(() => vi.resetAllMocks());
 
-  it('supprime le produit', async () => {
-    mockProdDelete.mockResolvedValue({} as never);
+  it('soft delete : marque le produit comme supprimé', async () => {
+    mockProdUpdate.mockResolvedValue({} as never);
     await deleteProduct('p1');
-    expect(mockProdDelete).toHaveBeenCalledWith({ where: { id: 'p1' } });
+    expect(mockProdUpdate).toHaveBeenCalledWith({
+      where: { id: 'p1' },
+      data: { deletedAt: expect.any(Date) },
+    });
   });
 });
 

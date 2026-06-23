@@ -2,15 +2,21 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getOrder } from '@/lib/orders';
 import { getMenu } from '@/lib/menu';
+import { getCurrentSession } from '@/lib/auth-helpers';
 import type { CartItem } from '@/lib/cart-store';
 import { getItemGross, getItemNet } from '@/lib/orders/totals';
-import type { OrderStatus } from '@/generated/prisma/client';
+import type {
+  OrderStatus,
+  OrderType,
+  PaymentMode,
+} from '@/generated/prisma/client';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { StatusButtons } from './status-buttons';
 import { EditOrderItems } from './edit-order-items';
 import { AssociateCustomer } from './associate-customer';
+import { EditOrderDetails } from './edit-order-details';
 import { EncaisserButton } from '../encaisser-button';
 import { ExpressCompleteButton } from '../express-complete-button';
 import { CopyRecapButton } from '../../_components/copy-recap-button';
@@ -33,6 +39,18 @@ const STATUS_VARIANTS: Record<
   READY: 'default',
   COMPLETED: 'outline',
   CANCELLED: 'destructive',
+};
+
+const ORDER_TYPE_LABELS: Record<OrderType, string> = {
+  TAKEAWAY: 'À emporter',
+  DINE_IN: 'Sur place',
+  DELIVERY: 'Livraison',
+};
+
+const PAYMENT_MODE_LABELS: Record<PaymentMode, string> = {
+  CASH: 'Espèces',
+  WAVE: 'Wave',
+  OTHER: 'Autre',
 };
 
 function formatPickupTime(date: Date | null): string {
@@ -66,6 +84,9 @@ export default async function CommandeDetailPage({
 
   const items = order.items as CartItem[];
   const menu = await getMenu();
+  // Édition des métadonnées (paiement, type, créneau, note) réservée à l'ADMIN.
+  const session = await getCurrentSession();
+  const isAdmin = session?.user.role === 'ADMIN';
 
   return (
     <div className="space-y-6">
@@ -139,6 +160,50 @@ export default async function CommandeDetailPage({
               Voir la fiche client →
             </Link>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex flex-wrap items-center justify-between gap-2">
+            <span>Détails</span>
+            {isAdmin && (
+              <EditOrderDetails
+                orderId={order.id}
+                initialOrderType={order.orderType as OrderType}
+                initialPickupTime={order.pickupTime?.toISOString() ?? null}
+                initialPaymentMode={order.paymentMode}
+                initialNote={order.note}
+                isPaid={order.isPaid}
+              />
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <div className="flex justify-between gap-3">
+            <span className="text-muted-foreground">Type de commande</span>
+            <span className="font-medium">
+              {ORDER_TYPE_LABELS[order.orderType as OrderType]}
+            </span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span className="text-muted-foreground">Créneau de retrait</span>
+            <span className="font-medium">
+              {formatPickupTime(order.pickupTime)}
+            </span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span className="text-muted-foreground">Moyen de paiement</span>
+            <span className="font-medium">
+              {order.paymentMode ? PAYMENT_MODE_LABELS[order.paymentMode] : '—'}
+            </span>
+          </div>
+          <div className="space-y-1">
+            <span className="text-muted-foreground">Note</span>
+            <p className="font-medium whitespace-pre-wrap">
+              {order.note?.trim() ? order.note : '—'}
+            </p>
+          </div>
         </CardContent>
       </Card>
 

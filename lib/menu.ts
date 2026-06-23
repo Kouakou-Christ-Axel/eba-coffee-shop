@@ -4,17 +4,20 @@ import type { MenuCategory } from '@/config/menu';
 
 export async function getMenu(): Promise<MenuCategory[]> {
   const categories = await prisma.menuCategory.findMany({
-    where: { available: true },
+    where: { available: true, deletedAt: null },
     orderBy: { sortOrder: 'asc' },
     include: {
       products: {
-        where: { available: true },
+        where: { available: true, deletedAt: null },
         orderBy: { sortOrder: 'asc' },
         include: {
+          // Côté client : on n'expose que les groupes et goûts disponibles. Un
+          // groupe/goût désactivé reste configuré mais devient non sélectionnable.
           supplementGroups: {
+            where: { available: true },
             orderBy: { sortOrder: 'asc' },
             include: {
-              options: true,
+              options: { where: { available: true } },
             },
           },
         },
@@ -33,15 +36,19 @@ export async function getMenu(): Promise<MenuCategory[]> {
       coutMatiere: p.coutMatiere,
       coutEmballage: p.coutEmballage,
       image: p.imageUrl ?? undefined,
-      supplements: p.supplementGroups.map((g) => ({
-        name: g.name,
-        type: g.type as 'single' | 'multiple',
-        required: g.required,
-        options: g.options.map((o) => ({
-          name: o.name,
-          price: o.price,
+      // Un groupe dont tous les goûts sont désactivés n'a plus d'option : inutile
+      // de le présenter, on le retire.
+      supplements: p.supplementGroups
+        .filter((g) => g.options.length > 0)
+        .map((g) => ({
+          name: g.name,
+          type: g.type as 'single' | 'multiple',
+          required: g.required,
+          options: g.options.map((o) => ({
+            name: o.name,
+            price: o.price,
+          })),
         })),
-      })),
     })),
   }));
 }
@@ -55,11 +62,16 @@ export async function getMenu(): Promise<MenuCategory[]> {
 // outils MCP de lecture (`get_menu`) qui ont besoin des `id` pour cibler les
 // mutations.
 
-export type AdminMenuSupplementOption = { name: string; price: number };
+export type AdminMenuSupplementOption = {
+  name: string;
+  price: number;
+  available: boolean;
+};
 export type AdminMenuSupplementGroup = {
   name: string;
   type: 'single' | 'multiple';
   required: boolean;
+  available: boolean;
   options: AdminMenuSupplementOption[];
 };
 export type AdminMenuProduct = {
@@ -88,9 +100,11 @@ export type AdminMenuCategory = {
 
 export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
   const categories = await prisma.menuCategory.findMany({
+    where: { deletedAt: null },
     orderBy: { sortOrder: 'asc' },
     include: {
       products: {
+        where: { deletedAt: null },
         orderBy: { sortOrder: 'asc' },
         include: {
           supplementGroups: {
@@ -125,7 +139,12 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
         name: g.name,
         type: g.type as 'single' | 'multiple',
         required: g.required,
-        options: g.options.map((o) => ({ name: o.name, price: o.price })),
+        available: g.available,
+        options: g.options.map((o) => ({
+          name: o.name,
+          price: o.price,
+          available: o.available,
+        })),
       })),
     })),
   }));

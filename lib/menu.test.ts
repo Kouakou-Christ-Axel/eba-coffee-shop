@@ -117,22 +117,22 @@ describe('getMenu', () => {
     expect(result[0].id).toBe('boissons-chaudes');
   });
 
-  it('filtre les catégories available:false', async () => {
+  it('filtre les catégories available:false et supprimées', async () => {
     mockFindMany.mockResolvedValue([]);
     await getMenu();
     expect(mockFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { available: true } })
+      expect.objectContaining({ where: { available: true, deletedAt: null } })
     );
   });
 
-  it('filtre les produits available:false', async () => {
+  it('filtre les produits available:false et supprimés', async () => {
     mockFindMany.mockResolvedValue([]);
     await getMenu();
     expect(mockFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         include: expect.objectContaining({
           products: expect.objectContaining({
-            where: { available: true },
+            where: { available: true, deletedAt: null },
           }),
         }),
       })

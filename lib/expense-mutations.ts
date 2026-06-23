@@ -25,9 +25,21 @@ import {
 
 export async function createExpenseCategory(input: unknown) {
   const { name } = expenseCategoryInputSchema.parse(input);
+  // Le nom reste unique globalement. Si une catégorie du même nom a été soft
+  // delete, on la « ressuscite » (deletedAt → null) au lieu d'échouer.
+  const existing = await prisma.expenseCategory.findUnique({ where: { name } });
   const max = await prisma.expenseCategory.aggregate({
     _max: { sortOrder: true },
   });
+  if (existing) {
+    if (existing.deletedAt === null) {
+      throw new Error('Une catégorie porte déjà ce nom.');
+    }
+    return prisma.expenseCategory.update({
+      where: { id: existing.id },
+      data: { deletedAt: null, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+    });
+  }
   try {
     return await prisma.expenseCategory.create({
       data: { name, sortOrder: (max._max.sortOrder ?? -1) + 1 },
@@ -49,20 +61,13 @@ export async function updateExpenseCategory(id: string, input: unknown) {
   }
 }
 
+// Soft delete : on retire la catégorie des sélecteurs/listes sans toucher aux
+// dépenses rattachées (qui conservent leur libellé via la relation).
 export async function deleteExpenseCategory(id: string) {
-  try {
-    return await prisma.expenseCategory.delete({ where: { id } });
-  } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === 'P2003'
-    ) {
-      throw new Error(
-        'Impossible de supprimer : des dépenses utilisent cette catégorie.'
-      );
-    }
-    throw err;
-  }
+  return prisma.expenseCategory.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
 }
 
 // ─── Dépenses ─────────────────────────────────────────────────────────────────

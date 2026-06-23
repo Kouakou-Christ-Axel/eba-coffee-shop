@@ -16,6 +16,7 @@ export default async function CategoryProductsPage({
     where: { id: categoryId },
     include: {
       products: {
+        where: { deletedAt: null },
         orderBy: { sortOrder: 'asc' },
         select: {
           id: true,
@@ -32,7 +33,7 @@ export default async function CategoryProductsPage({
     },
   });
 
-  if (!category) notFound();
+  if (!category || category.deletedAt) notFound();
 
   return (
     <div className="space-y-6">
