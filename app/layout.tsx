@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import Providers from '@/components/providers';
@@ -57,8 +57,17 @@ export const metadata: Metadata = {
     apple: '/apple-icon.png',
   },
   appleWebApp: {
+    capable: true,
     title: 'EBA',
+    statusBarStyle: 'default',
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#6c3077' },
+    { media: '(prefers-color-scheme: dark)', color: '#1a1218' },
+  ],
 };
 
 export default function RootLayout({

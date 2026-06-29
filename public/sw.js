@@ -1,0 +1,111 @@
+/*
+ * Service worker léger pour EBA Coffee Shop (PWA).
+ *
+ * Objectifs volontairement limités :
+ *  - Rendre l'app installable (un SW avec un handler `fetch` est requis par
+ *    Chrome/Android pour déclencher `beforeinstallprompt`).
+ *  - Servir une page de secours hors-ligne pour les navigations.
+ *  - Mettre en cache les assets statiques (cache-first) pour accélérer les
+ *    visites répétées.
+ *
+ * Règles de sécurité : on NE met JAMAIS en cache le dashboard, les routes
+ * d'API ni l'authentification — ces contenus doivent toujours venir du réseau.
+ */
+
+const CACHE_VERSION = 'v1';
+const CACHE_NAME = `eba-pwa-${CACHE_VERSION}`;
+const OFFLINE_URL = '/offline';
+
+// Pré-cache minimal : la coquille hors-ligne + le logo.
+const PRECACHE_URLS = [OFFLINE_URL, '/assets/logos/eba.svg'];
+
+// Chemins qui ne doivent jamais être interceptés / mis en cache.
+const BYPASS_PREFIXES = ['/api/', '/dashboard', '/login', '/.well-known'];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.addAll(PRECACHE_URLS);
+      await self.skipWaiting();
+    })()
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((key) => key.startsWith('eba-pwa-') && key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
+      );
+      await self.clients.claim();
+    })()
+  );
+});
+
+function shouldBypass(url) {
+  return BYPASS_PREFIXES.some((prefix) => url.pathname.startsWith(prefix));
+}
+
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+
+  // On ne gère que le GET same-origin.
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+  if (shouldBypass(url)) return;
+
+  // Navigations (pages) → network-first avec repli hors-ligne.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        try {
+          return await fetch(request);
+        } catch {
+          const cache = await caches.open(CACHE_NAME);
+          const cached = await cache.match(OFFLINE_URL);
+          return (
+            cached ??
+            new Response('Hors ligne', {
+              status: 503,
+              headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+            })
+          );
+        }
+      })()
+    );
+    return;
+  }
+
+  // Assets statiques (images, scripts, styles, polices) → cache-first.
+  const isStaticAsset =
+    url.pathname.startsWith('/_next/static/') ||
+    url.pathname.startsWith('/assets/') ||
+    /\.(?:js|css|woff2?|ttf|otf|png|jpg|jpeg|webp|avif|svg|ico)$/.test(
+      url.pathname
+    );
+
+  if (!isStaticAsset) return;
+
+  event.respondWith(
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const cached = await cache.match(request);
+      if (cached) return cached;
+      try {
+        const response = await fetch(request);
+        if (response.ok && response.type === 'basic') {
+          cache.put(request, response.clone());
+        }
+        return response;
+      } catch {
+        return cached ?? Response.error();
+      }
+    })()
+  );
+});
