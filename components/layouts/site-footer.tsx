@@ -7,6 +7,10 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { MapPin, MessageCircle, Mail } from 'lucide-react';
 import { IconBrandInstagram, IconBrandTiktok } from '@tabler/icons-react';
 import { brandConfig } from '@/config/brand.config';
+import { authClient } from '@/lib/auth-client';
+
+// Mêmes rôles staff que la navbar / le FAB dashboard.
+const DASHBOARD_ROLES = ['ADMIN', 'CASHIER', 'KITCHEN'];
 
 const socialItems = [
   {
@@ -21,6 +25,14 @@ const socialItems = [
 
 function SiteFooter() {
   const reduceMotion = useReducedMotion();
+  const { data: session } = authClient.useSession();
+  const userRole = (session?.user as { role?: string } | undefined)?.role;
+  const hasDashboardAccess = !!userRole && DASHBOARD_ROLES.includes(userRole);
+  // Point d'accès indispensable dans la PWA installée (pas de barre d'adresse) :
+  // « Connexion » si déconnecté, sinon raccourci vers le dashboard pour le staff.
+  const accountLink = hasDashboardAccess
+    ? { href: '/dashboard', label: 'Dashboard' }
+    : { href: '/login', label: 'Connexion' };
 
   const fadeUp = reduceMotion
     ? {}
@@ -99,6 +111,14 @@ function SiteFooter() {
                   </Link>
                 </li>
               ))}
+              <li key={accountLink.href}>
+                <Link
+                  href={accountLink.href}
+                  className="text-sm text-white/75 transition duration-300 hover:text-primary hover:translate-x-0.5"
+                >
+                  {accountLink.label}
+                </Link>
+              </li>
             </ul>
           </motion.div>
 
