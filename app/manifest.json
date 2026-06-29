@@ -1,7 +1,30 @@
 {
   "name": "EBA Coffee Shop",
   "short_name": "EBA",
+  "description": "Café, brunch, boissons signatures et pâtisseries à Abidjan. Commandez et retrouvez votre carte de fidélité EBA Coffee Shop.",
+  "lang": "fr",
+  "dir": "ltr",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "categories": ["food", "lifestyle", "shopping"],
+  "theme_color": "#6c3077",
+  "background_color": "#f7efe8",
   "icons": [
+    {
+      "src": "/web-app-manifest-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/web-app-manifest-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/web-app-manifest-192x192.png",
       "sizes": "192x192",
@@ -14,8 +37,5 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ],
-  "theme_color": "#ffffff",
-  "background_color": "#ffffff",
-  "display": "standalone"
+  ]
 }
