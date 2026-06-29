@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
-import { Link } from '@heroui/react';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Hors ligne',
