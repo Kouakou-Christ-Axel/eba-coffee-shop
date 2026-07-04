@@ -22,7 +22,7 @@ async function statsByCustomer(
   if (ids.length === 0) return new Map();
   const grouped = await prisma.order.groupBy({
     by: ['customerId'],
-    where: { customerId: { in: ids } },
+    where: { customerId: { in: ids }, status: { not: 'CANCELLED' } },
     _count: true,
     _sum: { total: true },
     _max: { createdAt: true },
@@ -94,7 +94,7 @@ export async function getCustomer(id: string) {
       take: 50,
     }),
     prisma.order.aggregate({
-      where: { customerId: id },
+      where: { customerId: id, status: { not: 'CANCELLED' } },
       _count: true,
       _sum: { total: true },
       _max: { createdAt: true },

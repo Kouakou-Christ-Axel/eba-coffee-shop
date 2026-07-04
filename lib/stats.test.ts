@@ -21,7 +21,7 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 import prisma from '@/lib/prisma';
-import { getRangeStats, getDailySeries } from './stats';
+import { getRangeStats, getDailySeries, getDailyStats } from './stats';
 
 const mockOrderFindMany = prisma.order.findMany as unknown as MockedFunction<
   () => Promise<unknown>
@@ -93,6 +93,72 @@ describe('getRangeStats avec régularisations de recette', () => {
     expect(stats.revenue).toBe(3000);
     expect(stats.revenueByPaymentMode.CASH).toBe(3000);
     expect(stats.avgBasket).toBe(5000); // commande uniquement
+  });
+});
+
+describe('exclusion des commandes annulées du CA', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("getDailyStats n'ajoute pas au CA une commande annulée restée isPaid", async () => {
+    mockOrderFindMany.mockResolvedValue([
+      {
+        status: 'COMPLETED',
+        orderType: 'TAKEAWAY',
+        isPaid: true,
+        paymentMode: 'CASH',
+        total: 1000,
+      },
+      {
+        status: 'CANCELLED',
+        orderType: 'TAKEAWAY',
+        isPaid: true,
+        paymentMode: 'CASH',
+        total: 5000,
+      },
+    ]);
+    mockAdjGroupBy.mockResolvedValue([]);
+
+    const stats = await getDailyStats(from);
+    expect(stats.revenue).toBe(1000);
+    expect(stats.paidOrders).toBe(1);
+    expect(stats.cancelledOrders).toBe(1);
+    expect(stats.totalOrders).toBe(2);
+  });
+
+  it("getRangeStats n'ajoute pas au CA une commande annulée restée isPaid", async () => {
+    mockOrderFindMany.mockResolvedValue([
+      {
+        status: 'CANCELLED',
+        orderType: 'TAKEAWAY',
+        isPaid: true,
+        paymentMode: 'WAVE',
+        total: 5000,
+      },
+    ]);
+    mockAdjGroupBy.mockResolvedValue([]);
+
+    const stats = await getRangeStats(from, to);
+    expect(stats.revenue).toBe(0);
+    expect(stats.paidOrders).toBe(0);
+    expect(stats.cancelledOrders).toBe(1);
+  });
+
+  it("getDailySeries n'ajoute pas au CA une commande annulée restée isPaid", async () => {
+    mockOrderFindMany.mockResolvedValue([
+      {
+        dailyDate: new Date(Date.UTC(2026, 4, 1)),
+        total: 5000,
+        isPaid: true,
+        status: 'CANCELLED',
+      },
+    ]);
+    mockAdjFindMany.mockResolvedValue([]);
+
+    const series = await getDailySeries(from, to);
+    expect(series[0].revenue).toBe(0);
+    expect(series[0].orders).toBe(1);
   });
 });
 
