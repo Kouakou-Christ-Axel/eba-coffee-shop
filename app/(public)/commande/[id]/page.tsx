@@ -8,6 +8,8 @@ import { formatPickupTime } from '@/lib/format-order';
 import { priceFormatter } from '@/config/menu';
 import type { CartItem } from '@/lib/cart-store';
 import { getPickupSettings } from '@/lib/pickup-settings-db';
+import { formatSupplementLabel } from '@/lib/orders/format';
+import { getItemGross } from '@/lib/orders/totals';
 
 export const metadata: Metadata = {
   title: 'Commande confirmée — EBA Coffee Shop',
@@ -78,16 +80,12 @@ export default async function CommandePage({ params }: Props) {
                   </p>
                   {item.supplements.length > 0 && (
                     <p className="text-xs text-foreground/50">
-                      {item.supplements.map((s) => s.optionName).join(', ')}
+                      {item.supplements.map(formatSupplementLabel).join(', ')}
                     </p>
                   )}
                 </div>
                 <p className="shrink-0 font-medium">
-                  {priceFormatter.format(
-                    (item.basePrice +
-                      item.supplements.reduce((s, sup) => s + sup.price, 0)) *
-                      item.quantity
-                  )}
+                  {priceFormatter.format(getItemGross(item))}
                   &nbsp;FCFA
                 </p>
               </div>

@@ -19,6 +19,9 @@ export const cartItemSupplementSchema = z.object({
   groupName: z.string(),
   optionName: z.string(),
   price: z.number().int().nonnegative(),
+  // Nombre de fois où cette option est choisie (groupe type 'quantity', ex.
+  // 2x « Vanille »). Absent/1 pour les choix 'single'/'multiple' classiques.
+  quantity: z.number().int().positive().optional().default(1),
 });
 
 export const cartItemSchema = z
@@ -45,7 +48,10 @@ export const cartItemSchema = z
   // La remise d'une ligne ne peut pas dépasser le plafond métier.
   .refine(
     (it) => {
-      const supplementsTotal = it.supplements.reduce((s, x) => s + x.price, 0);
+      const supplementsTotal = it.supplements.reduce(
+        (s, x) => s + x.price * x.quantity,
+        0
+      );
       const gross = (it.basePrice + supplementsTotal) * it.quantity;
       return (it.discount ?? 0) <= Math.floor(gross * MAX_LINE_DISCOUNT_RATIO);
     },

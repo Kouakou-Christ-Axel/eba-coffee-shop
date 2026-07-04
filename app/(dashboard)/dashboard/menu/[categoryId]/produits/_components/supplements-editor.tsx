@@ -13,9 +13,13 @@ export type SupplementOption = {
 };
 export type SupplementGroup = {
   name: string;
-  type: 'single' | 'multiple';
+  type: 'single' | 'multiple' | 'quantity';
   required: boolean;
   available: boolean;
+  // Bornes sur le nombre d'options cochées ('multiple') ou sur la quantité
+  // totale répartie ('quantity'). `null` = pas de borne. Ignorées si 'single'.
+  minSelect: number | null;
+  maxSelect: number | null;
   options: SupplementOption[];
 };
 
@@ -33,6 +37,8 @@ export function SupplementsEditor({ groups, onChange }: Props) {
         type: 'single',
         required: false,
         available: true,
+        minSelect: null,
+        maxSelect: null,
         options: [],
       },
     ]);
@@ -98,13 +104,17 @@ export function SupplementsEditor({ groups, onChange }: Props) {
                   value={g.type}
                   onChange={(e) =>
                     updateGroup(gi, {
-                      type: e.target.value as 'single' | 'multiple',
+                      type: e.target.value as
+                        | 'single'
+                        | 'multiple'
+                        | 'quantity',
                     })
                   }
                   className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
                 >
                   <option value="single">Choix unique</option>
                   <option value="multiple">Choix multiples</option>
+                  <option value="quantity">Quantité (répartition)</option>
                 </select>
               </div>
               <label className="flex h-9 items-center gap-2 text-sm">
@@ -137,6 +147,52 @@ export function SupplementsEditor({ groups, onChange }: Props) {
                 <Trash2 className="size-4 text-destructive" />
               </Button>
             </div>
+
+            {g.type !== 'single' && (
+              <div className="flex items-end gap-2">
+                <div className="space-y-1.5">
+                  <Label>
+                    {g.type === 'quantity' ? 'Quantité min' : 'Min à choisir'}
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="—"
+                    value={g.minSelect ?? ''}
+                    onChange={(e) =>
+                      updateGroup(gi, {
+                        minSelect:
+                          e.target.value === '' ? null : Number(e.target.value),
+                      })
+                    }
+                    className="w-28"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>
+                    {g.type === 'quantity' ? 'Quantité max' : 'Max à choisir'}
+                  </Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    placeholder="Illimité"
+                    value={g.maxSelect ?? ''}
+                    onChange={(e) =>
+                      updateGroup(gi, {
+                        maxSelect:
+                          e.target.value === '' ? null : Number(e.target.value),
+                      })
+                    }
+                    className="w-28"
+                  />
+                </div>
+                {g.type === 'quantity' && (
+                  <p className="pb-2 text-xs text-muted-foreground">
+                    Pour une quantité fixe (ex. 3 parts), mettez min = max.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Options</Label>

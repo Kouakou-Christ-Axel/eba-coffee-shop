@@ -11,6 +11,7 @@ import {
 } from '@react-email/components';
 import { formatPickupTime } from '@/lib/format-order';
 import type { CartItem } from '@/lib/cart-store';
+import { formatSupplementLabel } from '@/lib/orders/format';
 
 type OrderData = {
   id: string;
@@ -63,7 +64,7 @@ export default function NewOrderEmail({ order }: Props) {
           <Heading as="h2">Articles</Heading>
           {items.map((item) => {
             const supplementsTotal = item.supplements.reduce(
-              (sum, s) => sum + s.price,
+              (sum, s) => sum + s.price * (s.quantity ?? 1),
               0
             );
             const lineTotal =
@@ -79,7 +80,7 @@ export default function NewOrderEmail({ order }: Props) {
                       {item.supplements
                         .map(
                           (s) =>
-                            `${s.optionName} (+${priceFormatter.format(s.price)} FCFA)`
+                            `${formatSupplementLabel(s)} (+${priceFormatter.format(s.price * (s.quantity ?? 1))} FCFA)`
                         )
                         .join(', ')}
                     </span>

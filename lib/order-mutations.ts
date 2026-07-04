@@ -161,8 +161,12 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
 export type OrderItemRef = {
   productId: string;
   quantity: number;
-  /** Suppléments choisis, par nom de groupe + nom d'option (prix résolu ici). */
-  supplements?: { groupName: string; optionName: string }[];
+  /**
+   * Suppléments choisis, par nom de groupe + nom d'option (prix résolu ici).
+   * `quantity` (défaut 1) sert aux groupes type 'quantity' (répartition,
+   * ex. 2x un goût).
+   */
+  supplements?: { groupName: string; optionName: string; quantity?: number }[];
   /** Remise (montant fixe FCFA) appliquée à la ligne. */
   discount?: number;
   discountReason?: string | null;
@@ -201,6 +205,7 @@ export async function buildOrderItemsFromMenu(
         groupName: group.name,
         optionName: option.name,
         price: option.price,
+        quantity: s.quantity ?? 1,
       };
     });
 

@@ -9,6 +9,7 @@ import {
   getItemNet,
   getMaxItemDiscount,
 } from '@/lib/orders/totals';
+import { formatSupplementLabel } from '@/lib/orders/format';
 import { LineDiscountControl } from '../../_components/line-discount-control';
 
 type Props = {
@@ -63,7 +64,7 @@ export function CartSummary({
                   </p>
                   {item.supplements.length > 0 && (
                     <p className="truncate text-xs text-muted-foreground">
-                      {item.supplements.map((s) => s.optionName).join(' · ')}
+                      {item.supplements.map(formatSupplementLabel).join(' · ')}
                     </p>
                   )}
                   <div className="mt-1">

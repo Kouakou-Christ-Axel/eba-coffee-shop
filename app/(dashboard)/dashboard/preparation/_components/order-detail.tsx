@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatSupplementLabel } from '@/lib/orders/format';
 import type { PreparationOrder } from '@/lib/preparation-queue';
 import { getItemNet } from '@/lib/orders/totals';
 import type { OrderType } from '@/generated/prisma/client';
@@ -177,7 +178,7 @@ export function OrderDetail({
                         className="text-lg text-muted-foreground before:mr-2 before:content-['•']"
                       >
                         <span className="font-medium text-foreground">
-                          {sup.optionName}
+                          {formatSupplementLabel(sup)}
                         </span>
                         <span className="text-sm"> ({sup.groupName})</span>
                       </li>

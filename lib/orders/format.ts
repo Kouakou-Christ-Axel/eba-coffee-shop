@@ -6,6 +6,18 @@
 // Les payloads SSE transitent en JSON : `pickupTime` et `createdAt` arrivent
 // donc en chaîne ISO et doivent être re-désérialisés en `Date` côté client.
 
+import type { CartItemSupplement } from '@/lib/cart-store';
+
+/**
+ * Libellé d'un supplément choisi, avec sa quantité si > 1 (ex. « Vanille
+ * ×2 ») — pour les groupes type 'quantity' (répartition, ex. sponge cake).
+ */
+export function formatSupplementLabel(s: CartItemSupplement): string {
+  return s.quantity && s.quantity > 1
+    ? `${s.optionName} ×${s.quantity}`
+    : s.optionName;
+}
+
 /**
  * Forme "raw" d'une commande telle que reçue depuis un flux SSE :
  * `pickupTime` et `createdAt` sont des chaînes ISO (ou `null` pour pickupTime).

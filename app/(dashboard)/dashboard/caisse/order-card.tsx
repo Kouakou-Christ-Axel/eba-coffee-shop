@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { formatAbidjanTime } from '@/lib/timezone';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import { getItemGross, getItemNet } from '@/lib/orders/totals';
+import { formatSupplementLabel } from '@/lib/orders/format';
 import type { OrderType } from '@/generated/prisma/client';
 import {
   formatElapsedShort,
@@ -179,7 +180,7 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
                   </span>
                   {item.supplements.length > 0 && (
                     <span className="block pl-5 text-xs text-muted-foreground">
-                      {item.supplements.map((s) => s.optionName).join(' · ')}
+                      {item.supplements.map(formatSupplementLabel).join(' · ')}
                     </span>
                   )}
                   {discounted && (

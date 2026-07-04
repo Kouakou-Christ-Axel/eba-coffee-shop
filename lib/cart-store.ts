@@ -6,6 +6,9 @@ export type CartItemSupplement = {
   groupName: string;
   optionName: string;
   price: number;
+  // Nombre de fois où cette option est choisie (groupe type 'quantity').
+  // Absent = 1 (choix 'single'/'multiple' classiques).
+  quantity?: number;
 };
 
 export type CartItem = {

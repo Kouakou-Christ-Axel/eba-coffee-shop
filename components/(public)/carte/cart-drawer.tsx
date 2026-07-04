@@ -13,6 +13,7 @@ import { Minus, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCartStore, getItemTotal } from '@/lib/cart-store';
 import { priceFormatter } from '@/config/menu';
+import { formatSupplementLabel } from '@/lib/orders/format';
 import { CheckoutForm } from './checkout-form';
 
 type CartDrawerProps = {
@@ -75,7 +76,9 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                       </p>
                       {item.supplements.length > 0 && (
                         <p className="mt-0.5 text-xs text-foreground/45">
-                          {item.supplements.map((s) => s.optionName).join(', ')}
+                          {item.supplements
+                            .map(formatSupplementLabel)
+                            .join(', ')}
                         </p>
                       )}
                       <p className="mt-1 text-sm font-medium text-primary">

@@ -1,7 +1,6 @@
 // components/(public)/carte/supplement-modal.tsx
 'use client';
 
-import { useState } from 'react';
 import {
   Modal,
   ModalContent,
@@ -13,8 +12,21 @@ import {
   Radio,
   Checkbox,
 } from '@heroui/react';
-import { useCartStore, type CartItemSupplement } from '@/lib/cart-store';
+import { Minus, Plus } from 'lucide-react';
+import { useCartStore } from '@/lib/cart-store';
 import { priceFormatter, type Product } from '@/config/menu';
+import {
+  buildInitialSelections,
+  canSubmitSelections,
+  effectiveMax,
+  getSelectedSupplements,
+  getSupplementsPrice,
+  groupConstraintLabel,
+  groupSelectionCount,
+  optionQuantity,
+  type Selections,
+} from '@/lib/supplements';
+import { useResettableState } from '@/lib/hooks/use-resettable-state';
 
 type SupplementModalProps = {
   product: Product;
@@ -26,83 +38,53 @@ function SupplementModal({ product, isOpen, onClose }: SupplementModalProps) {
   const { addItem } = useCartStore();
   const groups = product.supplements ?? [];
 
-  // State: one entry per group. For 'single' = string (option name), for 'multiple' = string[] (option names)
-  const [selections, setSelections] = useState<
-    Record<string, string | string[]>
-  >(() => {
-    const initial: Record<string, string | string[]> = {};
-    groups.forEach((g) => {
-      initial[g.name] = g.type === 'single' ? '' : [];
-    });
-    return initial;
-  });
+  const [selections, setSelections] = useResettableState<Selections>(
+    product.id,
+    () => buildInitialSelections(product, [])
+  );
 
-  function getSelectedSupplements(): CartItemSupplement[] {
-    const result: CartItemSupplement[] = [];
-    groups.forEach((group) => {
-      const sel = selections[group.name];
-      if (group.type === 'single' && typeof sel === 'string' && sel) {
-        const opt = group.options.find((o) => o.name === sel);
-        if (opt && opt.price > 0) {
-          result.push({
-            groupName: group.name,
-            optionName: opt.name,
-            price: opt.price,
-          });
-        }
-      } else if (group.type === 'multiple' && Array.isArray(sel)) {
-        sel.forEach((name) => {
-          const opt = group.options.find((o) => o.name === name);
-          if (opt) {
-            result.push({
-              groupName: group.name,
-              optionName: opt.name,
-              price: opt.price,
-            });
-          }
-        });
-      }
-    });
-    return result;
+  function setSingle(groupName: string, value: string) {
+    setSelections((prev) => ({ ...prev, [groupName]: value }));
   }
 
-  function getRunningTotal(): number {
-    const supps = getSelectedSupplements();
-    return product.price + supps.reduce((sum, s) => sum + s.price, 0);
+  function toggleMultiple(groupName: string, optionName: string) {
+    setSelections((prev) => {
+      const cur = (prev[groupName] as string[]) ?? [];
+      const next = cur.includes(optionName)
+        ? cur.filter((n) => n !== optionName)
+        : [...cur, optionName];
+      return { ...prev, [groupName]: next };
+    });
+  }
+
+  function setQuantity(groupName: string, optionName: string, delta: number) {
+    setSelections((prev) => {
+      const cur = (prev[groupName] as Record<string, number>) ?? {};
+      const next = Math.max(0, (cur[optionName] ?? 0) + delta);
+      return { ...prev, [groupName]: { ...cur, [optionName]: next } };
+    });
   }
 
   function handleAdd() {
-    console.log('product', product);
+    if (!canSubmitSelections(product, selections)) return;
     addItem({
       productId: product.id,
       productName: product.name,
       basePrice: product.price,
       coutMatiere: product.coutMatiere ?? 0,
       coutEmballage: product.coutEmballage ?? 0,
-      supplements: getSelectedSupplements(),
+      // Le site public n'enregistre pas les choix uniques gratuits (ex.
+      // « Lait classique »), contrairement à la caisse qui les garde visibles
+      // pour la cuisine.
+      supplements: getSelectedSupplements(product, selections, false),
     });
-    // Reset selections
-    const reset: Record<string, string | string[]> = {};
-    groups.forEach((g) => {
-      reset[g.name] = g.type === 'single' ? '' : [];
-    });
-    setSelections(reset);
+    setSelections(() => buildInitialSelections(product, []));
     onClose();
   }
 
-  function handleSingleChange(groupName: string, value: string) {
-    setSelections((prev) => ({ ...prev, [groupName]: value }));
-  }
-
-  function handleMultipleToggle(groupName: string, optionName: string) {
-    setSelections((prev) => {
-      const current = prev[groupName] as string[];
-      const next = current.includes(optionName)
-        ? current.filter((n) => n !== optionName)
-        : [...current, optionName];
-      return { ...prev, [groupName]: next };
-    });
-  }
+  const runningTotal =
+    product.price +
+    getSupplementsPrice(getSelectedSupplements(product, selections, false));
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} placement="center" size="md">
@@ -115,57 +97,132 @@ function SupplementModal({ product, isOpen, onClose }: SupplementModalProps) {
         </ModalHeader>
 
         <ModalBody className="gap-6">
-          {groups.map((group) => (
-            <fieldset key={group.name}>
-              <legend className="mb-2 text-sm font-semibold text-foreground/80">
-                {group.name}
-                {group.required && (
-                  <span className="ml-1 text-xs text-primary">(requis)</span>
-                )}
-              </legend>
+          {groups.map((group) => {
+            const constraint = groupConstraintLabel(group);
+            const count = groupSelectionCount(group, selections);
+            const max = effectiveMax(group);
+            return (
+              <fieldset key={group.name}>
+                <legend className="mb-2 text-sm font-semibold text-foreground/80">
+                  {group.name}
+                  {group.required && (
+                    <span className="ml-1 text-xs text-primary">(requis)</span>
+                  )}
+                  {constraint && (
+                    <span className="ml-2 text-xs font-normal text-foreground/50">
+                      {constraint}
+                    </span>
+                  )}
+                </legend>
 
-              {group.type === 'single' ? (
-                <RadioGroup
-                  value={selections[group.name] as string}
-                  onValueChange={(v) => handleSingleChange(group.name, v)}
-                >
-                  {group.options.map((opt) => (
-                    <Radio key={opt.name} value={opt.name}>
-                      <span className="flex items-center justify-between gap-4">
-                        <span className="text-sm">{opt.name}</span>
-                        <span className="text-xs text-foreground/50">
-                          {opt.price === 0
-                            ? 'Inclus'
-                            : `+${priceFormatter.format(opt.price)} F`}
+                {group.type === 'single' && (
+                  <RadioGroup
+                    value={selections[group.name] as string}
+                    onValueChange={(v) => setSingle(group.name, v)}
+                  >
+                    {group.options.map((opt) => (
+                      <Radio key={opt.name} value={opt.name}>
+                        <span className="flex items-center justify-between gap-4">
+                          <span className="text-sm">{opt.name}</span>
+                          <span className="text-xs text-foreground/50">
+                            {opt.price === 0
+                              ? 'Inclus'
+                              : `+${priceFormatter.format(opt.price)} F`}
+                          </span>
                         </span>
-                      </span>
-                    </Radio>
-                  ))}
-                </RadioGroup>
-              ) : (
-                <div className="space-y-2">
-                  {group.options.map((opt) => (
-                    <Checkbox
-                      key={opt.name}
-                      isSelected={(selections[group.name] as string[]).includes(
-                        opt.name
-                      )}
-                      onValueChange={() =>
-                        handleMultipleToggle(group.name, opt.name)
-                      }
-                    >
-                      <span className="flex items-center justify-between gap-4">
-                        <span className="text-sm">{opt.name}</span>
-                        <span className="text-xs text-foreground/50">
-                          +{priceFormatter.format(opt.price)} F
-                        </span>
-                      </span>
-                    </Checkbox>
-                  ))}
-                </div>
-              )}
-            </fieldset>
-          ))}
+                      </Radio>
+                    ))}
+                  </RadioGroup>
+                )}
+
+                {group.type === 'multiple' && (
+                  <div className="space-y-2">
+                    {group.options.map((opt) => {
+                      const current =
+                        (selections[group.name] as string[]) ?? [];
+                      const isChecked = current.includes(opt.name);
+                      const isDisabled = !isChecked && count >= max;
+                      return (
+                        <Checkbox
+                          key={opt.name}
+                          isSelected={isChecked}
+                          isDisabled={isDisabled}
+                          onValueChange={() =>
+                            toggleMultiple(group.name, opt.name)
+                          }
+                        >
+                          <span className="flex items-center justify-between gap-4">
+                            <span className="text-sm">{opt.name}</span>
+                            <span className="text-xs text-foreground/50">
+                              +{priceFormatter.format(opt.price)} F
+                            </span>
+                          </span>
+                        </Checkbox>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {group.type === 'quantity' && (
+                  <div className="space-y-2">
+                    {group.options.map((opt) => {
+                      const qty = optionQuantity(group, selections, opt.name);
+                      const canIncrement = count < max;
+                      return (
+                        <div
+                          key={opt.name}
+                          className="flex items-center justify-between gap-4"
+                        >
+                          <span className="text-sm">
+                            {opt.name}
+                            {opt.price > 0 && (
+                              <span className="ml-1 text-xs text-foreground/50">
+                                +{priceFormatter.format(opt.price)} F
+                              </span>
+                            )}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="flat"
+                              isDisabled={qty === 0}
+                              aria-label={`Retirer ${opt.name}`}
+                              onPress={() =>
+                                setQuantity(group.name, opt.name, -1)
+                              }
+                            >
+                              <Minus className="size-3.5" />
+                            </Button>
+                            <span className="w-5 text-center text-sm font-medium">
+                              {qty}
+                            </span>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="flat"
+                              isDisabled={!canIncrement}
+                              aria-label={`Ajouter ${opt.name}`}
+                              onPress={() =>
+                                setQuantity(group.name, opt.name, 1)
+                              }
+                            >
+                              <Plus className="size-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {Number.isFinite(max) && (
+                      <p className="text-right text-xs text-foreground/50">
+                        {count} / {max} sélectionné(s)
+                      </p>
+                    )}
+                  </div>
+                )}
+              </fieldset>
+            );
+          })}
         </ModalBody>
 
         <ModalFooter>
@@ -174,8 +231,9 @@ function SupplementModal({ product, isOpen, onClose }: SupplementModalProps) {
             className="w-full"
             size="lg"
             onPress={handleAdd}
+            isDisabled={!canSubmitSelections(product, selections)}
           >
-            Ajouter — {priceFormatter.format(getRunningTotal())} F
+            Ajouter — {priceFormatter.format(runningTotal)} F
           </Button>
         </ModalFooter>
       </ModalContent>

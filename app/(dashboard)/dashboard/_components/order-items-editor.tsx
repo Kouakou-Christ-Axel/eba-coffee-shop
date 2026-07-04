@@ -19,6 +19,7 @@ import {
   getItemNet,
   getMaxItemDiscount,
 } from '@/lib/orders/totals';
+import { formatSupplementLabel } from '@/lib/orders/format';
 import { updateOrderItemsAction } from '../commandes/actions';
 import { ProductCatalog } from '../caisse/new/product-catalog';
 import { SupplementPicker } from '../caisse/new/supplement-picker';
@@ -42,7 +43,11 @@ function makeCartId(): string {
 
 function supplementsKey(supplements: CartItemSupplement[]): string {
   return JSON.stringify(
-    supplements.map((s) => `${s.groupName}:${s.optionName}:${s.price}`).sort()
+    supplements
+      .map(
+        (s) => `${s.groupName}:${s.optionName}:${s.price}:${s.quantity ?? 1}`
+      )
+      .sort()
   );
 }
 
@@ -267,7 +272,7 @@ export function OrderItemsEditor({
               </p>
               {item.supplements.length > 0 && (
                 <p className="truncate text-xs text-muted-foreground">
-                  {item.supplements.map((s) => s.optionName).join(', ')}
+                  {item.supplements.map(formatSupplementLabel).join(', ')}
                 </p>
               )}
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">

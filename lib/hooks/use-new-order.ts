@@ -33,7 +33,11 @@ function makeCartId(): string {
 
 function supplementsKey(supplements: CartItemSupplement[]): string {
   return JSON.stringify(
-    supplements.map((s) => `${s.groupName}:${s.optionName}:${s.price}`).sort()
+    supplements
+      .map(
+        (s) => `${s.groupName}:${s.optionName}:${s.price}:${s.quantity ?? 1}`
+      )
+      .sort()
   );
 }
 

@@ -234,7 +234,8 @@ L'outil **commande** `create_order` enregistre une commande, y compris
 commande (le `createdAt` est aligné sur ce jour pour un tri chronologique
 correct) ; omis = jour en cours. Les `items` référencent les produits par
 `productId` (issu de `get_menu`) + `quantity` ; prix, coûts et prix des
-suppléments (désignés par `groupName` + `optionName`) sont résolus depuis le
+suppléments (désignés par `groupName` + `optionName`, avec une `quantity`
+optionnelle pour les groupes type « quantity ») sont résolus depuis le
 menu — inutile de les fournir. Le total est calculé côté serveur (net après
 remises). `orderType` ∈ `DELIVERY`/`DINE_IN`/`TAKEAWAY` (défaut `TAKEAWAY`) ;
 `customerName`, `customerPhone` (normalisé, rattache la fidélité) et `note`
@@ -294,8 +295,18 @@ produit** sans passer par le dashboard :
   `/uploads/...` ou URL http(s)).
 
 `update_product` est **partiel** : ne fournis que les champs à changer. ⚠️ Si tu
-passes `supplementGroups`, la liste entière est remplacée ; omets-la pour
-conserver les suppléments existants.
+passes `supplementGroups`, la liste entière est remplacée (par upsert apparié
+sur `name` — un groupe/option dont le nom est conservé garde son `id` ; un
+renommage est traité comme suppression + création) ; omets-la pour conserver
+les suppléments existants.
+
+Chaque groupe de suppléments a un `type` : `single` (un choix), `multiple`
+(cases à cocher) ou `quantity` (répartition d'une quantité totale entre les
+options, ex. 3 parts à répartir sur 3 goûts — la même option peut être choisie
+plusieurs fois). `minSelect`/`maxSelect` bornent respectivement le nombre
+d'options cochées (`multiple`) ou la quantité totale répartie (`quantity`) ;
+`null`/absent = pas de borne, et pour une quantité exacte (ex. toujours 3),
+poser `minSelect = maxSelect`. Ignorés pour `single`.
 
 Chaque groupe de suppléments et chaque option (« goût ») porte un drapeau
 `available` (défaut `true`). Mis à `false`, l'élément reste configuré mais

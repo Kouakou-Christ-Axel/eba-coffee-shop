@@ -6,6 +6,7 @@ import { getCurrentSession } from '@/lib/auth-helpers';
 import { formatAbidjanDateTime } from '@/lib/timezone';
 import type { CartItem } from '@/lib/cart-store';
 import { getItemGross, getItemNet } from '@/lib/orders/totals';
+import { formatSupplementLabel } from '@/lib/orders/format';
 import type {
   OrderStatus,
   OrderType,
@@ -256,8 +257,10 @@ export default async function CommandeDetailPage({
                     <ul className="mt-1 space-y-0.5 pl-4 text-sm text-muted-foreground">
                       {item.supplements.map((sup, i) => (
                         <li key={i}>
-                          {sup.groupName} : {sup.optionName}
-                          {sup.price > 0 ? ` (+${sup.price} FCFA)` : ''}
+                          {sup.groupName} : {formatSupplementLabel(sup)}
+                          {sup.price > 0
+                            ? ` (+${sup.price * (sup.quantity ?? 1)} FCFA)`
+                            : ''}
                         </li>
                       ))}
                     </ul>

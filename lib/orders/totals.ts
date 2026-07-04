@@ -12,7 +12,10 @@ import type { CartItem } from '@/lib/cart-store';
 
 /** Prix brut d'une ligne (base + suppléments) × quantité, avant remise. */
 export function getItemGross(item: CartItem): number {
-  const supplementsTotal = item.supplements.reduce((s, x) => s + x.price, 0);
+  const supplementsTotal = item.supplements.reduce(
+    (s, x) => s + x.price * (x.quantity ?? 1),
+    0
+  );
   return (item.basePrice + supplementsTotal) * item.quantity;
 }
 

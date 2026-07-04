@@ -24,6 +24,14 @@ vi.mock('@/lib/prisma', () => {
       findMany: vi.fn().mockResolvedValue([]),
     },
     supplementGroup: {
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn(),
+      update: vi.fn(),
+      deleteMany: vi.fn(),
+    },
+    supplementOption: {
+      create: vi.fn(),
+      update: vi.fn(),
       deleteMany: vi.fn(),
     },
     // Les transactions reçoivent le même client mocké : les assertions sur les
@@ -76,6 +84,12 @@ const mockProdFindUnique = prisma.product.findUnique as MockedFunction<
 >;
 const mockProdFindMany = prisma.product.findMany as MockedFunction<
   typeof prisma.product.findMany
+>;
+const mockSupGroupFindMany = prisma.supplementGroup.findMany as MockedFunction<
+  typeof prisma.supplementGroup.findMany
+>;
+const mockSupGroupCreate = prisma.supplementGroup.create as MockedFunction<
+  typeof prisma.supplementGroup.create
 >;
 
 describe('slugify', () => {
@@ -309,10 +323,14 @@ describe('createProduct', () => {
 });
 
 describe('updateProduct', () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockSupGroupFindMany.mockResolvedValue([] as never);
+  });
 
   it('met à jour les champs scalaires', async () => {
     mockProdFindUnique.mockResolvedValue({ id: 'p1' } as never);
+    mockProdUpdate.mockResolvedValue({ id: 'p1' } as never);
     await updateProduct('p1', {
       name: 'Renommé',
       description: 'Nouveau',
@@ -322,6 +340,39 @@ describe('updateProduct', () => {
     });
 
     expect(prisma.$transaction).toHaveBeenCalled();
+  });
+
+  it('crée un nouveau groupe de suppléments absent en base (upsert par nom)', async () => {
+    mockProdFindUnique.mockResolvedValue({ id: 'p1' } as never);
+    mockProdUpdate.mockResolvedValue({ id: 'p1' } as never);
+    mockSupGroupFindMany.mockResolvedValue([] as never);
+
+    await updateProduct('p1', {
+      supplementGroups: [
+        {
+          name: 'Goûts',
+          type: 'quantity',
+          required: true,
+          available: true,
+          minSelect: 3,
+          maxSelect: 3,
+          options: [
+            { name: 'Vanille', price: 0, available: true },
+            { name: 'Chocolat', price: 0, available: true },
+          ],
+        },
+      ],
+    });
+
+    expect(mockSupGroupCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        name: 'Goûts',
+        type: 'quantity',
+        minSelect: 3,
+        maxSelect: 3,
+        productId: 'p1',
+      }),
+    });
   });
 
   it("rejette si le produit n'existe pas", async () => {

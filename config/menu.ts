@@ -7,8 +7,12 @@ export type SupplementOption = {
 
 export type SupplementGroup = {
   name: string;
-  type: 'single' | 'multiple';
+  type: 'single' | 'multiple' | 'quantity';
   required: boolean;
+  // Bornes sur le nombre d'options cochées ('multiple') ou sur la quantité
+  // totale répartie ('quantity'). Absent/null = pas de borne.
+  minSelect?: number | null;
+  maxSelect?: number | null;
   options: SupplementOption[];
 };
 
