@@ -42,7 +42,9 @@ import {
 } from '@/lib/menu-mutations';
 import {
   saveProductImageFromBase64,
+  saveProductImageFromUrl,
   saveReceiptImageFromBase64,
+  saveReceiptImageFromUrl,
 } from '@/lib/uploads';
 import { ALLOWED_IMAGE_MIME_TYPES, imageUrlSchema } from '@/lib/schemas/upload';
 import {
@@ -197,6 +199,29 @@ function toRange(args: unknown): { from: Date; to: Date } {
   let t = parseDateOnlyToUTC(to)!;
   if (f.getTime() > t.getTime()) [f, t] = [t, f];
   return { from: f, to: t };
+}
+
+/**
+ * Résout l'argument image d'un outil `set_*` en une URL réellement stockable
+ * et affichable :
+ *   • `imageBase64` (+ `mimeType`) → retraité (sharp) et écrit localement ;
+ *   • `imageUrl` déjà local (`/uploads/...`) → conservé tel quel ;
+ *   • `imageUrl` http(s) → **rapatrié côté serveur** puis écrit localement.
+ *
+ * Le rapatriement des URLs distantes est indispensable : une URL externe
+ * stockée telle quelle ne s'afficherait pas (hôte hors `img-src` de la CSP et
+ * hors `images.remotePatterns`). C'est aussi le seul chemin praticable depuis
+ * un client de chat, qui ne peut pas ré-encoder une photo en base64.
+ */
+async function resolveStoredImageUrl(
+  args: { imageBase64?: string; mimeType?: string; imageUrl?: string },
+  fromBase64: (input: string, mimeType?: string) => Promise<string>,
+  fromUrl: (url: string) => Promise<string>
+): Promise<string> {
+  const { imageBase64, mimeType, imageUrl } = args;
+  if (imageBase64) return fromBase64(imageBase64, mimeType);
+  const url = imageUrl!;
+  return url.startsWith('/') ? url : fromUrl(url);
 }
 
 // ─── Définitions ──────────────────────────────────────────────────────────────
@@ -406,9 +431,9 @@ export const tools: McpTool[] = [
     title: 'Joindre un justificatif à une dépense',
     description:
       'Associe une photo de justificatif à une dépense. Deux modes : (1) ' +
-      '`imageBase64` (base64 brut ou data URI) + `mimeType` — stockée ' +
-      'localement ; (2) `imageUrl` (chemin `/uploads/...` ou URL http(s)). ' +
-      'Formats : ' +
+      '`imageUrl` — une URL http(s) est TÉLÉCHARGÉE côté serveur puis stockée ' +
+      'localement (un chemin `/uploads/...` déjà local est conservé) ; (2) ' +
+      '`imageBase64` (base64 brut ou data URI) + `mimeType`. Formats : ' +
       ALLOWED_IMAGE_MIME_TYPES.join(', ') +
       ' (converties automatiquement en WebP, redimensionnées, max 25 MB).',
     inputSchema: z
@@ -423,15 +448,17 @@ export const tools: McpTool[] = [
       }),
     readOnly: false,
     handler: async (args) => {
-      const { id, imageBase64, mimeType, imageUrl } = args as {
+      const { id, ...image } = args as {
         id: string;
         imageBase64?: string;
         mimeType?: string;
         imageUrl?: string;
       };
-      const url = imageBase64
-        ? await saveReceiptImageFromBase64(imageBase64, mimeType)
-        : imageUrl!;
+      const url = await resolveStoredImageUrl(
+        image,
+        saveReceiptImageFromBase64,
+        saveReceiptImageFromUrl
+      );
       return updateExpense(id, { receiptUrl: url });
     },
   },
@@ -562,9 +589,9 @@ export const tools: McpTool[] = [
     title: 'Joindre un justificatif à un apport',
     description:
       'Associe une photo de justificatif à un apport. Deux modes : (1) ' +
-      '`imageBase64` (base64 brut ou data URI) + `mimeType` — stockée ' +
-      'localement ; (2) `imageUrl` (chemin `/uploads/...` ou URL http(s)). ' +
-      'Formats : ' +
+      '`imageUrl` — une URL http(s) est TÉLÉCHARGÉE côté serveur puis stockée ' +
+      'localement (un chemin `/uploads/...` déjà local est conservé) ; (2) ' +
+      '`imageBase64` (base64 brut ou data URI) + `mimeType`. Formats : ' +
       ALLOWED_IMAGE_MIME_TYPES.join(', ') +
       ' (converties automatiquement en WebP, redimensionnées, max 25 MB).',
     inputSchema: z
@@ -579,15 +606,17 @@ export const tools: McpTool[] = [
       }),
     readOnly: false,
     handler: async (args) => {
-      const { id, imageBase64, mimeType, imageUrl } = args as {
+      const { id, ...image } = args as {
         id: string;
         imageBase64?: string;
         mimeType?: string;
         imageUrl?: string;
       };
-      const url = imageBase64
-        ? await saveReceiptImageFromBase64(imageBase64, mimeType)
-        : imageUrl!;
+      const url = await resolveStoredImageUrl(
+        image,
+        saveReceiptImageFromBase64,
+        saveReceiptImageFromUrl
+      );
       return updateInvestment(id, { documentUrl: url });
     },
   },
@@ -1233,11 +1262,12 @@ export const tools: McpTool[] = [
     name: 'set_product_image',
     title: 'Définir l’image d’un produit',
     description:
-      'Associe une image à un produit. Deux modes : (1) téléverser un fichier en ' +
-      'fournissant `imageBase64` (contenu encodé en base64, ou data URI) + ' +
-      '`mimeType` — l’image est stockée localement ; (2) référencer une image ' +
-      'existante via `imageUrl` (chemin `/uploads/...` ou URL http(s)). Renvoie ' +
-      'le produit mis à jour avec son `imageUrl`. Formats acceptés : ' +
+      'Associe une image à un produit. Deux modes : (1) `imageUrl` — une URL ' +
+      'http(s) publique est TÉLÉCHARGÉE côté serveur puis stockée localement ' +
+      '(un chemin `/uploads/...` déjà local est conservé tel quel) ; c’est le ' +
+      'moyen le plus simple depuis un chat. (2) `imageBase64` (contenu encodé ' +
+      'en base64, ou data URI) + `mimeType` — utile quand on dispose des octets. ' +
+      'Renvoie le produit mis à jour avec son `imageUrl`. Formats acceptés : ' +
       ALLOWED_IMAGE_MIME_TYPES.join(', ') +
       ' (converties automatiquement en WebP, redimensionnées, max 25 MB).',
     inputSchema: z
@@ -1261,15 +1291,17 @@ export const tools: McpTool[] = [
       }),
     readOnly: false,
     handler: async (args) => {
-      const { id, imageBase64, mimeType, imageUrl } = args as {
+      const { id, ...image } = args as {
         id: string;
         imageBase64?: string;
         mimeType?: string;
         imageUrl?: string;
       };
-      const url = imageBase64
-        ? await saveProductImageFromBase64(imageBase64, mimeType)
-        : imageUrl!;
+      const url = await resolveStoredImageUrl(
+        image,
+        saveProductImageFromBase64,
+        saveProductImageFromUrl
+      );
       return updateProduct(id, { imageUrl: url });
     },
   },
