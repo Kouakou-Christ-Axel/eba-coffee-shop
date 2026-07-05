@@ -69,7 +69,7 @@ function AboutVisionSection() {
           data-banner
           className="mt-12 overflow-hidden rounded-3xl shadow-xl md:mt-14 lg:rounded-4xl"
         >
-          <div className="relative aspect-21/9 w-full">
+          <div className="relative aspect-4/3 w-full sm:aspect-video lg:aspect-21/9">
             <Image
               src="/assets/examples/accueil/eba-hero.webp"
               alt="L'ambiance chaleureuse et soignée du lieu EBA à Abidjan"

@@ -27,7 +27,7 @@ export default function DashboardFab() {
       initial={reduceMotion ? false : { opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-      className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-40 lg:hidden"
+      className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 z-40 lg:hidden"
     >
       <Button
         as={Link}

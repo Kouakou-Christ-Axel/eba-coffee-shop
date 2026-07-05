@@ -49,7 +49,7 @@ function ContactHeroSection() {
   return (
     <section
       aria-labelledby="contact-hero-title"
-      className="relative isolate min-h-screen overflow-hidden"
+      className="relative isolate min-h-svh overflow-hidden"
     >
       <Image
         src="/assets/examples/accueil/eba-hero.webp"
@@ -69,7 +69,7 @@ function ContactHeroSection() {
         aria-hidden="true"
       />
 
-      <div className="relative z-10 flex min-h-screen items-center">
+      <div className="relative z-10 flex min-h-svh items-center">
         <div className="content-container w-full px-6 py-20 md:py-24">
           <motion.div
             className="mx-auto max-w-3xl text-center text-white"

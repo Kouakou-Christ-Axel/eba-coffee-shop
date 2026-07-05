@@ -158,11 +158,11 @@ export function SlotPicker({ value, onChange, error }: SlotPickerProps) {
         </p>
       ) : (
         <Tabs value={activeDay ?? dayKeys[0]} onValueChange={setActiveDay}>
-          <TabsList className="w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <TabsList className="w-full max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {dayKeys.map((key) => {
               const sample = slotsByDay.get(key)?.[0];
               return (
-                <TabsTrigger key={key} value={key}>
+                <TabsTrigger key={key} value={key} className="flex-none shrink-0">
                   {sample ? dayLabel(sample, today) : key}
                 </TabsTrigger>
               );
