@@ -34,7 +34,7 @@ function CartFloatingButton() {
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 25 }}
             onClick={() => setDrawerOpen(true)}
-            className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 rounded-full bg-primary px-5 py-3 text-primary-foreground shadow-xl shadow-primary/25 transition-shadow duration-200 hover:shadow-2xl hover:shadow-primary/30"
+            className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-6 z-40 flex items-center gap-2.5 rounded-full bg-primary px-5 py-3 text-primary-foreground shadow-xl shadow-primary/25 transition-shadow duration-200 hover:shadow-2xl hover:shadow-primary/30"
             aria-label={`Voir le panier, ${totalItems} article${totalItems > 1 ? 's' : ''}`}
           >
             <ShoppingBag className="h-5 w-5" />

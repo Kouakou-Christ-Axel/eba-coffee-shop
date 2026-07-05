@@ -53,7 +53,7 @@ function PatissiereImageColumn({ ref }: PatissiereImageColumnProps) {
       {/* Detail image — overlapping bottom-right */}
       <div
         data-detail-image
-        className="absolute -bottom-2 -right-3 z-10 h-28 w-28 overflow-hidden rounded-2xl border-3 border-background shadow-xl sm:h-36 sm:w-36 lg:-right-5 lg:h-40 lg:w-40"
+        className="absolute -bottom-2 -right-3 z-10 hidden h-28 w-28 overflow-hidden rounded-2xl border-3 border-background shadow-xl sm:block sm:h-36 sm:w-36 lg:-right-5 lg:h-40 lg:w-40"
       >
         <Image
           src="/assets/examples/accueil/eba-hero.webp"

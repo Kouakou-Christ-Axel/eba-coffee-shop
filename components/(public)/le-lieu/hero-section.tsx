@@ -5,7 +5,7 @@ function HeroSection() {
   return (
     <section
       aria-labelledby="le-lieu-hero-title"
-      className="relative isolate min-h-[52vh] overflow-hidden md:min-h-[68svh]"
+      className="relative isolate min-h-[52svh] overflow-hidden md:min-h-[68svh]"
     >
       <Image
         src="/assets/examples/accueil/eba-hero.webp"

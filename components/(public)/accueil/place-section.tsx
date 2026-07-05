@@ -98,7 +98,7 @@ function PlaceSection() {
         </div>
 
         <ul
-          className="mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 md:mt-10 md:grid md:grid-cols-4 md:gap-5 md:overflow-visible md:pb-0"
+          className="mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 scrollbar-none md:mt-10 md:grid md:grid-cols-4 md:gap-5 md:overflow-visible md:pb-0"
           role="list"
         >
           {placeImages.map((image, index) => (

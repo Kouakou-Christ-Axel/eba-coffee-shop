@@ -25,7 +25,7 @@ function ContactMapSection() {
         />
 
         <motion.div
-          className="absolute bottom-4 left-4 max-w-xs rounded-xl bg-background/95 p-4 shadow-lg backdrop-blur-md md:bottom-6 md:left-6 md:p-5"
+          className="absolute bottom-4 left-4 right-4 w-auto max-w-xs rounded-xl bg-background/95 p-4 shadow-lg backdrop-blur-md sm:right-auto md:bottom-6 md:left-6 md:p-5"
           initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
           whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
           viewport={{ once: true }}

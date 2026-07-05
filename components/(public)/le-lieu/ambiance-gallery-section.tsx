@@ -80,7 +80,7 @@ function AmbianceGallerySection() {
 
         <ul
           role="list"
-          className="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-12 md:gap-5 md:overflow-visible md:pb-0"
+          className="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 scrollbar-none md:grid md:grid-cols-12 md:gap-5 md:overflow-visible md:pb-0"
         >
           {galleryItems.map((item, index) => (
             <motion.li

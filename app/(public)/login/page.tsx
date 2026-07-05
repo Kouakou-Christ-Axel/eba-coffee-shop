@@ -44,7 +44,7 @@ export default async function LoginPage({
   }
 
   return (
-    <div className="flex min-h-[60vh] items-center justify-center">
+    <div className="flex min-h-[60vh] items-center justify-center px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle>EBA Coffee Shop</CardTitle>
