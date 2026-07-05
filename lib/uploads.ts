@@ -28,6 +28,21 @@ const REMOTE_FETCH_TIMEOUT_MS = 15000;
 /** Sous-dossiers d'upload autorisés (whitelist — pas de chemin arbitraire). */
 export type UploadSubdir = 'products' | 'receipts';
 
+/**
+ * Racine disque des fichiers uploadés : `<cwd>/public/uploads`.
+ *
+ * ⚠️ En production (`next start`), les fichiers écrits ici **au runtime** ne
+ * sont PAS servis par le handler statique de `public/` (seuls les assets
+ * présents au moment du `build` le sont). C'est pourquoi ils sont servis par un
+ * route handler dédié (`app/uploads/[...path]/route.ts`), qui lit exactement ce
+ * dossier — d'où la centralisation ici pour garantir l'alignement écriture ↔
+ * lecture. En prod, ce dossier est persisté entre déploiements (symlink/volume,
+ * cf. `.gitignore`).
+ */
+export function uploadsBaseDir(): string {
+  return join(process.cwd(), 'public', 'uploads');
+}
+
 /** URL publique (relative, same-origin) servie pour un fichier uploadé. */
 function publicUrl(subdir: UploadSubdir, filename: string): string {
   return `/uploads/${subdir}/${filename}`;
@@ -77,7 +92,7 @@ export async function saveImage(
   }
 
   const filename = `${randomUUID()}.webp`;
-  const dir = join(process.cwd(), 'public', 'uploads', subdir);
+  const dir = join(uploadsBaseDir(), subdir);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, filename), webp);
   return publicUrl(subdir, filename);
