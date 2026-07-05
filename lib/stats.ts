@@ -28,7 +28,7 @@ export type DailyStats = {
   completedOrders: number;
   cancelledOrders: number;
   paidOrders: number;
-  revenue: number; // somme des totals où isPaid=true
+  revenue: number; // somme des totals où isPaid=true, hors commandes annulées
   countByOrderType: Record<OrderType, number>;
   countByPaymentMode: Record<PaymentMode, number>;
   revenueByPaymentMode: Record<PaymentMode, number>;
@@ -71,7 +71,7 @@ export async function getDailyStats(
     else if (o.status === 'CANCELLED') stats.cancelledOrders++;
     else stats.activeOrders++;
 
-    if (o.isPaid) {
+    if (o.isPaid && o.status !== 'CANCELLED') {
       stats.paidOrders++;
       stats.revenue += o.total;
       if (o.paymentMode) {
@@ -106,7 +106,7 @@ export type RangeStats = {
   to: Date;
   totalOrders: number;
   paidOrders: number;
-  revenue: number; // CA encaissé (isPaid)
+  revenue: number; // CA encaissé (isPaid), hors commandes annulées
   cancelledOrders: number;
   avgBasket: number; // revenue / paidOrders (0 si aucune)
   cancellationRate: number; // 0..1
@@ -118,7 +118,8 @@ export type RangeStats = {
 
 /**
  * Agrège les KPIs sur une plage de jours civils (inclusive). Même conventions
- * que `getDailyStats` : `revenue` = somme des totaux encaissés (isPaid).
+ * que `getDailyStats` : `revenue` = somme des totaux encaissés (isPaid), hors
+ * commandes annulées.
  */
 export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
   const [orders, adjustments] = await Promise.all([
@@ -161,7 +162,7 @@ export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
     stats.countByOrderType[o.orderType]++;
     if (o.status === 'CANCELLED') stats.cancelledOrders++;
 
-    if (o.isPaid) {
+    if (o.isPaid && o.status !== 'CANCELLED') {
       stats.paidOrders++;
       stats.revenue += o.total;
       if (o.paymentMode) {
@@ -191,7 +192,8 @@ export type DailyPoint = { date: string; orders: number; revenue: number };
 
 /**
  * Série temporelle jour par jour (jours manquants remplis à 0). `revenue` =
- * CA encaissé du jour. Bornes incluses, attendues à minuit UTC (jour civil).
+ * CA encaissé du jour, hors commandes annulées. Bornes incluses, attendues à
+ * minuit UTC (jour civil).
  */
 export async function getDailySeries(
   from: Date,
@@ -200,7 +202,7 @@ export async function getDailySeries(
   const [rows, adjByDay] = await Promise.all([
     prisma.order.findMany({
       where: { dailyDate: { gte: from, lte: to } },
-      select: { dailyDate: true, total: true, isPaid: true },
+      select: { dailyDate: true, total: true, isPaid: true, status: true },
     }),
     sumAdjustmentsByDay(from, to),
   ]);
@@ -210,7 +212,7 @@ export async function getDailySeries(
     const key = formatLocalDateOnly(r.dailyDate);
     const cur = agg.get(key) ?? { orders: 0, revenue: 0 };
     cur.orders++;
-    if (r.isPaid) cur.revenue += r.total;
+    if (r.isPaid && r.status !== 'CANCELLED') cur.revenue += r.total;
     agg.set(key, cur);
   }
 
