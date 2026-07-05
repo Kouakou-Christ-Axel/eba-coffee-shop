@@ -22,6 +22,9 @@ import {
 
 const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
 
+/** Délai max (ms) pour télécharger une image distante depuis une URL. */
+const REMOTE_FETCH_TIMEOUT_MS = 15000;
+
 /** Sous-dossiers d'upload autorisés (whitelist — pas de chemin arbitraire). */
 export type UploadSubdir = 'products' | 'receipts';
 
@@ -112,6 +115,142 @@ export async function saveImageFromBase64(
   return saveImage(Buffer.from(data, 'base64'), mime, subdir);
 }
 
+/**
+ * Devine le type MIME réel d'un buffer image en le décodant avec sharp
+ * (le `Content-Type` HTTP d'un serveur distant n'est pas fiable). Renvoie
+ * `undefined` si le format décodé n'est pas dans la whitelist.
+ */
+async function sniffAllowedImageMime(
+  buffer: Buffer
+): Promise<string | undefined> {
+  let format: string | undefined;
+  try {
+    ({ format } = await sharp(buffer, { failOn: 'none' }).metadata());
+  } catch {
+    return undefined;
+  }
+  // sharp expose 'jpeg' | 'png' | 'webp' | 'avif' | 'heif' | 'gif' | …
+  switch (format) {
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    case 'avif':
+      return 'image/avif';
+    case 'heif':
+      return 'image/heic';
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Lit le corps d'une réponse HTTP en refusant tout ce qui dépasse
+ * `MAX_UPLOAD_SIZE_BYTES` (un `Content-Length` menteur ne suffit pas à faire
+ * exploser la mémoire : on coupe au fil de la lecture).
+ */
+async function readBodyCapped(res: Response): Promise<Buffer> {
+  const reader = res.body?.getReader();
+  if (!reader) {
+    // Pas de flux : on retombe sur arrayBuffer (petits corps).
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MAX_UPLOAD_SIZE_BYTES) {
+      throw new Error(`Fichier trop volumineux (max ${MAX_UPLOAD_SIZE_MB} MB)`);
+    }
+    return buf;
+  }
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      total += value.length;
+      if (total > MAX_UPLOAD_SIZE_BYTES) {
+        await reader.cancel();
+        throw new Error(
+          `Fichier trop volumineux (max ${MAX_UPLOAD_SIZE_MB} MB)`
+        );
+      }
+      chunks.push(value);
+    }
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
+ * Télécharge une image depuis une URL http(s), la valide (taille + format
+ * réellement décodé), la retraite avec sharp et l'enregistre localement dans
+ * `subdir`. Renvoie l'URL relative du WebP stocké.
+ *
+ * Pensée pour le serveur MCP : un client comme Claude ne peut pas ré-encoder
+ * une photo en base64 dans un appel d'outil, mais il peut fournir une URL
+ * publique. En rapatriant le fichier côté serveur, l'image finit servie en
+ * same-origin (`/uploads/...`) — donc affichable sous la CSP `img-src 'self'`,
+ * sans avoir à whitelister l'hôte distant dans `next.config.ts`.
+ */
+export async function saveImageFromUrl(
+  url: string,
+  subdir: UploadSubdir
+): Promise<string> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error('URL invalide');
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('URL invalide : protocole http(s) attendu');
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(parsed, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(REMOTE_FETCH_TIMEOUT_MS),
+      headers: { accept: 'image/*' },
+    });
+  } catch {
+    throw new Error('Téléchargement de l’image impossible (URL injoignable)');
+  }
+  if (!res.ok) {
+    throw new Error(
+      `Téléchargement de l’image impossible (HTTP ${res.status})`
+    );
+  }
+
+  // Rejet précoce si le serveur annonce une taille trop grande.
+  const declaredLength = Number(res.headers.get('content-length'));
+  if (
+    Number.isFinite(declaredLength) &&
+    declaredLength > MAX_UPLOAD_SIZE_BYTES
+  ) {
+    throw new Error(`Fichier trop volumineux (max ${MAX_UPLOAD_SIZE_MB} MB)`);
+  }
+
+  const buffer = await readBodyCapped(res);
+
+  // Le `Content-Type` déclaré peut mentir : on privilégie le format réellement
+  // décodé, avec le Content-Type comme repli.
+  const declaredMime = (res.headers.get('content-type') ?? '')
+    .split(';')[0]
+    .trim()
+    .toLowerCase();
+  const mime = isAllowedImageMimeType(declaredMime)
+    ? declaredMime
+    : await sniffAllowedImageMime(buffer);
+  if (!mime) {
+    throw new Error(
+      'L’URL ne pointe pas vers une image supportée (JPEG, PNG, WebP, AVIF, HEIC)'
+    );
+  }
+
+  return saveImage(buffer, mime, subdir);
+}
+
 // ─── Wrappers par famille (subdir figé) ───────────────────────────────────────
 
 /** Image produit (multipart dashboard). */
@@ -122,6 +261,10 @@ export const saveProductImage = (buffer: Buffer, mimeType: string) =>
 export const saveProductImageFromBase64 = (input: string, mimeType?: string) =>
   saveImageFromBase64(input, 'products', mimeType);
 
+/** Image produit rapatriée depuis une URL distante (MCP). */
+export const saveProductImageFromUrl = (url: string) =>
+  saveImageFromUrl(url, 'products');
+
 /** Justificatif de dépense (multipart dashboard). */
 export const saveReceiptImage = (buffer: Buffer, mimeType: string) =>
   saveImage(buffer, mimeType, 'receipts');
@@ -129,3 +272,7 @@ export const saveReceiptImage = (buffer: Buffer, mimeType: string) =>
 /** Justificatif de dépense depuis base64 (MCP). */
 export const saveReceiptImageFromBase64 = (input: string, mimeType?: string) =>
   saveImageFromBase64(input, 'receipts', mimeType);
+
+/** Justificatif de dépense/apport rapatrié depuis une URL distante (MCP). */
+export const saveReceiptImageFromUrl = (url: string) =>
+  saveImageFromUrl(url, 'receipts');
