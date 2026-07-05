@@ -737,7 +737,9 @@ export const tools: McpTool[] = [
       'omis = jour en cours. `items` référence les produits par `productId` ' +
       '(issu de `get_menu`) avec une `quantity` ; les prix, coûts et prix des ' +
       'suppléments sont résolus depuis le menu — ne les fournis pas. Les ' +
-      'suppléments se désignent par `groupName` + `optionName`. Le total est ' +
+      'suppléments se désignent par `groupName` + `optionName`, avec une ' +
+      '`quantity` optionnelle (défaut 1) pour les groupes type « quantity » ' +
+      '(répartition, ex. 2x un goût). Le total est ' +
       'calculé côté serveur (net après remises). `orderType` ∈ ' +
       'DELIVERY/DINE_IN/TAKEAWAY (défaut TAKEAWAY). `customerName`, ' +
       '`customerPhone` (normalisé, rattache la fidélité) et `note` sont ' +
@@ -757,6 +759,14 @@ export const tools: McpTool[] = [
                 z.object({
                   groupName: z.string().min(1),
                   optionName: z.string().min(1),
+                  quantity: z
+                    .number()
+                    .int()
+                    .positive()
+                    .optional()
+                    .describe(
+                      'Nombre de fois choisi (groupe type "quantity"). Défaut 1.'
+                    ),
                 })
               )
               .optional()
@@ -1184,9 +1194,14 @@ export const tools: McpTool[] = [
     description:
       'Crée un produit dans une catégorie (via `categoryId`). Les prix et coûts ' +
       '(`coutMatiere`, `coutEmballage`) sont en francs CFA entiers. ' +
-      '`supplementGroups` peut être un tableau vide. Chaque groupe et chaque ' +
-      'option (« goût ») accepte un drapeau `available` (défaut true) : passé à ' +
-      'false, l’élément reste configuré mais n’est plus proposé côté client. ' +
+      '`supplementGroups` peut être un tableau vide. Chaque groupe a un `type` ' +
+      '∈ single (un choix) / multiple (cases à cocher) / quantity (répartition ' +
+      'd’une quantité entre options, ex. 3 parts sur 3 goûts), et peut poser ' +
+      '`minSelect`/`maxSelect` (bornes sur le nombre d’options cochées ou la ' +
+      'quantité totale répartie ; égaux = quantité exacte). Chaque groupe et ' +
+      'chaque option (« goût ») accepte un drapeau `available` (défaut true) : ' +
+      'passé à false, l’élément reste configuré mais n’est plus proposé côté ' +
+      'client. ' +
       '`imageUrl` accepte un ' +
       'chemin local (`/uploads/products/...`, obtenu via `set_product_image`) ou ' +
       'une URL http(s) ; pour téléverser un fichier, utilise plutôt ' +

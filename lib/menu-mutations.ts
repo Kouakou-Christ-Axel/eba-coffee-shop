@@ -1,7 +1,11 @@
 // lib/menu-mutations.ts
 import { z } from 'zod';
+import type { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
-import { supplementGroupSchema } from '@/lib/schemas/menu';
+import {
+  supplementGroupSchema,
+  type SupplementGroupInput,
+} from '@/lib/schemas/menu';
 import { imageUrlSchema } from '@/lib/schemas/upload';
 
 // ─── Slugify ──────────────────────────────────────────────────────────────────
@@ -171,6 +175,8 @@ export async function createProduct(input: ProductInput) {
           type: g.type,
           required: g.required,
           available: g.available,
+          minSelect: g.minSelect ?? null,
+          maxSelect: g.maxSelect ?? null,
           sortOrder: gi,
           options: {
             create: g.options.map((o) => ({
@@ -217,20 +223,55 @@ export async function updateProduct(id: string, input: ProductUpdate) {
     return prisma.product.update({ where: { id }, data: scalar });
   }
 
-  const groups = data.supplementGroups;
+  return updateSupplementGroups(id, scalar, data.supplementGroups);
+}
+
+// Synchronise les groupes/options de suppléments d'un produit par UPSERT
+// (apparié par `name`) plutôt que par delete+recreate : les groupes/options
+// dont le nom est conservé gardent leur `id` — important maintenant qu'il y a
+// des données de production (pas de FK depuis les commandes, mais on évite un
+// churn d'identifiants inutile à chaque sauvegarde admin). Un groupe/option
+// renommé est traité comme supprimé + recréé (limitation acceptée : pas de
+// contrainte d'unicité sur `name` pour permettre un vrai suivi par id).
+async function updateSupplementGroups(
+  productId: string,
+  scalar: Prisma.ProductUpdateInput,
+  groups: SupplementGroupInput[]
+) {
   return prisma.$transaction(async (tx) => {
-    await tx.supplementGroup.deleteMany({ where: { productId: id } });
-    return tx.product.update({
-      where: { id },
-      data: {
-        ...scalar,
-        supplementGroups: {
-          create: groups.map((g, gi) => ({
-            name: g.name,
-            type: g.type,
-            required: g.required,
-            available: g.available,
-            sortOrder: gi,
+    const currentGroups = await tx.supplementGroup.findMany({
+      where: { productId },
+      include: { options: true },
+    });
+    const currentGroupByName = new Map(currentGroups.map((g) => [g.name, g]));
+    const keepGroupNames = new Set(groups.map((g) => g.name));
+
+    const removedGroupIds = currentGroups
+      .filter((g) => !keepGroupNames.has(g.name))
+      .map((g) => g.id);
+    if (removedGroupIds.length > 0) {
+      await tx.supplementGroup.deleteMany({
+        where: { id: { in: removedGroupIds } },
+      });
+    }
+
+    for (const [gi, g] of groups.entries()) {
+      const groupData = {
+        name: g.name,
+        type: g.type,
+        required: g.required,
+        available: g.available,
+        minSelect: g.minSelect ?? null,
+        maxSelect: g.maxSelect ?? null,
+        sortOrder: gi,
+      };
+      const match = currentGroupByName.get(g.name);
+
+      if (!match) {
+        await tx.supplementGroup.create({
+          data: {
+            ...groupData,
+            productId,
             options: {
               create: g.options.map((o) => ({
                 name: o.name,
@@ -238,10 +279,50 @@ export async function updateProduct(id: string, input: ProductUpdate) {
                 available: o.available,
               })),
             },
-          })),
-        },
-      },
-    });
+          },
+        });
+        continue;
+      }
+
+      await tx.supplementGroup.update({
+        where: { id: match.id },
+        data: groupData,
+      });
+
+      const currentOptionByName = new Map(
+        match.options.map((o) => [o.name, o])
+      );
+      const keepOptionNames = new Set(g.options.map((o) => o.name));
+      const removedOptionIds = match.options
+        .filter((o) => !keepOptionNames.has(o.name))
+        .map((o) => o.id);
+      if (removedOptionIds.length > 0) {
+        await tx.supplementOption.deleteMany({
+          where: { id: { in: removedOptionIds } },
+        });
+      }
+
+      for (const o of g.options) {
+        const optionMatch = currentOptionByName.get(o.name);
+        const optionData = {
+          name: o.name,
+          price: o.price,
+          available: o.available,
+        };
+        if (optionMatch) {
+          await tx.supplementOption.update({
+            where: { id: optionMatch.id },
+            data: optionData,
+          });
+        } else {
+          await tx.supplementOption.create({
+            data: { ...optionData, groupId: match.id },
+          });
+        }
+      }
+    }
+
+    return tx.product.update({ where: { id: productId }, data: scalar });
   });
 }
 

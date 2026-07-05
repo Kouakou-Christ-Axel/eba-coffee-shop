@@ -21,20 +21,38 @@ export const supplementOptionSchema = z.object({
   available: z.boolean().optional().default(true),
 });
 
-export const supplementGroupSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, 'Nom requis')
-    .max(80, 'Nom trop long (max 80 caractères)'),
-  type: z.enum(['single', 'multiple']),
-  required: z.boolean(),
-  // Disponibilité d'un groupe entier (ex. « Sirops ») : désactivé = masqué.
-  available: z.boolean().optional().default(true),
-  options: z
-    .array(supplementOptionSchema)
-    .min(1, 'Au moins une option requise'),
-});
+export const supplementGroupSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1, 'Nom requis')
+      .max(80, 'Nom trop long (max 80 caractères)'),
+    // 'single' : un seul choix (radio). 'multiple' : cases à cocher, chaque
+    // option 0 ou 1 fois. 'quantity' : quantité par option (ex. répartir 3
+    // parts entre 3 goûts) — chaque option peut être choisie plusieurs fois.
+    type: z.enum(['single', 'multiple', 'quantity']),
+    required: z.boolean(),
+    // Disponibilité d'un groupe entier (ex. « Sirops ») : désactivé = masqué.
+    available: z.boolean().optional().default(true),
+    // Bornes sur le nombre d'options cochées ('multiple') ou sur la quantité
+    // totale répartie ('quantity'). `null`/absent = pas de borne. Ignorées
+    // pour 'single'. Pour une quantité exacte (ex. 3 parts), poser
+    // minSelect = maxSelect = 3.
+    minSelect: z.number().int().nonnegative().nullable().optional(),
+    maxSelect: z.number().int().positive().nullable().optional(),
+    options: z
+      .array(supplementOptionSchema)
+      .min(1, 'Au moins une option requise'),
+  })
+  .refine(
+    (g) =>
+      g.minSelect == null || g.maxSelect == null || g.minSelect <= g.maxSelect,
+    {
+      message: 'Le minimum ne peut pas dépasser le maximum',
+      path: ['minSelect'],
+    }
+  );
 
 export type SupplementOptionInput = z.infer<typeof supplementOptionSchema>;
 export type SupplementGroupInput = z.infer<typeof supplementGroupSchema>;

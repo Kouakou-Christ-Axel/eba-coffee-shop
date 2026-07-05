@@ -42,8 +42,10 @@ export async function getMenu(): Promise<MenuCategory[]> {
         .filter((g) => g.options.length > 0)
         .map((g) => ({
           name: g.name,
-          type: g.type as 'single' | 'multiple',
+          type: g.type as 'single' | 'multiple' | 'quantity',
           required: g.required,
+          minSelect: g.minSelect,
+          maxSelect: g.maxSelect,
           options: g.options.map((o) => ({
             name: o.name,
             price: o.price,
@@ -69,9 +71,11 @@ export type AdminMenuSupplementOption = {
 };
 export type AdminMenuSupplementGroup = {
   name: string;
-  type: 'single' | 'multiple';
+  type: 'single' | 'multiple' | 'quantity';
   required: boolean;
   available: boolean;
+  minSelect: number | null;
+  maxSelect: number | null;
   options: AdminMenuSupplementOption[];
 };
 export type AdminMenuProduct = {
@@ -137,9 +141,11 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
       sortOrder: p.sortOrder,
       supplements: p.supplementGroups.map((g) => ({
         name: g.name,
-        type: g.type as 'single' | 'multiple',
+        type: g.type as 'single' | 'multiple' | 'quantity',
         required: g.required,
         available: g.available,
+        minSelect: g.minSelect,
+        maxSelect: g.maxSelect,
         options: g.options.map((o) => ({
           name: o.name,
           price: o.price,

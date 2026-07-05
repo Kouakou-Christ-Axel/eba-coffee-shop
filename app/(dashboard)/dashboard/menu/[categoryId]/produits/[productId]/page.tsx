@@ -49,9 +49,11 @@ export default async function EditProductPage({
     featuredBadge: product.featuredBadge,
     supplementGroups: product.supplementGroups.map((g) => ({
       name: g.name,
-      type: g.type as 'single' | 'multiple',
+      type: g.type as 'single' | 'multiple' | 'quantity',
       required: g.required,
       available: g.available,
+      minSelect: g.minSelect,
+      maxSelect: g.maxSelect,
       options: g.options.map((o) => ({
         name: o.name,
         price: o.price,

@@ -9,6 +9,7 @@
 import { normalizeIvorianPhone, toWhatsAppNumber } from '@/lib/phone';
 import type { CartItem } from '@/lib/cart-store';
 import { getItemGross, getItemNet } from '@/lib/orders/totals';
+import { formatSupplementLabel } from '@/lib/orders/format';
 
 const priceFormatter = new Intl.NumberFormat('fr-FR');
 
@@ -53,7 +54,7 @@ function formatItemLine(item: CartItem): string {
   const net = getItemNet(item);
   const supplementsLabel =
     item.supplements.length > 0
-      ? ` (${item.supplements.map((s) => s.optionName).join(', ')})`
+      ? ` (${item.supplements.map(formatSupplementLabel).join(', ')})`
       : '';
   const priceLabel =
     gross !== net

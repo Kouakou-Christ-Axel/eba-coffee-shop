@@ -331,12 +331,20 @@ model Product {
 model SupplementGroup {
   id        String             @id @default(cuid())
   name      String
+  // 'single' (un choix), 'multiple' (cases à cocher) ou 'quantity' (répartition
+  // d'une quantité totale entre les options, ex. 3 parts à répartir sur 3 goûts).
   type      String
   required  Boolean            @default(false)
   sortOrder Int                @default(0)
   // Disponibilité : un groupe désactivé reste configuré mais n'est plus proposé
   // côté client (ni en caisse). Permet de masquer temporairement tout un groupe.
   available Boolean            @default(true)
+  // Bornes sur le nombre de sélections (type 'multiple' : nombre d'options
+  // cochées) ou sur la quantité totale répartie (type 'quantity'). `null` =
+  // pas de borne. Ignorées pour le type 'single' (toujours 0 ou 1, régi par
+  // `required`).
+  minSelect Int?
+  maxSelect Int?
   productId String
   product   Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   options   SupplementOption[]
