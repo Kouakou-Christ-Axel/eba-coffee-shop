@@ -23,9 +23,20 @@ import { createOrderSchema } from '@/lib/schemas/order';
 
 // ─── Types publics ───────────────────────────────────────────────────────────
 
+/** Qui récupère : le client lui-même (TAKEAWAY) ou son livreur (DELIVERY). */
+export type PickupMode = 'pickup' | 'driver';
+
+/** Quand : dès que possible (pas de créneau) ou à un créneau planifié. */
+export type PickupTiming = 'asap' | 'scheduled';
+
 export type CheckoutFormValues = {
   customerName: string;
   customerPhone: string;
+  // 1ʳᵉ question du modal : mode de récupération (cf. processus terrain).
+  pickupMode: PickupMode;
+  // « Dès que possible » (défaut, préparation immédiate comme un walk-in) ou
+  // créneau planifié — `pickupTime` n'est requis que dans ce second cas.
+  timing: PickupTiming;
   pickupTime: string | null;
   note: string;
   // Livreur envoyé par le client (optionnel au checkout, modifiable ensuite
@@ -61,6 +72,8 @@ export type UseCheckoutFormOptions = {
 const INITIAL_VALUES: CheckoutFormValues = {
   customerName: '',
   customerPhone: '',
+  pickupMode: 'pickup',
+  timing: 'asap',
   pickupTime: null,
   note: '',
   driverName: '',
@@ -97,7 +110,9 @@ export function validateCheckoutForm(
     errors.customerPhone = `Téléphone trop long (max ${ORDER_CUSTOMER_PHONE_MAX} caractères)`;
   }
 
-  if (!values.pickupTime) {
+  // Créneau exigé seulement en mode planifié ; « dès que possible » n'a pas
+  // de rendez-vous (pickupTime null, traité comme un walk-in côté caisse).
+  if (values.timing === 'scheduled' && !values.pickupTime) {
     errors.pickupTime = 'Veuillez choisir un créneau';
   }
 
@@ -166,7 +181,11 @@ export async function submitCheckout({
       body: JSON.stringify({
         customerName: values.customerName.trim(),
         customerPhone: values.customerPhone.trim(),
-        pickupTime: values.pickupTime,
+        // « J'envoie un livreur » = DELIVERY (la cuisine voit le signal
+        // livreur) ; « Je viens moi-même » = TAKEAWAY.
+        orderType: values.pickupMode === 'driver' ? 'DELIVERY' : 'TAKEAWAY',
+        // asap = pas de rendez-vous : préparation immédiate (walk-in).
+        pickupTime: values.timing === 'scheduled' ? values.pickupTime : null,
         items,
         total,
         ...(values.note.trim() ? { note: values.note.trim() } : {}),
