@@ -109,3 +109,54 @@ self.addEventListener('fetch', (event) => {
     })()
   );
 });
+
+// ─── Notifications push (backoffice) ───────────────────────────────────────
+//
+// Payload JSON envoyé par lib/push-notify.ts : { title, body, url?, tag? }.
+
+self.addEventListener('push', (event) => {
+  let payload = { title: 'EBA Coffee Shop', body: '' };
+  try {
+    if (event.data) payload = { ...payload, ...event.data.json() };
+  } catch {
+    // Payload non-JSON : on garde le titre par défaut.
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: '/web-app-manifest-192x192.png',
+      badge: '/web-app-manifest-192x192.png',
+      tag: payload.tag,
+      data: { url: payload.url || '/dashboard' },
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/dashboard';
+
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      });
+      const existing = allClients.find(
+        (c) => new URL(c.url).pathname === targetUrl
+      );
+      if (existing) {
+        await existing.focus();
+        return;
+      }
+      const anyClient = allClients[0];
+      if (anyClient) {
+        await anyClient.focus();
+        await anyClient.navigate(targetUrl);
+        return;
+      }
+      await self.clients.openWindow(targetUrl);
+    })()
+  );
+});

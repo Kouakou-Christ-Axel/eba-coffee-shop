@@ -41,6 +41,21 @@ import { getMenuAdmin } from '@/lib/menu';
 import { cartItemSchema, updateOrderDetailsSchema } from '@/lib/schemas/order';
 import type { CartItem } from '@/lib/cart-store';
 import type { CartItemInput, OrderTypeInput } from '@/lib/schemas/order';
+import { ROLE_GROUPS } from '@/lib/auth-helpers';
+import { sendPushToRoles } from '@/lib/push-notify';
+
+/**
+ * Notifications push (best-effort) : une notification manquée ne doit jamais
+ * faire échouer la mutation qui l'a déclenchée.
+ */
+function notifyPush(
+  roles: (typeof ROLE_GROUPS)[keyof typeof ROLE_GROUPS],
+  payload: Parameters<typeof sendPushToRoles>[1]
+): void {
+  sendPushToRoles(roles, payload).catch((err) => {
+    console.error('[order-mutations] notification push échouée :', err);
+  });
+}
 
 /**
  * Erreur métier portant un code HTTP, pour que les routes API renvoient le bon
@@ -97,7 +112,7 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
 
   for (let attempt = 0; attempt < DAILY_NUMBER_MAX_RETRIES; attempt++) {
     try {
-      return await prisma.$transaction(async (tx) => {
+      const created = await prisma.$transaction(async (tx) => {
         const dailyNumber = await getNextDailyNumber(tx, dailyDate);
         const reference = generateOrderReference(dailyDate);
         const customerId = await upsertCustomerForOrder(
@@ -137,6 +152,19 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
 
         return created;
       });
+
+      // Pas de notification pour une commande antidatée : ce n'est pas un
+      // événement en direct, juste une saisie de rattrapage.
+      if (!isBackdated) {
+        notifyPush(ROLE_GROUPS.DASHBOARD, {
+          title: 'Nouvelle commande',
+          body: `#${created.dailyNumber} · ${created.total} FCFA${created.customerName ? ` · ${created.customerName}` : ''}`,
+          url: '/dashboard/caisse',
+          tag: `order-${created.id}`,
+        });
+      }
+
+      return created;
     } catch (err) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
@@ -243,7 +271,7 @@ export async function setOrderStatus(
 ): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id },
-    select: { status: true },
+    select: { status: true, dailyNumber: true },
   });
   if (!order) {
     throw new OrderMutationError('Commande introuvable', 404);
@@ -266,6 +294,16 @@ export async function setOrderStatus(
       'État déjà modifié par un autre caissier',
       409
     );
+  }
+
+  // La caisse remet la commande au client : on l'alerte quand elle est prête.
+  if (newStatus === 'READY') {
+    notifyPush(ROLE_GROUPS.CASHIER_PLUS, {
+      title: 'Commande prête',
+      body: `#${order.dailyNumber} prête à récupérer`,
+      url: '/dashboard/caisse',
+      tag: `order-ready-${id}`,
+    });
   }
 }
 
