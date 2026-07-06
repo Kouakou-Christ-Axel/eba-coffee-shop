@@ -95,6 +95,7 @@ export default function InstallPwa() {
       event.preventDefault();
       deferredPromptRef.current = event as BeforeInstallPromptEvent;
       setShowBanner(true);
+      if (delayTimer) clearTimeout(delayTimer);
     };
 
     // Quand l'app est installée, on masque tout.
@@ -111,9 +112,12 @@ export default function InstallPwa() {
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
     window.addEventListener('appinstalled', onInstalled);
 
-    // iOS ne déclenche pas `beforeinstallprompt` : on affiche la bannière
-    // tuto après un court délai pour ne pas gêner l'arrivée sur le site.
-    if (detected === 'ios') {
+    // iOS ne déclenche jamais `beforeinstallprompt`. Sur Android/Chrome,
+    // l'événement peut aussi ne jamais arriver (navigateur in-app,
+    // heuristiques d'engagement non satisfaites, re-prompt throttlé…) :
+    // dans ce cas on affiche quand même la bannière avec les instructions
+    // manuelles après un court délai, plutôt que de ne rien montrer.
+    if (detected === 'ios' || detected === 'android') {
       delayTimer = setTimeout(() => setShowBanner(true), SHOW_DELAY_MS);
     }
 
