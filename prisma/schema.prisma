@@ -187,6 +187,14 @@ model Order {
   driverRequested   Boolean   @default(false)
   driverRequestedAt DateTime?
 
+  // Livreur envoyé par le client (renseigné/modifiable depuis la page de suivi).
+  driverName  String?
+  driverPhone String?
+
+  // Preuve de paiement (capture Wave) uploadée par le client
+  // (/uploads/payment-proofs/…). Validée manuellement en caisse.
+  paymentProofUrl String?
+
   createdById String?
   createdBy   User?   @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 

@@ -67,6 +67,12 @@ export const ORDER_CUSTOMER_PHONE_MAX = 30;
 export const ORDER_NOTE_MAX = 500;
 
 /**
+ * Page publique de suivi de commande (/commande/:id) : intervalle de
+ * rafraîchissement du statut (polling léger, le SSE reste réservé au staff).
+ */
+export const ORDER_TRACKING_POLL_INTERVAL_MS = 15_000;
+
+/**
  * Remise caisse : une remise (montant fixe en FCFA) appliquée à une ligne
  * d'article ne peut pas dépasser cette fraction du prix brut de la ligne.
  * Plafond métier validé côté client ET serveur.

@@ -593,3 +593,71 @@ export async function updateOrderItems(
 
   return { total };
 }
+
+// ─── Livreur du client (page publique de suivi) ───────────────────────────────
+
+/**
+ * Renseigne, modifie ou efface (les deux champs à null) le livreur envoyé par
+ * le client. Appelée SANS rôle : la route publique s'appuie sur l'`id` cuid non
+ * devinable (capability URL) — même modèle de confiance que la consultation de
+ * la commande. Refusée une fois la commande récupérée ou annulée.
+ */
+export async function setOrderDriver(
+  id: string,
+  input: { driverName: string | null; driverPhone: string | null }
+): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+  if (!order) {
+    throw new OrderMutationError('Commande introuvable', 404);
+  }
+  if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
+    throw new OrderMutationError(
+      'Commande terminée ou annulée : livreur non modifiable',
+      409
+    );
+  }
+
+  const driverPhone = input.driverPhone
+    ? (normalizeIvorianPhone(input.driverPhone) ?? input.driverPhone)
+    : null;
+
+  await prisma.order.update({
+    where: { id },
+    data: { driverName: input.driverName, driverPhone },
+  });
+}
+
+// ─── Preuve de paiement (capture Wave uploadée par le client) ─────────────────
+
+/**
+ * Attache la preuve de paiement (URL `/uploads/payment-proofs/…`) à une
+ * commande non encore encaissée. La validation reste manuelle en caisse
+ * (`setOrderPayment`) : la preuve est un signal, pas un encaissement.
+ * Ré-upload autorisé tant que la commande n'est pas payée (remplace l'URL).
+ */
+export async function setOrderPaymentProof(
+  id: string,
+  url: string
+): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { isPaid: true, status: true },
+  });
+  if (!order) {
+    throw new OrderMutationError('Commande introuvable', 404);
+  }
+  if (order.status === 'CANCELLED') {
+    throw new OrderMutationError('Commande annulée', 409);
+  }
+  if (order.isPaid) {
+    throw new OrderMutationError('Commande déjà encaissée', 409);
+  }
+
+  await prisma.order.update({
+    where: { id },
+    data: { paymentProofUrl: url },
+  });
+}

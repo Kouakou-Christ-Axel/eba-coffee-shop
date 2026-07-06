@@ -10,6 +10,8 @@
 import { z } from 'zod';
 import {
   MAX_LINE_DISCOUNT_RATIO,
+  ORDER_CUSTOMER_NAME_MAX,
+  ORDER_CUSTOMER_PHONE_MAX,
   ORDER_DISCOUNT_REASON_MAX,
 } from '@/config/constants';
 
@@ -248,3 +250,32 @@ export const setOrderCustomerSchema = z
   });
 
 export type SetOrderCustomerInput = z.infer<typeof setOrderCustomerSchema>;
+
+// ─── Livreur du client ────────────────────────────────────────────────────────
+//
+// Le livreur est envoyé PAR le client (le coffee shop ne livre pas) : il peut
+// être renseigné au checkout puis modifié depuis la page publique de suivi
+// (« ça peut changer »). Nom et téléphone vont ensemble : soit les deux sont
+// fournis, soit les deux sont null (effacement).
+
+export const orderDriverFieldsSchema = z.object({
+  driverName: z
+    .string()
+    .trim()
+    .min(2, 'Nom du livreur requis (min 2 caractères)')
+    .max(ORDER_CUSTOMER_NAME_MAX, 'Nom trop long (max 50 caractères)')
+    .nullable(),
+  driverPhone: z
+    .string()
+    .trim()
+    .min(8, 'Numéro du livreur requis (min 8 chiffres)')
+    .max(ORDER_CUSTOMER_PHONE_MAX, 'Téléphone trop long (max 30 caractères)')
+    .nullable(),
+});
+
+export const setOrderDriverSchema = orderDriverFieldsSchema.refine(
+  (d) => (d.driverName === null) === (d.driverPhone === null),
+  { message: 'Nom et téléphone du livreur vont ensemble' }
+);
+
+export type SetOrderDriverInput = z.infer<typeof setOrderDriverSchema>;

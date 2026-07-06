@@ -15,10 +15,12 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
+  buildPickupReadyMessage,
   buildTelLink,
   buildWaveRequestMessage,
   buildWhatsAppLink,
 } from '@/lib/contact-links';
+import { getPickupCode } from '@/lib/orders/format';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import { priceFormatter, type MenuCategory } from '@/config/menu';
 import type { OrderStatus, PaymentMode } from '@/generated/prisma/client';
@@ -76,6 +78,20 @@ export function OrderCardActions({
       items: order.items,
     })
   );
+  // « C'est prêt » one-tap : code de retrait + lien de suivi (localisation
+  // incluse sur la page) — remplace le message manuel répétitif.
+  const readyLink = buildWhatsAppLink(
+    phone,
+    buildPickupReadyMessage({
+      customerName: order.customerName,
+      dailyNumber: order.dailyNumber,
+      pickupCode: getPickupCode(order.reference),
+      trackingUrl:
+        typeof window === 'undefined'
+          ? undefined
+          : `${window.location.origin}/commande/${order.id}`,
+    })
+  );
 
   const payLabel =
     order.status === 'PREPARING' ||
@@ -97,6 +113,20 @@ export function OrderCardActions({
         return;
       }
       setIsPaymentOpen(false);
+    });
+  }
+
+  // Raccourci quand le client a envoyé sa preuve Wave depuis la page de suivi :
+  // encaissement direct en mode WAVE, sans passer par la modale.
+  function handleValidateWaveProof() {
+    setActionError(null);
+    startTransition(async () => {
+      const result = await callApi(
+        `/api/caisse/orders/${order.id}/payment`,
+        'PATCH',
+        { isPaid: true, paymentMode: 'WAVE' satisfies PaymentMode }
+      );
+      if (!result.ok) setActionError(result.error);
     });
   }
 
@@ -214,6 +244,23 @@ export function OrderCardActions({
           </Button>
         )}
 
+        {/* Preuve Wave reçue : validation en un clic (mode WAVE) */}
+        {order.paymentProofUrl &&
+          !order.isPaid &&
+          order.status !== 'CANCELLED' && (
+            <Button
+              type="button"
+              variant="default"
+              size="lg"
+              className="w-full bg-emerald-600 text-white hover:bg-emerald-700"
+              disabled={isPending}
+              onClick={handleValidateWaveProof}
+            >
+              <Check className="mr-1.5 h-4 w-4" />
+              Valider le paiement Wave
+            </Button>
+          )}
+
         {/* Action principale : marquer payée (pleine largeur) */}
         {!order.isPaid && order.status !== 'CANCELLED' && (
           <Button
@@ -256,6 +303,16 @@ export function OrderCardActions({
           >
             <CheckCheck className="mr-1.5 h-4 w-4" />
             Marquer prête
+          </Button>
+        )}
+
+        {/* Commande prête : prévenir le client en un tap (WhatsApp) */}
+        {order.status === 'READY' && readyLink && (
+          <Button asChild variant="outline" size="lg" className="w-full">
+            <a href={readyLink} target="_blank" rel="noopener noreferrer">
+              <MessageCircle className="mr-1.5 h-4 w-4" />
+              Prévenir&nbsp;: c&apos;est prêt
+            </a>
           </Button>
         )}
 

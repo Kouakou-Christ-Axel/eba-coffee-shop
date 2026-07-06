@@ -32,7 +32,10 @@ export type CashierOrder = {
   status: OrderStatus;
   isPaid: boolean;
   paymentMode: PaymentMode | null;
+  paymentProofUrl: string | null;
   driverRequested: boolean;
+  driverName: string | null;
+  driverPhone: string | null;
   createdAt: Date;
 };
 
@@ -81,7 +84,10 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
     status: o.status,
     isPaid: o.isPaid,
     paymentMode: o.paymentMode,
+    paymentProofUrl: o.paymentProofUrl,
     driverRequested: o.driverRequested,
+    driverName: o.driverName,
+    driverPhone: o.driverPhone,
     createdAt: o.createdAt,
   }));
 }

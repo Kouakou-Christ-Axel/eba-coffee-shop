@@ -17,6 +17,8 @@ const validValues: CheckoutFormValues = {
   customerPhone: '07001234',
   pickupTime: '2026-05-11T10:00:00.000Z',
   note: '',
+  driverName: '',
+  driverPhone: '',
 };
 
 const mockItems: CartItem[] = [
@@ -91,6 +93,33 @@ describe('validateCheckoutForm', () => {
     // résiliente (pas de crash) même si total invalide.
     expect(errors).toBeDefined();
   });
+
+  it('accepte un bloc livreur complet', () => {
+    const errors = validateCheckoutForm(
+      { ...validValues, driverName: 'Moussa', driverPhone: '0505050505' },
+      mockItems,
+      3500
+    );
+    expect(Object.keys(errors)).toHaveLength(0);
+  });
+
+  it('exige le téléphone du livreur si son nom est renseigné', () => {
+    const errors = validateCheckoutForm(
+      { ...validValues, driverName: 'Moussa' },
+      mockItems,
+      3500
+    );
+    expect(errors.driverPhone).toBeDefined();
+  });
+
+  it('exige le nom du livreur si son téléphone est renseigné', () => {
+    const errors = validateCheckoutForm(
+      { ...validValues, driverPhone: '0505050505' },
+      mockItems,
+      3500
+    );
+    expect(errors.driverName).toBeDefined();
+  });
 });
 
 // ─── submitCheckout ──────────────────────────────────────────────────────────
@@ -158,6 +187,35 @@ describe('submitCheckout', () => {
       (spy.mock.calls[0]?.[1] as RequestInit | undefined)?.body ?? ''
     );
     expect(body).not.toContain('"note"');
+  });
+
+  it('inclut le bloc livreur quand complet, l’omet sinon', async () => {
+    const spy = vi
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ id: 'clo123' }), { status: 201 })
+      );
+
+    await submitCheckout({
+      values: { ...validValues, driverName: 'Moussa', driverPhone: '0505' },
+      items: mockItems,
+      total: 3500,
+    });
+    await submitCheckout({
+      values: { ...validValues, driverName: 'Moussa' },
+      items: mockItems,
+      total: 3500,
+    });
+
+    const first = String(
+      (spy.mock.calls[0]?.[1] as RequestInit | undefined)?.body ?? ''
+    );
+    const second = String(
+      (spy.mock.calls[1]?.[1] as RequestInit | undefined)?.body ?? ''
+    );
+    expect(first).toContain('"driverName":"Moussa"');
+    expect(first).toContain('"driverPhone":"0505"');
+    expect(second).not.toContain('"driverName"');
   });
 
   it('retourne { ok: true, orderId } sur succès', async () => {

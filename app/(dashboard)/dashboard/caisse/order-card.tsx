@@ -9,12 +9,19 @@ import {
   AlertTriangle,
   CalendarClock,
   Clock,
+  Phone,
+  Receipt,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatAbidjanTime } from '@/lib/timezone';
+import {
+  ABIDJAN_TZ,
+  formatAbidjanTime,
+  formatLocalDateOnly,
+} from '@/lib/timezone';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import { getItemGross, getItemNet } from '@/lib/orders/totals';
-import { formatSupplementLabel } from '@/lib/orders/format';
+import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
+import { buildTelLink } from '@/lib/contact-links';
 import type { OrderType } from '@/generated/prisma/client';
 import {
   formatElapsedShort,
@@ -26,6 +33,15 @@ import {
 } from './urgency';
 
 const priceFormatter = new Intl.NumberFormat('fr-FR');
+
+// « sam. 05/07 » — pour dater le n° du jour d'une commande d'un AUTRE jour
+// (le #003 repart à 1 chaque matin : sans la date, deux jours se confondent).
+const dayFormatter = new Intl.DateTimeFormat('fr-FR', {
+  timeZone: ABIDJAN_TZ,
+  weekday: 'short',
+  day: '2-digit',
+  month: '2-digit',
+});
 
 const ORDER_TYPE_META: Record<OrderType, { label: string; Icon: typeof Bike }> =
   {
@@ -66,6 +82,12 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
   const overdue = isPickupOverdue(order, tickNow);
   const urgencyStyle = URGENCY_STYLES[urgency];
   const scheduledAhead = isScheduledAhead(order, tickNow);
+  const pickupCode = getPickupCode(order.reference);
+  // Commande rattachée à un autre jour civil (ex. passée hier pour un retrait
+  // aujourd'hui) : on date son n° pour éviter la collision avec le #003 du jour.
+  const otherDay =
+    formatLocalDateOnly(order.createdAt) !== formatLocalDateOnly(tickNow);
+  const driverTelLink = buildTelLink(order.driverPhone);
   // Tant que le retrait est lointain (urgence « normal »), une bordure indigo dédiée
   // signale la commande programmée ; l'urgence de proximité reprend la main ensuite.
   const borderClass =
@@ -88,11 +110,21 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
             aria-label={typeMeta.label}
           />
           <div className="min-w-0">
-            <p className="flex items-baseline text-base font-semibold leading-tight">
+            <p className="flex flex-wrap items-baseline gap-x-1.5 text-base font-semibold leading-tight">
               <span className="shrink-0 font-mono">
                 #{String(order.dailyNumber).padStart(3, '0')}
+                {otherDay && (
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                    {dayFormatter.format(order.createdAt)}
+                  </span>
+                )}
               </span>
-              <span className="shrink-0 px-1.5 text-muted-foreground">·</span>
+              <span
+                className="shrink-0 rounded bg-primary/10 px-1.5 font-mono text-sm text-primary"
+                title={`Code de retrait · ${order.reference}`}
+              >
+                {pickupCode}
+              </span>
               <span className="min-w-0 truncate">
                 {order.customerName ?? 'Client anonyme'}
               </span>
@@ -147,6 +179,41 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
           />
           <span>La cuisine demande d&apos;appeler le livreur</span>
         </div>
+      )}
+
+      {/* Livreur annoncé par le client (page de suivi) */}
+      {(order.driverName || order.driverPhone) && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-900 ring-1 ring-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-100 dark:ring-indigo-800">
+          <Bike className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 truncate">
+            Livreur&nbsp;: {order.driverName ?? 'sans nom'}
+          </span>
+          {order.driverPhone &&
+            (driverTelLink ? (
+              <a
+                href={driverTelLink}
+                className="ml-auto inline-flex shrink-0 items-center gap-1 underline underline-offset-2"
+              >
+                <Phone className="h-3 w-3" aria-hidden="true" />
+                {order.driverPhone}
+              </a>
+            ) : (
+              <span className="ml-auto shrink-0">{order.driverPhone}</span>
+            ))}
+        </div>
+      )}
+
+      {/* Preuve de paiement envoyée par le client, en attente de validation */}
+      {order.paymentProofUrl && !order.isPaid && (
+        <a
+          href={order.paymentProofUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900 ring-1 ring-emerald-300 transition-colors hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-100 dark:ring-emerald-800"
+        >
+          <Receipt className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>Preuve de paiement Wave reçue — appuyer pour vérifier</span>
+        </a>
       )}
 
       {/* Note client */}
