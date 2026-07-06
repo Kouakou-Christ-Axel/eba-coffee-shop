@@ -18,7 +18,15 @@ import { normalizeIvorianPhone } from '@/lib/phone';
 import { ORDERS_PAGE_SIZE } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
 
-// ─── Schéma Zod : online (strict, customer obligatoire, pickupTime requis) ────
+// ─── Schéma Zod : online (strict, customer obligatoire) ──────────────────────
+//
+// `pickupTime` est optionnel : absent/null = « dès que possible » (traité comme
+// un walk-in : préparation immédiate, pas de rendez-vous — le mode par défaut,
+// aligné sur le processus réel du comptoir). Une valeur = retrait planifié.
+//
+// `orderType` en ligne : `TAKEAWAY` (le client vient) ou `DELIVERY` (il envoie
+// SON livreur — la cuisine voit alors le bouton « demander le livreur »).
+// Jamais `DINE_IN` depuis le site.
 //
 // Le bloc livreur est optionnel au checkout (le client peut ne pas encore le
 // connaître) ; il reste modifiable ensuite depuis la page de suivi.
@@ -27,7 +35,8 @@ export const createOrderSchema = baseCreateOrderSchema
   .extend({
     customerName: z.string().trim().min(2).max(50),
     customerPhone: z.string().trim().min(8).max(20),
-    pickupTime: z.string().datetime(),
+    pickupTime: z.string().datetime().nullable().optional(),
+    orderType: z.enum(['TAKEAWAY', 'DELIVERY']).optional(),
   })
   .extend(orderDriverFieldsSchema.partial().shape)
   .refine(
@@ -53,7 +62,6 @@ export function generateOrderReference(date: Date = new Date()): string {
 }
 
 // ─── createOrder (public, online) ─────────────────────────────────────────────
-// Toujours TAKEAWAY pour les commandes online (cf. plan).
 
 const MAX_DAILY_NUMBER_RETRIES = 3;
 
@@ -83,8 +91,8 @@ export async function createOrder(input: CreateOrderInput) {
             customerName: input.customerName,
             customerPhone: input.customerPhone,
             customerId,
-            pickupTime: new Date(input.pickupTime),
-            orderType: 'TAKEAWAY' satisfies OrderType,
+            pickupTime: input.pickupTime ? new Date(input.pickupTime) : null,
+            orderType: (input.orderType ?? 'TAKEAWAY') satisfies OrderType,
             items: input.items,
             total: input.total,
             note: input.note ?? null,

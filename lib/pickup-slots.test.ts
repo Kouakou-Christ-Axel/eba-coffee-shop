@@ -2,15 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { generatePickupSlots } from './pickup-slots';
 
 describe('generatePickupSlots', () => {
-  it('retourne des créneaux dans la plage 08h00–20h00', () => {
-    const now = new Date(2026, 4, 10, 7, 0, 0); // 07:00 local
+  it('retourne des créneaux dans la plage 07h30–21h30 (défaut aligné brand)', () => {
+    const now = new Date(2026, 4, 10, 6, 0, 0); // 06:00 local
     const slots = generatePickupSlots(now);
 
     expect(slots.length).toBeGreaterThan(0);
     for (const slot of slots) {
       const totalMinutes = slot.getHours() * 60 + slot.getMinutes();
-      expect(totalMinutes).toBeGreaterThanOrEqual(8 * 60);
-      expect(totalMinutes).toBeLessThanOrEqual(20 * 60);
+      expect(totalMinutes).toBeGreaterThanOrEqual(7 * 60 + 30);
+      expect(totalMinutes).toBeLessThanOrEqual(21 * 60 + 30);
     }
   });
 
@@ -63,8 +63,10 @@ describe('generatePickupSlots', () => {
     expect(hasTomorrow).toBe(true);
   });
 
-  it('retourne uniquement des créneaux demain si now est après 19h30', () => {
-    const now = new Date(2026, 4, 10, 19, 31, 0);
+  it('retourne uniquement des créneaux demain si now est après 21h00', () => {
+    // Dernier créneau du jour : 21h30 ; lead time 30 min → après 21h00, plus
+    // rien aujourd'hui.
+    const now = new Date(2026, 4, 10, 21, 1, 0);
     const today = new Date(2026, 4, 10, 0, 0, 0);
     const tomorrow = new Date(2026, 4, 11, 0, 0, 0);
 

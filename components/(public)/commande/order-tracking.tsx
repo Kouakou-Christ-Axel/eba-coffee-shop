@@ -138,12 +138,12 @@ export function OrderTracking({
           À annoncer au comptoir (par toi ou ton livreur) pour retirer la
           commande.
         </p>
-        {order.pickupTime && (
-          <p className="mt-2 text-sm">
-            <span className="text-foreground/50">Retrait&nbsp;:</span>{' '}
-            {formatPickupTime(new Date(order.pickupTime))}
-          </p>
-        )}
+        <p className="mt-2 text-sm">
+          <span className="text-foreground/50">Retrait&nbsp;:</span>{' '}
+          {order.pickupTime
+            ? formatPickupTime(new Date(order.pickupTime))
+            : 'dès que prêt'}
+        </p>
       </div>
 
       {/* ── Paiement ── */}

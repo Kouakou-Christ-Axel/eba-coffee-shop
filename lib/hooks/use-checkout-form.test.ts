@@ -15,6 +15,8 @@ import type { CartItem } from '@/lib/cart-store';
 const validValues: CheckoutFormValues = {
   customerName: 'Kofi',
   customerPhone: '07001234',
+  pickupMode: 'pickup',
+  timing: 'scheduled',
   pickupTime: '2026-05-11T10:00:00.000Z',
   note: '',
   driverName: '',
@@ -67,13 +69,22 @@ describe('validateCheckoutForm', () => {
     expect(errors.customerPhone).toBeDefined();
   });
 
-  it('exige un pickupTime non null', () => {
+  it('exige un pickupTime non null en mode planifié', () => {
     const errors = validateCheckoutForm(
-      { ...validValues, pickupTime: null },
+      { ...validValues, timing: 'scheduled', pickupTime: null },
       mockItems,
       3500
     );
     expect(errors.pickupTime).toBeDefined();
+  });
+
+  it("n'exige pas de pickupTime en mode « dès que possible »", () => {
+    const errors = validateCheckoutForm(
+      { ...validValues, timing: 'asap', pickupTime: null },
+      mockItems,
+      3500
+    );
+    expect(Object.keys(errors)).toHaveLength(0);
   });
 
   it('rejette une note > 500 caractères', () => {
@@ -216,6 +227,36 @@ describe('submitCheckout', () => {
     expect(first).toContain('"driverName":"Moussa"');
     expect(first).toContain('"driverPhone":"0505"');
     expect(second).not.toContain('"driverName"');
+  });
+
+  it('mappe le mode de récupération sur orderType et le timing sur pickupTime', async () => {
+    const spy = vi
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ id: 'clo123' }), { status: 201 })
+      );
+
+    await submitCheckout({
+      values: { ...validValues, pickupMode: 'driver', timing: 'asap' },
+      items: mockItems,
+      total: 3500,
+    });
+    await submitCheckout({
+      values: { ...validValues, pickupMode: 'pickup', timing: 'scheduled' },
+      items: mockItems,
+      total: 3500,
+    });
+
+    const first = String(
+      (spy.mock.calls[0]?.[1] as RequestInit | undefined)?.body ?? ''
+    );
+    const second = String(
+      (spy.mock.calls[1]?.[1] as RequestInit | undefined)?.body ?? ''
+    );
+    expect(first).toContain('"orderType":"DELIVERY"');
+    expect(first).toContain('"pickupTime":null');
+    expect(second).toContain('"orderType":"TAKEAWAY"');
+    expect(second).toContain(`"pickupTime":"${validValues.pickupTime}"`);
   });
 
   it('retourne { ok: true, orderId } sur succès', async () => {

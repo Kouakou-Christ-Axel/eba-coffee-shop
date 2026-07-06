@@ -48,8 +48,11 @@ export async function updatePickupSettings(
   });
 }
 
-export async function getAvailablePickupSlots(now: Date): Promise<Date[]> {
-  const settings = await getPickupSettings();
+export async function getAvailablePickupSlots(
+  now: Date,
+  presetSettings?: PickupSettings
+): Promise<Date[]> {
+  const settings = presetSettings ?? (await getPickupSettings());
   const candidates = generatePickupSlots(now, settings);
 
   if (settings.capacityPerSlot === null || candidates.length === 0) {

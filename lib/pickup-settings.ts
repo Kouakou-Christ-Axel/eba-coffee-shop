@@ -40,7 +40,10 @@ export type WeeklyHours = z.infer<typeof weeklyHoursSchema>;
 export type DateOverride = z.infer<typeof dateOverrideSchema>;
 export type PickupSettings = z.infer<typeof pickupSettingsSchema>;
 
-const DEFAULT_RANGE: TimeRange = { start: '08:00', end: '20:00' };
+// Aligné sur les horaires annoncés du site (config/brand.config.ts :
+// « Lun - Dim : 7h30 - 21h30 »). Les horaires réels restent éditables dans
+// /dashboard/parametres — ce défaut ne sert que tant que rien n'est enregistré.
+const DEFAULT_RANGE: TimeRange = { start: '07:30', end: '21:30' };
 
 export const DEFAULT_SETTINGS: PickupSettings = {
   slotIntervalMin: 15,
