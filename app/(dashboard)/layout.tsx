@@ -40,7 +40,7 @@ export default async function DashboardLayout({
           <Separator orientation="vertical" className="mr-2 h-4" />
           <span className="text-sm font-medium">Dashboard</span>
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-6">{children}</div>
+        <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

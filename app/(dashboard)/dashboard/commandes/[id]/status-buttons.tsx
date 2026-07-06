@@ -44,13 +44,14 @@ export function StatusButtons({
   };
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-col gap-2 sm:flex-row">
       {actions.map(({ label, next, variant = 'default' }) => (
         <Button
           key={next}
           variant={variant}
           disabled={isPending}
           onClick={() => handleClick(next)}
+          className="w-full sm:w-auto"
         >
           {label}
         </Button>

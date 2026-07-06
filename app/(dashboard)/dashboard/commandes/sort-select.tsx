@@ -23,7 +23,7 @@ export function SortSelect({ value }: { value?: string }) {
       radius="md"
       selectedKeys={[selected]}
       disallowEmptySelection
-      className="w-[160px]"
+      className="w-full min-w-0 sm:w-[160px]"
       onSelectionChange={(keys) => {
         if (keys === 'all') return;
         const next = String(Array.from(keys)[0] ?? 'recent');

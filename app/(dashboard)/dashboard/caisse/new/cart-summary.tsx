@@ -57,7 +57,7 @@ export function CartSummary({
           const discounted = gross !== net;
           return (
             <li key={item.cartId} className="px-3 py-2">
-              <div className="flex items-start gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">
                     {item.productName}
@@ -81,33 +81,35 @@ export function CartSummary({
                     </p>
                   )}
                 </div>
-                <QuantityStepper
-                  value={item.quantity}
-                  onChange={(q) => onQuantityChange(item.cartId, q)}
-                />
-                <span className="w-16 shrink-0 text-right text-sm tabular-nums">
-                  {discounted && (
-                    <span className="block text-xs text-muted-foreground line-through">
-                      {priceFormatter.format(gross)}
-                    </span>
-                  )}
-                  <span
-                    className={cn(
-                      'font-semibold',
-                      discounted && 'text-green-700 dark:text-green-400'
+                <div className="flex items-center gap-2 sm:items-start">
+                  <QuantityStepper
+                    value={item.quantity}
+                    onChange={(q) => onQuantityChange(item.cartId, q)}
+                  />
+                  <span className="ml-auto w-16 shrink-0 text-right text-sm tabular-nums sm:ml-0">
+                    {discounted && (
+                      <span className="block text-xs text-muted-foreground line-through">
+                        {priceFormatter.format(gross)}
+                      </span>
                     )}
-                  >
-                    {priceFormatter.format(net)}
+                    <span
+                      className={cn(
+                        'font-semibold',
+                        discounted && 'text-green-700 dark:text-green-400'
+                      )}
+                    >
+                      {priceFormatter.format(net)}
+                    </span>
                   </span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onRemove(item.cartId)}
-                  className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
-                  aria-label="Supprimer"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => onRemove(item.cartId)}
+                    className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+                    aria-label="Supprimer"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             </li>
           );

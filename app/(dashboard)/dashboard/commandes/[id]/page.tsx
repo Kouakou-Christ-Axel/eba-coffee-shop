@@ -81,7 +81,7 @@ export default async function CommandeDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <BackButton
             fallbackHref="/dashboard/commandes"
@@ -97,7 +97,7 @@ export default async function CommandeDetailPage({
             {formatPickupTime(order.pickupTime)}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-start gap-2 sm:items-end">
           <Badge variant={STATUS_VARIANTS[order.status]}>
             {STATUS_LABELS[order.status]}
           </Badge>

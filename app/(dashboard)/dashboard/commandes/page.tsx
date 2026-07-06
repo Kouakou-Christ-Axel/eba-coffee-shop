@@ -193,11 +193,11 @@ export default async function CommandesPage({
               <TableHead>#</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Client</TableHead>
-              <TableHead>Téléphone</TableHead>
-              <TableHead>Créneau</TableHead>
-              <TableHead>Articles</TableHead>
+              <TableHead className="hidden md:table-cell">Téléphone</TableHead>
+              <TableHead className="hidden lg:table-cell">Créneau</TableHead>
+              <TableHead className="hidden md:table-cell">Articles</TableHead>
               <TableHead>Total</TableHead>
-              <TableHead>Paiement</TableHead>
+              <TableHead className="hidden md:table-cell">Paiement</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead />
             </TableRow>
@@ -222,13 +222,19 @@ export default async function CommandesPage({
                     </span>
                   </TableCell>
                   <TableCell>{order.customerName ?? '—'}</TableCell>
-                  <TableCell>{order.customerPhone ?? '—'}</TableCell>
-                  <TableCell>{formatPickupTime(order.pickupTime)}</TableCell>
-                  <TableCell>{(order.items as unknown[]).length}</TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {order.customerPhone ?? '—'}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {formatPickupTime(order.pickupTime)}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {(order.items as unknown[]).length}
+                  </TableCell>
                   <TableCell className="tabular-nums">
                     {new Intl.NumberFormat('fr-FR').format(order.total)} F
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     {order.isPaid ? (
                       <Badge variant="default" className="bg-green-600">
                         {order.paymentMode ?? 'Payée'}

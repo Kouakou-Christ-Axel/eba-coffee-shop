@@ -88,12 +88,12 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
             aria-label={typeMeta.label}
           />
           <div className="min-w-0">
-            <p className="text-base font-semibold leading-tight">
-              <span className="font-mono">
+            <p className="flex items-baseline text-base font-semibold leading-tight">
+              <span className="shrink-0 font-mono">
                 #{String(order.dailyNumber).padStart(3, '0')}
               </span>
-              <span className="px-1.5 text-muted-foreground">·</span>
-              <span className="truncate">
+              <span className="shrink-0 px-1.5 text-muted-foreground">·</span>
+              <span className="min-w-0 truncate">
                 {order.customerName ?? 'Client anonyme'}
               </span>
             </p>
