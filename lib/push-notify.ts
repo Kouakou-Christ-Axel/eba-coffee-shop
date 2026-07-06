@@ -40,17 +40,19 @@ function ensureVapidConfigured(): boolean {
   return true;
 }
 
-/**
- * Envoie `payload` à tout le staff dont le rôle figure dans `roles`. Nettoie
- * automatiquement les abonnements expirés (404/410 renvoyés par le navigateur).
- */
-export async function sendPushToRoles(
-  roles: UserRole[],
+type RawSubscription = {
+  id?: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+};
+
+/** Envoi bas niveau, partagé par `sendPushToRoles` et `sendTestPush`. */
+async function sendToSubscriptions(
+  subscriptions: RawSubscription[],
   payload: PushPayload
 ): Promise<void> {
   if (!ensureVapidConfigured()) return;
-
-  const subscriptions = await getPushSubscriptionsForRoles(roles);
   if (subscriptions.length === 0) return;
 
   await Promise.all(
@@ -66,15 +68,44 @@ export async function sendPushToRoles(
       } catch (err) {
         const statusCode = (err as { statusCode?: number }).statusCode;
         if (statusCode === 404 || statusCode === 410) {
-          await prisma.pushSubscription
-            .delete({ where: { id: sub.id } })
-            .catch(() => {
-              // Déjà supprimé entre-temps : ignorer.
-            });
+          if (sub.id) {
+            await prisma.pushSubscription
+              .delete({ where: { id: sub.id } })
+              .catch(() => {
+                // Déjà supprimé entre-temps : ignorer.
+              });
+          }
         } else {
           console.error('[push-notify] envoi échoué :', err);
         }
       }
     })
   );
+}
+
+/**
+ * Envoie `payload` à tout le staff dont le rôle figure dans `roles`. Nettoie
+ * automatiquement les abonnements expirés (404/410 renvoyés par le navigateur).
+ */
+export async function sendPushToRoles(
+  roles: UserRole[],
+  payload: PushPayload
+): Promise<void> {
+  const subscriptions = await getPushSubscriptionsForRoles(roles);
+  await sendToSubscriptions(subscriptions, payload);
+}
+
+/**
+ * Notification de confirmation envoyée au SEUL abonnement qui vient d'être
+ * créé, juste après l'activation (bouton cloche du dashboard) — preuve
+ * immédiate que l'abonnement fonctionne, sans attendre un vrai événement.
+ */
+export async function sendTestPush(
+  subscription: Pick<RawSubscription, 'endpoint' | 'p256dh' | 'auth'>
+): Promise<void> {
+  await sendToSubscriptions([subscription], {
+    title: 'Notifications activées ✅',
+    body: 'Vous recevrez désormais les alertes EBA Coffee Shop (nouvelles commandes, commandes prêtes).',
+    tag: 'push-test',
+  });
 }

@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server';
 import { requireDashboardAccess } from '@/lib/auth-helpers';
 import { pushSubscriptionSchema } from '@/lib/schemas/push';
 import { savePushSubscription } from '@/lib/push-subscriptions';
+import { sendTestPush } from '@/lib/push-notify';
 
 export async function POST(request: Request) {
   let session;
@@ -42,6 +43,18 @@ export async function POST(request: Request) {
     parsed.data,
     request.headers.get('user-agent')
   );
+
+  // Preuve immédiate que l'abonnement fonctionne : un échec d'envoi ne doit
+  // pas faire échouer l'activation (l'abonnement est déjà enregistré).
+  try {
+    await sendTestPush({
+      endpoint: parsed.data.endpoint,
+      p256dh: parsed.data.keys.p256dh,
+      auth: parsed.data.keys.auth,
+    });
+  } catch (err) {
+    console.error('[push/subscribe] notification de test échouée :', err);
+  }
 
   return NextResponse.json({ ok: true });
 }
