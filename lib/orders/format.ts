@@ -19,6 +19,17 @@ export function formatSupplementLabel(s: CartItemSupplement): string {
 }
 
 /**
+ * Code de retrait court : le suffixe de la référence (`EBA-20260706-A3F9` →
+ * « A3F9 »). C'est l'identifiant terrain annoncé par le client ou son livreur —
+ * contrairement au n° du jour (#003) qui repart à 1 chaque matin, la référence
+ * est unique en base, donc le code lève l'ambiguïté entre deux jours (la
+ * recherche du dashboard matche `reference contains`).
+ */
+export function getPickupCode(reference: string): string {
+  return reference.slice(reference.lastIndexOf('-') + 1);
+}
+
+/**
  * Forme "raw" d'une commande telle que reçue depuis un flux SSE :
  * `pickupTime` et `createdAt` sont des chaînes ISO (ou `null` pour pickupTime).
  */

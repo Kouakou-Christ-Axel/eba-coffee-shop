@@ -10,16 +10,33 @@ import prisma from '@/lib/prisma';
 import { getNextDailyNumber, todayDailyDate } from '@/lib/daily-numbering';
 import { upsertCustomerForOrder } from '@/lib/customer-mutations';
 import { awardLoyaltyForOrder } from '@/lib/loyalty-mutations';
-import { createOrderSchema as baseCreateOrderSchema } from '@/lib/schemas/order';
+import {
+  createOrderSchema as baseCreateOrderSchema,
+  orderDriverFieldsSchema,
+} from '@/lib/schemas/order';
+import { normalizeIvorianPhone } from '@/lib/phone';
 import { ORDERS_PAGE_SIZE } from '@/config/constants';
+import type { CartItem } from '@/lib/cart-store';
 
 // ─── Schéma Zod : online (strict, customer obligatoire, pickupTime requis) ────
+//
+// Le bloc livreur est optionnel au checkout (le client peut ne pas encore le
+// connaître) ; il reste modifiable ensuite depuis la page de suivi.
 
-export const createOrderSchema = baseCreateOrderSchema.extend({
-  customerName: z.string().trim().min(2).max(50),
-  customerPhone: z.string().trim().min(8).max(20),
-  pickupTime: z.string().datetime(),
-});
+export const createOrderSchema = baseCreateOrderSchema
+  .extend({
+    customerName: z.string().trim().min(2).max(50),
+    customerPhone: z.string().trim().min(8).max(20),
+    pickupTime: z.string().datetime(),
+  })
+  .extend(orderDriverFieldsSchema.partial().shape)
+  .refine(
+    (d) => ((d.driverName ?? null) === null) === ((d.driverPhone ?? null) === null),
+    {
+      message: 'Nom et téléphone du livreur vont ensemble',
+      path: ['driverPhone'],
+    }
+  );
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 
@@ -54,6 +71,10 @@ export async function createOrder(input: CreateOrderInput) {
           input.customerName
         );
 
+        const driverPhone = input.driverPhone
+          ? (normalizeIvorianPhone(input.driverPhone) ?? input.driverPhone)
+          : null;
+
         const order = await tx.order.create({
           data: {
             reference,
@@ -66,6 +87,9 @@ export async function createOrder(input: CreateOrderInput) {
             orderType: 'TAKEAWAY' satisfies OrderType,
             items: input.items,
             total: input.total,
+            note: input.note ?? null,
+            driverName: input.driverName ?? null,
+            driverPhone,
           },
         });
 
@@ -97,6 +121,53 @@ export async function createOrder(input: CreateOrderInput) {
 
 export async function getOrder(id: string) {
   return prisma.order.findUnique({ where: { id } });
+}
+
+// ─── Vue publique (page de suivi /commande/:id) ───────────────────────────────
+//
+// Sous-ensemble sûr d'une commande, exposé sans authentification : l'`id` cuid
+// non devinable sert de capability URL (page noindex). Dates sérialisées en ISO
+// pour transiter telles quelles entre route handler, server component et
+// composant client de polling.
+
+export type PublicOrderView = {
+  id: string;
+  reference: string;
+  status: OrderStatus;
+  orderType: OrderType;
+  isPaid: boolean;
+  paymentProofUrl: string | null;
+  customerName: string | null;
+  pickupTime: string | null;
+  items: CartItem[];
+  total: number;
+  note: string | null;
+  driverName: string | null;
+  driverPhone: string | null;
+  createdAt: string;
+};
+
+export async function getPublicOrder(
+  id: string
+): Promise<PublicOrderView | null> {
+  const order = await prisma.order.findUnique({ where: { id } });
+  if (!order) return null;
+  return {
+    id: order.id,
+    reference: order.reference,
+    status: order.status,
+    orderType: order.orderType,
+    isPaid: order.isPaid,
+    paymentProofUrl: order.paymentProofUrl,
+    customerName: order.customerName,
+    pickupTime: order.pickupTime?.toISOString() ?? null,
+    items: order.items as unknown as CartItem[],
+    total: order.total,
+    note: order.note,
+    driverName: order.driverName,
+    driverPhone: order.driverPhone,
+    createdAt: order.createdAt.toISOString(),
+  };
 }
 
 // ─── listOrders ───────────────────────────────────────────────────────────────

@@ -37,6 +37,15 @@ export function buildWhatsAppLink(
 }
 
 /**
+ * Lien wa.me SANS destinataire : WhatsApp ouvre le sélecteur de contact avec le
+ * message pré-rempli. Sert au client pour transférer les infos de retrait à son
+ * livreur quand on ne connaît pas (encore) le numéro de celui-ci.
+ */
+export function buildWhatsAppShareLink(message: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(message)}`;
+}
+
+/**
  * Construit le lien Wave pour un montant donné.
  * Format : https://pay.wave.com/m/<MERCHANT_ID>/c/ci/?amount=<montant>
  *
@@ -101,11 +110,21 @@ export function buildWaveRequestMessage(params: {
 export function buildPickupReadyMessage(params: {
   customerName: string | null;
   dailyNumber: number;
+  /** Code de retrait (suffixe de la référence) à annoncer au comptoir. */
+  pickupCode?: string;
+  /** URL publique de suivi (/commande/:id) à joindre au message. */
+  trackingUrl?: string;
 }): string {
-  const { customerName, dailyNumber } = params;
+  const { customerName, dailyNumber, pickupCode, trackingUrl } = params;
   const greeting = customerName ? `Bonjour ${customerName}` : 'Bonjour';
   const number = String(dailyNumber).padStart(3, '0');
-  return `${greeting}, ta commande EBA #${number} est prête. À tout de suite !`;
+  const lines = [
+    `${greeting}, ta commande EBA #${number} est prête. Tu peux venir ou envoyer ton livreur.`,
+  ];
+  if (pickupCode) lines.push(`Code de retrait à annoncer : ${pickupCode}`);
+  if (trackingUrl) lines.push(`Infos et localisation : ${trackingUrl}`);
+  lines.push('À tout de suite !');
+  return lines.join('\n');
 }
 
 /** Message demande de feedback post-livraison. */
@@ -126,4 +145,32 @@ export function buildDriverRequestMessage(params: {
   const greeting = customerName ? `Bonjour ${customerName}` : 'Bonjour';
   const number = String(dailyNumber).padStart(3, '0');
   return `${greeting}, ta commande EBA #${number} est bientôt prête. Tu peux envoyer ton livreur dès maintenant.`;
+}
+
+/**
+ * Message que le CLIENT transfère à son livreur depuis la page de suivi :
+ * code de retrait (identifiant terrain, unique contrairement au n° du jour),
+ * adresse + lien Maps (pour estimer la course avant de partir) et lien de
+ * suivi (statut en direct — inutile de se déplacer avant « Prête »).
+ */
+export function buildDriverShareMessage(params: {
+  pickupCode: string;
+  customerName: string | null;
+  pickupAddress: string | null;
+  pickupMapsUrl: string | null;
+  trackingUrl: string;
+}): string {
+  const { pickupCode, customerName, pickupAddress, pickupMapsUrl, trackingUrl } =
+    params;
+  const who = customerName ? `la commande de ${customerName}` : 'ma commande';
+
+  const lines = [
+    `Bonjour, tu récupères ${who} chez EBA Coffee Shop.`,
+    '',
+    `Code de retrait à donner au comptoir : ${pickupCode}`,
+  ];
+  if (pickupAddress) lines.push(`Adresse : ${pickupAddress}`);
+  if (pickupMapsUrl) lines.push(`Localisation : ${pickupMapsUrl}`);
+  lines.push('', `Statut en direct (pars quand c'est « Prête ») : ${trackingUrl}`);
+  return lines.join('\n');
 }

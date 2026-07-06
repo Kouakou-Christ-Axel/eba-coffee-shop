@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 import type { CartItem } from '@/lib/cart-store';
 import { useCheckoutForm } from '@/lib/hooks/use-checkout-form';
 import { ContactFields } from './_components/contact-fields';
+import { DriverFields } from './_components/driver-fields';
 import { NoteField } from './_components/note-field';
 import { SlotPicker } from './_components/slot-picker';
 
@@ -53,6 +54,17 @@ export function CheckoutForm({ items, total, onBack, onSuccess }: Props) {
         value={values.pickupTime}
         onChange={(iso) => setField('pickupTime', iso)}
         error={errors.pickupTime}
+      />
+
+      <DriverFields
+        name={values.driverName}
+        phone={values.driverPhone}
+        errors={{
+          driverName: errors.driverName,
+          driverPhone: errors.driverPhone,
+        }}
+        onNameChange={(v) => setField('driverName', v)}
+        onPhoneChange={(v) => setField('driverPhone', v)}
       />
 
       <NoteField

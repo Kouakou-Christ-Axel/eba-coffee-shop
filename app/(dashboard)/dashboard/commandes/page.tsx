@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Bike, Coffee, ShoppingBag } from 'lucide-react';
 import { listOrders } from '@/lib/orders';
 import type { OrderSort, PaymentFilter } from '@/lib/orders';
+import { getPickupCode } from '@/lib/orders/format';
 import { parseDateOnlyToUTC, todayDateString } from '@/lib/timezone';
 import type { OrderStatus, OrderType } from '@/generated/prisma/client';
 import {
@@ -209,6 +210,12 @@ export default async function CommandesPage({
                 <TableRow key={order.id}>
                   <TableCell className="font-mono text-sm">
                     #{String(order.dailyNumber).padStart(3, '0')}
+                    <span
+                      className="ml-1.5 rounded bg-primary/10 px-1 text-xs text-primary"
+                      title={`Code de retrait · ${order.reference}`}
+                    >
+                      {getPickupCode(order.reference)}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <span

@@ -27,6 +27,8 @@ export type PreparationOrder = {
   status: 'PREPARING';
   isPaid: boolean;
   driverRequested: boolean;
+  driverName: string | null;
+  driverPhone: string | null;
   createdAt: Date;
 };
 
@@ -67,6 +69,8 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     status: 'PREPARING' as const,
     isPaid: o.isPaid,
     driverRequested: o.driverRequested,
+    driverName: o.driverName,
+    driverPhone: o.driverPhone,
     createdAt: o.createdAt,
   }));
 }

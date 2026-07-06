@@ -18,7 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatSupplementLabel } from '@/lib/orders/format';
+import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
 import type { PreparationOrder } from '@/lib/preparation-queue';
 import { getItemNet } from '@/lib/orders/totals';
 import type { OrderType } from '@/generated/prisma/client';
@@ -66,8 +66,14 @@ export function OrderDetail({
       <div className="flex-1 py-2">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <p className="font-mono text-3xl font-bold tracking-tight">
+            <p className="flex items-baseline gap-2 font-mono text-3xl font-bold tracking-tight">
               #{String(order.dailyNumber).padStart(3, '0')}
+              <span
+                className="rounded bg-primary/10 px-2 text-xl text-primary"
+                title="Code de retrait (annoncé par le client ou son livreur)"
+              >
+                {getPickupCode(order.reference)}
+              </span>
             </p>
             <p className="font-mono text-xs text-muted-foreground">
               {order.reference}
@@ -97,6 +103,13 @@ export function OrderDetail({
                 <Phone className="h-4 w-4" />
                 {order.customerPhone}
               </a>
+            )}
+            {(order.driverName || order.driverPhone) && (
+              <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Bike className="h-4 w-4" />
+                Livreur&nbsp;: {order.driverName ?? 'sans nom'}
+                {order.driverPhone && <> · {order.driverPhone}</>}
+              </p>
             )}
           </div>
 

@@ -7,8 +7,9 @@
 //
 // Les fichiers sont écrits dans `public/uploads/<subdir>/` et exposés en
 // same-origin sous `/uploads/<subdir>/<uuid>.<ext>` (rendu sous CSP `'self'`).
-// Deux familles aujourd'hui : `products` (images produit) et `receipts`
-// (justificatifs de dépense).
+// Trois familles aujourd'hui : `products` (images produit), `receipts`
+// (justificatifs de dépense) et `payment-proofs` (preuves de paiement de
+// commande envoyées par les clients).
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -26,7 +27,7 @@ const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
 const REMOTE_FETCH_TIMEOUT_MS = 15000;
 
 /** Sous-dossiers d'upload autorisés (whitelist — pas de chemin arbitraire). */
-export type UploadSubdir = 'products' | 'receipts';
+export type UploadSubdir = 'products' | 'receipts' | 'payment-proofs';
 
 /**
  * Racine disque des fichiers uploadés : `<cwd>/public/uploads`.
@@ -291,3 +292,7 @@ export const saveReceiptImageFromBase64 = (input: string, mimeType?: string) =>
 /** Justificatif de dépense/apport rapatrié depuis une URL distante (MCP). */
 export const saveReceiptImageFromUrl = (url: string) =>
   saveImageFromUrl(url, 'receipts');
+
+/** Preuve de paiement d'une commande (capture Wave, page publique de suivi). */
+export const savePaymentProofImage = (buffer: Buffer, mimeType: string) =>
+  saveImage(buffer, mimeType, 'payment-proofs');
