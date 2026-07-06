@@ -72,6 +72,7 @@
     "sharp": "^0.35.1",
     "tailwind-merge": "^3.5.0",
     "varlock": "^1.1.0",
+    "web-push": "^3.6.7",
     "xlsx": "^0.18.5",
     "zod": "^4.4.3",
     "zustand": "^5.0.12"
@@ -82,6 +83,7 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/web-push": "^3.6.4",
     "baseline-browser-mapping": "^2.10.29",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.0.3",

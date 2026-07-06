@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import { DashboardSidebar } from '@/components/(dashboard)/dashboard-sidebar';
+import { PushNotificationToggle } from '@/components/(dashboard)/push-notification-toggle';
 
 export default async function DashboardLayout({
   children,
@@ -38,7 +39,8 @@ export default async function DashboardLayout({
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <span className="text-sm font-medium">Dashboard</span>
+          <span className="flex-1 text-sm font-medium">Dashboard</span>
+          <PushNotificationToggle />
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">{children}</div>
       </SidebarInset>
