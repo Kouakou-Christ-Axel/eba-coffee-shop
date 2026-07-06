@@ -193,8 +193,8 @@ export default async function CommandesPage({
               <TableHead>#</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Client</TableHead>
-              <TableHead className="hidden md:table-cell">Téléphone</TableHead>
-              <TableHead className="hidden lg:table-cell">Créneau</TableHead>
+              <TableHead>Téléphone</TableHead>
+              <TableHead>Créneau</TableHead>
               <TableHead className="hidden md:table-cell">Articles</TableHead>
               <TableHead>Total</TableHead>
               <TableHead className="hidden md:table-cell">Paiement</TableHead>
@@ -222,12 +222,8 @@ export default async function CommandesPage({
                     </span>
                   </TableCell>
                   <TableCell>{order.customerName ?? '—'}</TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {order.customerPhone ?? '—'}
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    {formatPickupTime(order.pickupTime)}
-                  </TableCell>
+                  <TableCell>{order.customerPhone ?? '—'}</TableCell>
+                  <TableCell>{formatPickupTime(order.pickupTime)}</TableCell>
                   <TableCell className="hidden md:table-cell">
                     {(order.items as unknown[]).length}
                   </TableCell>
