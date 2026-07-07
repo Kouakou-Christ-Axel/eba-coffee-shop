@@ -692,14 +692,14 @@ export async function setOrderDriver(
 // ─── Preuve de paiement (capture Wave uploadée par le client) ─────────────────
 
 /**
- * Attache la preuve de paiement (URL `/uploads/payment-proofs/…`) à une
- * commande non encore encaissée. La validation reste manuelle en caisse
- * (`setOrderPayment`) : la preuve est un signal, pas un encaissement.
- * Ré-upload autorisé tant que la commande n'est pas payée (remplace l'URL).
+ * Vérifie qu'une commande peut recevoir une preuve de paiement (existe, non
+ * annulée, non encaissée) SANS écrire. Exportée pour que la route puisse
+ * valider la commande AVANT d'écrire l'image sur disque (évite des fichiers
+ * orphelins pour un id bidon) ; `setOrderPaymentProof` refait sa propre garde
+ * juste avant l'écriture (course résiduelle sans conséquence).
  */
-export async function setOrderPaymentProof(
-  id: string,
-  url: string
+export async function assertOrderAcceptsPaymentProof(
+  id: string
 ): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id },
@@ -714,6 +714,19 @@ export async function setOrderPaymentProof(
   if (order.isPaid) {
     throw new OrderMutationError('Commande déjà encaissée', 409);
   }
+}
+
+/**
+ * Attache la preuve de paiement (URL `/uploads/payment-proofs/…`) à une
+ * commande non encore encaissée. La validation reste manuelle en caisse
+ * (`setOrderPayment`) : la preuve est un signal, pas un encaissement.
+ * Ré-upload autorisé tant que la commande n'est pas payée (remplace l'URL).
+ */
+export async function setOrderPaymentProof(
+  id: string,
+  url: string
+): Promise<void> {
+  await assertOrderAcceptsPaymentProof(id);
 
   await prisma.order.update({
     where: { id },

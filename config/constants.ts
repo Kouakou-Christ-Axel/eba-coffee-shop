@@ -20,6 +20,22 @@ export const MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
  */
 export const IMAGE_MAX_DIMENSION = 2200;
 
+/**
+ * Preuve de paiement (capture Wave, page publique de suivi) : plafond dédié de
+ * 1 Mo — bien plus strict que `MAX_UPLOAD_SIZE_BYTES` (uploads staff). L'image
+ * est compressée dans le NAVIGATEUR avant envoi (lib/image-compress.ts,
+ * ~100-300 Ko) ; ce plafond n'est qu'un garde-fou serveur, et il maintient ce
+ * flux public sous la limite par défaut des reverse proxies (nginx : 1 Mo).
+ */
+export const PAYMENT_PROOF_MAX_SIZE_BYTES = 1 * 1024 * 1024;
+
+/**
+ * Compression navigateur de la preuve de paiement : plus grand côté (px) et
+ * qualité JPEG. Une capture Wave reste parfaitement lisible à 1600 px.
+ */
+export const PAYMENT_PROOF_MAX_DIMENSION = 1600;
+export const PAYMENT_PROOF_JPEG_QUALITY = 0.82;
+
 /** Qualité WebP (0-100) à l'encodage des images stockées. */
 export const IMAGE_WEBP_QUALITY = 80;
 

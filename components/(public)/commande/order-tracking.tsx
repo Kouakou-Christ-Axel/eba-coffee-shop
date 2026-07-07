@@ -38,10 +38,12 @@ import {
   buildWhatsAppLink,
   buildWhatsAppShareLink,
 } from '@/lib/contact-links';
+import { compressImage } from '@/lib/image-compress';
 import {
   ORDER_CUSTOMER_NAME_MAX,
   ORDER_CUSTOMER_PHONE_MAX,
   ORDER_TRACKING_POLL_INTERVAL_MS,
+  PAYMENT_PROOF_MAX_SIZE_BYTES,
 } from '@/config/constants';
 import { cn } from '@/lib/utils';
 
@@ -352,15 +354,35 @@ function PaymentSection({
     setError(null);
     setUploading(true);
     try {
+      // Compression navigateur (capture Wave 1-4 Mo → ~100-300 Ko) ; repli sur
+      // le fichier original si le navigateur ne sait pas le décoder.
+      const compressed = await compressImage(file);
+      const toSend = compressed ?? file;
+      if (toSend.size > PAYMENT_PROOF_MAX_SIZE_BYTES) {
+        throw new Error(
+          'Image trop lourde (max 1 Mo) — réessaie avec une capture d’écran'
+        );
+      }
+
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', toSend);
       const res = await fetch(`/api/commandes/${order.id}/preuve-paiement`, {
         method: 'POST',
         body: fd,
       });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (!res.ok || !data.url) {
-        throw new Error(data.error ?? 'Échec de l’envoi');
+      // La réponse peut ne pas être du JSON (ex. page d'erreur d'un proxy).
+      const data = (await res.json().catch(() => null)) as {
+        url?: string;
+        error?: string;
+      } | null;
+      if (!res.ok || !data?.url) {
+        if (data?.error) throw new Error(data.error);
+        if (res.status === 413) {
+          throw new Error(
+            'Image trop lourde pour le serveur — réessaie avec une capture d’écran'
+          );
+        }
+        throw new Error(`Échec de l’envoi (erreur ${res.status})`);
       }
       onOrderChange({ ...order, paymentProofUrl: data.url });
     } catch (err) {
