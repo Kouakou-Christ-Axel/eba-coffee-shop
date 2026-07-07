@@ -27,6 +27,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { PublicOrderView } from '@/lib/orders';
+import { OrderNotifications } from '@/components/(public)/commande/order-notifications';
 import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
 import { getItemGross } from '@/lib/orders/totals';
 import { formatPickupTime } from '@/lib/format-order';
@@ -122,6 +123,9 @@ export function OrderTracking({
       ) : (
         <StatusTimeline currentStep={currentStep} reduceMotion={reduceMotion} />
       )}
+
+      {/* ── Notifications push (statuts en direct) ── */}
+      <OrderNotifications orderId={order.id} isFinal={isFinal} />
 
       {/* ── Code de retrait ── */}
       <div className="rounded-xl border border-foreground/10 bg-default-50 p-5 text-center">
@@ -461,8 +465,8 @@ function PaymentSection({
 
           <p className="text-xs text-foreground/50">
             Après ton paiement Wave, envoie la capture ici — plus besoin de
-            l&apos;envoyer sur WhatsApp. Tu peux aussi payer sur place
-            (espèces ou mobile money).
+            l&apos;envoyer sur WhatsApp. Tu peux aussi payer sur place (espèces
+            ou mobile money).
           </p>
 
           {error && <p className="text-xs text-danger">{error}</p>}

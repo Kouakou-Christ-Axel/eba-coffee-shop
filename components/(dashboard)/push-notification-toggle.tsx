@@ -3,18 +3,11 @@
 import * as React from 'react';
 import { Bell, BellOff, BellRing } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-
-// Clé publique VAPID : exposée côté client (NEXT_PUBLIC_*). Absente en dev tant
-// que .env n'est pas configuré — le bouton se masque alors silencieusement.
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-
-// PushManager.subscribe attend la clé serveur en BufferSource, pas en base64url.
-function urlBase64ToUint8Array(base64Url: string): BufferSource {
-  const padding = '='.repeat((4 - (base64Url.length % 4)) % 4);
-  const base64 = (base64Url + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  return Uint8Array.from(rawData, (c) => c.charCodeAt(0)) as BufferSource;
-}
+import {
+  ensurePushSubscription,
+  getServiceWorkerRegistration,
+  isPushSupported,
+} from '@/lib/push-client';
 
 type Status =
   | 'idle'
@@ -28,15 +21,7 @@ export function PushNotificationToggle() {
   const [pending, setPending] = React.useState(false);
 
   React.useEffect(() => {
-    if (!VAPID_PUBLIC_KEY) {
-      setStatus('unsupported');
-      return;
-    }
-    if (
-      typeof window === 'undefined' ||
-      !('serviceWorker' in navigator) ||
-      !('PushManager' in window)
-    ) {
+    if (!isPushSupported()) {
       setStatus('unsupported');
       return;
     }
@@ -46,28 +31,20 @@ export function PushNotificationToggle() {
       // Le dashboard peut être la toute première page visitée (lien direct,
       // signet) : le SW n'est alors pas encore enregistré par InstallPwa
       // (monté uniquement côté public). `register()` est idempotent.
-      await navigator.serviceWorker.register('/sw.js');
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await getServiceWorkerRegistration();
       const existing = await registration.pushManager.getSubscription();
       setStatus(existing ? 'subscribed' : 'unsubscribed');
     })().catch(() => setStatus('unsubscribed'));
   }, []);
 
   const subscribe = React.useCallback(async () => {
-    if (!VAPID_PUBLIC_KEY) return;
     setPending(true);
     try {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
+      const subscription = await ensurePushSubscription();
+      if (!subscription) {
         setStatus('unsubscribed');
         return;
       }
-
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
 
       await fetch('/api/push/subscribe', {
         method: 'POST',
@@ -86,7 +63,7 @@ export function PushNotificationToggle() {
   const unsubscribe = React.useCallback(async () => {
     setPending(true);
     try {
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await getServiceWorkerRegistration();
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
         await fetch('/api/push/unsubscribe', {

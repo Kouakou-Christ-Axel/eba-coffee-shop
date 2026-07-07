@@ -42,7 +42,7 @@ import { cartItemSchema, updateOrderDetailsSchema } from '@/lib/schemas/order';
 import type { CartItem } from '@/lib/cart-store';
 import type { CartItemInput, OrderTypeInput } from '@/lib/schemas/order';
 import { ROLE_GROUPS } from '@/lib/auth-helpers';
-import { sendPushToRoles } from '@/lib/push-notify';
+import { notifyOrderCustomer, sendPushToRoles } from '@/lib/push-notify';
 
 /**
  * Notifications push (best-effort) : une notification manquée ne doit jamais
@@ -305,6 +305,12 @@ export async function setOrderStatus(
       tag: `order-ready-${id}`,
     });
   }
+
+  // Client abonné depuis la page de suivi : chaque étape le concerne
+  // (préparation, prête, récupérée, annulée). NEW n'est jamais une cible ici.
+  if (newStatus !== 'NEW') {
+    notifyOrderCustomer(id, newStatus);
+  }
 }
 
 // ─── Encaissement / paiement ──────────────────────────────────────────────────
@@ -351,6 +357,15 @@ export async function setOrderPayment(
 
   if (result.count === 0) {
     throw new OrderMutationError('État modifié entre temps, recharger', 409);
+  }
+
+  // Client abonné : paiement validé (fusionné avec le départ en cuisine quand
+  // l'encaissement fait aussi passer NEW → PREPARING). Rien sur un rollback.
+  if (isPaid) {
+    notifyOrderCustomer(
+      id,
+      shouldStartPreparation ? 'PAYMENT_PREPARING' : 'PAYMENT'
+    );
   }
 
   return { startedPreparation: shouldStartPreparation };
@@ -424,7 +439,7 @@ export async function payAndComplete(
     throw new OrderMutationError('Action réservée à la caisse', 403);
   }
 
-  return prisma.$transaction(async (tx) => {
+  const outcome = await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
       where: { id },
       select: { status: true, isPaid: true },
@@ -460,6 +475,12 @@ export async function payAndComplete(
 
     return { alreadyPaid };
   });
+
+  // Après la transaction seulement (jamais dedans) : commande soldée et
+  // récupérée en un geste → dernière notification client, puis désabonnement.
+  notifyOrderCustomer(id, 'COMPLETED');
+
+  return outcome;
 }
 
 // ─── Association d'un client (CRM) à une commande existante ───────────────────

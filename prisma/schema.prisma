@@ -203,6 +203,9 @@ model Order {
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
+  // Appareils clients abonnés aux changements de statut (page de suivi).
+  pushSubscriptions PushSubscription[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -731,16 +734,23 @@ model InventorySettings {
   @@map("inventory_settings")
 }
 
-// ─── Notifications push (backoffice) ───────────────────────────────────────────
-// Un abonnement Web Push par navigateur/appareil (PushSubscription API), lié à
-// l'utilisateur staff qui l'a activé. `endpoint` est unique (identifie
-// l'abonnement côté navigateur) ; `p256dh`/`auth` sont les clés de chiffrement
-// requises par `web-push` pour envoyer une notification. Nettoyé automatiquement
-// (lib/push-notify.ts) quand le navigateur renvoie 404/410 (abonnement expiré).
+// ─── Notifications push (backoffice + client) ──────────────────────────────────
+// Un abonnement Web Push par navigateur/appareil (PushSubscription API), à
+// double usage exclusif :
+//   - `userId` renseigné  → appareil STAFF (nouvelles commandes, prêtes) ;
+//   - `orderId` renseigné → appareil CLIENT suivant UNE commande (changements
+//     de statut, page publique de suivi — capability URL).
+// `endpoint` est unique (identifie l'abonnement côté navigateur) : un même
+// appareil qui se réabonne (autre commande, autre compte) bascule simplement
+// d'usage. `p256dh`/`auth` sont les clés de chiffrement requises par `web-push`.
+// Nettoyé automatiquement (lib/push-notify.ts) quand le navigateur renvoie
+// 404/410 (abonnement expiré), et à la fin de vie de la commande suivie.
 model PushSubscription {
   id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId   String?
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   endpoint  String   @unique
   p256dh    String
   auth      String
@@ -748,5 +758,6 @@ model PushSubscription {
   createdAt DateTime @default(now())
 
   @@index([userId])
+  @@index([orderId])
   @@map("push_subscription")
 }
