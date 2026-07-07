@@ -89,8 +89,8 @@ export function SupplementsEditor({ groups, onChange }: Props) {
         )}
         {groups.map((g, gi) => (
           <div key={gi} className="space-y-3 rounded-lg border p-4">
-            <div className="flex items-end gap-2">
-              <div className="flex-1 space-y-1.5">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="w-full space-y-1.5 sm:w-auto sm:min-w-[160px] sm:flex-1">
                 <Label>Nom du groupe</Label>
                 <Input
                   value={g.name}
@@ -110,7 +110,7 @@ export function SupplementsEditor({ groups, onChange }: Props) {
                         | 'quantity',
                     })
                   }
-                  className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm sm:w-auto"
                 >
                   <option value="single">Choix unique</option>
                   <option value="multiple">Choix multiples</option>
@@ -149,7 +149,7 @@ export function SupplementsEditor({ groups, onChange }: Props) {
             </div>
 
             {g.type !== 'single' && (
-              <div className="flex items-end gap-2">
+              <div className="flex flex-wrap items-end gap-2">
                 <div className="space-y-1.5">
                   <Label>
                     {g.type === 'quantity' ? 'Quantité min' : 'Min à choisir'}
@@ -187,7 +187,7 @@ export function SupplementsEditor({ groups, onChange }: Props) {
                   />
                 </div>
                 {g.type === 'quantity' && (
-                  <p className="pb-2 text-xs text-muted-foreground">
+                  <p className="w-full pb-2 text-xs text-muted-foreground sm:w-auto sm:max-w-[220px]">
                     Pour une quantité fixe (ex. 3 parts), mettez min = max.
                   </p>
                 )}
@@ -197,13 +197,14 @@ export function SupplementsEditor({ groups, onChange }: Props) {
             <div className="space-y-2">
               <Label>Options</Label>
               {g.options.map((o, oi) => (
-                <div key={oi} className="flex items-center gap-2">
+                <div key={oi} className="flex flex-wrap items-center gap-2">
                   <Input
                     placeholder="Nom"
                     value={o.name}
                     onChange={(e) =>
                       updateOption(gi, oi, { name: e.target.value })
                     }
+                    className="w-full sm:w-auto sm:min-w-[120px] sm:flex-1"
                   />
                   <Input
                     type="number"
@@ -216,7 +217,7 @@ export function SupplementsEditor({ groups, onChange }: Props) {
                         price: Number(e.target.value),
                       })
                     }
-                    className="w-32"
+                    className="w-24 sm:w-32"
                   />
                   <label className="flex h-9 shrink-0 items-center gap-1.5 text-xs whitespace-nowrap">
                     <input
