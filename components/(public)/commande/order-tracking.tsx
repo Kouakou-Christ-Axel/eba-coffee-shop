@@ -27,6 +27,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { PublicOrderView } from '@/lib/orders';
+import { OrderNotifications } from '@/components/(public)/commande/order-notifications';
 import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
 import { getItemGross } from '@/lib/orders/totals';
 import { formatPickupTime } from '@/lib/format-order';
@@ -37,10 +38,12 @@ import {
   buildWhatsAppLink,
   buildWhatsAppShareLink,
 } from '@/lib/contact-links';
+import { compressImage } from '@/lib/image-compress';
 import {
   ORDER_CUSTOMER_NAME_MAX,
   ORDER_CUSTOMER_PHONE_MAX,
   ORDER_TRACKING_POLL_INTERVAL_MS,
+  PAYMENT_PROOF_MAX_SIZE_BYTES,
 } from '@/config/constants';
 import { cn } from '@/lib/utils';
 
@@ -122,6 +125,9 @@ export function OrderTracking({
       ) : (
         <StatusTimeline currentStep={currentStep} reduceMotion={reduceMotion} />
       )}
+
+      {/* ── Notifications push (statuts en direct) ── */}
+      <OrderNotifications orderId={order.id} isFinal={isFinal} />
 
       {/* ── Code de retrait ── */}
       <div className="rounded-xl border border-foreground/10 bg-default-50 p-5 text-center">
@@ -348,15 +354,35 @@ function PaymentSection({
     setError(null);
     setUploading(true);
     try {
+      // Compression navigateur (capture Wave 1-4 Mo → ~100-300 Ko) ; repli sur
+      // le fichier original si le navigateur ne sait pas le décoder.
+      const compressed = await compressImage(file);
+      const toSend = compressed ?? file;
+      if (toSend.size > PAYMENT_PROOF_MAX_SIZE_BYTES) {
+        throw new Error(
+          'Image trop lourde (max 1 Mo) — réessaie avec une capture d’écran'
+        );
+      }
+
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', toSend);
       const res = await fetch(`/api/commandes/${order.id}/preuve-paiement`, {
         method: 'POST',
         body: fd,
       });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (!res.ok || !data.url) {
-        throw new Error(data.error ?? 'Échec de l’envoi');
+      // La réponse peut ne pas être du JSON (ex. page d'erreur d'un proxy).
+      const data = (await res.json().catch(() => null)) as {
+        url?: string;
+        error?: string;
+      } | null;
+      if (!res.ok || !data?.url) {
+        if (data?.error) throw new Error(data.error);
+        if (res.status === 413) {
+          throw new Error(
+            'Image trop lourde pour le serveur — réessaie avec une capture d’écran'
+          );
+        }
+        throw new Error(`Échec de l’envoi (erreur ${res.status})`);
       }
       onOrderChange({ ...order, paymentProofUrl: data.url });
     } catch (err) {
@@ -461,8 +487,8 @@ function PaymentSection({
 
           <p className="text-xs text-foreground/50">
             Après ton paiement Wave, envoie la capture ici — plus besoin de
-            l&apos;envoyer sur WhatsApp. Tu peux aussi payer sur place
-            (espèces ou mobile money).
+            l&apos;envoyer sur WhatsApp. Tu peux aussi payer sur place (espèces
+            ou mobile money).
           </p>
 
           {error && <p className="text-xs text-danger">{error}</p>}

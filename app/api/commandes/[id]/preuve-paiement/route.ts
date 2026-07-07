@@ -12,10 +12,11 @@
 // validation MIME/taille, ré-encodage WebP, stockage /uploads/payment-proofs/.
 
 import { NextResponse } from 'next/server';
-import { uploadFileSchema } from '@/lib/schemas/upload';
+import { paymentProofFileSchema } from '@/lib/schemas/upload';
 import { savePaymentProofImage } from '@/lib/uploads';
 import {
   OrderMutationError,
+  assertOrderAcceptsPaymentProof,
   setOrderPaymentProof,
 } from '@/lib/order-mutations';
 
@@ -27,7 +28,7 @@ export async function POST(req: Request, { params }: Params) {
   let file: File;
   try {
     const formData = await req.formData();
-    const parsed = uploadFileSchema.safeParse(formData.get('file'));
+    const parsed = paymentProofFileSchema.safeParse(formData.get('file'));
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.issues[0]?.message ?? 'Fichier invalide' },
@@ -43,6 +44,9 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   try {
+    // Valider la commande AVANT d'écrire sur disque : pas de fichier orphelin
+    // pour un id inexistant/déjà finalisé.
+    await assertOrderAcceptsPaymentProof(id);
     const buffer = Buffer.from(await file.arrayBuffer());
     const url = await savePaymentProofImage(buffer, file.type);
     await setOrderPaymentProof(id, url);

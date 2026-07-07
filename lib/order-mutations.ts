@@ -42,7 +42,7 @@ import { cartItemSchema, updateOrderDetailsSchema } from '@/lib/schemas/order';
 import type { CartItem } from '@/lib/cart-store';
 import type { CartItemInput, OrderTypeInput } from '@/lib/schemas/order';
 import { ROLE_GROUPS } from '@/lib/auth-helpers';
-import { sendPushToRoles } from '@/lib/push-notify';
+import { notifyOrderCustomer, sendPushToRoles } from '@/lib/push-notify';
 
 /**
  * Notifications push (best-effort) : une notification manquée ne doit jamais
@@ -305,6 +305,12 @@ export async function setOrderStatus(
       tag: `order-ready-${id}`,
     });
   }
+
+  // Client abonné depuis la page de suivi : chaque étape le concerne
+  // (préparation, prête, récupérée, annulée). NEW n'est jamais une cible ici.
+  if (newStatus !== 'NEW') {
+    notifyOrderCustomer(id, newStatus);
+  }
 }
 
 // ─── Encaissement / paiement ──────────────────────────────────────────────────
@@ -351,6 +357,15 @@ export async function setOrderPayment(
 
   if (result.count === 0) {
     throw new OrderMutationError('État modifié entre temps, recharger', 409);
+  }
+
+  // Client abonné : paiement validé (fusionné avec le départ en cuisine quand
+  // l'encaissement fait aussi passer NEW → PREPARING). Rien sur un rollback.
+  if (isPaid) {
+    notifyOrderCustomer(
+      id,
+      shouldStartPreparation ? 'PAYMENT_PREPARING' : 'PAYMENT'
+    );
   }
 
   return { startedPreparation: shouldStartPreparation };
@@ -424,7 +439,7 @@ export async function payAndComplete(
     throw new OrderMutationError('Action réservée à la caisse', 403);
   }
 
-  return prisma.$transaction(async (tx) => {
+  const outcome = await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
       where: { id },
       select: { status: true, isPaid: true },
@@ -460,6 +475,12 @@ export async function payAndComplete(
 
     return { alreadyPaid };
   });
+
+  // Après la transaction seulement (jamais dedans) : commande soldée et
+  // récupérée en un geste → dernière notification client, puis désabonnement.
+  notifyOrderCustomer(id, 'COMPLETED');
+
+  return outcome;
 }
 
 // ─── Association d'un client (CRM) à une commande existante ───────────────────
@@ -671,14 +692,14 @@ export async function setOrderDriver(
 // ─── Preuve de paiement (capture Wave uploadée par le client) ─────────────────
 
 /**
- * Attache la preuve de paiement (URL `/uploads/payment-proofs/…`) à une
- * commande non encore encaissée. La validation reste manuelle en caisse
- * (`setOrderPayment`) : la preuve est un signal, pas un encaissement.
- * Ré-upload autorisé tant que la commande n'est pas payée (remplace l'URL).
+ * Vérifie qu'une commande peut recevoir une preuve de paiement (existe, non
+ * annulée, non encaissée) SANS écrire. Exportée pour que la route puisse
+ * valider la commande AVANT d'écrire l'image sur disque (évite des fichiers
+ * orphelins pour un id bidon) ; `setOrderPaymentProof` refait sa propre garde
+ * juste avant l'écriture (course résiduelle sans conséquence).
  */
-export async function setOrderPaymentProof(
-  id: string,
-  url: string
+export async function assertOrderAcceptsPaymentProof(
+  id: string
 ): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id },
@@ -693,6 +714,19 @@ export async function setOrderPaymentProof(
   if (order.isPaid) {
     throw new OrderMutationError('Commande déjà encaissée', 409);
   }
+}
+
+/**
+ * Attache la preuve de paiement (URL `/uploads/payment-proofs/…`) à une
+ * commande non encore encaissée. La validation reste manuelle en caisse
+ * (`setOrderPayment`) : la preuve est un signal, pas un encaissement.
+ * Ré-upload autorisé tant que la commande n'est pas payée (remplace l'URL).
+ */
+export async function setOrderPaymentProof(
+  id: string,
+  url: string
+): Promise<void> {
+  await assertOrderAcceptsPaymentProof(id);
 
   await prisma.order.update({
     where: { id },

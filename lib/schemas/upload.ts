@@ -7,11 +7,17 @@
 // taille est centralisé dans config/constants.ts (ré-exporté ci-dessous).
 
 import { z } from 'zod';
-import { MAX_UPLOAD_SIZE_BYTES } from '@/config/constants';
+import {
+  MAX_UPLOAD_SIZE_BYTES,
+  PAYMENT_PROOF_MAX_SIZE_BYTES,
+} from '@/config/constants';
 
-export { MAX_UPLOAD_SIZE_BYTES };
+export { MAX_UPLOAD_SIZE_BYTES, PAYMENT_PROOF_MAX_SIZE_BYTES };
 
 const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
+const PAYMENT_PROOF_MAX_SIZE_MB = Math.round(
+  PAYMENT_PROOF_MAX_SIZE_BYTES / (1024 * 1024)
+);
 
 // ─── MIME types autorisés en entrée (whitelist) ───────────────────────────────
 
@@ -76,6 +82,24 @@ export const uploadFileSchema = z
   });
 
 export type UploadFileInput = z.infer<typeof uploadFileSchema>;
+
+// ─── Preuve de paiement (page publique de suivi) ──────────────────────────────
+//
+// Plafond dédié bien plus strict (1 Mo, cf. config/constants.ts) : l'image est
+// déjà compressée dans le NAVIGATEUR (lib/image-compress.ts) avant d'arriver
+// ici. Ce schéma n'est qu'un garde-fou serveur, pas le mécanisme de réduction.
+
+export const paymentProofFileSchema = z
+  .instanceof(File, { message: 'Fichier manquant' })
+  .refine((file) => isAllowedImageMimeType(file.type), {
+    message: 'Format non supporté (JPEG, PNG, WebP, AVIF, HEIC)',
+  })
+  .refine((file) => file.size > 0, { message: 'Fichier vide' })
+  .refine((file) => file.size <= PAYMENT_PROOF_MAX_SIZE_BYTES, {
+    message: `Image trop lourde (max ${PAYMENT_PROOF_MAX_SIZE_MB} Mo) — réessaie avec une capture d’écran`,
+  });
+
+export type PaymentProofFileInput = z.infer<typeof paymentProofFileSchema>;
 
 // ─── URL/chemin d'image d'un produit ──────────────────────────────────────────
 //

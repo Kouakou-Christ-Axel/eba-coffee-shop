@@ -52,3 +52,5 @@ generated/prisma
 
 # Claude Code worktrees and scratch
 /.claude/
+# ESLint cache
+.eslintcache

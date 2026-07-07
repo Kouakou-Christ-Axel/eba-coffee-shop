@@ -15,6 +15,9 @@ import {
   orderDriverFieldsSchema,
 } from '@/lib/schemas/order';
 import { normalizeIvorianPhone } from '@/lib/phone';
+import { ROLE_GROUPS } from '@/lib/auth-helpers';
+import { sendPushToRoles } from '@/lib/push-notify';
+import { getPickupCode } from '@/lib/orders/format';
 import { ORDERS_PAGE_SIZE } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
 
@@ -40,7 +43,8 @@ export const createOrderSchema = baseCreateOrderSchema
   })
   .extend(orderDriverFieldsSchema.partial().shape)
   .refine(
-    (d) => ((d.driverName ?? null) === null) === ((d.driverPhone ?? null) === null),
+    (d) =>
+      ((d.driverName ?? null) === null) === ((d.driverPhone ?? null) === null),
     {
       message: 'Nom et téléphone du livreur vont ensemble',
       path: ['driverPhone'],
@@ -70,7 +74,7 @@ export async function createOrder(input: CreateOrderInput) {
 
   for (let attempt = 0; attempt < MAX_DAILY_NUMBER_RETRIES; attempt++) {
     try {
-      return await prisma.$transaction(async (tx) => {
+      const created = await prisma.$transaction(async (tx) => {
         const dailyNumber = await getNextDailyNumber(tx, dailyDate);
         const reference = generateOrderReference();
         const customerId = await upsertCustomerForOrder(
@@ -112,6 +116,25 @@ export async function createOrder(input: CreateOrderInput) {
 
         return order;
       });
+
+      // Push staff (best-effort, jamais bloquant) : les commandes EN LIGNE
+      // arrivent sans personne devant l'écran caisse — c'est le cas qui
+      // justifie la notification (le walk-in est notifié par
+      // createCashierOrder, lib/order-mutations.ts).
+      sendPushToRoles(ROLE_GROUPS.DASHBOARD, {
+        title: 'Nouvelle commande en ligne',
+        body:
+          `#${String(created.dailyNumber).padStart(3, '0')} · ${getPickupCode(created.reference)}` +
+          ` · ${created.total} FCFA` +
+          `${created.customerName ? ` · ${created.customerName}` : ''}` +
+          `${created.orderType === 'DELIVERY' ? ' · livreur client' : ''}`,
+        url: '/dashboard/caisse',
+        tag: `order-${created.id}`,
+      }).catch((err) => {
+        console.error('[orders] notification push échouée :', err);
+      });
+
+      return created;
     } catch (err) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
