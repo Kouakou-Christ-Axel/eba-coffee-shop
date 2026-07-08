@@ -2,6 +2,7 @@
 
 import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { ZodError } from 'zod';
 import { auth } from '@/lib/auth';
 import * as menu from '@/lib/menu-mutations';
 import type { ProductInput, ProductUpdate } from '@/lib/menu-mutations';
@@ -11,6 +12,20 @@ async function requireAdmin() {
   if (!session || session.user.role !== 'ADMIN') {
     throw new Error('Non autorisé');
   }
+}
+
+// Next.js redacte en production le message de toute erreur qui *traverse*
+// une Server Action (générique « An error occurred in the Server
+// Components render… », quel que soit le type d'erreur) : un throw ne suffit
+// pas à faire remonter un message utile à l'admin. Une erreur de validation
+// (ex. deux options du même nom dans un groupe) est un cas ATTENDU, pas une
+// panne — on l'attrape ici et on la RENVOIE (valeur normale, non redactée)
+// plutôt que de la laisser remonter comme exception.
+function formatMutationError(err: unknown): string {
+  if (err instanceof ZodError) {
+    return [...new Set(err.issues.map((i) => i.message))].join(' ');
+  }
+  return err instanceof Error ? err.message : 'Erreur inattendue';
 }
 
 function revalidateMenu() {
@@ -56,15 +71,28 @@ export async function moveCategoryAction(id: string, direction: 'up' | 'down') {
 
 // ── Produits ──
 
-export async function createProductAction(input: ProductInput) {
+export async function createProductAction(
+  input: ProductInput
+): Promise<{ error: string } | undefined> {
   await requireAdmin();
-  await menu.createProduct(input);
+  try {
+    await menu.createProduct(input);
+  } catch (err) {
+    return { error: formatMutationError(err) };
+  }
   revalidateMenu();
 }
 
-export async function updateProductAction(id: string, input: ProductUpdate) {
+export async function updateProductAction(
+  id: string,
+  input: ProductUpdate
+): Promise<{ error: string } | undefined> {
   await requireAdmin();
-  await menu.updateProduct(id, input);
+  try {
+    await menu.updateProduct(id, input);
+  } catch (err) {
+    return { error: formatMutationError(err) };
+  }
   revalidateMenu();
 }
 

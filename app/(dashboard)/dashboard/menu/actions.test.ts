@@ -35,6 +35,7 @@ vi.mock('@/lib/menu-mutations', () => ({
   resumeProduct: vi.fn(),
 }));
 
+import { ZodError } from 'zod';
 import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import * as mutations from '@/lib/menu-mutations';
@@ -43,6 +44,7 @@ import {
   toggleCategoryAvailabilityAction,
   deleteCategoryAction,
   createProductAction,
+  updateProductAction,
   toggleProductAvailabilityAction,
   deleteProductAction,
   restockProductAction,
@@ -169,6 +171,52 @@ describe('Menu Server Actions — happy path + revalidate', () => {
     await toggleProductAvailabilityAction('p1');
     expect(mutations.toggleProductAvailability).toHaveBeenCalledWith('p1');
     expect(mockRevalidate).toHaveBeenCalledWith('/api/menu');
+  });
+
+  // Régression : une erreur de validation (ex. deux options du même nom dans
+  // un groupe) est un cas ATTENDU — l'action doit la RENVOYER (pas la laisser
+  // remonter comme exception), car Next.js redacte en production le message
+  // de toute erreur qui traverse une Server Action, la rendant illisible pour
+  // l'admin (cf. formatMutationError, actions.ts).
+  it('updateProductAction : une erreur de validation est renvoyée, pas jetée', async () => {
+    const zodError = new ZodError([
+      {
+        code: 'custom',
+        message:
+          'Deux options ne peuvent pas porter le même nom dans un groupe',
+        path: ['supplementGroups', 0, 'options'],
+      },
+    ]);
+    (
+      mutations.updateProduct as MockedFunction<typeof mutations.updateProduct>
+    ).mockRejectedValueOnce(zodError);
+
+    const result = await updateProductAction('p1', {
+      name: 'Tartelettes x3',
+    } as never);
+
+    expect(result).toEqual({
+      error: 'Deux options ne peuvent pas porter le même nom dans un groupe',
+    });
+    // Pas de revalidation sur un échec de validation.
+    expect(mockRevalidate).not.toHaveBeenCalled();
+  });
+
+  it('createProductAction : une erreur non-Zod est renvoyée avec son message', async () => {
+    (
+      mutations.createProduct as MockedFunction<typeof mutations.createProduct>
+    ).mockRejectedValueOnce(new Error('Produit introuvable'));
+
+    const result = await createProductAction({
+      categoryId: 'cat1',
+      name: 'X',
+      description: 'd',
+      price: 100,
+      imageUrl: null,
+      supplementGroups: [],
+    });
+
+    expect(result).toEqual({ error: 'Produit introuvable' });
   });
 
   it('deleteProductAction → mutation + revalidate', async () => {
