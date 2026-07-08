@@ -91,6 +91,14 @@ const mockSupGroupFindMany = prisma.supplementGroup.findMany as MockedFunction<
 const mockSupGroupCreate = prisma.supplementGroup.create as MockedFunction<
   typeof prisma.supplementGroup.create
 >;
+const mockSupOptionUpdate = prisma.supplementOption.update as MockedFunction<
+  typeof prisma.supplementOption.update
+>;
+const mockSupOptionCreate = prisma.supplementOption.create as MockedFunction<
+  typeof prisma.supplementOption.create
+>;
+const mockSupOptionDeleteMany = prisma.supplementOption
+  .deleteMany as MockedFunction<typeof prisma.supplementOption.deleteMany>;
 
 describe('slugify', () => {
   it('met en minuscules et remplace les espaces par des tirets', () => {
@@ -434,6 +442,87 @@ describe('updateProduct', () => {
       where: { id: 'p1' },
       data: { categoryId: 'cat2' },
     });
+  });
+
+  // Régression : deux options portant le même nom en base (données
+  // historiques corrompues) empêchaient toute suppression du doublon — la
+  // Map par nom collapsait les deux lignes en une seule cible, l'autre
+  // survivait indéfiniment (et faisait échouer le décrément de stock au
+  // paiement par ambiguïté, cf. lib/order-mutations.ts). L'appariement doit
+  // consommer une file par nom, pas une valeur unique.
+  it('supprime le doublon quand deux options existantes partagent un nom et qu’une seule est soumise', async () => {
+    mockProdFindUnique.mockResolvedValue({ id: 'p1' } as never);
+    mockProdUpdate.mockResolvedValue({ id: 'p1' } as never);
+    mockSupGroupFindMany.mockResolvedValue([
+      {
+        id: 'g1',
+        name: 'Choisissez vos goûts',
+        options: [
+          {
+            id: 'opt-disabled',
+            name: 'Cacahuète vanille',
+            price: 0,
+            available: false,
+            stockQuantity: null,
+          },
+          {
+            id: 'opt-active',
+            name: 'Cacahuète vanille',
+            price: 0,
+            available: true,
+            stockQuantity: 12,
+          },
+          {
+            id: 'opt-bissap',
+            name: 'Bissap',
+            price: 0,
+            available: true,
+            stockQuantity: 3,
+          },
+        ],
+      },
+    ] as never);
+
+    await updateProduct('p1', {
+      supplementGroups: [
+        {
+          name: 'Choisissez vos goûts',
+          type: 'quantity',
+          required: true,
+          available: true,
+          minSelect: 3,
+          maxSelect: 3,
+          options: [
+            {
+              name: 'Cacahuète vanille',
+              price: 0,
+              available: true,
+              stockQuantity: 12,
+            },
+            { name: 'Bissap', price: 0, available: true, stockQuantity: 3 },
+          ],
+        },
+      ],
+    });
+
+    // Une seule des deux lignes "Cacahuète vanille" est mise à jour (l'ordre
+    // dans lequel Prisma les a retournées, peu importe laquelle exactement),
+    // l'autre est supprimée — jamais les deux mises à jour, jamais aucune
+    // supprimée.
+    expect(mockSupOptionUpdate).toHaveBeenCalledWith({
+      where: { id: 'opt-disabled' },
+      data: expect.objectContaining({
+        name: 'Cacahuète vanille',
+        available: true,
+      }),
+    });
+    expect(mockSupOptionUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'opt-active' } })
+    );
+    expect(mockSupOptionDeleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['opt-active'] } },
+    });
+    expect(mockSupOptionCreate).not.toHaveBeenCalled();
   });
 });
 

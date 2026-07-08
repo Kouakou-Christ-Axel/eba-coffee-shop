@@ -313,21 +313,25 @@ async function updateSupplementGroups(
         data: groupData,
       });
 
-      const currentOptionByName = new Map(
-        match.options.map((o) => [o.name, o])
-      );
-      const keepOptionNames = new Set(g.options.map((o) => o.name));
-      const removedOptionIds = match.options
-        .filter((o) => !keepOptionNames.has(o.name))
-        .map((o) => o.id);
-      if (removedOptionIds.length > 0) {
-        await tx.supplementOption.deleteMany({
-          where: { id: { in: removedOptionIds } },
-        });
+      // Appariement par nom, mais via une FILE par nom (pas une valeur
+      // unique) : si le nom est dupliqué en base (données historiques —
+      // c'est arrivé) ou soumis plusieurs fois, chaque option soumise ne
+      // consomme qu'UNE ligne existante correspondante ; les lignes
+      // restantes (nom disparu, ou surplus d'un doublon) sont supprimées
+      // après coup. Une simple Map à valeur unique collapsait silencieusement
+      // les doublons et rendait leur suppression impossible — un « goût »
+      // désactivé dupliqué ne pouvait jamais être retiré, y compris en le
+      // supprimant du formulaire et en sauvegardant (cf. le bug qui a bloqué
+      // des paiements par ambiguïté de décrément, lib/order-mutations.ts).
+      const currentOptionsByName = new Map<string, typeof match.options>();
+      for (const o of match.options) {
+        const queue = currentOptionsByName.get(o.name) ?? [];
+        queue.push(o);
+        currentOptionsByName.set(o.name, queue);
       }
 
       for (const o of g.options) {
-        const optionMatch = currentOptionByName.get(o.name);
+        const optionMatch = currentOptionsByName.get(o.name)?.shift();
         const optionData = {
           name: o.name,
           price: o.price,
@@ -344,6 +348,15 @@ async function updateSupplementGroups(
             data: { ...optionData, groupId: match.id },
           });
         }
+      }
+
+      const removedOptionIds = [...currentOptionsByName.values()]
+        .flat()
+        .map((o) => o.id);
+      if (removedOptionIds.length > 0) {
+        await tx.supplementOption.deleteMany({
+          where: { id: { in: removedOptionIds } },
+        });
       }
     }
 

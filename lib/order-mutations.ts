@@ -101,9 +101,16 @@ export class StockShortageError extends OrderMutationError {
 // jamais bloquer, et l'arithmétique SQL (`NULL - n = NULL`) laisse la colonne
 // inchangée après le `decrement` — pas besoin de branche séparée.
 //
-// Options résolues par (produit, nom de groupe, nom d'option), comme
-// `buildOrderItemsFromMenu` ci-dessus (le panier ne connaît pas les id
-// internes des options).
+// Options résolues par (produit, nom de groupe, nom d'option) puisque le
+// panier ne connaît pas les id internes des options — MAIS deux options
+// peuvent légitimement porter le même nom dans un même groupe (ex. un ancien
+// « goût » désactivé conservé après renommage, cf. `updateSupplementGroups`
+// qui apparie par nom). Un `updateMany` par nom matcherait alors les deux
+// lignes à la fois : `count` vaudrait 2 et non 1, et un paiement pourtant
+// honorable serait refusé à tort. On résout donc d'abord l'id de l'option
+// *disponible* (déterministe, la plus ancienne) avant de décrémenter cet id
+// précis — la garde atomique et la sérialisation de concurrence restent
+// intactes, seule l'ambiguïté du nom est levée en amont.
 async function decrementStockForOrderItems(
   tx: Prisma.TransactionClient,
   items: CartItem[]
@@ -127,10 +134,23 @@ async function decrementStockForOrderItems(
 
     for (const supplement of item.supplements) {
       const needed = (supplement.quantity ?? 1) * item.quantity;
-      const optionResult = await tx.supplementOption.updateMany({
+      const option = await tx.supplementOption.findFirst({
         where: {
           name: supplement.optionName,
+          available: true,
           group: { productId: item.productId, name: supplement.groupName },
+        },
+        orderBy: { id: 'asc' },
+        select: { id: true },
+      });
+      if (!option) {
+        throw new StockShortageError(
+          `Option indisponible pour « ${item.productName} — ${supplement.optionName} »`
+        );
+      }
+      const optionResult = await tx.supplementOption.updateMany({
+        where: {
+          id: option.id,
           OR: [{ stockQuantity: null }, { stockQuantity: { gte: needed } }],
         },
         data: { stockQuantity: { decrement: needed } },
@@ -346,7 +366,12 @@ export async function buildOrderItemsFromMenu(
 
     const supplements = (ref.supplements ?? []).map((s) => {
       const group = product.supplements.find((g) => g.name === s.groupName);
-      const option = group?.options.find((o) => o.name === s.optionName);
+      // Deux options peuvent partager un nom dans un même groupe (renommage,
+      // ancien « goût » désactivé conservé) : on préfère toujours l'option
+      // disponible, cohérent avec le décrément au paiement (§ ci-dessus).
+      const option =
+        group?.options.find((o) => o.name === s.optionName && o.available) ??
+        group?.options.find((o) => o.name === s.optionName);
       if (!group || !option) {
         throw new Error(
           `Supplément introuvable pour « ${product.name} » : ` +
