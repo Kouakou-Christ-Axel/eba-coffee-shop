@@ -19,6 +19,7 @@ import {
   ShoppingBag,
   UtensilsCrossed,
   Users,
+  Vote,
   Wallet,
 } from 'lucide-react';
 
@@ -116,6 +117,12 @@ const navItems: NavItem[] = [
     href: '/dashboard/inventaire',
     icon: Boxes,
     roles: ['ADMIN', 'CASHIER', 'KITCHEN'],
+  },
+  {
+    label: 'Sondages',
+    href: '/dashboard/sondages',
+    icon: Vote,
+    roles: ['ADMIN'],
   },
   {
     label: 'Paramètres',

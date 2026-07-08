@@ -114,3 +114,35 @@ export {
 
 export type { InventorySettings } from '@/lib/inventory-settings';
 export { inventorySettingsSchema } from '@/lib/inventory-settings';
+
+// ─── Sondages ───────────────────────────────────────────────────────────────────
+
+export type {
+  PollStatusInput,
+  PollResultsVisibilityInput,
+  PollSuggestionStatusInput,
+  PollOptionInput,
+  PollOptionUpdateInput,
+  PollInput,
+  PollUpdateInput,
+  PollStatusUpdateInput,
+  PollFiltersInput,
+  PollSuggestionSubmitInput,
+  PollSuggestionModerationInput,
+  CastVoteInput,
+} from '@/lib/schemas/poll';
+
+export {
+  pollStatusSchema,
+  pollResultsVisibilitySchema,
+  pollSuggestionStatusSchema,
+  pollOptionInputSchema,
+  pollOptionUpdateSchema,
+  pollInputSchema,
+  pollUpdateSchema,
+  pollStatusUpdateSchema,
+  pollFiltersSchema,
+  pollSuggestionSubmitSchema,
+  pollSuggestionModerationSchema,
+  castVoteSchema,
+} from '@/lib/schemas/poll';

@@ -166,6 +166,37 @@ import {
   inventoryItemInputSchema,
 } from '@/lib/schemas/inventory';
 import { inventorySettingsSchema } from '@/lib/inventory-settings';
+import {
+  getPollsAdmin,
+  getPollAdmin,
+  getPollResults,
+  listSuggestionsAdmin,
+  getSuggestion,
+} from '@/lib/polls';
+import {
+  createPoll,
+  updatePoll,
+  setPollStatus,
+  deletePoll,
+  createPollOption,
+  updatePollOption,
+  movePollOption,
+  deletePollOption,
+  moderatePollSuggestion,
+} from '@/lib/poll-mutations';
+import {
+  pollInputSchema,
+  pollUpdateSchema,
+  pollStatusUpdateSchema,
+  pollOptionInputSchema,
+  pollOptionUpdateSchema,
+  pollSuggestionModerationSchema,
+  pollFiltersSchema,
+} from '@/lib/schemas/poll';
+import {
+  savePollOptionImageFromBase64,
+  savePollOptionImageFromUrl,
+} from '@/lib/uploads';
 
 // ─── Type d'un outil ────────────────────────────────────────────────────────
 
@@ -1546,6 +1577,217 @@ export const tools: McpTool[] = [
     handler: async (args) => {
       await updateInventorySettings(args);
       return getInventorySettings();
+    },
+  },
+
+  // — Sondages (moteur générique de vote) —
+  {
+    name: 'list_polls',
+    title: 'Lister les sondages',
+    description:
+      'Renvoie les sondages avec leur `id`, statut, nombre d’options, de votes ' +
+      'et de suggestions en attente. Filtrable par `status` (DRAFT/OPEN/CLOSED) ' +
+      'et `search` (titre).',
+    inputSchema: pollFiltersSchema,
+    readOnly: true,
+    handler: (args) => getPollsAdmin(args as Parameters<typeof getPollsAdmin>[0]),
+  },
+  {
+    name: 'get_poll',
+    title: 'Lire un sondage',
+    description:
+      'Renvoie le détail d’un sondage : ses options (y compris supprimées), le ' +
+      'décompte des votes par option et le nombre de suggestions en attente.',
+    inputSchema: z.object({ id: idSchema }),
+    readOnly: true,
+    handler: (args) => getPollAdmin((args as { id: string }).id),
+  },
+  {
+    name: 'get_poll_results',
+    title: 'Lire les résultats d’un sondage',
+    description:
+      'Renvoie le décompte des votes par option (nombre + pourcentage) et le ' +
+      'total de votes pour un sondage.',
+    inputSchema: z.object({ id: idSchema }),
+    readOnly: true,
+    handler: (args) => getPollResults((args as { id: string }).id),
+  },
+  {
+    name: 'create_poll',
+    title: 'Créer un sondage',
+    description:
+      'Crée un sondage générique avec ses options (au moins 2). `allowSuggestions` ' +
+      'active la collecte de suggestions de la communauté sur ce sondage. ' +
+      '`resultsVisibility` ∈ LIVE (résultats visibles pendant le vote) / ' +
+      'AFTER_CLOSE (défaut, résultats visibles seulement une fois clôturé). Le ' +
+      'sondage est créé en statut DRAFT — utilise `set_poll_status` pour l’ouvrir.',
+    inputSchema: pollInputSchema,
+    readOnly: false,
+    handler: (args) => createPoll(args),
+  },
+  {
+    name: 'update_poll',
+    title: 'Modifier un sondage',
+    description:
+      'Met à jour les champs scalaires d’un sondage de façon PARTIELLE (titre, ' +
+      'description, allowSuggestions, resultsVisibility, opensAt, closesAt). Les ' +
+      'options se gèrent via `create_poll_option`/`update_poll_option`/ ' +
+      '`move_poll_option`/`delete_poll_option`.',
+    inputSchema: pollUpdateSchema.extend({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, ...rest } = args as { id: string } & Record<string, unknown>;
+      return updatePoll(id, rest);
+    },
+  },
+  {
+    name: 'set_poll_status',
+    title: 'Ouvrir/clôturer un sondage',
+    description:
+      'Change le statut d’un sondage : DRAFT (préparation, peut déjà collecter ' +
+      'des suggestions), OPEN (vote ouvert) ou CLOSED (clôturé, résultats figés).',
+    inputSchema: pollStatusUpdateSchema.extend({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, ...rest } = args as { id: string; status: 'DRAFT' | 'OPEN' | 'CLOSED' };
+      return setPollStatus(id, rest);
+    },
+  },
+  {
+    name: 'delete_poll',
+    title: 'Supprimer un sondage',
+    description:
+      'Supprime définitivement un sondage. Refusé si le sondage n’est pas en ' +
+      'DRAFT ou a déjà reçu des votes — clôture-le à la place avec `set_poll_status`.',
+    inputSchema: z.object({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => deletePoll((args as { id: string }).id),
+  },
+  {
+    name: 'create_poll_option',
+    title: 'Ajouter une option à un sondage',
+    description:
+      'Ajoute une option de vote à un sondage existant (`pollId`). `label` ' +
+      'requis, `description`/`imageUrl` optionnels.',
+    inputSchema: pollOptionInputSchema.extend({ pollId: idSchema }),
+    readOnly: false,
+    handler: (args) => {
+      const { pollId, ...rest } = args as { pollId: string } & Record<
+        string,
+        unknown
+      >;
+      return createPollOption(pollId, rest);
+    },
+  },
+  {
+    name: 'update_poll_option',
+    title: 'Modifier une option de sondage',
+    description:
+      'Met à jour une option de façon PARTIELLE (label, description, imageUrl).',
+    inputSchema: pollOptionUpdateSchema.extend({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, ...rest } = args as { id: string } & Record<string, unknown>;
+      return updatePollOption(id, rest);
+    },
+  },
+  {
+    name: 'move_poll_option',
+    title: 'Réordonner une option de sondage',
+    description:
+      'Déplace une option d’un cran (haut/bas) dans l’ordre d’affichage de son ' +
+      'sondage.',
+    inputSchema: z.object({
+      id: idSchema,
+      direction: z.enum(['up', 'down']),
+    }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, direction } = args as { id: string; direction: 'up' | 'down' };
+      return movePollOption(id, direction);
+    },
+  },
+  {
+    name: 'delete_poll_option',
+    title: 'Supprimer une option de sondage',
+    description:
+      'Retire une option d’un sondage (suppression douce : les votes déjà ' +
+      'enregistrés sur cette option sont conservés).',
+    inputSchema: z.object({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => deletePollOption((args as { id: string }).id),
+  },
+  {
+    name: 'set_poll_option_image',
+    title: 'Illustrer une option de sondage',
+    description:
+      'Associe une image à une option de sondage. Deux modes : (1) `imageUrl` — ' +
+      'une URL http(s) est TÉLÉCHARGÉE côté serveur puis stockée localement (un ' +
+      'chemin `/uploads/...` déjà local est conservé) ; (2) `imageBase64` (base64 ' +
+      'brut ou data URI) + `mimeType`. Formats : ' +
+      ALLOWED_IMAGE_MIME_TYPES.join(', ') +
+      ' (converties automatiquement en WebP, redimensionnées, max 25 MB).',
+    inputSchema: z
+      .object({
+        id: idSchema,
+        imageBase64: z.string().min(1).optional(),
+        mimeType: z.enum(ALLOWED_IMAGE_MIME_TYPES).optional(),
+        imageUrl: imageUrlSchema.optional(),
+      })
+      .refine((v) => Boolean(v.imageBase64) || Boolean(v.imageUrl), {
+        message: 'Fournis soit `imageBase64`, soit `imageUrl`.',
+      }),
+    readOnly: false,
+    handler: async (args) => {
+      const { id, ...image } = args as {
+        id: string;
+        imageBase64?: string;
+        mimeType?: string;
+        imageUrl?: string;
+      };
+      const url = await resolveStoredImageUrl(
+        image,
+        savePollOptionImageFromBase64,
+        savePollOptionImageFromUrl
+      );
+      return updatePollOption(id, { imageUrl: url });
+    },
+  },
+  {
+    name: 'list_poll_suggestions',
+    title: 'Lister les suggestions de la communauté',
+    description:
+      'Renvoie les suggestions (pâtisseries proposées par les clients) ' +
+      'filtrables par `pollId` et `status` (PENDING/APPROVED/REJECTED). Utilise ' +
+      '`moderate_poll_suggestion` pour approuver/rejeter.',
+    inputSchema: z.object({
+      pollId: idSchema.optional(),
+      status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
+      page: z.number().int().positive().optional(),
+    }),
+    readOnly: true,
+    handler: (args) => listSuggestionsAdmin(args as Record<string, unknown>),
+  },
+  {
+    name: 'get_poll_suggestion',
+    title: 'Lire une suggestion',
+    description: 'Renvoie le détail d’une suggestion de la communauté.',
+    inputSchema: z.object({ id: idSchema }),
+    readOnly: true,
+    handler: (args) => getSuggestion((args as { id: string }).id),
+  },
+  {
+    name: 'moderate_poll_suggestion',
+    title: 'Approuver/rejeter une suggestion',
+    description:
+      'Modère une suggestion PENDING. `decision: "approve"` la promeut en ' +
+      'véritable option de vote sur son sondage. `decision: "reject"` la rejette ' +
+      '(nécessite `rejectionReason`). Refusé si la suggestion est déjà modérée.',
+    inputSchema: pollSuggestionModerationSchema.extend({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, ...rest } = args as { id: string } & Record<string, unknown>;
+      return moderatePollSuggestion(id, rest);
     },
   },
 ];

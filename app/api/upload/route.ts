@@ -5,9 +5,22 @@ import {
   MAX_UPLOAD_SIZE_BYTES,
   isAllowedImageMimeType,
 } from '@/lib/schemas/upload';
-import { saveProductImage } from '@/lib/uploads';
+import { saveProductImage, savePollOptionImage } from '@/lib/uploads';
 
 const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
+
+// Upload admin générique (dashboard) : `subdir` choisit la famille de
+// destination parmi une whitelist explicite (pas de chemin arbitraire).
+// Défaut `products` pour rester compatible avec les appels existants.
+const SAVERS = {
+  products: saveProductImage,
+  'poll-options': savePollOptionImage,
+} as const;
+type AdminUploadSubdir = keyof typeof SAVERS;
+
+function isAdminUploadSubdir(v: string): v is AdminUploadSubdir {
+  return v in SAVERS;
+}
 
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -17,6 +30,11 @@ export async function POST(req: Request) {
 
   const formData = await req.formData();
   const file = formData.get('file');
+  const subdirParam = formData.get('subdir');
+  const subdir =
+    typeof subdirParam === 'string' && isAdminUploadSubdir(subdirParam)
+      ? subdirParam
+      : 'products';
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'Fichier manquant' }, { status: 400 });
@@ -39,7 +57,7 @@ export async function POST(req: Request) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
   try {
-    const url = await saveProductImage(buffer, file.type);
+    const url = await SAVERS[subdir](buffer, file.type);
     return NextResponse.json({ url });
   } catch (err) {
     return NextResponse.json(

@@ -151,3 +151,20 @@ export const INVENTORY_NOTE_MAX = 500;
 export const INVENTORY_QUANTITY_MAX = 1_000_000;
 export const INVENTORY_UNIT_COST_MAX = 100_000_000;
 export const INVENTORY_IMPORT_MAX_ROWS = 1000;
+
+/**
+ * Sondages (vote générique + suggestions de la communauté). Longueurs max des
+ * champs de saisie. `POLL_VOTER_TOKEN_MAX` borne le token anonyme généré côté
+ * client (garde-fou de taille, pas une limite de sécurité).
+ */
+export const POLL_TITLE_MAX = 120;
+export const POLL_DESCRIPTION_MAX = 500;
+export const POLL_OPTION_LABEL_MAX = 80;
+export const POLL_OPTION_DESCRIPTION_MAX = 300;
+export const POLL_SUGGESTION_LABEL_MAX = 80;
+export const POLL_SUGGESTION_DESCRIPTION_MAX = 300;
+export const POLL_SUGGESTION_SUBMITTER_NAME_MAX = 60;
+export const POLL_REJECTION_REASON_MAX = 300;
+export const POLL_VOTER_TOKEN_MAX = 100;
+/** Taille de page par défaut pour les listes paginées (dashboard). */
+export const POLL_LIST_PAGE_SIZE = 20;
