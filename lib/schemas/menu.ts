@@ -19,6 +19,9 @@ export const supplementOptionSchema = z.object({
   // Disponibilité d'un « goût » : désactivé = conservé mais non sélectionnable
   // côté client. Optionnel (défaut true) pour la compat ascendante des payloads.
   available: z.boolean().optional().default(true),
+  // Stock vendable courant. `null`/absent = illimité (défaut, comportement
+  // inchangé) ; entier = quantité restante suivie ; `0` = épuisé.
+  stockQuantity: z.number().int().nonnegative().nullable().optional(),
 });
 
 export const supplementGroupSchema = z
@@ -84,6 +87,12 @@ export const menuItemSchema = z.object({
     .trim()
     .max(60, 'Badge trop long (max 60 caractères)')
     .optional(),
+  // Stock vendable courant. `null`/absent = illimité (défaut, comportement
+  // inchangé) ; entier = quantité restante suivie ; `0` = épuisé.
+  stockQuantity: z.number().int().nonnegative().nullable().optional(),
+  // Pause programmée : produit non commandable jusqu'à cette date-heure (ISO
+  // 8601). `null`/absent = pas de pause.
+  unavailableUntil: z.string().datetime().nullable().optional(),
 });
 
 export type MenuItemInput = z.infer<typeof menuItemSchema>;

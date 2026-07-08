@@ -8,11 +8,17 @@ export async function getMenu(): Promise<MenuCategory[]> {
     orderBy: { sortOrder: 'asc' },
     include: {
       products: {
+        // `available: true` masque un produit désactivé manuellement, mais un
+        // produit à stock 0 (épuisé) ou en pause reste visible (champs dérivés
+        // `soldOut`/`remaining`/`unavailableUntil` ci-dessous) : le masquage
+        // dur reste réservé au drapeau `available`.
         where: { available: true, deletedAt: null },
         orderBy: { sortOrder: 'asc' },
         include: {
           // Côté client : on n'expose que les groupes et goûts disponibles. Un
           // groupe/goût désactivé reste configuré mais devient non sélectionnable.
+          // Un goût épuisé (stock 0), lui, reste inclus (même logique que les
+          // produits) : seul `available: false` retire une option de la liste.
           supplementGroups: {
             where: { available: true },
             orderBy: { sortOrder: 'asc' },
@@ -36,8 +42,16 @@ export async function getMenu(): Promise<MenuCategory[]> {
       coutMatiere: p.coutMatiere,
       coutEmballage: p.coutEmballage,
       image: p.imageUrl ?? undefined,
+      stockQuantity: p.stockQuantity,
+      remaining: p.stockQuantity,
+      soldOut: p.stockQuantity === 0,
+      unavailableUntil: p.unavailableUntil
+        ? p.unavailableUntil.toISOString()
+        : null,
       // Un groupe dont tous les goûts sont désactivés n'a plus d'option : inutile
-      // de le présenter, on le retire.
+      // de le présenter, on le retire. Un groupe dont les options sont toutes
+      // épuisées (stock 0) reste néanmoins présenté (l'option affiche « épuisé »
+      // côté UI) : on ne filtre ici que sur la présence d'options disponibles.
       supplements: p.supplementGroups
         .filter((g) => g.options.length > 0)
         .map((g) => ({
@@ -49,6 +63,9 @@ export async function getMenu(): Promise<MenuCategory[]> {
           options: g.options.map((o) => ({
             name: o.name,
             price: o.price,
+            stockQuantity: o.stockQuantity,
+            remaining: o.stockQuantity,
+            soldOut: o.stockQuantity === 0,
           })),
         })),
     })),
@@ -68,6 +85,7 @@ export type AdminMenuSupplementOption = {
   name: string;
   price: number;
   available: boolean;
+  stockQuantity: number | null;
 };
 export type AdminMenuSupplementGroup = {
   name: string;
@@ -91,6 +109,8 @@ export type AdminMenuProduct = {
   featuredOrder: number;
   featuredBadge: string | null;
   sortOrder: number;
+  stockQuantity: number | null;
+  unavailableUntil: Date | null;
   supplements: AdminMenuSupplementGroup[];
 };
 export type AdminMenuCategory = {
@@ -139,6 +159,8 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
       featuredOrder: p.featuredOrder,
       featuredBadge: p.featuredBadge ?? null,
       sortOrder: p.sortOrder,
+      stockQuantity: p.stockQuantity,
+      unavailableUntil: p.unavailableUntil,
       supplements: p.supplementGroups.map((g) => ({
         name: g.name,
         type: g.type as 'single' | 'multiple' | 'quantity',
@@ -150,6 +172,7 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
           name: o.name,
           price: o.price,
           available: o.available,
+          stockQuantity: o.stockQuantity,
         })),
       })),
     })),

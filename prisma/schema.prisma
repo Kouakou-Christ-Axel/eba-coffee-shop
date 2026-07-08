@@ -326,6 +326,14 @@ model Product {
   featured         Boolean           @default(false)
   featuredOrder    Int               @default(0)
   featuredBadge    String?
+  // Stock vendable courant. `null` = illimité (comportement historique,
+  // jamais suivi ni bloqué) ; entier = quantité restante suivie ; `0` = épuisé
+  // (le produit reste visible côté public mais non commandable).
+  stockQuantity    Int?
+  // Pause programmée : produit non commandable jusqu'à cette date-heure (mais
+  // toujours visible, avec un tag de statut). `null` = pas de pause. La reprise
+  // est calculée à la lecture (comparaison à `now`), sans job cron.
+  unavailableUntil DateTime?
   // Soft delete : `deletedAt` non nul = produit « supprimé » (masqué partout mais
   // conservé). Posé aussi en cascade quand sa catégorie est supprimée.
   deletedAt        DateTime?
@@ -370,6 +378,10 @@ model SupplementOption {
   price   Int
   // Disponibilité d'un « goût » : désactivé = conservé mais non sélectionnable.
   available Boolean       @default(true)
+  // Stock vendable courant de cette option. `null` = illimité ; entier = suivi ;
+  // `0` = épuisé (grisé côté public, mais l'option reste listée). Même sémantique
+  // que `Product.stockQuantity`.
+  stockQuantity Int?
   groupId String
   group   SupplementGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
