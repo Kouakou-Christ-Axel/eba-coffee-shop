@@ -27,7 +27,11 @@ const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
 const REMOTE_FETCH_TIMEOUT_MS = 15000;
 
 /** Sous-dossiers d'upload autorisés (whitelist — pas de chemin arbitraire). */
-export type UploadSubdir = 'products' | 'receipts' | 'payment-proofs';
+export type UploadSubdir =
+  | 'products'
+  | 'receipts'
+  | 'payment-proofs'
+  | 'poll-options';
 
 /**
  * Racine disque des fichiers uploadés : `<cwd>/public/uploads`.
@@ -296,3 +300,25 @@ export const saveReceiptImageFromUrl = (url: string) =>
 /** Preuve de paiement d'une commande (capture Wave, page publique de suivi). */
 export const savePaymentProofImage = (buffer: Buffer, mimeType: string) =>
   saveImage(buffer, mimeType, 'payment-proofs');
+
+/** Image d'une option de sondage (multipart dashboard). */
+export const savePollOptionImage = (buffer: Buffer, mimeType: string) =>
+  saveImage(buffer, mimeType, 'poll-options');
+
+/** Image d'une option de sondage depuis base64 (MCP). */
+export const savePollOptionImageFromBase64 = (
+  input: string,
+  mimeType?: string
+) => saveImageFromBase64(input, 'poll-options', mimeType);
+
+/** Image d'une option de sondage rapatriée depuis une URL distante (MCP). */
+export const savePollOptionImageFromUrl = (url: string) =>
+  saveImageFromUrl(url, 'poll-options');
+
+/**
+ * Photo jointe à une suggestion de pâtisserie (multipart, page publique — même
+ * pipeline `saveImage`, aucune session requise). Route dédiée en capability
+ * URL : app/api/sondages/suggestions/[id]/photo/route.ts.
+ */
+export const savePollSuggestionImage = (buffer: Buffer, mimeType: string) =>
+  saveImage(buffer, mimeType, 'poll-options');

@@ -1,8 +1,9 @@
 # Serveur MCP — Administration EBA
 
 Serveur [MCP](https://modelcontextprotocol.io) distant qui expose
-l'**administration de l'app** (menu, stats, dépenses, caisse, clients, fidélité…)
-à un client compatible comme Claude, en langage naturel.
+l'**administration de l'app** (menu, stats, dépenses, caisse, clients,
+fidélité, inventaire, sondages…) à un client compatible comme Claude, en
+langage naturel.
 
 - **Endpoint** : `POST https://<votre-domaine>/api/mcp`
 - **Transport** : Streamable HTTP (JSON-RPC 2.0), sans état
@@ -191,6 +192,21 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `record_inventory_count`         | écriture | Enregistrer un comptage (déduit la conso)                    |
 | `get_inventory_settings`         | lecture  | Lire la config du module d’inventaire                        |
 | `update_inventory_settings`      | écriture | Modifier la config du module d’inventaire                    |
+| `list_polls`                     | lecture  | Lister les sondages (options, votes, suggestions en attente) |
+| `get_poll`                       | lecture  | Détail d’un sondage (options + décompte des votes)           |
+| `get_poll_results`               | lecture  | Décompte des votes par option (nombre + %)                   |
+| `create_poll`                    | écriture | Créer un sondage générique avec ses options                  |
+| `update_poll`                    | écriture | Modifier un sondage (mise à jour **partielle**)              |
+| `set_poll_status`                | écriture | Ouvrir / clôturer un sondage (DRAFT/OPEN/CLOSED)             |
+| `delete_poll`                    | écriture | Supprimer un sondage (DRAFT sans vote uniquement)            |
+| `create_poll_option`             | écriture | Ajouter une option de vote à un sondage                      |
+| `update_poll_option`             | écriture | Modifier une option (mise à jour **partielle**)              |
+| `move_poll_option`               | écriture | Réordonner une option (`up` / `down`)                        |
+| `delete_poll_option`             | écriture | Retirer une option (soft delete, conserve les votes)         |
+| `set_poll_option_image`          | écriture | Illustrer une option (base64 ou URL)                         |
+| `list_poll_suggestions`          | lecture  | Lister les suggestions de la communauté                      |
+| `get_poll_suggestion`            | lecture  | Détail d’une suggestion                                      |
+| `moderate_poll_suggestion`       | écriture | Approuver (→ option) ou rejeter une suggestion               |
 
 Les prix et coûts (`coutMatiere`, `coutEmballage`) sont exprimés en **francs
 CFA** (nombres entiers) et `get_menu` les renvoie. Commence toujours par

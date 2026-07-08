@@ -34,6 +34,8 @@ model User {
   inventoryCountsCreated    InventoryCount[]        @relation("InventoryCountCreatedBy")
   restockBatchesCreated     InventoryRestockBatch[] @relation("RestockBatchCreatedBy")
   pushSubscriptions         PushSubscription[]
+  createdPolls              Poll[]             @relation("PollCreatedBy")
+  moderatedPollSuggestions  PollSuggestion[]   @relation("PollSuggestionModeratedBy")
 
   @@map("user")
 }
@@ -231,6 +233,7 @@ model Customer {
   orders    Order[]
   rewards   LoyaltyReward[]
   ledger    LoyaltyLedger[]
+  pollVotes PollVote[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -293,6 +296,151 @@ model LoyaltySettings {
   updatedAt      DateTime @updatedAt
 
   @@map("loyalty_settings")
+}
+
+// ─── Sondages (moteur générique de vote) ───────────────────────────────────────
+// Permet de sonder les clients sur n'importe quel sujet. Premier cas d'usage :
+// choisir la pâtisserie de la semaine parmi des suggestions de la communauté,
+// modérées par un admin avant de devenir des options de vote. Le site public
+// n'a pas de compte client : le votant est identifié soit par téléphone
+// (clé normalisée, comme Customer.phone), soit par un token anonyme
+// (cookie/localStorage) si aucun téléphone n'est fourni — voir PollVote.
+// Indépendant de la fidélité (lib/loyalty*) dans cette version.
+
+enum PollStatus {
+  DRAFT // en préparation (peut déjà collecter des suggestions), pas encore public
+  OPEN // vote ouvert
+  CLOSED // clôturé, résultats figés
+}
+
+enum PollResultsVisibility {
+  LIVE // résultats visibles publiquement pendant le vote
+  AFTER_CLOSE // résultats visibles seulement une fois le sondage CLOSED
+}
+
+enum PollSuggestionStatus {
+  PENDING
+  APPROVED // promue en PollOption
+  REJECTED
+}
+
+model Poll {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      PollStatus @default(DRAFT)
+  // Si vrai, la page publique du sondage propose « proposer une pâtisserie »
+  // (ou tout autre type d'option) — indépendant du statut : on peut collecter
+  // des suggestions pendant que le sondage est encore en préparation (DRAFT).
+  allowSuggestions  Boolean               @default(false)
+  resultsVisibility PollResultsVisibility @default(AFTER_CLOSE)
+  // Fenêtre indicative (pas de tâche planifiée dans ce repo pour clôturer
+  // automatiquement) : à vérifier côté lecture/vote (`closesAt < now()`), le
+  // passage réel en CLOSED reste une action explicite (dashboard/MCP).
+  opensAt  DateTime?
+  closesAt DateTime?
+
+  createdById String?
+  createdBy   User?   @relation("PollCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  options     PollOption[]
+  votes       PollVote[]
+  suggestions PollSuggestion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("poll")
+}
+
+model PollOption {
+  id          String  @id @default(cuid())
+  pollId      String
+  poll        Poll    @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  label       String
+  description String?
+  imageUrl    String?
+  sortOrder   Int     @default(0)
+  // Soft delete : les votes déjà enregistrés référencent l'option, on ne peut
+  // pas la supprimer physiquement une fois le sondage ouvert.
+  deletedAt DateTime?
+
+  // Traçabilité : option créée par promotion d'une suggestion approuvée.
+  sourceSuggestionId String?         @unique
+  sourceSuggestion   PollSuggestion? @relation("SuggestionPromotedTo", fields: [sourceSuggestionId], references: [id], onDelete: SetNull)
+
+  votes PollVote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([pollId, deletedAt])
+  @@map("poll_option")
+}
+
+model PollVote {
+  id       String     @id @default(cuid())
+  pollId   String
+  poll     Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  optionId String
+  option   PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  // Dédup « forte » : téléphone normalisé (même clé que Customer.phone).
+  // Null si vote anonyme par token.
+  voterPhone String?
+  // Lien CRM optionnel si le téléphone correspond/est promu à un Customer
+  // (miroir de Order.customerId — jamais requis).
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  // Dédup « faible » : token anonyme (uuid généré côté client, stocké en
+  // localStorage). Null si vote identifié par téléphone.
+  voterToken String?
+
+  ipAddress String? // best-effort, aide à la modération anti-abus
+  userAgent String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Un bulletin par (sondage, téléphone) ET indépendamment un par (sondage,
+  // token) : Postgres traite NULL comme distinct dans un index unique, donc
+  // chaque contrainte ne s'applique qu'aux lignes où la colonne est
+  // renseignée (un vote « téléphone » et un vote « anonyme » ne se gênent
+  // jamais). Revote autorisé tant que le sondage est OPEN via upsert sur
+  // cette clé plutôt qu'un insert bloquant.
+  @@unique([pollId, voterPhone])
+  @@unique([pollId, voterToken])
+  @@index([pollId, optionId])
+  @@index([customerId])
+  @@map("poll_vote")
+}
+
+model PollSuggestion {
+  id          String               @id @default(cuid())
+  pollId      String
+  poll        Poll                 @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  label       String
+  description String?
+  imageUrl    String?
+  status      PollSuggestionStatus @default(PENDING)
+
+  submitterPhone String? // normalisé, comme Customer.phone
+  submitterName  String?
+
+  moderatedById   String?
+  moderatedBy     User?     @relation("PollSuggestionModeratedBy", fields: [moderatedById], references: [id], onDelete: SetNull)
+  moderatedAt     DateTime?
+  rejectionReason String?
+
+  promotedOption PollOption? @relation("SuggestionPromotedTo")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([pollId, status])
+  @@map("poll_suggestion")
 }
 
 model MenuCategory {
