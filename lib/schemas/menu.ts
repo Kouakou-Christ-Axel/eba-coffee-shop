@@ -55,6 +55,20 @@ export const supplementGroupSchema = z
       message: 'Le minimum ne peut pas dépasser le maximum',
       path: ['minSelect'],
     }
+  )
+  // Deux options du même nom dans un groupe rendent le décrément de stock au
+  // paiement ambigu (résolution par nom, pas par id — le panier ne connaît
+  // que le nom) : un ancien « goût » désactivé et son remplaçant partageant
+  // le même nom ont déjà bloqué des paiements par le passé. On l'empêche ici.
+  .refine(
+    (g) => {
+      const names = g.options.map((o) => o.name.trim().toLowerCase());
+      return new Set(names).size === names.length;
+    },
+    {
+      message: 'Deux options ne peuvent pas porter le même nom dans un groupe',
+      path: ['options'],
+    }
   );
 
 export type SupplementOptionInput = z.infer<typeof supplementOptionSchema>;
