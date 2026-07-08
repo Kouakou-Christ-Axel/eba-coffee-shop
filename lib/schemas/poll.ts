@@ -80,6 +80,7 @@ export const pollInputSchema = z
       .max(POLL_DESCRIPTION_MAX, 'Description trop longue')
       .nullable()
       .optional(),
+    imageUrl: imageUrlSchema.nullable().optional(),
     allowSuggestions: z.boolean().default(false),
     resultsVisibility: pollResultsVisibilitySchema.default('AFTER_CLOSE'),
     opensAt: z.iso.datetime({ offset: true }).nullable().optional(),
@@ -115,6 +116,7 @@ export const pollUpdateSchema = z
       .max(POLL_DESCRIPTION_MAX, 'Description trop longue')
       .nullable()
       .optional(),
+    imageUrl: imageUrlSchema.nullable().optional(),
     allowSuggestions: z.boolean().optional(),
     resultsVisibility: pollResultsVisibilitySchema.optional(),
     opensAt: z.iso.datetime({ offset: true }).nullable().optional(),

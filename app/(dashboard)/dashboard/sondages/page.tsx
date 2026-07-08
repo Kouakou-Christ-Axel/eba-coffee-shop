@@ -14,6 +14,7 @@ export default async function SondagesPage() {
     id: p.id,
     title: p.title,
     description: p.description,
+    imageUrl: p.imageUrl,
     status: p.status,
     allowSuggestions: p.allowSuggestions,
     resultsVisibility: p.resultsVisibility,

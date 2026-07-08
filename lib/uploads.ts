@@ -31,7 +31,8 @@ export type UploadSubdir =
   | 'products'
   | 'receipts'
   | 'payment-proofs'
-  | 'poll-options';
+  | 'poll-options'
+  | 'polls';
 
 /**
  * Racine disque des fichiers uploadés : `<cwd>/public/uploads`.
@@ -322,3 +323,15 @@ export const savePollOptionImageFromUrl = (url: string) =>
  */
 export const savePollSuggestionImage = (buffer: Buffer, mimeType: string) =>
   saveImage(buffer, mimeType, 'poll-options');
+
+/** Image de couverture d'un sondage (multipart dashboard). */
+export const savePollImage = (buffer: Buffer, mimeType: string) =>
+  saveImage(buffer, mimeType, 'polls');
+
+/** Image de couverture d'un sondage depuis base64 (MCP). */
+export const savePollImageFromBase64 = (input: string, mimeType?: string) =>
+  saveImageFromBase64(input, 'polls', mimeType);
+
+/** Image de couverture d'un sondage rapatriée depuis une URL distante (MCP). */
+export const savePollImageFromUrl = (url: string) =>
+  saveImageFromUrl(url, 'polls');

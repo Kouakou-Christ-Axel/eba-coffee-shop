@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { Button, Card, CardBody, Input, Radio, RadioGroup } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { CheckCircle2 } from 'lucide-react';
@@ -36,6 +37,7 @@ function PollVoteSection({
   pollId,
   title,
   description,
+  imageUrl,
   status,
   allowSuggestions,
   options,
@@ -44,11 +46,13 @@ function PollVoteSection({
   pollId: string;
   title: string;
   description: string | null;
+  imageUrl: string | null;
   status: 'DRAFT' | 'OPEN' | 'CLOSED';
   allowSuggestions: boolean;
   options: PollOption[];
   results: PollResults | null;
 }) {
+  const router = useRouter();
   const reduceMotion = useReducedMotion();
   const [selected, setSelected] = useState('');
   const [phone, setPhone] = useState('');
@@ -59,7 +63,13 @@ function PollVoteSection({
     typeof window === 'undefined' ? '' : getOrCreateVoterToken()
   );
   const [error, setError] = useState<string | null>(null);
-  const [status_, setStatus_] = useState<'idle' | 'submitting' | 'done'>('idle');
+  const [submitting, setSubmitting] = useState(false);
+  // Un vote préexistant (retrouvé via le token) OU un vote qui vient d'être
+  // soumis avec succès dans cette session — dans les deux cas le formulaire
+  // reste affiché pour permettre de changer de choix, contrairement à avant
+  // où il disparaissait derrière un simple message de remerciement.
+  const [hasVoted, setHasVoted] = useState(false);
+  const [justVotedLabel, setJustVotedLabel] = useState<string | null>(null);
 
   // Pré-sélectionne le choix déjà voté par CET appareil (token anonyme), pour
   // permettre de revoter sans redécouvrir son ancien choix.
@@ -67,7 +77,10 @@ function PollVoteSection({
     if (!voterToken || status !== 'OPEN') return;
     getMyVoteAction(pollId, voterToken)
       .then((r) => {
-        if (r.optionId) setSelected(r.optionId);
+        if (r.optionId) {
+          setSelected(r.optionId);
+          setHasVoted(true);
+        }
       })
       .catch(() => {});
   }, [pollId, voterToken, status]);
@@ -75,22 +88,32 @@ function PollVoteSection({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setJustVotedLabel(null);
     if (!selected) {
       setError('Choisis une option pour voter.');
       return;
     }
-    setStatus_('submitting');
+    setSubmitting(true);
     const r = await castVoteAction(pollId, {
       optionId: selected,
       phone: phone.trim() || undefined,
       voterToken,
     });
+    setSubmitting(false);
     if (!r.ok) {
       setError(r.error);
-      setStatus_('idle');
       return;
     }
-    setStatus_('done');
+    setHasVoted(true);
+    setJustVotedLabel(
+      options.find((o) => o.id === selected)?.label ?? null
+    );
+    // Rafraîchit les données serveur (résultats, statut) pour que le tableau
+    // de résultats reflète immédiatement ce vote — sans ça, l'écran restait
+    // figé sur le décompte lu au premier chargement de la page, donnant
+    // l'impression qu'un revote (changement d'option) n'était pas pris en
+    // compte.
+    router.refresh();
   }
 
   const canVote = status === 'OPEN';
@@ -103,24 +126,44 @@ function PollVoteSection({
         transition={reduceMotion ? undefined : { duration: 0.5 }}
         className="mx-auto max-w-2xl"
       >
+        {imageUrl && (
+          <Image
+            src={imageUrl}
+            alt={title}
+            width={640}
+            height={320}
+            className="mb-6 aspect-[2/1] w-full rounded-2xl object-cover"
+          />
+        )}
         <h1 className="text-2xl font-bold md:text-3xl">{title}</h1>
         {description && (
           <p className="mt-2 text-muted-foreground">{description}</p>
         )}
 
-        {status_ === 'done' ? (
-          <Card className="mt-6 border border-primary/30 bg-primary/5">
-            <CardBody className="flex-row items-center gap-3 p-5">
-              <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
-              <p className="text-sm">
-                Merci pour ton vote ! Tu peux revenir changer ton choix tant
-                que le sondage reste ouvert.
-              </p>
-            </CardBody>
-          </Card>
-        ) : canVote ? (
+        {canVote ? (
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <RadioGroup value={selected} onValueChange={setSelected}>
+            {(justVotedLabel || hasVoted) && (
+              <Card className="border border-primary/30 bg-primary/5">
+                <CardBody className="flex-row items-center gap-3 p-4">
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
+                  <p className="text-sm">
+                    {justVotedLabel
+                      ? `Vote enregistré pour « ${justVotedLabel} ».`
+                      : 'Tu as déjà voté pour ce sondage.'}{' '}
+                    Tu peux changer d’avis ci-dessous tant que le vote reste
+                    ouvert.
+                  </p>
+                </CardBody>
+              </Card>
+            )}
+
+            <RadioGroup
+              value={selected}
+              onValueChange={(v) => {
+                setSelected(v);
+                setJustVotedLabel(null);
+              }}
+            >
               {options.map((o) => (
                 <Radio key={o.id} value={o.id} className="mb-2">
                   <div className="flex items-center gap-3">
@@ -161,10 +204,10 @@ function PollVoteSection({
               color="primary"
               radius="full"
               size="lg"
-              isLoading={status_ === 'submitting'}
-              isDisabled={status_ === 'submitting'}
+              isLoading={submitting}
+              isDisabled={submitting}
             >
-              Voter
+              {hasVoted ? 'Mettre à jour mon vote' : 'Voter'}
             </Button>
           </form>
         ) : status === 'DRAFT' ? (

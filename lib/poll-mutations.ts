@@ -34,6 +34,7 @@ export async function createPoll(input: unknown, createdById?: string) {
     data: {
       title: data.title,
       description: data.description ?? null,
+      imageUrl: data.imageUrl ?? null,
       allowSuggestions: data.allowSuggestions,
       resultsVisibility: data.resultsVisibility,
       opensAt: toDateOrNull(data.opensAt),
@@ -60,6 +61,7 @@ export async function updatePoll(id: string, input: unknown) {
   const scalar: Prisma.PollUpdateInput = {
     ...(data.title !== undefined && { title: data.title }),
     ...(data.description !== undefined && { description: data.description }),
+    ...(data.imageUrl !== undefined && { imageUrl: data.imageUrl }),
     ...(data.allowSuggestions !== undefined && {
       allowSuggestions: data.allowSuggestions,
     }),
@@ -280,11 +282,18 @@ export async function moderatePollSuggestion(
 
 /**
  * Enregistre (ou modifie) le bulletin d'un votant pour un sondage OPEN. Le
- * revote change simplement l'option choisie (upsert sur la clé téléphone/
- * token) — pas d'historique de bulletins pour ce besoin.
+ * revote change simplement l'option choisie — pas d'historique de bulletins
+ * pour ce besoin.
  *
- * Limite assumée : rien n'empêche la même personne de voter une fois avec
- * téléphone et une fois anonymement (repli anonyme volontairement faible).
+ * Un votant peut être reconnu par jusqu'à deux clés (token anonyme de
+ * l'appareil, téléphone). On cherche une ligne existante par CHACUNE des
+ * clés disponibles et on les fusionne sur une seule ligne canonique : sans
+ * ça, voter d'abord sans téléphone puis revoter (même appareil) en
+ * renseignant un téléphone créait deux bulletins distincts pour la même
+ * personne (l'un par token, l'autre par téléphone) — double comptage
+ * reproduit en pratique. Limite restante, acceptée : deux appareils
+ * différents qui ne renseignent jamais le même téléphone ne peuvent pas être
+ * reliés (aucun signal commun disponible).
  */
 export async function castVote(
   pollId: string,
@@ -315,39 +324,68 @@ export async function castVote(
   if (data.phone && !phoneKey) {
     throw new Error('Numéro de téléphone invalide');
   }
+  const voterToken = data.voterToken ?? null;
 
   return prisma.$transaction(async (tx) => {
     const customerId = phoneKey
       ? await upsertCustomerForOrder(tx, phoneKey, null)
       : null;
 
-    if (phoneKey) {
-      return tx.pollVote.upsert({
-        where: { pollId_voterPhone: { pollId, voterPhone: phoneKey } },
-        create: {
-          pollId,
+    const [existingByToken, existingByPhone] = await Promise.all([
+      voterToken
+        ? tx.pollVote.findUnique({
+            where: { pollId_voterToken: { pollId, voterToken } },
+          })
+        : Promise.resolve(null),
+      phoneKey
+        ? tx.pollVote.findUnique({
+            where: { pollId_voterPhone: { pollId, voterPhone: phoneKey } },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    // Les deux clés pointent vers des bulletins DIFFÉRENTS pour ce sondage
+    // (ex. vote anonyme antérieur + vote avec téléphone maintenant, ou
+    // l'inverse) : on fusionne en gardant la ligne identifiée par téléphone
+    // (identité la plus fiable) et en supprimant le doublon anonyme.
+    if (
+      existingByToken &&
+      existingByPhone &&
+      existingByToken.id !== existingByPhone.id
+    ) {
+      await tx.pollVote.delete({ where: { id: existingByToken.id } });
+      return tx.pollVote.update({
+        where: { id: existingByPhone.id },
+        data: {
           optionId: data.optionId,
-          voterPhone: phoneKey,
+          voterToken: voterToken ?? existingByPhone.voterToken,
           customerId,
-          ipAddress: meta?.ipAddress ?? null,
-          userAgent: meta?.userAgent ?? null,
         },
-        update: { optionId: data.optionId },
       });
     }
 
-    return tx.pollVote.upsert({
-      where: {
-        pollId_voterToken: { pollId, voterToken: data.voterToken ?? '' },
-      },
-      create: {
+    const existing = existingByPhone ?? existingByToken;
+    if (existing) {
+      return tx.pollVote.update({
+        where: { id: existing.id },
+        data: {
+          optionId: data.optionId,
+          ...(phoneKey && { voterPhone: phoneKey, customerId }),
+          ...(voterToken && { voterToken }),
+        },
+      });
+    }
+
+    return tx.pollVote.create({
+      data: {
         pollId,
         optionId: data.optionId,
-        voterToken: data.voterToken,
+        voterPhone: phoneKey,
+        voterToken,
+        customerId,
         ipAddress: meta?.ipAddress ?? null,
         userAgent: meta?.userAgent ?? null,
       },
-      update: { optionId: data.optionId },
     });
   });
 }

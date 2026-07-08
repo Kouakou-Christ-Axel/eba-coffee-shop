@@ -202,6 +202,8 @@ import {
 import {
   savePollOptionImageFromBase64,
   savePollOptionImageFromUrl,
+  savePollImageFromBase64,
+  savePollImageFromUrl,
 } from '@/lib/uploads';
 
 // ─── Type d'un outil ────────────────────────────────────────────────────────
@@ -1809,6 +1811,42 @@ export const tools: McpTool[] = [
     inputSchema: z.object({ id: idSchema }),
     readOnly: false,
     handler: (args) => deletePoll((args as { id: string }).id),
+  },
+  {
+    name: 'set_poll_image',
+    title: 'Illustrer un sondage',
+    description:
+      'Associe une image de couverture à un sondage. Deux modes : (1) `imageUrl` — ' +
+      'une URL http(s) est TÉLÉCHARGÉE côté serveur puis stockée localement (un ' +
+      'chemin `/uploads/...` déjà local est conservé) ; (2) `imageBase64` (base64 ' +
+      'brut ou data URI) + `mimeType`. Formats : ' +
+      ALLOWED_IMAGE_MIME_TYPES.join(', ') +
+      ' (converties automatiquement en WebP, redimensionnées, max 25 MB).',
+    inputSchema: z
+      .object({
+        id: idSchema,
+        imageBase64: z.string().min(1).optional(),
+        mimeType: z.enum(ALLOWED_IMAGE_MIME_TYPES).optional(),
+        imageUrl: imageUrlSchema.optional(),
+      })
+      .refine((v) => Boolean(v.imageBase64) || Boolean(v.imageUrl), {
+        message: 'Fournis soit `imageBase64`, soit `imageUrl`.',
+      }),
+    readOnly: false,
+    handler: async (args) => {
+      const { id, ...image } = args as {
+        id: string;
+        imageBase64?: string;
+        mimeType?: string;
+        imageUrl?: string;
+      };
+      const url = await resolveStoredImageUrl(
+        image,
+        savePollImageFromBase64,
+        savePollImageFromUrl
+      );
+      return updatePoll(id, { imageUrl: url });
+    },
   },
   {
     name: 'create_poll_option',

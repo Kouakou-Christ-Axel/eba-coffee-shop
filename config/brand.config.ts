@@ -33,6 +33,10 @@ export const brandConfig = {
       href: '/le-lieu',
     },
     {
+      label: 'Sondages',
+      href: '/sondages',
+    },
+    {
       label: 'Contact',
       href: '/contact',
     },

@@ -328,6 +328,7 @@ model Poll {
   id          String     @id @default(cuid())
   title       String
   description String?
+  imageUrl    String?
   status      PollStatus @default(DRAFT)
   // Si vrai, la page publique du sondage propose « proposer une pâtisserie »
   // (ou tout autre type d'option) — indépendant du statut : on peut collecter

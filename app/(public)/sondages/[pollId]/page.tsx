@@ -28,6 +28,7 @@ export default async function PollPage({ params }: Params) {
       pollId={pollId}
       title={data.poll.title}
       description={data.poll.description}
+      imageUrl={data.poll.imageUrl}
       status={data.poll.status}
       allowSuggestions={data.poll.allowSuggestions}
       options={data.poll.options}
