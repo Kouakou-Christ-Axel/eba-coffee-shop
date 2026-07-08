@@ -110,9 +110,7 @@ export function ProductRowActions({
               <X className="size-4" />
             </Button>
             {restockError && (
-              <span className="text-xs text-destructive">
-                {restockError}
-              </span>
+              <span className="text-xs text-destructive">{restockError}</span>
             )}
           </div>
         ) : (

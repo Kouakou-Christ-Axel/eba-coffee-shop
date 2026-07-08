@@ -104,9 +104,7 @@ describe('Menu Server Actions — auth gate', () => {
 
   it('restockProductAction sans session → throw', async () => {
     mockGetSession.mockResolvedValue(null);
-    await expect(restockProductAction('p1', 5)).rejects.toThrow(
-      'Non autorisé'
-    );
+    await expect(restockProductAction('p1', 5)).rejects.toThrow('Non autorisé');
     expect(mutations.restockProduct).not.toHaveBeenCalled();
   });
 

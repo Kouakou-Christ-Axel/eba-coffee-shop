@@ -82,6 +82,7 @@ export async function getMenu(): Promise<MenuCategory[]> {
 // mutations.
 
 export type AdminMenuSupplementOption = {
+  id: string;
   name: string;
   price: number;
   available: boolean;
@@ -169,6 +170,7 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
         minSelect: g.minSelect,
         maxSelect: g.maxSelect,
         options: g.options.map((o) => ({
+          id: o.id,
           name: o.name,
           price: o.price,
           available: o.available,

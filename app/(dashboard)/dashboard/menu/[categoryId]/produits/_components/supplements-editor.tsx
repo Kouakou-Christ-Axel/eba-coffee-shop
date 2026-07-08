@@ -234,9 +234,7 @@ export function SupplementsEditor({ groups, onChange }: Props) {
                     onChange={(e) =>
                       updateOption(gi, oi, {
                         stockQuantity:
-                          e.target.value === ''
-                            ? null
-                            : Number(e.target.value),
+                          e.target.value === '' ? null : Number(e.target.value),
                       })
                     }
                     className="w-16 sm:w-20"

@@ -417,6 +417,28 @@ export async function toggleProductFeatured(id: string) {
 // le dashboard et les outils MCP, sans dupliquer la logique de décrément au
 // paiement (qui vit dans `lib/order-mutations.ts`, hors périmètre de ce fichier).
 
+// Définit ABSOLUMENT le stock d'un produit (« définir le matin »), par
+// opposition à l'incrément relatif de `restockProduct` (« + nouvelle fournée »
+// en journée). `null` repasse le produit en illimité.
+export async function setProductStock(id: string, quantity: number | null) {
+  const p = await prisma.product.findUnique({ where: { id } });
+  if (!p) throw new Error('Produit introuvable');
+  return prisma.product.update({
+    where: { id },
+    data: { stockQuantity: quantity },
+  });
+}
+
+// Équivalent de `setProductStock` pour une option de supplément (« goût »).
+export async function setOptionStock(id: string, quantity: number | null) {
+  const o = await prisma.supplementOption.findUnique({ where: { id } });
+  if (!o) throw new Error('Option introuvable');
+  return prisma.supplementOption.update({
+    where: { id },
+    data: { stockQuantity: quantity },
+  });
+}
+
 // Incrémente (ou décrémente si `delta` est négatif) le stock d'un produit.
 // No-op impossible sur un produit à stock illimité (`stockQuantity === null`) :
 // on refuse explicitement plutôt que de silencieusement transformer un produit
