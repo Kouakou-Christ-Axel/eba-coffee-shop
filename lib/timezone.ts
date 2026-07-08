@@ -150,6 +150,18 @@ export function formatAbidjanTime(value: string | Date): string {
     .replace(':', 'h');
 }
 
+/** Instant → « 23 juin » (jour + mois, heure Abidjan, sans année ni jour de
+ * semaine) — version courte utilisée quand la date complète serait trop
+ * verbeuse (ex. badge de reprise de pause sur la carte publique). */
+export function formatAbidjanShortDate(value: string | Date): string {
+  const d = typeof value === 'string' ? new Date(value) : value;
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: ABIDJAN_TZ,
+    day: 'numeric',
+    month: 'long',
+  }).format(d);
+}
+
 /** Instant → « lundi 23 juin · 10h00 » (heure Abidjan). */
 export function formatAbidjanDateTime(value: string | Date): string {
   const d = typeof value === 'string' ? new Date(value) : value;

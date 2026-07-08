@@ -80,6 +80,11 @@ export function OrderTracking({
   const isCancelled = order.status === 'CANCELLED';
   const isFinal = order.status === 'COMPLETED' || isCancelled;
   const pickupCode = getPickupCode(order.reference);
+  // Le stock n'est réservé qu'AU PAIEMENT (voir lib/orders/availability.ts) :
+  // tant que la commande n'est pas payée, un article peut devenir indisponible
+  // entre-temps (un autre client a payé la dernière unité). Une fois payée,
+  // `fulfillable` est toujours vrai (stock déjà réservé pour ce client).
+  const hasUnavailableItem = !order.isPaid && !order.fulfillable;
 
   // ── Polling léger : statut/paiement/livreur en direct tant que la commande
   //    est active ; pause quand l'onglet est masqué, refresh au retour.
@@ -129,6 +134,22 @@ export function OrderTracking({
       {/* ── Notifications push (statuts en direct) ── */}
       <OrderNotifications orderId={order.id} isFinal={isFinal} />
 
+      {/* ── Alerte stock (uniquement avant paiement) ── */}
+      {!isCancelled && hasUnavailableItem && (
+        <div className="flex items-center gap-3 rounded-xl border border-warning/30 bg-warning/15 p-4">
+          <XCircle className="h-6 w-6 shrink-0 text-warning-700 dark:text-warning" />
+          <div>
+            <p className="font-semibold text-warning-700 dark:text-warning">
+              Un article n&apos;est plus disponible
+            </p>
+            <p className="text-sm text-foreground/60">
+              Contacte-nous ou choisis autre chose avant de payer — un autre
+              client a pris la dernière quantité.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Code de retrait ── */}
       <div className="rounded-xl border border-foreground/10 bg-default-50 p-5 text-center">
         <p className="text-xs font-semibold uppercase tracking-wider text-foreground/40">
@@ -173,27 +194,40 @@ export function OrderTracking({
       <div className="w-full">
         <h2 className="mb-3 text-sm font-semibold">Articles</h2>
         <div className="flex flex-col gap-2">
-          {order.items.map((item, i) => (
-            <div
-              key={i}
-              className="flex items-start justify-between gap-2 text-sm"
-            >
-              <div className="min-w-0">
-                <p className="font-medium">
-                  {item.productName}{' '}
-                  <span className="text-foreground/50">x{item.quantity}</span>
-                </p>
-                {item.supplements.length > 0 && (
-                  <p className="text-xs text-foreground/50">
-                    {item.supplements.map(formatSupplementLabel).join(', ')}
+          {order.items.map((item, i) => {
+            const unavailable = !order.isPaid && !item.available;
+            return (
+              <div
+                key={i}
+                className="flex items-start justify-between gap-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    {item.productName}{' '}
+                    <span className="text-foreground/50">x{item.quantity}</span>
+                    {unavailable && (
+                      <Chip
+                        color="warning"
+                        variant="flat"
+                        size="sm"
+                        className="ml-2 align-middle"
+                      >
+                        Indisponible
+                      </Chip>
+                    )}
                   </p>
-                )}
+                  {item.supplements.length > 0 && (
+                    <p className="text-xs text-foreground/50">
+                      {item.supplements.map(formatSupplementLabel).join(', ')}
+                    </p>
+                  )}
+                </div>
+                <p className="shrink-0 font-medium">
+                  {priceFormatter.format(getItemGross(item))}&nbsp;FCFA
+                </p>
               </div>
-              <p className="shrink-0 font-medium">
-                {priceFormatter.format(getItemGross(item))}&nbsp;FCFA
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="mt-4 flex justify-between border-t border-foreground/10 pt-4 font-semibold">

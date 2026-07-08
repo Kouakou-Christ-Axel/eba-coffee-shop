@@ -67,17 +67,20 @@ function SupplementModal({ product, isOpen, onClose }: SupplementModalProps) {
 
   function handleAdd() {
     if (!canSubmitSelections(product, selections)) return;
-    addItem({
-      productId: product.id,
-      productName: product.name,
-      basePrice: product.price,
-      coutMatiere: product.coutMatiere ?? 0,
-      coutEmballage: product.coutEmballage ?? 0,
-      // Le site public n'enregistre pas les choix uniques gratuits (ex.
-      // « Lait classique »), contrairement à la caisse qui les garde visibles
-      // pour la cuisine.
-      supplements: getSelectedSupplements(product, selections, false),
-    });
+    addItem(
+      {
+        productId: product.id,
+        productName: product.name,
+        basePrice: product.price,
+        coutMatiere: product.coutMatiere ?? 0,
+        coutEmballage: product.coutEmballage ?? 0,
+        // Le site public n'enregistre pas les choix uniques gratuits (ex.
+        // « Lait classique »), contrairement à la caisse qui les garde visibles
+        // pour la cuisine.
+        supplements: getSelectedSupplements(product, selections, false),
+      },
+      product.remaining ?? undefined
+    );
     setSelections(() => buildInitialSelections(product, []));
     onClose();
   }
@@ -121,9 +124,20 @@ function SupplementModal({ product, isOpen, onClose }: SupplementModalProps) {
                     onValueChange={(v) => setSingle(group.name, v)}
                   >
                     {group.options.map((opt) => (
-                      <Radio key={opt.name} value={opt.name}>
+                      <Radio
+                        key={opt.name}
+                        value={opt.name}
+                        isDisabled={opt.soldOut}
+                      >
                         <span className="flex items-center justify-between gap-4">
-                          <span className="text-sm">{opt.name}</span>
+                          <span className="text-sm">
+                            {opt.name}
+                            {opt.soldOut && (
+                              <span className="ml-1.5 text-xs font-medium text-danger">
+                                épuisé
+                              </span>
+                            )}
+                          </span>
                           <span className="text-xs text-foreground/50">
                             {opt.price === 0
                               ? 'Inclus'
@@ -141,7 +155,8 @@ function SupplementModal({ product, isOpen, onClose }: SupplementModalProps) {
                       const current =
                         (selections[group.name] as string[]) ?? [];
                       const isChecked = current.includes(opt.name);
-                      const isDisabled = !isChecked && count >= max;
+                      const isDisabled =
+                        opt.soldOut || (!isChecked && count >= max);
                       return (
                         <Checkbox
                           key={opt.name}
@@ -152,7 +167,14 @@ function SupplementModal({ product, isOpen, onClose }: SupplementModalProps) {
                           }
                         >
                           <span className="flex items-center justify-between gap-4">
-                            <span className="text-sm">{opt.name}</span>
+                            <span className="text-sm">
+                              {opt.name}
+                              {opt.soldOut && (
+                                <span className="ml-1.5 text-xs font-medium text-danger">
+                                  épuisé
+                                </span>
+                              )}
+                            </span>
                             <span className="text-xs text-foreground/50">
                               +{priceFormatter.format(opt.price)} F
                             </span>
@@ -167,7 +189,12 @@ function SupplementModal({ product, isOpen, onClose }: SupplementModalProps) {
                   <div className="space-y-2">
                     {group.options.map((opt) => {
                       const qty = optionQuantity(group, selections, opt.name);
-                      const canIncrement = count < max;
+                      // Plafond de l'option : borne du groupe (répartition
+                      // totale) ET stock restant de l'option elle-même — la
+                      // plus stricte des deux gagne.
+                      const optionCap = opt.remaining ?? Infinity;
+                      const canIncrement =
+                        !opt.soldOut && count < max && qty < optionCap;
                       return (
                         <div
                           key={opt.name}
@@ -178,6 +205,11 @@ function SupplementModal({ product, isOpen, onClose }: SupplementModalProps) {
                             {opt.price > 0 && (
                               <span className="ml-1 text-xs text-foreground/50">
                                 +{priceFormatter.format(opt.price)} F
+                              </span>
+                            )}
+                            {opt.soldOut && (
+                              <span className="ml-1.5 text-xs font-medium text-danger">
+                                épuisé
                               </span>
                             )}
                           </span>
