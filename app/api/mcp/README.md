@@ -171,6 +171,12 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `delete_product`                 | écriture | Supprimer un produit (soft delete)                           |
 | `toggle_product_availability`    | écriture | Afficher / masquer un produit                                |
 | `toggle_product_featured`        | écriture | Mettre en avant / retirer un produit                         |
+| `set_product_stock`              | écriture | Définir (absolu) le stock d’un produit                       |
+| `set_option_stock`               | écriture | Définir (absolu) le stock d’une option                       |
+| `restock_product`                | écriture | Ajouter une fournée (delta) au stock d’un produit            |
+| `restock_option`                 | écriture | Ajouter une fournée (delta) au stock d’une option            |
+| `pause_product`                  | écriture | Mettre un produit en pause jusqu’à une date-heure            |
+| `resume_product`                 | écriture | Lever la pause d’un produit avant son terme                  |
 | `list_inventory_items`           | lecture  | Lister les références (filtres + stock/PMP)                  |
 | `get_inventory_item`             | lecture  | Détail d’une référence (+ achats / comptages)                |
 | `get_inventory_summary`          | lecture  | KPIs inventaire (sous seuil, valeur stock…)                  |
@@ -344,6 +350,36 @@ conservés en base. Idem côté référentiels comptables — `delete_expense_ca
 et `delete_investment_source` masquent sans casser les écritures rattachées, qui
 gardent leur libellé ; recréer un libellé identique « ressuscite » la version
 supprimée.
+
+### Stock & pause (produits/options)
+
+Trois mécanismes de disponibilité, distincts et complémentaires : **illimité**
+(`stockQuantity: null`, défaut — aucun suivi, jamais bloqué), **stock suivi**
+(quantité vendable, au niveau produit ET option) et **pause programmée**
+(fenêtre d'indisponibilité, sans masquer le produit). `get_menu` renvoie
+`stockQuantity`/`unavailableUntil` pour les produits et `stockQuantity`
+(+ `id`, désormais exposé) pour chaque option de supplément — indispensable
+pour cibler une option précise, les noms pouvant être dupliqués entre produits.
+
+Le stock est **décrémenté au paiement** (validé par le staff, `mark_order_paid`
+/ `set_order_status`), jamais à la simple création d'une commande : une
+commande non payée ne réserve rien. Deux gestes distincts par cible
+(produit/option) :
+
+- **Définir (absolu)** — `set_product_stock` / `set_option_stock` : pose la
+  quantité restante du jour. `quantity: null` (ou absent) repasse la cible en
+  stock illimité ; `0` = épuisé.
+- **Réapprovisionner (delta)** — `restock_product` / `restock_option` :
+  ajoute `delta` (peut être négatif pour corriger) au stock courant, sans
+  écraser la valeur — le geste « + nouvelle fournée » en cours de journée.
+  Refusé si la cible est actuellement en stock illimité.
+
+**Pause programmée** : `pause_product` (`until`, datetime ISO 8601) rend un
+produit non commandable jusqu'à cette date-heure tout en le laissant visible
+sur la carte publique avec un tag « Indisponible — retour {heure} » ; la
+reprise est **automatique** (calculée à la lecture, sans cron). `resume_product`
+lève la pause manuellement avant son terme. Différent de
+`toggle_product_availability`, qui masque complètement le produit.
 
 ## Architecture
 

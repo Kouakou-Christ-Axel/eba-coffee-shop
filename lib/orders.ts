@@ -18,6 +18,10 @@ import { normalizeIvorianPhone } from '@/lib/phone';
 import { ROLE_GROUPS } from '@/lib/auth-helpers';
 import { sendPushToRoles } from '@/lib/push-notify';
 import { getPickupCode } from '@/lib/orders/format';
+import {
+  fetchStockSnapshot,
+  computeOrderItemsAvailability,
+} from '@/lib/orders/availability';
 import { ORDERS_PAGE_SIZE } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
 
@@ -161,6 +165,9 @@ export async function getOrder(id: string) {
 // pour transiter telles quelles entre route handler, server component et
 // composant client de polling.
 
+/** Article de commande enrichi de sa disponibilité courante (voir plus bas). */
+export type PublicOrderItemView = CartItem & { available: boolean };
+
 export type PublicOrderView = {
   id: string;
   reference: string;
@@ -170,7 +177,11 @@ export type PublicOrderView = {
   paymentProofUrl: string | null;
   customerName: string | null;
   pickupTime: string | null;
-  items: CartItem[];
+  items: PublicOrderItemView[];
+  /** Faux si au moins un article n'est plus disponible au stock actuel — voir
+   * `available` par article. Toujours vrai une fois la commande payée (stock
+   * déjà réservé pour ce client au paiement). */
+  fulfillable: boolean;
   total: number;
   note: string | null;
   driverName: string | null;
@@ -178,11 +189,39 @@ export type PublicOrderView = {
   createdAt: string;
 };
 
+/**
+ * `available`/`fulfillable` : uniquement pertinents pour une commande NON
+ * PAYÉE — comparaison au stock ACTUEL (produit + options choisies) pour
+ * signaler, avant tentative de paiement, qu'un article n'est plus disponible
+ * (page de suivi client, polling). Une commande déjà payée a réservé son
+ * stock : tout est `available: true` sans requête supplémentaire.
+ */
 export async function getPublicOrder(
   id: string
 ): Promise<PublicOrderView | null> {
   const order = await prisma.order.findUnique({ where: { id } });
   if (!order) return null;
+
+  const items = order.items as unknown as CartItem[];
+
+  let itemsView: PublicOrderItemView[];
+  let fulfillable: boolean;
+  if (order.isPaid) {
+    itemsView = items.map((item) => ({ ...item, available: true }));
+    fulfillable = true;
+  } else {
+    const stock = await fetchStockSnapshot([items]);
+    const availability = computeOrderItemsAvailability(items, stock);
+    const availableByCartId = new Map(
+      availability.items.map((a) => [a.cartId, a.available])
+    );
+    itemsView = items.map((item) => ({
+      ...item,
+      available: availableByCartId.get(item.cartId) ?? true,
+    }));
+    fulfillable = availability.fulfillable;
+  }
+
   return {
     id: order.id,
     reference: order.reference,
@@ -192,7 +231,8 @@ export async function getPublicOrder(
     paymentProofUrl: order.paymentProofUrl,
     customerName: order.customerName,
     pickupTime: order.pickupTime?.toISOString() ?? null,
-    items: order.items as unknown as CartItem[],
+    items: itemsView,
+    fulfillable,
     total: order.total,
     note: order.note,
     driverName: order.driverName,

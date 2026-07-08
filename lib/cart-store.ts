@@ -36,7 +36,18 @@ export function getItemTotal(item: CartItem): number {
 
 type CartStore = {
   items: CartItem[];
-  addItem: (item: Omit<CartItem, 'cartId' | 'quantity'>) => void;
+  /**
+   * `maxQuantity` : garde-fou UI (avancé/conseillé, pas une vérité serveur —
+   * la truth finale reste le stock au PAIEMENT, voir lib/order-mutations.ts).
+   * Plafonne la quantité de CETTE ligne (produit + suppléments identiques) ;
+   * absent/`null` = illimité. Un produit en pause ou épuisé (stock 0) ne doit
+   * simplement pas être proposé par l'appelant (product-card/supplement-modal
+   * désactivent déjà l'ajout dans ce cas).
+   */
+  addItem: (
+    item: Omit<CartItem, 'cartId' | 'quantity'>,
+    maxQuantity?: number | null
+  ) => void;
   removeItem: (cartId: string) => void;
   updateQuantity: (cartId: string, quantity: number) => void;
   clearCart: () => void;
@@ -47,22 +58,24 @@ type CartStore = {
 export const useCartStore = create<CartStore>((set, get) => ({
   items: [],
 
-  addItem: (item) =>
+  addItem: (item, maxQuantity) =>
     set((state) => {
+      const cap = maxQuantity ?? Infinity;
       const existing = state.items.find(
         (i) =>
           i.productId === item.productId &&
           JSON.stringify(i.supplements) === JSON.stringify(item.supplements)
       );
       if (existing) {
+        const nextQuantity = Math.min(existing.quantity + 1, cap);
+        if (nextQuantity <= existing.quantity) return state;
         return {
           items: state.items.map((i) =>
-            i.cartId === existing.cartId
-              ? { ...i, quantity: i.quantity + 1 }
-              : i
+            i.cartId === existing.cartId ? { ...i, quantity: nextQuantity } : i
           ),
         };
       }
+      if (cap <= 0) return state;
       const cartId = Math.random().toString(36).slice(2, 10);
       return { items: [...state.items, { ...item, cartId, quantity: 1 }] };
     }),

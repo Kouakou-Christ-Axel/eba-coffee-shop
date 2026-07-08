@@ -28,6 +28,8 @@ export default async function CategoryProductsPage({
           available: true,
           featured: true,
           featuredBadge: true,
+          stockQuantity: true,
+          unavailableUntil: true,
         },
       },
     },

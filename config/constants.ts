@@ -153,6 +153,14 @@ export const INVENTORY_UNIT_COST_MAX = 100_000_000;
 export const INVENTORY_IMPORT_MAX_ROWS = 1000;
 
 /**
+ * Seuil de stock bas (produit ou option) déclenchant l'affichage « Plus que N »
+ * côté carte publique, au lieu d'un simple compteur non alarmant.
+ * Source : `Product.stockQuantity` / `SupplementOption.stockQuantity`
+ * (prisma/schema.prisma).
+ */
+export const LOW_STOCK_THRESHOLD = 5;
+
+/**
  * Sondages (vote générique + suggestions de la communauté). Longueurs max des
  * champs de saisie. `POLL_VOTER_TOKEN_MAX` borne le token anonyme généré côté
  * client (garde-fou de taille, pas une limite de sécurité).

@@ -3,6 +3,12 @@
 export type SupplementOption = {
   name: string;
   price: number;
+  // Stock vendable courant (absent/`null` = illimité). `remaining`/`soldOut`
+  // sont dérivés côté lecture (`lib/menu.ts` getMenu()) à partir de la même
+  // valeur brute.
+  stockQuantity?: number | null;
+  remaining?: number | null;
+  soldOut?: boolean;
 };
 
 export type SupplementGroup = {
@@ -28,6 +34,14 @@ export type Product = {
   featured?: boolean;
   featuredOrder?: number;
   featuredBadge?: string;
+  // Stock vendable courant (absent/`null` = illimité) et champs dérivés
+  // (voir `SupplementOption` ci-dessus pour la même sémantique).
+  stockQuantity?: number | null;
+  remaining?: number | null;
+  soldOut?: boolean;
+  // Pause programmée (ISO 8601) ; `null`/absent = pas de pause. Le calcul
+  // « en pause maintenant » (`unavailableUntil > now`) se fait côté lecture.
+  unavailableUntil?: string | null;
 };
 
 export type MenuCategory = {

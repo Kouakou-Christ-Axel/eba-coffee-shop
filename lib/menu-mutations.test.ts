@@ -286,8 +286,18 @@ describe('createProduct', () => {
               sortOrder: 0,
               options: {
                 create: [
-                  { name: 'Avoine', price: 500, available: true },
-                  { name: 'Amande', price: 500, available: true },
+                  {
+                    name: 'Avoine',
+                    price: 500,
+                    available: true,
+                    stockQuantity: null,
+                  },
+                  {
+                    name: 'Amande',
+                    price: 500,
+                    available: true,
+                    stockQuantity: null,
+                  },
                 ],
               },
             }),

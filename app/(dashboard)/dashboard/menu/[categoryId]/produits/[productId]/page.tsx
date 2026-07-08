@@ -47,6 +47,8 @@ export default async function EditProductPage({
     featured: product.featured,
     featuredOrder: product.featuredOrder,
     featuredBadge: product.featuredBadge,
+    stockQuantity: product.stockQuantity,
+    unavailableUntil: product.unavailableUntil,
     supplementGroups: product.supplementGroups.map((g) => ({
       name: g.name,
       type: g.type as 'single' | 'multiple' | 'quantity',
@@ -58,6 +60,7 @@ export default async function EditProductPage({
         name: o.name,
         price: o.price,
         available: o.available,
+        stockQuantity: o.stockQuantity,
       })),
     })),
   };

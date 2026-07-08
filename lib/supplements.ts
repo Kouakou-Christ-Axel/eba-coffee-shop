@@ -17,6 +17,26 @@
 import type { Product, SupplementGroup } from '@/config/menu';
 import type { CartItemSupplement } from '@/lib/cart-store';
 
+/**
+ * Un produit en pause programmée (`unavailableUntil` dans le futur) est
+ * toujours visible sur la carte/le dashboard (pas de masquage dur) mais non
+ * commandable. La reprise est calculée à la LECTURE (pas de cron) : dès que
+ * `now` dépasse `unavailableUntil`, le produit redevient commandable sans
+ * intervention. Client-safe (pas d'import Prisma) : utilisable depuis les
+ * composants client (dashboard ET carte publique).
+ */
+export function isPausedNow(
+  unavailableUntil: Date | string | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!unavailableUntil) return false;
+  const until =
+    typeof unavailableUntil === 'string'
+      ? new Date(unavailableUntil)
+      : unavailableUntil;
+  return until.getTime() > now.getTime();
+}
+
 /** Sélection pour un groupe : nom d'option ('single'), noms cochés
  * ('multiple'), ou quantité par nom d'option ('quantity'). */
 export type GroupSelection = string | string[] | Record<string, number>;
@@ -45,20 +65,28 @@ export function buildInitialSelections(
 }
 
 /** Nombre de sélections pour un groupe : options cochées ('multiple') ou
- * somme des quantités ('quantity'). Toujours 0 ou 1 pour 'single'. */
+ * somme des quantités ('quantity'). Toujours 0 ou 1 pour 'single'. Une option
+ * épuisée (`soldOut`) n'est jamais comptée, même si elle apparaît encore dans
+ * `selections` (ex. stock qui s'épuise pendant que le modal est ouvert). */
 export function groupSelectionCount(
   group: SupplementGroup,
   selections: Selections
 ): number {
   const sel = selections[group.name];
   if (group.type === 'single') {
-    return typeof sel === 'string' && sel !== '' ? 1 : 0;
+    return typeof sel === 'string' && sel !== '' && !isOptionSoldOut(group, sel)
+      ? 1
+      : 0;
   }
   if (group.type === 'multiple') {
-    return Array.isArray(sel) ? sel.length : 0;
+    if (!Array.isArray(sel)) return 0;
+    return sel.filter((name) => !isOptionSoldOut(group, name)).length;
   }
   const qty = (sel as Record<string, number>) ?? {};
-  return Object.values(qty).reduce((s, n) => s + n, 0);
+  return Object.entries(qty).reduce(
+    (s, [name, n]) => (isOptionSoldOut(group, name) ? s : s + n),
+    0
+  );
 }
 
 /** Quantité choisie pour une option précise (groupe type 'quantity'). */
@@ -84,14 +112,27 @@ export function effectiveMax(group: SupplementGroup): number {
   return group.maxSelect ?? Infinity;
 }
 
+/** Une option épuisée (stock 0) ne peut jamais être comptée/soumise — même si
+ * elle apparaît encore sélectionnée dans un état antérieur (ex. stock qui
+ * s'épuise pendant que le modal est ouvert). `soldOut` absent = jamais épuisé
+ * (illimité ou stock non suivi). */
+function isOptionSoldOut(group: SupplementGroup, optionName: string): boolean {
+  return group.options.find((o) => o.name === optionName)?.soldOut === true;
+}
+
 export function isGroupValid(
   group: SupplementGroup,
   selections: Selections
 ): boolean {
   if (group.type === 'single') {
-    if (!group.required) return true;
     const sel = selections[group.name];
-    return typeof sel === 'string' && sel !== '';
+    const hasSelection = typeof sel === 'string' && sel !== '';
+    // Une sélection sur une option devenue épuisée ne compte pas : un groupe
+    // requis dont le seul choix viable est épuisé reste bloqué par le message
+    // « requis » existant (aucune sélection valide n'est retenue).
+    if (hasSelection && isOptionSoldOut(group, sel)) return !group.required;
+    if (!group.required) return true;
+    return hasSelection;
   }
   const count = groupSelectionCount(group, selections);
   return count >= effectiveMin(group) && count <= effectiveMax(group);
@@ -116,7 +157,7 @@ export function getSelectedSupplements(
   (product.supplements ?? []).forEach((group) => {
     const sel = selections[group.name];
     if (group.type === 'single') {
-      if (typeof sel === 'string' && sel) {
+      if (typeof sel === 'string' && sel && !isOptionSoldOut(group, sel)) {
         const opt = group.options.find((o) => o.name === sel);
         if (opt && (includeFreeSingleChoice || opt.price > 0)) {
           result.push({
@@ -129,6 +170,7 @@ export function getSelectedSupplements(
     } else if (group.type === 'multiple') {
       if (Array.isArray(sel)) {
         sel.forEach((name) => {
+          if (isOptionSoldOut(group, name)) return;
           const opt = group.options.find((o) => o.name === name);
           if (opt) {
             result.push({
@@ -142,6 +184,7 @@ export function getSelectedSupplements(
     } else {
       const qty = (sel as Record<string, number>) ?? {};
       group.options.forEach((opt) => {
+        if (opt.soldOut) return;
         const n = qty[opt.name] ?? 0;
         if (n > 0) {
           result.push({

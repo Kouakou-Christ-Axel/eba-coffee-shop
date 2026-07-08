@@ -19,6 +19,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ProductRowActions } from './product-row-actions';
+import { LOW_STOCK_THRESHOLD } from '@/config/constants';
+import { isPausedNow } from '@/lib/supplements';
+import { formatAbidjanDateTime } from '@/lib/timezone';
 
 export type ProductRow = {
   id: string;
@@ -30,6 +33,8 @@ export type ProductRow = {
   available: boolean;
   featured: boolean;
   featuredBadge: string | null;
+  stockQuantity: number | null;
+  unavailableUntil: Date | null;
 };
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
@@ -106,6 +111,7 @@ export function ProductsTable({
             <TableHead>Prix</TableHead>
             <TableHead>Coûts</TableHead>
             <TableHead>Marge</TableHead>
+            <TableHead>Stock</TableHead>
             <TableHead>Statut</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -164,6 +170,9 @@ export function ProductsTable({
                   )}
                 </TableCell>
                 <TableCell>
+                  <StockBadge stockQuantity={p.stockQuantity} />
+                </TableCell>
+                <TableCell>
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge variant={p.available ? 'default' : 'outline'}>
                       {p.available ? 'Visible' : 'Masqué'}
@@ -171,6 +180,15 @@ export function ProductsTable({
                     {p.featured && (
                       <Badge variant="secondary">
                         ★ {p.featuredBadge ?? 'Favori'}
+                      </Badge>
+                    )}
+                    {isPausedNow(p.unavailableUntil) && p.unavailableUntil && (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-400 text-amber-700 dark:text-amber-400"
+                        title={`Reprise le ${formatAbidjanDateTime(p.unavailableUntil)}`}
+                      >
+                        En pause
                       </Badge>
                     )}
                   </div>
@@ -188,6 +206,7 @@ export function ProductsTable({
                       id={p.id}
                       available={p.available}
                       featured={p.featured}
+                      stockQuantity={p.stockQuantity}
                     />
                   </div>
                 </TableCell>
@@ -197,7 +216,7 @@ export function ProductsTable({
           {filtered.length === 0 && (
             <TableRow>
               <TableCell
-                colSpan={7}
+                colSpan={8}
                 className="py-8 text-center text-sm text-muted-foreground"
               >
                 {products.length === 0
@@ -209,5 +228,26 @@ export function ProductsTable({
         </TableBody>
       </Table>
     </div>
+  );
+}
+
+function StockBadge({ stockQuantity }: { stockQuantity: number | null }) {
+  if (stockQuantity === null) {
+    return <Badge variant="outline">Illimité</Badge>;
+  }
+  if (stockQuantity === 0) {
+    return <Badge variant="destructive">Épuisé</Badge>;
+  }
+  return (
+    <Badge
+      variant="outline"
+      className={
+        stockQuantity <= LOW_STOCK_THRESHOLD
+          ? 'border-amber-400 text-amber-700 dark:text-amber-400'
+          : undefined
+      }
+    >
+      {stockQuantity}
+    </Badge>
   );
 }

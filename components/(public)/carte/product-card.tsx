@@ -4,10 +4,29 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { Button } from '@heroui/react';
+import { Button, Chip } from '@heroui/react';
 import { Check, Plus } from 'lucide-react';
 import { useCartStore } from '@/lib/cart-store';
 import { priceFormatter, type Product } from '@/config/menu';
+import { isPausedNow } from '@/lib/supplements';
+import { LOW_STOCK_THRESHOLD } from '@/config/constants';
+import {
+  formatAbidjanShortDate,
+  formatAbidjanTime,
+  formatLocalDateOnly,
+} from '@/lib/timezone';
+
+/** « Indisponible — retour {…} » : juste l'heure si la reprise tombe
+ * aujourd'hui (Abidjan), sinon date courte + heure — reste lisible dans un
+ * chip étroit. */
+function formatResumeLabel(unavailableUntil: string): string {
+  const until = new Date(unavailableUntil);
+  const isToday =
+    formatLocalDateOnly(until) === formatLocalDateOnly(new Date());
+  return isToday
+    ? formatAbidjanTime(until)
+    : `${formatAbidjanShortDate(until)} · ${formatAbidjanTime(until)}`;
+}
 
 // Lazy-load the supplement modal — it's only opened when a product has
 // supplements AND the user clicks "add". Avoids shipping HeroUI Modal +
@@ -27,18 +46,35 @@ function ProductCard({ product }: ProductCardProps) {
   const [justAdded, setJustAdded] = useState(false);
   const hasSups = product.supplements && product.supplements.length > 0;
 
+  // Priorité d'affichage : pause > épuisé > stock bas > rien (illimité/stock
+  // confortable). Pause et épuisé désactivent l'ajout ; stock bas reste une
+  // simple info (le prochain « Épuisé » viendra tout seul à 0).
+  const paused = isPausedNow(product.unavailableUntil);
+  const soldOut = !paused && product.soldOut === true;
+  const lowStock =
+    !paused &&
+    !soldOut &&
+    product.remaining != null &&
+    product.remaining > 0 &&
+    product.remaining <= LOW_STOCK_THRESHOLD;
+  const isUnorderable = paused || soldOut;
+
   function handleAdd() {
+    if (isUnorderable) return;
     if (hasSups) {
       setShowModal(true);
     } else {
-      addItem({
-        productId: product.id,
-        productName: product.name,
-        basePrice: product.price,
-        coutMatiere: product.coutMatiere ?? 0,
-        coutEmballage: product.coutEmballage ?? 0,
-        supplements: [],
-      });
+      addItem(
+        {
+          productId: product.id,
+          productName: product.name,
+          basePrice: product.price,
+          coutMatiere: product.coutMatiere ?? 0,
+          coutEmballage: product.coutEmballage ?? 0,
+          supplements: [],
+        },
+        product.remaining ?? undefined
+      );
       setJustAdded(true);
       setTimeout(() => setJustAdded(false), 1200);
     }
@@ -77,6 +113,27 @@ function ProductCard({ product }: ProductCardProps) {
           <p className="mt-1.5 text-sm font-semibold text-primary">
             {priceFormatter.format(product.price)}&nbsp;F
           </p>
+
+          {(paused || soldOut || lowStock) && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {paused && (
+                <Chip color="warning" variant="flat" size="sm">
+                  Indisponible — retour{' '}
+                  {formatResumeLabel(product.unavailableUntil as string)}
+                </Chip>
+              )}
+              {soldOut && (
+                <Chip color="danger" variant="flat" size="sm">
+                  Épuisé
+                </Chip>
+              )}
+              {lowStock && (
+                <Chip color="secondary" variant="flat" size="sm">
+                  Plus que {product.remaining}
+                </Chip>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Add button */}
@@ -86,9 +143,14 @@ function ProductCard({ product }: ProductCardProps) {
           color={justAdded ? 'success' : 'primary'}
           variant="flat"
           radius="full"
-          aria-label={`Ajouter ${product.name}`}
+          isDisabled={isUnorderable}
+          aria-label={
+            isUnorderable
+              ? `${product.name} indisponible`
+              : `Ajouter ${product.name}`
+          }
           onPress={handleAdd}
-          className="shrink-0 cursor-pointer transition-transform duration-150 active:scale-90 hover:scale-110"
+          className="shrink-0 cursor-pointer transition-transform duration-150 active:scale-90 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
         >
           {justAdded ? (
             <Check className="h-4 w-4" />

@@ -10,6 +10,8 @@ export type SupplementOption = {
   name: string;
   price: number;
   available: boolean;
+  // Stock vendable de l'option (« goût »). `null` = illimité (par défaut).
+  stockQuantity: number | null;
 };
 export type SupplementGroup = {
   name: string;
@@ -51,7 +53,10 @@ export function SupplementsEditor({ groups, onChange }: Props) {
   }
   function addOption(gi: number) {
     updateGroup(gi, {
-      options: [...groups[gi].options, { name: '', price: 0, available: true }],
+      options: [
+        ...groups[gi].options,
+        { name: '', price: 0, available: true, stockQuantity: null },
+      ],
     });
   }
   function removeOption(gi: number, oi: number) {
@@ -218,6 +223,21 @@ export function SupplementsEditor({ groups, onChange }: Props) {
                       })
                     }
                     className="w-24 sm:w-32"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Qté"
+                    min={0}
+                    step={1}
+                    title="Quantité disponible du jour (vide = illimité)"
+                    value={o.stockQuantity ?? ''}
+                    onChange={(e) =>
+                      updateOption(gi, oi, {
+                        stockQuantity:
+                          e.target.value === '' ? null : Number(e.target.value),
+                      })
+                    }
+                    className="w-16 sm:w-20"
                   />
                   <label className="flex h-9 shrink-0 items-center gap-1.5 text-xs whitespace-nowrap">
                     <input

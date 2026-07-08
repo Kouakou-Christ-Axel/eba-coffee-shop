@@ -44,6 +44,14 @@ const costFieldsSchema = {
   coutEmballage: z.number().int().nonnegative().optional().default(0),
 };
 
+const availabilityFieldsSchema = {
+  // Stock vendable courant. `null`/absent = illimité (comportement inchangé) ;
+  // entier = quantité restante suivie ; `0` = épuisé.
+  stockQuantity: z.number().int().nonnegative().nullable().optional(),
+  // Pause programmée (ISO 8601). `null`/absent = pas de pause.
+  unavailableUntil: z.string().datetime().nullable().optional(),
+};
+
 export const productInputSchema = z.object({
   categoryId: z.string().min(1),
   name: z.string().min(1).max(120),
@@ -53,6 +61,7 @@ export const productInputSchema = z.object({
   supplementGroups: z.array(supplementGroupSchema),
   ...featuredFieldsSchema,
   ...costFieldsSchema,
+  ...availabilityFieldsSchema,
 });
 
 // Mise à jour PARTIELLE : tous les champs sont optionnels. Seuls les champs
@@ -71,6 +80,7 @@ export const productUpdateSchema = z.object({
   featuredBadge: z.string().min(1).max(40).nullable().optional(),
   coutMatiere: z.number().int().nonnegative().optional(),
   coutEmballage: z.number().int().nonnegative().optional(),
+  ...availabilityFieldsSchema,
 });
 
 // ─── Catégories ───────────────────────────────────────────────────────────────
@@ -169,6 +179,10 @@ export async function createProduct(input: ProductInput) {
       featured: data.featured,
       featuredOrder: data.featuredOrder,
       featuredBadge: data.featuredBadge ?? null,
+      stockQuantity: data.stockQuantity ?? null,
+      unavailableUntil: data.unavailableUntil
+        ? new Date(data.unavailableUntil)
+        : null,
       supplementGroups: {
         create: data.supplementGroups.map((g, gi) => ({
           name: g.name,
@@ -183,6 +197,7 @@ export async function createProduct(input: ProductInput) {
               name: o.name,
               price: o.price,
               available: o.available,
+              stockQuantity: o.stockQuantity ?? null,
             })),
           },
         })),
@@ -214,6 +229,14 @@ export async function updateProduct(id: string, input: ProductUpdate) {
     ...(data.coutMatiere !== undefined && { coutMatiere: data.coutMatiere }),
     ...(data.coutEmballage !== undefined && {
       coutEmballage: data.coutEmballage,
+    }),
+    ...(data.stockQuantity !== undefined && {
+      stockQuantity: data.stockQuantity,
+    }),
+    ...(data.unavailableUntil !== undefined && {
+      unavailableUntil: data.unavailableUntil
+        ? new Date(data.unavailableUntil)
+        : null,
     }),
   };
 
@@ -277,6 +300,7 @@ async function updateSupplementGroups(
                 name: o.name,
                 price: o.price,
                 available: o.available,
+                stockQuantity: o.stockQuantity ?? null,
               })),
             },
           },
@@ -308,6 +332,7 @@ async function updateSupplementGroups(
           name: o.name,
           price: o.price,
           available: o.available,
+          stockQuantity: o.stockQuantity ?? null,
         };
         if (optionMatch) {
           await tx.supplementOption.update({
@@ -380,5 +405,95 @@ export async function toggleProductFeatured(id: string) {
   return prisma.product.update({
     where: { id },
     data: { featured: !p.featured },
+  });
+}
+
+// ─── Stock & pause (atomique) ────────────────────────────────────────────────
+//
+// Mises à jour ABSOLUES du stock (`stockQuantity`) et de la pause
+// (`unavailableUntil`) : cf. `scalar` dans `updateProduct` / `optionData` dans
+// `updateSupplementGroups`. Les fonctions ci-dessous couvrent les gestes
+// complémentaires — incrément relatif (« + fournée ») et bascule pause — pour
+// le dashboard et les outils MCP, sans dupliquer la logique de décrément au
+// paiement (qui vit dans `lib/order-mutations.ts`, hors périmètre de ce fichier).
+
+// Définit ABSOLUMENT le stock d'un produit (« définir le matin »), par
+// opposition à l'incrément relatif de `restockProduct` (« + nouvelle fournée »
+// en journée). `null` repasse le produit en illimité.
+export async function setProductStock(id: string, quantity: number | null) {
+  const p = await prisma.product.findUnique({ where: { id } });
+  if (!p) throw new Error('Produit introuvable');
+  return prisma.product.update({
+    where: { id },
+    data: { stockQuantity: quantity },
+  });
+}
+
+// Équivalent de `setProductStock` pour une option de supplément (« goût »).
+export async function setOptionStock(id: string, quantity: number | null) {
+  const o = await prisma.supplementOption.findUnique({ where: { id } });
+  if (!o) throw new Error('Option introuvable');
+  return prisma.supplementOption.update({
+    where: { id },
+    data: { stockQuantity: quantity },
+  });
+}
+
+// Incrémente (ou décrémente si `delta` est négatif) le stock d'un produit.
+// No-op impossible sur un produit à stock illimité (`stockQuantity === null`) :
+// on refuse explicitement plutôt que de silencieusement transformer un produit
+// illimité en produit à stock 0/négatif.
+export async function restockProduct(id: string, delta: number) {
+  const p = await prisma.product.findUnique({
+    where: { id },
+    select: { stockQuantity: true },
+  });
+  if (!p) throw new Error('Produit introuvable');
+  if (p.stockQuantity === null) {
+    throw new Error(
+      'Produit à stock illimité : impossible de réapprovisionner'
+    );
+  }
+  return prisma.product.update({
+    where: { id },
+    data: { stockQuantity: { increment: delta } },
+  });
+}
+
+// Équivalent de `restockProduct` pour une option de supplément (« goût »).
+export async function restockOption(id: string, delta: number) {
+  const o = await prisma.supplementOption.findUnique({
+    where: { id },
+    select: { stockQuantity: true },
+  });
+  if (!o) throw new Error('Option introuvable');
+  if (o.stockQuantity === null) {
+    throw new Error('Option à stock illimité : impossible de réapprovisionner');
+  }
+  return prisma.supplementOption.update({
+    where: { id },
+    data: { stockQuantity: { increment: delta } },
+  });
+}
+
+// Met un produit en pause jusqu'à `until` (non commandable, mais toujours
+// visible côté carte publique avec un tag de statut). La reprise est ensuite
+// automatique : calculée à la lecture (`unavailableUntil > now`), sans cron.
+export async function pauseProduct(id: string, until: Date) {
+  const p = await prisma.product.findUnique({ where: { id } });
+  if (!p) throw new Error('Produit introuvable');
+  return prisma.product.update({
+    where: { id },
+    data: { unavailableUntil: until },
+  });
+}
+
+// Lève une pause manuellement (avant son terme naturel).
+export async function resumeProduct(id: string) {
+  const p = await prisma.product.findUnique({ where: { id } });
+  if (!p) throw new Error('Produit introuvable');
+  return prisma.product.update({
+    where: { id },
+    data: { unavailableUntil: null },
   });
 }

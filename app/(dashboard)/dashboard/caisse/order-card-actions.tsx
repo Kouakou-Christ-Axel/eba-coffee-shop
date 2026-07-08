@@ -12,6 +12,7 @@ import {
   Pencil,
   Ban,
   RotateCcw,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -100,6 +101,21 @@ export function OrderCardActions({
       ? 'Encaisser maintenant'
       : 'Marquer payée';
 
+  // Stock épuisé signalé par le flux SSE (`lib/cashier-queue.ts`) pour une
+  // commande NON payée : le serveur refusera le paiement de toute façon (409),
+  // mais on prévient le staff AVANT le clic pour éviter le clic perdu.
+  const hasStockShortage = order.stockShortage && !order.isPaid;
+
+  // Non bloquant : une confirmation explicite suffit à passer outre (le staff
+  // peut avoir déjà proposé un remplacement au client). Si le stock a bougé
+  // entre-temps, le serveur retranchera de toute façon (409, message affiché).
+  function confirmDespiteShortage(): boolean {
+    if (!hasStockShortage) return true;
+    return confirm(
+      `Stock épuisé pour : ${order.unavailableItemNames.join(', ')}.\nProposer un autre produit au client avant de payer.\nContinuer quand même ?`
+    );
+  }
+
   function handlePaymentConfirm(mode: PaymentMode) {
     setPaymentError(null);
     startTransition(async () => {
@@ -119,6 +135,7 @@ export function OrderCardActions({
   // Raccourci quand le client a envoyé sa preuve Wave depuis la page de suivi :
   // encaissement direct en mode WAVE, sans passer par la modale.
   function handleValidateWaveProof() {
+    if (!confirmDespiteShortage()) return;
     setActionError(null);
     startTransition(async () => {
       const result = await callApi(
@@ -244,6 +261,18 @@ export function OrderCardActions({
           </Button>
         )}
 
+        {/* Stock épuisé sur un article de cette commande (non payée) : signal
+            rouge + garde sur les boutons de paiement ci-dessous. */}
+        {hasStockShortage && (
+          <div className="flex items-center gap-2 rounded-lg bg-red-100 px-3 py-2 text-xs font-medium text-red-900 ring-1 ring-red-300 dark:bg-red-950/40 dark:text-red-100 dark:ring-red-800">
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>
+              Stock épuisé — proposer un autre produit :{' '}
+              {order.unavailableItemNames.join(', ')}
+            </span>
+          </div>
+        )}
+
         {/* Preuve Wave reçue : validation en un clic (mode WAVE) */}
         {order.paymentProofUrl &&
           !order.isPaid &&
@@ -269,7 +298,9 @@ export function OrderCardActions({
             size="lg"
             className="w-full"
             disabled={isPending}
-            onClick={() => setIsPaymentOpen(true)}
+            onClick={() => {
+              if (confirmDespiteShortage()) setIsPaymentOpen(true);
+            }}
           >
             <Check className="mr-1.5 h-4 w-4" />
             {payLabel}

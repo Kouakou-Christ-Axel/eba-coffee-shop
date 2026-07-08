@@ -132,7 +132,8 @@ export type CustomerNotificationKind =
   | 'COMPLETED'
   | 'CANCELLED'
   | 'PAYMENT'
-  | 'PAYMENT_PREPARING';
+  | 'PAYMENT_PREPARING'
+  | 'ITEM_UNAVAILABLE';
 
 const CUSTOMER_MESSAGES: Record<
   CustomerNotificationKind,
@@ -161,6 +162,10 @@ const CUSTOMER_MESSAGES: Record<
   PAYMENT_PREPARING: {
     title: 'Paiement validé ✅',
     body: 'Ta commande part en préparation — on te prévient quand c’est prêt.',
+  },
+  ITEM_UNAVAILABLE: {
+    title: 'Article épuisé',
+    body: 'Un article de ta commande n’est plus disponible. Choisis-en un autre 🙏',
   },
 };
 
