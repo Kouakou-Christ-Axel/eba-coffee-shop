@@ -193,6 +193,7 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `update_poll`                    | écriture | Modifier un sondage (mise à jour **partielle**)              |
 | `set_poll_status`                | écriture | Ouvrir / clôturer un sondage (DRAFT/OPEN/CLOSED)             |
 | `delete_poll`                    | écriture | Supprimer un sondage (DRAFT sans vote uniquement)            |
+| `set_poll_image`                 | écriture | Illustrer un sondage (image de couverture, base64 ou URL)    |
 | `create_poll_option`             | écriture | Ajouter une option de vote à un sondage                      |
 | `update_poll_option`             | écriture | Modifier une option (mise à jour **partielle**)              |
 | `move_poll_option`               | écriture | Réordonner une option (`up` / `down`)                        |

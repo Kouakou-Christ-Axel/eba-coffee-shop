@@ -36,6 +36,7 @@ function PollVoteSection({
   pollId,
   title,
   description,
+  imageUrl,
   status,
   allowSuggestions,
   options,
@@ -44,6 +45,7 @@ function PollVoteSection({
   pollId: string;
   title: string;
   description: string | null;
+  imageUrl: string | null;
   status: 'DRAFT' | 'OPEN' | 'CLOSED';
   allowSuggestions: boolean;
   options: PollOption[];
@@ -103,6 +105,15 @@ function PollVoteSection({
         transition={reduceMotion ? undefined : { duration: 0.5 }}
         className="mx-auto max-w-2xl"
       >
+        {imageUrl && (
+          <Image
+            src={imageUrl}
+            alt={title}
+            width={640}
+            height={320}
+            className="mb-6 aspect-[2/1] w-full rounded-2xl object-cover"
+          />
+        )}
         <h1 className="text-2xl font-bold md:text-3xl">{title}</h1>
         {description && (
           <p className="mt-2 text-muted-foreground">{description}</p>

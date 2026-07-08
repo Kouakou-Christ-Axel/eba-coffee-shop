@@ -5,7 +5,11 @@ import {
   MAX_UPLOAD_SIZE_BYTES,
   isAllowedImageMimeType,
 } from '@/lib/schemas/upload';
-import { saveProductImage, savePollOptionImage } from '@/lib/uploads';
+import {
+  saveProductImage,
+  savePollOptionImage,
+  savePollImage,
+} from '@/lib/uploads';
 
 const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
 
@@ -15,6 +19,7 @@ const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
 const SAVERS = {
   products: saveProductImage,
   'poll-options': savePollOptionImage,
+  polls: savePollImage,
 } as const;
 type AdminUploadSubdir = keyof typeof SAVERS;
 

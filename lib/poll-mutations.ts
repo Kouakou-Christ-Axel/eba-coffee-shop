@@ -34,6 +34,7 @@ export async function createPoll(input: unknown, createdById?: string) {
     data: {
       title: data.title,
       description: data.description ?? null,
+      imageUrl: data.imageUrl ?? null,
       allowSuggestions: data.allowSuggestions,
       resultsVisibility: data.resultsVisibility,
       opensAt: toDateOrNull(data.opensAt),
@@ -60,6 +61,7 @@ export async function updatePoll(id: string, input: unknown) {
   const scalar: Prisma.PollUpdateInput = {
     ...(data.title !== undefined && { title: data.title }),
     ...(data.description !== undefined && { description: data.description }),
+    ...(data.imageUrl !== undefined && { imageUrl: data.imageUrl }),
     ...(data.allowSuggestions !== undefined && {
       allowSuggestions: data.allowSuggestions,
     }),

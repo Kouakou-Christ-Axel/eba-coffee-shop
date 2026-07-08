@@ -159,7 +159,13 @@ export async function listPublicPolls({
   return prisma.poll.findMany({
     where: { status },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, title: true, description: true, status: true },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      imageUrl: true,
+      status: true,
+    },
   });
 }
 

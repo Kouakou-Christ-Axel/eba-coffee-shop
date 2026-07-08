@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { Select, SelectItem } from '@heroui/react';
 import {
   Table,
@@ -16,9 +17,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import {
   Sheet,
   SheetContent,
@@ -27,15 +25,18 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import {
-  createPollAction,
-  setPollStatusAction,
-  deletePollAction,
-} from './actions';
+  PollFormFields,
+  emptyPollScalarValues,
+  type PollScalarValues,
+} from './poll-form-fields';
+import { EditPollSheet } from './edit-poll-sheet';
+import { createPollAction, setPollStatusAction, deletePollAction } from './actions';
 
 type PollRow = {
   id: string;
   title: string;
   description: string | null;
+  imageUrl: string | null;
   status: 'DRAFT' | 'OPEN' | 'CLOSED';
   allowSuggestions: boolean;
   resultsVisibility: 'LIVE' | 'AFTER_CLOSE';
@@ -50,19 +51,10 @@ const STATUS_LABELS: Record<PollRow['status'], string> = {
   CLOSED: 'Clôturé',
 };
 
-type CreateValues = {
-  title: string;
-  description: string;
-  allowSuggestions: boolean;
-  resultsVisibility: 'LIVE' | 'AFTER_CLOSE';
-  options: string[];
-};
+type CreateValues = PollScalarValues & { options: string[] };
 
 const emptyCreate: CreateValues = {
-  title: '',
-  description: '',
-  allowSuggestions: false,
-  resultsVisibility: 'AFTER_CLOSE',
+  ...emptyPollScalarValues,
   options: ['', ''],
 };
 
@@ -96,6 +88,7 @@ export function PollsTable({ polls }: { polls: PollRow[] }) {
     const input = {
       title,
       description: values.description.trim() || undefined,
+      imageUrl: values.imageUrl,
       allowSuggestions: values.allowSuggestions,
       resultsVisibility: values.resultsVisibility,
       options: options.map((label) => ({ label })),
@@ -161,6 +154,7 @@ export function PollsTable({ polls }: { polls: PollRow[] }) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Image</TableHead>
               <TableHead>Titre</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead>Options</TableHead>
@@ -172,6 +166,19 @@ export function PollsTable({ polls }: { polls: PollRow[] }) {
           <TableBody>
             {polls.map((p) => (
               <TableRow key={p.id}>
+                <TableCell>
+                  {p.imageUrl ? (
+                    <Image
+                      src={p.imageUrl}
+                      alt={p.title}
+                      width={40}
+                      height={40}
+                      className="size-10 rounded-md object-cover"
+                    />
+                  ) : (
+                    <div className="size-10 rounded-md border border-dashed" />
+                  )}
+                </TableCell>
                 <TableCell className="text-sm font-medium">
                   <Link
                     href={`/dashboard/sondages/${p.id}`}
@@ -214,26 +221,29 @@ export function PollsTable({ polls }: { polls: PollRow[] }) {
                   )}
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => remove(p)}
-                    disabled={pendingId === p.id}
-                    aria-label="Supprimer le sondage"
-                  >
-                    {pendingId === p.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    )}
-                  </Button>
+                  <div className="flex items-center justify-end">
+                    <EditPollSheet poll={p} />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => remove(p)}
+                      disabled={pendingId === p.id}
+                      aria-label="Supprimer le sondage"
+                    >
+                      {pendingId === p.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      )}
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
             {polls.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="py-8 text-center text-sm text-muted-foreground"
                 >
                   Aucun sondage pour l’instant.
@@ -254,31 +264,13 @@ export function PollsTable({ polls }: { polls: PollRow[] }) {
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-4 px-4 pb-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="poll-title">Titre</Label>
-              <Input
-                id="poll-title"
-                value={values.title}
-                onChange={(e) =>
-                  setValues({ ...values, title: e.target.value })
-                }
-                placeholder="Ex. La pâtisserie de la semaine"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="poll-description">Description (optionnel)</Label>
-              <Textarea
-                id="poll-description"
-                value={values.description}
-                onChange={(e) =>
-                  setValues({ ...values, description: e.target.value })
-                }
-                placeholder="Contexte affiché aux clients…"
-              />
-            </div>
+            <PollFormFields
+              values={values}
+              onChange={(v) => setValues({ ...v, options: values.options })}
+            />
 
             <div className="space-y-2">
-              <Label>Options</Label>
+              <p className="text-sm font-medium leading-none">Options</p>
               {values.options.map((opt, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <Input
@@ -302,7 +294,7 @@ export function PollsTable({ polls }: { polls: PollRow[] }) {
                       }
                       aria-label="Retirer l’option"
                     >
-                      <X className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
@@ -317,46 +309,6 @@ export function PollsTable({ polls }: { polls: PollRow[] }) {
                 <Plus className="mr-1.5 h-4 w-4" />
                 Ajouter une option
               </Button>
-            </div>
-
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <p className="text-sm font-medium">Suggestions de la communauté</p>
-                <p className="text-xs text-muted-foreground">
-                  Autorise les clients à proposer des options (modération
-                  requise).
-                </p>
-              </div>
-              <Switch
-                checked={values.allowSuggestions}
-                onCheckedChange={(checked) =>
-                  setValues({ ...values, allowSuggestions: checked })
-                }
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="poll-visibility">Visibilité des résultats</Label>
-              <Select
-                id="poll-visibility"
-                aria-label="Visibilité des résultats"
-                size="sm"
-                selectedKeys={[values.resultsVisibility]}
-                disallowEmptySelection
-                onSelectionChange={(keys) =>
-                  setValues({
-                    ...values,
-                    resultsVisibility: String(
-                      Array.from(keys)[0] ?? 'AFTER_CLOSE'
-                    ) as 'LIVE' | 'AFTER_CLOSE',
-                  })
-                }
-              >
-                <SelectItem key="AFTER_CLOSE">
-                  Après la clôture du vote
-                </SelectItem>
-                <SelectItem key="LIVE">Pendant le vote (en direct)</SelectItem>
-              </Select>
             </div>
 
             {error && <p className="text-sm text-destructive">{error}</p>}

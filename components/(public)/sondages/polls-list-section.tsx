@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { Card, CardBody, Chip } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -9,6 +10,7 @@ type PollSummary = {
   id: string;
   title: string;
   description: string | null;
+  imageUrl: string | null;
 };
 
 function PollsListSection({
@@ -49,7 +51,17 @@ function PollsListSection({
             <Link href={`/sondages/${poll.id}`}>
               <Card className="border border-default-200/70 transition-shadow hover:shadow-lg">
                 <CardBody className="flex-row items-center gap-3 p-5">
-                  <Vote className="h-5 w-5 shrink-0 text-primary" />
+                  {poll.imageUrl ? (
+                    <Image
+                      src={poll.imageUrl}
+                      alt={poll.title}
+                      width={48}
+                      height={48}
+                      className="size-12 shrink-0 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <Vote className="h-5 w-5 shrink-0 text-primary" />
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold">{poll.title}</p>
                     {poll.description && (
@@ -78,7 +90,20 @@ function PollsListSection({
               <Link key={poll.id} href={`/sondages/${poll.id}`}>
                 <Card className="border border-default-200/50 opacity-80 transition-opacity hover:opacity-100">
                   <CardBody className="flex-row items-center justify-between gap-3 p-4">
-                    <p className="text-sm font-medium">{poll.title}</p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      {poll.imageUrl && (
+                        <Image
+                          src={poll.imageUrl}
+                          alt={poll.title}
+                          width={36}
+                          height={36}
+                          className="size-9 shrink-0 rounded-md object-cover"
+                        />
+                      )}
+                      <p className="truncate text-sm font-medium">
+                        {poll.title}
+                      </p>
+                    </div>
                     <Chip variant="flat" size="sm">
                       Résultats
                     </Chip>
