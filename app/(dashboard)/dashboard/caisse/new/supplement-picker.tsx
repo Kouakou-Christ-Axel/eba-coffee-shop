@@ -148,9 +148,20 @@ export function SupplementPicker({
                       </Radio>
                     )}
                     {group.options.map((opt) => (
-                      <Radio key={opt.name} value={opt.name}>
+                      <Radio
+                        key={opt.name}
+                        value={opt.name}
+                        isDisabled={opt.soldOut}
+                      >
                         <span className="flex items-center justify-between gap-4">
-                          <span className="text-sm">{opt.name}</span>
+                          <span className="text-sm">
+                            {opt.name}
+                            {opt.soldOut && (
+                              <span className="ml-1.5 text-xs font-medium text-danger">
+                                épuisé
+                              </span>
+                            )}
+                          </span>
                           <span className="text-xs text-foreground/50">
                             {opt.price === 0
                               ? 'Inclus'
@@ -168,7 +179,8 @@ export function SupplementPicker({
                       const current =
                         (selections[group.name] as string[]) ?? [];
                       const isChecked = current.includes(opt.name);
-                      const isDisabled = !isChecked && count >= max;
+                      const isDisabled =
+                        opt.soldOut || (!isChecked && count >= max);
                       return (
                         <Checkbox
                           key={opt.name}
@@ -179,7 +191,14 @@ export function SupplementPicker({
                           }
                         >
                           <span className="flex items-center justify-between gap-4">
-                            <span className="text-sm">{opt.name}</span>
+                            <span className="text-sm">
+                              {opt.name}
+                              {opt.soldOut && (
+                                <span className="ml-1.5 text-xs font-medium text-danger">
+                                  épuisé
+                                </span>
+                              )}
+                            </span>
                             <span className="text-xs text-foreground/50">
                               +{priceFormatter.format(opt.price)} F
                             </span>
@@ -194,7 +213,16 @@ export function SupplementPicker({
                   <div className="space-y-2">
                     {group.options.map((opt) => {
                       const qty = optionQuantity(group, selections, opt.name);
-                      const canIncrement = count < max;
+                      // Plafond de l'option : borne du groupe (répartition
+                      // totale) ET stock restant de l'option elle-même — la
+                      // plus stricte des deux gagne. Sans ce plafond, le
+                      // compteur (qui exclut les options épuisées, cf.
+                      // `groupSelectionCount`) peut afficher « N / N » alors
+                      // qu'une option épuisée reste incrémentable en plus —
+                      // désynchronisant l'affichage de la sélection réelle.
+                      const optionCap = opt.remaining ?? Infinity;
+                      const canIncrement =
+                        !opt.soldOut && count < max && qty < optionCap;
                       return (
                         <div
                           key={opt.name}
@@ -205,6 +233,11 @@ export function SupplementPicker({
                             {opt.price > 0 && (
                               <span className="ml-1 text-xs text-foreground/50">
                                 +{priceFormatter.format(opt.price)} F
+                              </span>
+                            )}
+                            {opt.soldOut && (
+                              <span className="ml-1.5 text-xs font-medium text-danger">
+                                épuisé
                               </span>
                             )}
                           </span>
