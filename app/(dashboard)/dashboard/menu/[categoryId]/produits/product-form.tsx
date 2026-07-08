@@ -180,10 +180,13 @@ export function ProductForm({
           featuredBadge: featured ? featuredBadge : null,
           stockQuantity,
         };
-        if (isEdit && initial?.id) {
-          await updateProductAction(initial.id, payload);
-        } else {
-          await createProductAction({ ...payload, categoryId });
+        const result =
+          isEdit && initial?.id
+            ? await updateProductAction(initial.id, payload)
+            : await createProductAction({ ...payload, categoryId });
+        if (result?.error) {
+          setSubmitError(result.error);
+          return;
         }
         router.push(`/dashboard/menu/${categoryId}`);
         router.refresh();
