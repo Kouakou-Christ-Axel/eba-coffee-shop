@@ -8,10 +8,23 @@
 // 0 rows affected (double-clic, ou modif concurrente d'un autre caissier).
 
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireCashier } from '@/lib/auth-helpers';
 import { paymentModeSchema } from '@/lib/schemas/order';
 import { setOrderPayment, OrderMutationError } from '@/lib/order-mutations';
+
+// Un paiement réussi peut avoir décrémenté du stock (produit/option) : la carte
+// publique (ISR) doit se rafraîchir. Best-effort, jamais bloquant — l'écriture
+// en base a déjà eu lieu (même pattern que `revalidateMenu` du MCP).
+function revalidatePublicMenu() {
+  try {
+    revalidatePath('/api/menu');
+    revalidatePath('/carte');
+  } catch (err) {
+    console.warn('[caisse/payment] revalidatePublicMenu a échoué', err);
+  }
+}
 
 const bodySchema = z
   .object({
@@ -60,6 +73,7 @@ export async function PATCH(req: Request, { params }: Params) {
       isPaid,
       paymentMode
     );
+    if (isPaid) revalidatePublicMenu();
     return NextResponse.json({ ok: true, startedPreparation });
   } catch (err) {
     if (err instanceof OrderMutationError) {

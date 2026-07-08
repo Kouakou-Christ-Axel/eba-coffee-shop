@@ -7,13 +7,23 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { createProductAction, updateProductAction } from '../../actions';
+import {
+  createProductAction,
+  updateProductAction,
+  pauseProductAction,
+  resumeProductAction,
+} from '../../actions';
 import { ProductImagesField } from './_components/product-images-field';
 import { BadgesField } from './_components/badges-field';
 import {
   SupplementsEditor,
   type SupplementGroup,
 } from './_components/supplements-editor';
+import {
+  abidjanDatetimeLocalToISO,
+  formatAbidjanDateTime,
+} from '@/lib/timezone';
+import { isPausedNow } from '@/lib/supplements';
 
 export type ProductFormInitial = {
   id?: string;
@@ -27,6 +37,8 @@ export type ProductFormInitial = {
   featured: boolean;
   featuredOrder: number;
   featuredBadge: string | null;
+  stockQuantity: number | null;
+  unavailableUntil: Date | null;
 };
 
 const EMPTY: ProductFormInitial = {
@@ -40,6 +52,8 @@ const EMPTY: ProductFormInitial = {
   featured: false,
   featuredOrder: 0,
   featuredBadge: null,
+  stockQuantity: null,
+  unavailableUntil: null,
 };
 
 export function ProductForm({
@@ -80,8 +94,70 @@ export function ProductForm({
   const [featuredBadge, setFeaturedBadge] = useState<string | null>(
     initial?.featuredBadge ?? EMPTY.featuredBadge
   );
+  const [stockQuantity, setStockQuantity] = useState<number | null>(
+    initial?.stockQuantity ?? EMPTY.stockQuantity
+  );
+
+  // Pause programmée : gérée indépendamment de la sauvegarde du formulaire
+  // (appelle directement `pauseProductAction`/`resumeProductAction`, qui
+  // agissent sur le produit persisté). Non disponible pour un produit non
+  // encore créé (pas d'id).
+  const [unavailableUntil, setUnavailableUntil] = useState<Date | null>(
+    initial?.unavailableUntil ?? null
+  );
+  const [pauseCustomInput, setPauseCustomInput] = useState('');
+  const [isPausePending, startPauseTransition] = useTransition();
+  const [pauseError, setPauseError] = useState<string | null>(null);
 
   const isEdit = Boolean(initial?.id);
+  const isPausedNowValue = isPausedNow(unavailableUntil);
+
+  function applyPause(until: Date) {
+    if (!initial?.id) return;
+    setPauseError(null);
+    startPauseTransition(async () => {
+      try {
+        await pauseProductAction(initial.id!, until.toISOString());
+        setUnavailableUntil(until);
+        router.refresh();
+      } catch (err) {
+        setPauseError(err instanceof Error ? err.message : 'Erreur');
+      }
+    });
+  }
+
+  function handlePauseHours(hours: number) {
+    applyPause(new Date(Date.now() + hours * 60 * 60 * 1000));
+  }
+
+  function handlePauseCustom() {
+    const iso = abidjanDatetimeLocalToISO(pauseCustomInput);
+    if (!iso) {
+      setPauseError('Date/heure invalide');
+      return;
+    }
+    const until = new Date(iso);
+    if (until.getTime() <= Date.now()) {
+      setPauseError('La reprise doit être dans le futur');
+      return;
+    }
+    applyPause(until);
+  }
+
+  function handleResume() {
+    if (!initial?.id) return;
+    setPauseError(null);
+    startPauseTransition(async () => {
+      try {
+        await resumeProductAction(initial.id!);
+        setUnavailableUntil(null);
+        setPauseCustomInput('');
+        router.refresh();
+      } catch (err) {
+        setPauseError(err instanceof Error ? err.message : 'Erreur');
+      }
+    });
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,6 +178,7 @@ export function ProductForm({
           featured,
           featuredOrder: featured ? Number(featuredOrder) || 0 : 0,
           featuredBadge: featured ? featuredBadge : null,
+          stockQuantity,
         };
         if (isEdit && initial?.id) {
           await updateProductAction(initial.id, payload);
@@ -177,6 +254,26 @@ export function ProductForm({
               />
             </div>
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="stock-quantity">Quantité disponible du jour</Label>
+            <Input
+              id="stock-quantity"
+              type="number"
+              min={0}
+              step={1}
+              placeholder="Illimité"
+              value={stockQuantity ?? ''}
+              onChange={(e) =>
+                setStockQuantity(
+                  e.target.value === '' ? null : Number(e.target.value)
+                )
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Vide = illimité (crêpes, boissons…). Un nombre = suivi et
+              décrémenté au paiement.
+            </p>
+          </div>
           {price > 0 && (
             <div className="rounded-lg bg-muted px-3 py-2 text-sm">
               <span className="text-muted-foreground">Marge estimée : </span>
@@ -199,6 +296,78 @@ export function ProductForm({
           )}
         </CardContent>
       </Card>
+
+      {isEdit && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pause programmée</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm">
+              {isPausedNowValue && unavailableUntil ? (
+                <span className="font-medium text-amber-600">
+                  En pause jusqu&apos;au{' '}
+                  {formatAbidjanDateTime(unavailableUntil)}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">
+                  Disponible (pas de pause en cours).
+                </span>
+              )}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isPausePending}
+                onClick={() => handlePauseHours(1)}
+              >
+                +1h
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isPausePending}
+                onClick={() => handlePauseHours(2)}
+              >
+                +2h
+              </Button>
+              <Input
+                type="datetime-local"
+                value={pauseCustomInput}
+                onChange={(e) => setPauseCustomInput(e.target.value)}
+                className="w-auto"
+                aria-label="Reprise programmée à une date/heure précise"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isPausePending || !pauseCustomInput}
+                onClick={handlePauseCustom}
+              >
+                Programmer
+              </Button>
+              {isPausedNowValue && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={isPausePending}
+                  onClick={handleResume}
+                >
+                  Remettre disponible
+                </Button>
+              )}
+            </div>
+            {pauseError && (
+              <p className="text-sm text-destructive">{pauseError}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <ProductImagesField
         imageUrl={imageUrl}

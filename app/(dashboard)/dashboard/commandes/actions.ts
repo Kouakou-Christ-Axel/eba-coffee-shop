@@ -27,6 +27,13 @@ function revalidateOrder(id: string): void {
   revalidatePath('/dashboard/commandes');
 }
 
+// Un paiement réussi peut avoir décrémenté du stock (produit/option) : la
+// carte publique (ISR) doit se rafraîchir. Best-effort, jamais bloquant.
+function revalidatePublicMenu(): void {
+  revalidatePath('/api/menu');
+  revalidatePath('/carte');
+}
+
 export async function updateOrderStatus(
   id: string,
   newStatus: OrderStatus
@@ -47,6 +54,7 @@ export async function markOrderPaidAction(
 
   await setOrderPayment(id, true, paymentMode);
   revalidateOrder(id);
+  revalidatePublicMenu();
 }
 
 /**
@@ -61,6 +69,7 @@ export async function payAndCompleteAction(
 
   await payAndComplete(id, paymentMode, role);
   revalidateOrder(id);
+  revalidatePublicMenu();
 }
 
 export async function updateOrderItemsAction(

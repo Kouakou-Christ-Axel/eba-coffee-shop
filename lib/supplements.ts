@@ -17,6 +17,26 @@
 import type { Product, SupplementGroup } from '@/config/menu';
 import type { CartItemSupplement } from '@/lib/cart-store';
 
+/**
+ * Un produit en pause programmée (`unavailableUntil` dans le futur) est
+ * toujours visible sur la carte/le dashboard (pas de masquage dur) mais non
+ * commandable. La reprise est calculée à la LECTURE (pas de cron) : dès que
+ * `now` dépasse `unavailableUntil`, le produit redevient commandable sans
+ * intervention. Client-safe (pas d'import Prisma) : utilisable depuis les
+ * composants client (dashboard ET carte publique).
+ */
+export function isPausedNow(
+  unavailableUntil: Date | string | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!unavailableUntil) return false;
+  const until =
+    typeof unavailableUntil === 'string'
+      ? new Date(unavailableUntil)
+      : unavailableUntil;
+  return until.getTime() > now.getTime();
+}
+
 /** Sélection pour un groupe : nom d'option ('single'), noms cochés
  * ('multiple'), ou quantité par nom d'option ('quantity'). */
 export type GroupSelection = string | string[] | Record<string, number>;

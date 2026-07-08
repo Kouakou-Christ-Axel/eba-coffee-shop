@@ -30,6 +30,9 @@ vi.mock('@/lib/menu-mutations', () => ({
   updateProduct: vi.fn(),
   deleteProduct: vi.fn(),
   toggleProductAvailability: vi.fn(),
+  restockProduct: vi.fn(),
+  pauseProduct: vi.fn(),
+  resumeProduct: vi.fn(),
 }));
 
 import { auth } from '@/lib/auth';
@@ -42,6 +45,9 @@ import {
   createProductAction,
   toggleProductAvailabilityAction,
   deleteProductAction,
+  restockProductAction,
+  pauseProductAction,
+  resumeProductAction,
 } from './actions';
 
 const mockGetSession = auth.api.getSession as MockedFunction<
@@ -95,6 +101,29 @@ describe('Menu Server Actions — auth gate', () => {
       })
     ).rejects.toThrow('Non autorisé');
   });
+
+  it('restockProductAction sans session → throw', async () => {
+    mockGetSession.mockResolvedValue(null);
+    await expect(restockProductAction('p1', 5)).rejects.toThrow(
+      'Non autorisé'
+    );
+    expect(mutations.restockProduct).not.toHaveBeenCalled();
+  });
+
+  it('pauseProductAction sans session → throw', async () => {
+    mockGetSession.mockResolvedValue(null);
+    const until = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await expect(pauseProductAction('p1', until)).rejects.toThrow(
+      'Non autorisé'
+    );
+    expect(mutations.pauseProduct).not.toHaveBeenCalled();
+  });
+
+  it('resumeProductAction sans session → throw', async () => {
+    mockGetSession.mockResolvedValue(null);
+    await expect(resumeProductAction('p1')).rejects.toThrow('Non autorisé');
+    expect(mutations.resumeProduct).not.toHaveBeenCalled();
+  });
 });
 
 describe('Menu Server Actions — happy path + revalidate', () => {
@@ -147,6 +176,54 @@ describe('Menu Server Actions — happy path + revalidate', () => {
   it('deleteProductAction → mutation + revalidate', async () => {
     await deleteProductAction('p1');
     expect(mutations.deleteProduct).toHaveBeenCalledWith('p1');
+    expect(mockRevalidate).toHaveBeenCalledWith('/api/menu');
+  });
+
+  it('restockProductAction → mutation + revalidate', async () => {
+    await restockProductAction('p1', 6);
+    expect(mutations.restockProduct).toHaveBeenCalledWith('p1', 6);
+    expect(mockRevalidate).toHaveBeenCalledWith('/api/menu');
+  });
+
+  it('restockProductAction delta non entier → throw sans appeler la mutation', async () => {
+    await expect(restockProductAction('p1', 1.5)).rejects.toThrow(
+      'Quantité invalide'
+    );
+    expect(mutations.restockProduct).not.toHaveBeenCalled();
+  });
+
+  it('restockProductAction delta nul → throw sans appeler la mutation', async () => {
+    await expect(restockProductAction('p1', 0)).rejects.toThrow(
+      'Quantité invalide'
+    );
+    expect(mutations.restockProduct).not.toHaveBeenCalled();
+  });
+
+  it('pauseProductAction → mutation + revalidate', async () => {
+    const until = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await pauseProductAction('p1', until);
+    expect(mutations.pauseProduct).toHaveBeenCalledWith('p1', new Date(until));
+    expect(mockRevalidate).toHaveBeenCalledWith('/api/menu');
+  });
+
+  it('pauseProductAction date passée → throw sans appeler la mutation', async () => {
+    const past = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    await expect(pauseProductAction('p1', past)).rejects.toThrow(
+      'Date de reprise invalide (doit être dans le futur)'
+    );
+    expect(mutations.pauseProduct).not.toHaveBeenCalled();
+  });
+
+  it('pauseProductAction date invalide → throw sans appeler la mutation', async () => {
+    await expect(pauseProductAction('p1', 'pas-une-date')).rejects.toThrow(
+      'Date de reprise invalide (doit être dans le futur)'
+    );
+    expect(mutations.pauseProduct).not.toHaveBeenCalled();
+  });
+
+  it('resumeProductAction → mutation + revalidate', async () => {
+    await resumeProductAction('p1');
+    expect(mutations.resumeProduct).toHaveBeenCalledWith('p1');
     expect(mockRevalidate).toHaveBeenCalledWith('/api/menu');
   });
 });

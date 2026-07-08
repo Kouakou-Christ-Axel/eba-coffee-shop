@@ -85,3 +85,30 @@ export async function toggleProductFeaturedAction(id: string) {
   await menu.toggleProductFeatured(id);
   revalidateMenu();
 }
+
+// ── Stock & pause ──
+
+export async function restockProductAction(id: string, delta: number) {
+  await requireAdmin();
+  if (!Number.isInteger(delta) || delta === 0) {
+    throw new Error('Quantité invalide');
+  }
+  await menu.restockProduct(id, delta);
+  revalidateMenu();
+}
+
+export async function pauseProductAction(id: string, until: string) {
+  await requireAdmin();
+  const untilDate = new Date(until);
+  if (Number.isNaN(untilDate.getTime()) || untilDate.getTime() <= Date.now()) {
+    throw new Error('Date de reprise invalide (doit être dans le futur)');
+  }
+  await menu.pauseProduct(id, untilDate);
+  revalidateMenu();
+}
+
+export async function resumeProductAction(id: string) {
+  await requireAdmin();
+  await menu.resumeProduct(id);
+  revalidateMenu();
+}
