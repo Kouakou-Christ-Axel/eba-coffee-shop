@@ -19,6 +19,13 @@ import {
   castVoteSchema,
 } from '@/lib/schemas/poll';
 
+// Les dates transitent en ISO string dans les schémas Zod (un `z.date()` ne
+// peut pas être représenté en JSON Schema — cassait `z.toJSONSchema` pour les
+// outils MCP). Converties en `Date` uniquement ici, au moment d'écrire.
+function toDateOrNull(value: string | null | undefined): Date | null {
+  return value ? new Date(value) : null;
+}
+
 // ─── Sondage ────────────────────────────────────────────────────────────────
 
 export async function createPoll(input: unknown, createdById?: string) {
@@ -29,8 +36,8 @@ export async function createPoll(input: unknown, createdById?: string) {
       description: data.description ?? null,
       allowSuggestions: data.allowSuggestions,
       resultsVisibility: data.resultsVisibility,
-      opensAt: data.opensAt ?? null,
-      closesAt: data.closesAt ?? null,
+      opensAt: toDateOrNull(data.opensAt),
+      closesAt: toDateOrNull(data.closesAt),
       createdById: createdById ?? null,
       options: {
         create: data.options.map((o, i) => ({
@@ -59,8 +66,10 @@ export async function updatePoll(id: string, input: unknown) {
     ...(data.resultsVisibility !== undefined && {
       resultsVisibility: data.resultsVisibility,
     }),
-    ...(data.opensAt !== undefined && { opensAt: data.opensAt }),
-    ...(data.closesAt !== undefined && { closesAt: data.closesAt }),
+    ...(data.opensAt !== undefined && { opensAt: toDateOrNull(data.opensAt) }),
+    ...(data.closesAt !== undefined && {
+      closesAt: toDateOrNull(data.closesAt),
+    }),
   };
 
   return prisma.poll.update({ where: { id }, data: scalar });

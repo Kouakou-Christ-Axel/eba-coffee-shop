@@ -82,14 +82,15 @@ export const pollInputSchema = z
       .optional(),
     allowSuggestions: z.boolean().default(false),
     resultsVisibility: pollResultsVisibilitySchema.default('AFTER_CLOSE'),
-    opensAt: z.coerce.date().nullable().optional(),
-    closesAt: z.coerce.date().nullable().optional(),
+    opensAt: z.iso.datetime({ offset: true }).nullable().optional(),
+    closesAt: z.iso.datetime({ offset: true }).nullable().optional(),
     options: z
       .array(pollOptionInputSchema)
       .min(2, 'Au moins 2 options requises'),
   })
   .refine(
-    (v) => !v.opensAt || !v.closesAt || v.opensAt < v.closesAt,
+    (v) =>
+      !v.opensAt || !v.closesAt || new Date(v.opensAt) < new Date(v.closesAt),
     {
       message: 'La date de clôture doit être après la date d’ouverture',
       path: ['closesAt'],
@@ -116,14 +117,15 @@ export const pollUpdateSchema = z
       .optional(),
     allowSuggestions: z.boolean().optional(),
     resultsVisibility: pollResultsVisibilitySchema.optional(),
-    opensAt: z.coerce.date().nullable().optional(),
-    closesAt: z.coerce.date().nullable().optional(),
+    opensAt: z.iso.datetime({ offset: true }).nullable().optional(),
+    closesAt: z.iso.datetime({ offset: true }).nullable().optional(),
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), {
     message: 'Au moins un champ à mettre à jour est requis',
   })
   .refine(
-    (v) => !v.opensAt || !v.closesAt || v.opensAt < v.closesAt,
+    (v) =>
+      !v.opensAt || !v.closesAt || new Date(v.opensAt) < new Date(v.closesAt),
     {
       message: 'La date de clôture doit être après la date d’ouverture',
       path: ['closesAt'],
