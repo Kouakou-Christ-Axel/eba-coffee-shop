@@ -7,7 +7,8 @@ import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { todayDailyDate } from '@/lib/daily-numbering';
 import { loyaltySettingsFromRow } from '@/lib/loyalty-settings';
-import { computeStampAward } from '@/lib/loyalty-compute';
+import { getLoyaltySettings } from '@/lib/loyalty-settings-db';
+import { computeStampAward, type EarnedReward } from '@/lib/loyalty-compute';
 
 type AwardArgs = {
   customerId: string;
@@ -117,4 +118,70 @@ export async function adjustStamps(
     }),
   ]);
   return next;
+}
+
+/**
+ * Rattrapage de `count` commandes non enregistrées (paiement cash oublié en
+ * caisse, etc.) : simule `count` tampons via `computeStampAward`, en
+ * débloquant les récompenses de palier comme le ferait une vraie commande.
+ * Contrairement à `awardLoyaltyForOrder`, ignore `minOrderAmount` et
+ * `oneStampPerDay` (rattrapage a posteriori décidé par un admin, pas une
+ * attribution en temps réel).
+ */
+export async function awardMissedOrderStamps(
+  customerId: string,
+  count: number,
+  note?: string | null,
+  actorId?: string | null
+): Promise<{ stampCount: number; rewardsCreated: number }> {
+  const customer = await prisma.customer.findUnique({
+    where: { id: customerId },
+    select: { stampCount: true },
+  });
+  if (!customer) throw new Error('Client introuvable');
+
+  const settings = await getLoyaltySettings();
+
+  let stampCount = customer.stampCount;
+  const rewards: EarnedReward[] = [];
+  for (let i = 0; i < count; i++) {
+    const result = computeStampAward(stampCount, settings);
+    stampCount = result.newStampCount;
+    rewards.push(...result.rewards);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.customer.update({
+      where: { id: customerId },
+      data: { stampCount },
+    });
+    await tx.loyaltyLedger.create({
+      data: {
+        customerId,
+        type: 'ADJUSTMENT',
+        stamps: count,
+        note: note ?? null,
+        actorId: actorId ?? null,
+      },
+    });
+    for (const r of rewards) {
+      await tx.loyaltyReward.create({
+        data: {
+          customerId,
+          tier: r.tier,
+          capAmount: r.capAmount,
+        },
+      });
+      await tx.loyaltyLedger.create({
+        data: {
+          customerId,
+          type: 'REWARD_EARNED',
+          actorId: actorId ?? null,
+          note: `Palier ${r.tier} — ${r.capAmount} F (rattrapage commande manquée)`,
+        },
+      });
+    }
+  });
+
+  return { stampCount, rewardsCreated: rewards.length };
 }
