@@ -36,6 +36,7 @@ import { awardLoyaltyForOrder } from '@/lib/loyalty-mutations';
 import { canTransition, canTogglePayment } from '@/lib/order-permissions';
 import { normalizeIvorianPhone } from '@/lib/phone';
 import { computeItemsTotal, getMaxItemDiscount } from '@/lib/orders/totals';
+import { fetchStockSnapshot, optionKey } from '@/lib/orders/availability';
 import { parseDateOnlyToUTC } from '@/lib/timezone';
 import { getMenuAdmin } from '@/lib/menu';
 import { cartItemSchema, updateOrderDetailsSchema } from '@/lib/schemas/order';
@@ -69,6 +70,129 @@ export class OrderMutationError extends Error {
   ) {
     super(message);
     this.name = 'OrderMutationError';
+  }
+}
+
+/**
+ * Erreur spécifique au décrément de stock au paiement (toujours 409) —
+ * distincte de `OrderMutationError` générique pour que `setOrderPayment` /
+ * `payAndComplete` sachent QUAND notifier le client perdant (`ITEM_UNAVAILABLE`)
+ * sans confondre avec les autres 409 (déjà payé, conflit de concurrence).
+ */
+export class StockShortageError extends OrderMutationError {
+  constructor(message: string) {
+    super(message, 409);
+    this.name = 'StockShortageError';
+  }
+}
+
+// ─── Décrément du stock au paiement (le cœur anti-survente) ───────────────────
+//
+// Appelé UNIQUEMENT quand une commande passe de non-payée à payée (jamais à la
+// création : une commande NEW ne réserve rien). Décrémente le stock produit ET
+// options AVANT que l'appelant flippe `isPaid`, DANS LA MÊME transaction : la
+// garde conditionnelle (`updateMany` avec `stockQuantity: { gte: besoin }` OU
+// `null`) sérialise la concurrence sur la dernière unité — un seul paiement
+// gagne, l'autre voit `count !== 1` et lève `StockShortageError`, qui fait
+// échouer (rollback) toute la transaction : paiement refusé, RIEN décrémenté,
+// `isPaid` reste `false`.
+//
+// `stockQuantity === null` = illimité : le `OR` laisse passer ce cas sans
+// jamais bloquer, et l'arithmétique SQL (`NULL - n = NULL`) laisse la colonne
+// inchangée après le `decrement` — pas besoin de branche séparée.
+//
+// Options résolues par (produit, nom de groupe, nom d'option), comme
+// `buildOrderItemsFromMenu` ci-dessus (le panier ne connaît pas les id
+// internes des options).
+async function decrementStockForOrderItems(
+  tx: Prisma.TransactionClient,
+  items: CartItem[]
+): Promise<void> {
+  for (const item of items) {
+    const productResult = await tx.product.updateMany({
+      where: {
+        id: item.productId,
+        OR: [
+          { stockQuantity: null },
+          { stockQuantity: { gte: item.quantity } },
+        ],
+      },
+      data: { stockQuantity: { decrement: item.quantity } },
+    });
+    if (productResult.count !== 1) {
+      throw new StockShortageError(
+        `Stock insuffisant pour « ${item.productName} »`
+      );
+    }
+
+    for (const supplement of item.supplements) {
+      const needed = (supplement.quantity ?? 1) * item.quantity;
+      const optionResult = await tx.supplementOption.updateMany({
+        where: {
+          name: supplement.optionName,
+          group: { productId: item.productId, name: supplement.groupName },
+          OR: [{ stockQuantity: null }, { stockQuantity: { gte: needed } }],
+        },
+        data: { stockQuantity: { decrement: needed } },
+      });
+      if (optionResult.count !== 1) {
+        throw new StockShortageError(
+          `Stock insuffisant pour « ${item.productName} — ${supplement.optionName} »`
+        );
+      }
+    }
+  }
+}
+
+// ─── Fan-out best-effort : commandes en attente affectées ─────────────────────
+//
+// APRÈS commit seulement (jamais dans la transaction de paiement) : si le
+// paiement qui vient de réussir a fait tomber un produit/option à 0, les
+// autres commandes NEW/non payées qui en dépendent encore ne pourront plus
+// être honorées telles quelles — on les avertit sans attendre le prochain
+// polling/SSE. Fire-and-forget : un échec ici ne doit jamais remonter (le
+// paiement, lui, a déjà réussi).
+async function notifyPendingOrdersOfShortage(
+  paidOrderId: string,
+  paidItems: CartItem[]
+): Promise<void> {
+  const snapshot = await fetchStockSnapshot([paidItems]);
+
+  const zeroedProductIds = new Set(
+    [...snapshot.products.entries()]
+      .filter(([, qty]) => qty === 0)
+      .map(([id]) => id)
+  );
+  const zeroedOptionKeys = new Set(
+    [...snapshot.options.entries()]
+      .filter(([, qty]) => qty === 0)
+      .map(([key]) => key)
+  );
+  if (zeroedProductIds.size === 0 && zeroedOptionKeys.size === 0) return;
+
+  const candidates = await prisma.order.findMany({
+    where: {
+      id: { not: paidOrderId },
+      isPaid: false,
+      status: { notIn: ['CANCELLED', 'COMPLETED'] },
+    },
+    select: { id: true, items: true },
+    take: 200,
+  });
+
+  for (const candidate of candidates) {
+    const items = candidate.items as unknown as CartItem[];
+    const affected = items.some((item) => {
+      if (zeroedProductIds.has(item.productId)) return true;
+      return item.supplements.some((s) =>
+        zeroedOptionKeys.has(
+          optionKey(item.productId, s.groupName, s.optionName)
+        )
+      );
+    });
+    if (affected) {
+      notifyOrderCustomer(candidate.id, 'ITEM_UNAVAILABLE');
+    }
   }
 }
 
@@ -320,7 +444,16 @@ export async function setOrderStatus(
  * requis. Encaisser une commande encore `NEW` la pousse aussi en cuisine
  * (`NEW → PREPARING`). Concurrence optimiste sur `isPaid`.
  *
- * Lève `OrderMutationError` (400 mode manquant, 404 introuvable, 409 conflit).
+ * Passage à `isPaid=true` : décrémente le stock (produit + options choisies)
+ * de chaque article, DANS LA MÊME transaction, AVANT de flipper `isPaid` (voir
+ * `decrementStockForOrderItems`) — une commande non payée ne réserve rien ; le
+ * décrément au paiement, atomique, tranche « premier payé = premier servi ».
+ * Passage à `isPaid=false` (dépaiement) : comportement inchangé, HORS
+ * transaction, SANS jamais ré-incrémenter le stock déjà décrémenté.
+ *
+ * Lève `OrderMutationError` (400 mode manquant, 404 introuvable, 409 conflit,
+ * ou `StockShortageError` 409 si le stock ne suffit plus — le client perdant
+ * est alors notifié `ITEM_UNAVAILABLE` avant que l'erreur ne remonte).
  * Renvoie `startedPreparation` (vrai si la commande est partie en cuisine).
  */
 export async function setOrderPayment(
@@ -332,43 +465,91 @@ export async function setOrderPayment(
     throw new OrderMutationError('paymentMode requis quand isPaid=true', 400);
   }
 
-  const order = await prisma.order.findUnique({
-    where: { id },
-    select: { isPaid: true, status: true },
-  });
-  if (!order) {
-    throw new OrderMutationError('Commande introuvable', 404);
+  if (!isPaid) {
+    const order = await prisma.order.findUnique({
+      where: { id },
+      select: { isPaid: true },
+    });
+    if (!order) {
+      throw new OrderMutationError('Commande introuvable', 404);
+    }
+    if (order.isPaid === isPaid) {
+      throw new OrderMutationError('État de paiement déjà à jour', 409);
+    }
+
+    const result = await prisma.order.updateMany({
+      where: { id, isPaid: true },
+      data: { isPaid: false, paymentMode: null, paidAt: null },
+    });
+    if (result.count === 0) {
+      throw new OrderMutationError('État modifié entre temps, recharger', 409);
+    }
+
+    return { startedPreparation: false };
   }
-  if (order.isPaid === isPaid) {
-    throw new OrderMutationError('État de paiement déjà à jour', 409);
-  }
 
-  const shouldStartPreparation = isPaid && order.status === 'NEW';
+  let txResult: { startedPreparation: boolean; items: CartItem[] };
+  try {
+    txResult = await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id },
+        select: { isPaid: true, status: true, items: true },
+      });
+      if (!order) {
+        throw new OrderMutationError('Commande introuvable', 404);
+      }
+      if (order.isPaid) {
+        throw new OrderMutationError('État de paiement déjà à jour', 409);
+      }
 
-  const result = await prisma.order.updateMany({
-    where: { id, isPaid: !isPaid },
-    data: {
-      isPaid,
-      paymentMode: isPaid ? (paymentMode ?? null) : null,
-      paidAt: isPaid ? new Date() : null,
-      ...(shouldStartPreparation ? { status: 'PREPARING' as const } : {}),
-    },
-  });
+      const startedPreparation = order.status === 'NEW';
+      const items = order.items as unknown as CartItem[];
 
-  if (result.count === 0) {
-    throw new OrderMutationError('État modifié entre temps, recharger', 409);
+      await decrementStockForOrderItems(tx, items);
+
+      const result = await tx.order.updateMany({
+        where: { id, isPaid: false },
+        data: {
+          isPaid: true,
+          paymentMode: paymentMode ?? null,
+          paidAt: new Date(),
+          ...(startedPreparation ? { status: 'PREPARING' as const } : {}),
+        },
+      });
+
+      if (result.count === 0) {
+        throw new OrderMutationError(
+          'État modifié entre temps, recharger',
+          409
+        );
+      }
+
+      return { startedPreparation, items };
+    });
+  } catch (err) {
+    if (err instanceof StockShortageError) {
+      // Client perdant (stock insuffisant) : notifié AVANT que la 409 ne
+      // remonte à l'appelant (route/action) — best-effort, jamais bloquant.
+      notifyOrderCustomer(id, 'ITEM_UNAVAILABLE');
+    }
+    throw err;
   }
 
   // Client abonné : paiement validé (fusionné avec le départ en cuisine quand
-  // l'encaissement fait aussi passer NEW → PREPARING). Rien sur un rollback.
-  if (isPaid) {
-    notifyOrderCustomer(
-      id,
-      shouldStartPreparation ? 'PAYMENT_PREPARING' : 'PAYMENT'
-    );
-  }
+  // l'encaissement fait aussi passer NEW → PREPARING).
+  notifyOrderCustomer(
+    id,
+    txResult.startedPreparation ? 'PAYMENT_PREPARING' : 'PAYMENT'
+  );
 
-  return { startedPreparation: shouldStartPreparation };
+  // Fan-out best-effort : si ce paiement vient d'épuiser un produit/option,
+  // avertir tout de suite les autres clients dont la commande en attente en
+  // dépend (cf. notifyPendingOrdersOfShortage).
+  notifyPendingOrdersOfShortage(id, txResult.items).catch((err) => {
+    console.error('[order-mutations] fan-out stock épuisé échoué :', err);
+  });
+
+  return { startedPreparation: txResult.startedPreparation };
 }
 
 // ─── Édition administrative des métadonnées ───────────────────────────────────
@@ -427,7 +608,14 @@ export async function updateOrderDetails(id: string, input: unknown) {
  * donc directement le rôle (`canTogglePayment`) et on écrit dans une transaction
  * atomique avec garde de concurrence sur `status` ET `isPaid`.
  *
- * Lève `OrderMutationError` (403 rôle, 404 introuvable, 409 conflit/déjà finale).
+ * Passage non-payée → payée : décrémente le stock (mêmes garanties atomiques
+ * que `setOrderPayment`, via `decrementStockForOrderItems`) AVANT de flipper
+ * `isPaid`, dans la même transaction. Une commande déjà payée qui se fait
+ * juste finaliser (`COMPLETED`) ne touche pas au stock (déjà décrémenté).
+ *
+ * Lève `OrderMutationError` (403 rôle, 404 introuvable, 409 conflit/déjà finale,
+ * ou `StockShortageError` 409 si le stock ne suffit plus — le client perdant
+ * est alors notifié `ITEM_UNAVAILABLE` avant que l'erreur ne remonte).
  * Renvoie `alreadyPaid` (vrai si la commande était déjà encaissée avant l'appel).
  */
 export async function payAndComplete(
@@ -439,48 +627,73 @@ export async function payAndComplete(
     throw new OrderMutationError('Action réservée à la caisse', 403);
   }
 
-  const outcome = await prisma.$transaction(async (tx) => {
-    const order = await tx.order.findUnique({
-      where: { id },
-      select: { status: true, isPaid: true },
+  let txResult: { alreadyPaid: boolean; items: CartItem[] };
+  try {
+    txResult = await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id },
+        select: { status: true, isPaid: true, items: true },
+      });
+      if (!order) {
+        throw new OrderMutationError('Commande introuvable', 404);
+      }
+      if (order.status === 'CANCELLED') {
+        throw new OrderMutationError('Commande annulée', 409);
+      }
+      if (order.status === 'COMPLETED' && order.isPaid) {
+        throw new OrderMutationError('Commande déjà finalisée', 409);
+      }
+
+      const alreadyPaid = order.isPaid;
+      const items = order.items as unknown as CartItem[];
+
+      if (!alreadyPaid) {
+        await decrementStockForOrderItems(tx, items);
+      }
+
+      const result = await tx.order.updateMany({
+        // Garde optimiste sur les deux champs lus : un autre caissier peut avoir
+        // encaissé ou avancé la commande entre la lecture et l'écriture.
+        where: { id, status: order.status, isPaid: order.isPaid },
+        data: {
+          status: 'COMPLETED',
+          // Ne pas écraser le mode / l'horodatage d'une commande déjà payée.
+          ...(alreadyPaid
+            ? {}
+            : { isPaid: true, paymentMode, paidAt: new Date() }),
+        },
+      });
+
+      if (result.count === 0) {
+        throw new OrderMutationError(
+          'État modifié entre temps, recharger',
+          409
+        );
+      }
+
+      return { alreadyPaid, items };
     });
-    if (!order) {
-      throw new OrderMutationError('Commande introuvable', 404);
+  } catch (err) {
+    if (err instanceof StockShortageError) {
+      notifyOrderCustomer(id, 'ITEM_UNAVAILABLE');
     }
-    if (order.status === 'CANCELLED') {
-      throw new OrderMutationError('Commande annulée', 409);
-    }
-    if (order.status === 'COMPLETED' && order.isPaid) {
-      throw new OrderMutationError('Commande déjà finalisée', 409);
-    }
-
-    const alreadyPaid = order.isPaid;
-
-    const result = await tx.order.updateMany({
-      // Garde optimiste sur les deux champs lus : un autre caissier peut avoir
-      // encaissé ou avancé la commande entre la lecture et l'écriture.
-      where: { id, status: order.status, isPaid: order.isPaid },
-      data: {
-        status: 'COMPLETED',
-        // Ne pas écraser le mode / l'horodatage d'une commande déjà payée.
-        ...(alreadyPaid
-          ? {}
-          : { isPaid: true, paymentMode, paidAt: new Date() }),
-      },
-    });
-
-    if (result.count === 0) {
-      throw new OrderMutationError('État modifié entre temps, recharger', 409);
-    }
-
-    return { alreadyPaid };
-  });
+    throw err;
+  }
 
   // Après la transaction seulement (jamais dedans) : commande soldée et
   // récupérée en un geste → dernière notification client, puis désabonnement.
   notifyOrderCustomer(id, 'COMPLETED');
 
-  return outcome;
+  // Fan-out best-effort (uniquement si CE paiement a décrémenté du stock) :
+  // avertir tout de suite les autres clients dont la commande en attente
+  // dépend d'un produit/option qui vient de tomber à 0.
+  if (!txResult.alreadyPaid) {
+    notifyPendingOrdersOfShortage(id, txResult.items).catch((err) => {
+      console.error('[order-mutations] fan-out stock épuisé échoué :', err);
+    });
+  }
+
+  return { alreadyPaid: txResult.alreadyPaid };
 }
 
 // ─── Association d'un client (CRM) à une commande existante ───────────────────

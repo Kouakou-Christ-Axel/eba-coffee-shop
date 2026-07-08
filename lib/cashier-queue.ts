@@ -12,6 +12,10 @@
 import { endOfDay, startOfDay } from 'date-fns';
 import prisma from '@/lib/prisma';
 import type { CartItem } from '@/lib/cart-store';
+import {
+  fetchStockSnapshot,
+  computeOrderItemsAvailability,
+} from '@/lib/orders/availability';
 import type {
   OrderStatus,
   OrderType,
@@ -37,6 +41,12 @@ export type CashierOrder = {
   driverName: string | null;
   driverPhone: string | null;
   createdAt: Date;
+  /** Vrai si au moins un article n'est plus dispo au stock actuel (commande
+   * non payée uniquement — toujours faux pour une commande déjà payée, son
+   * stock étant déjà réservé). Signal caisse (flag rouge + garde bouton payer). */
+  stockShortage: boolean;
+  /** Noms des articles en cause quand `stockShortage`, pour l'affichage. */
+  unavailableItemNames: string[];
 };
 
 export async function fetchCashierQueue(): Promise<CashierOrder[]> {
@@ -70,24 +80,53 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
     orderBy: { createdAt: 'asc' },
   });
 
-  return orders.map((o) => ({
-    id: o.id,
-    reference: o.reference,
-    dailyNumber: o.dailyNumber,
-    customerName: o.customerName,
-    customerPhone: o.customerPhone,
-    pickupTime: o.pickupTime,
-    orderType: o.orderType,
-    items: o.items as CartItem[],
-    note: o.note,
-    total: o.total,
-    status: o.status,
-    isPaid: o.isPaid,
-    paymentMode: o.paymentMode,
-    paymentProofUrl: o.paymentProofUrl,
-    driverRequested: o.driverRequested,
-    driverName: o.driverName,
-    driverPhone: o.driverPhone,
-    createdAt: o.createdAt,
-  }));
+  // Disponibilité : un seul instantané de stock, batché sur TOUTES les
+  // commandes non payées de la file (pas de N+1 par commande). Une commande
+  // déjà payée a réservé son stock au paiement : jamais de calcul pour elle.
+  const unpaidItemsList = orders
+    .filter((o) => !o.isPaid)
+    .map((o) => o.items as CartItem[]);
+  const stock = await fetchStockSnapshot(unpaidItemsList);
+
+  return orders.map((o) => {
+    const items = o.items as CartItem[];
+
+    let stockShortage = false;
+    let unavailableItemNames: string[] = [];
+    if (!o.isPaid) {
+      const availability = computeOrderItemsAvailability(items, stock);
+      stockShortage = !availability.fulfillable;
+      if (stockShortage) {
+        const unavailableCartIds = new Set(
+          availability.items.filter((a) => !a.available).map((a) => a.cartId)
+        );
+        unavailableItemNames = items
+          .filter((item) => unavailableCartIds.has(item.cartId))
+          .map((item) => item.productName);
+      }
+    }
+
+    return {
+      id: o.id,
+      reference: o.reference,
+      dailyNumber: o.dailyNumber,
+      customerName: o.customerName,
+      customerPhone: o.customerPhone,
+      pickupTime: o.pickupTime,
+      orderType: o.orderType,
+      items,
+      note: o.note,
+      total: o.total,
+      status: o.status,
+      isPaid: o.isPaid,
+      paymentMode: o.paymentMode,
+      paymentProofUrl: o.paymentProofUrl,
+      driverRequested: o.driverRequested,
+      driverName: o.driverName,
+      driverPhone: o.driverPhone,
+      createdAt: o.createdAt,
+      stockShortage,
+      unavailableItemNames,
+    };
+  });
 }
