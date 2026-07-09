@@ -1,9 +1,10 @@
 // app/api/export/expenses/route.ts
 //
-// Export CSV des dépenses sur une plage de dates + catégorie (admin-only).
+// Export CSV des dépenses sur une plage de dates + catégorie
+// (rôles finance : ADMIN, MANAGER, COMPTABLE).
 
 import type { NextRequest } from 'next/server';
-import { getCurrentSession } from '@/lib/auth-helpers';
+import { getCurrentSession, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { listExpenses } from '@/lib/expenses';
 import { toCsv, csvResponse } from '@/lib/csv';
 import {
@@ -26,7 +27,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 
 export async function GET(req: NextRequest) {
   const session = await getCurrentSession();
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session || !ROLE_GROUPS.FINANCE.includes(session.user.role)) {
     return new Response('Non autorisé', { status: 403 });
   }
 

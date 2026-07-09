@@ -24,4 +24,16 @@ describe('order-permissions — annulation / remboursement', () => {
     expect(nextStatuses('READY', 'CASHIER')).toContain('CANCELLED');
     expect(nextStatuses('READY', 'CASHIER')).toContain('COMPLETED');
   });
+
+  it('un gérant (MANAGER) a les mêmes droits qu’un caissier et la cuisine', () => {
+    expect(canTransition('NEW', 'PREPARING', 'MANAGER')).toBe(true);
+    expect(canTransition('READY', 'COMPLETED', 'MANAGER')).toBe(true);
+    expect(canTransition('NEW', 'CANCELLED', 'MANAGER')).toBe(true);
+  });
+
+  it('un comptable (COMPTABLE) ne peut faire aucune transition de commande', () => {
+    expect(canTransition('NEW', 'PREPARING', 'COMPTABLE')).toBe(false);
+    expect(canTransition('READY', 'COMPLETED', 'COMPTABLE')).toBe(false);
+    expect(canTransition('NEW', 'CANCELLED', 'COMPTABLE')).toBe(false);
+  });
 });

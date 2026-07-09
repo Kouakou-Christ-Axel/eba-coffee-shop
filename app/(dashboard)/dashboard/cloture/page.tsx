@@ -1,5 +1,5 @@
 import { Download } from 'lucide-react';
-import { requireCashier } from '@/lib/auth-helpers';
+import { requireCloture } from '@/lib/auth-helpers';
 import {
   getCashFigures,
   getCashClosing,
@@ -49,7 +49,7 @@ export default async function CloturePage({
     range?: string;
   }>;
 }) {
-  await requireCashier();
+  await requireCloture();
   const params = await searchParams;
 
   // Jour à clôturer.

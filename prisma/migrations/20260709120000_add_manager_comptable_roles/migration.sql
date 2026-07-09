@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "UserRole" ADD VALUE 'MANAGER';
+ALTER TYPE "UserRole" ADD VALUE 'COMPTABLE';

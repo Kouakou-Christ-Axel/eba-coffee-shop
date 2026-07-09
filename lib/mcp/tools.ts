@@ -216,6 +216,12 @@ export type McpTool = {
   inputSchema: z.ZodType;
   /** Outil en lecture seule (annotation MCP `readOnlyHint`). */
   readOnly: boolean;
+  /**
+   * Portée d'accès restreinte. `'finance'` = accessible aux rôles finance
+   * (ADMIN, MANAGER, COMPTABLE) ; absent = accessible à ADMIN/MANAGER
+   * uniquement (cf. `withRoleGuard` dans `app/api/mcp/route.ts`).
+   */
+  scope?: 'finance';
   /** Exécute l'outil. Reçoit les arguments déjà validés par `inputSchema`. */
   handler: (args: unknown) => Promise<unknown>;
 };
@@ -282,6 +288,7 @@ export const tools: McpTool[] = [
   // — Statistiques (lecture seule) —
   {
     name: 'get_daily_stats',
+    scope: 'finance',
     title: 'Stats du jour',
     description:
       'Renvoie les statistiques agrégées de la journée en cours (jour civil ' +
@@ -293,6 +300,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_range_stats',
+    scope: 'finance',
     title: 'Stats sur une période',
     description:
       'KPIs agrégés sur une plage de dates (incluse) : commandes, revenu ' +
@@ -307,6 +315,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_daily_series',
+    scope: 'finance',
     title: 'Série journalière',
     description:
       'Renvoie, jour par jour sur la plage demandée (jours sans activité ' +
@@ -321,6 +330,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_top_products',
+    scope: 'finance',
     title: 'Top produits',
     description:
       'Renvoie les produits les plus vendus sur la plage (hors commandes ' +
@@ -346,6 +356,7 @@ export const tools: McpTool[] = [
   // — Dépenses : catégories —
   {
     name: 'list_expense_categories',
+    scope: 'finance',
     title: 'Lister les catégories de dépense',
     description:
       'Renvoie les catégories de dépense avec leur `id` et le nombre de ' +
@@ -356,6 +367,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_expense_category',
+    scope: 'finance',
     title: 'Créer une catégorie de dépense',
     description:
       'Crée une catégorie de dépense (ex. « Emballages », « Loyer »). Le nom ' +
@@ -366,6 +378,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_expense_category',
+    scope: 'finance',
     title: 'Renommer une catégorie de dépense',
     description: 'Met à jour le nom d’une catégorie de dépense.',
     inputSchema: expenseCategoryInputSchema.extend({ id: idSchema }),
@@ -377,6 +390,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_expense_category',
+    scope: 'finance',
     title: 'Supprimer une catégorie de dépense',
     description:
       'Supprime une catégorie de dépense. Refusé si des dépenses y sont ' +
@@ -389,6 +403,7 @@ export const tools: McpTool[] = [
   // — Dépenses : opérations —
   {
     name: 'list_expenses',
+    scope: 'finance',
     title: 'Lister les dépenses',
     description:
       'Renvoie les dépenses filtrées par plage de dates (`from`/`to`, ' +
@@ -418,6 +433,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_expense_summary',
+    scope: 'finance',
     title: 'Synthèse des dépenses',
     description:
       'Renvoie le total des dépenses et leur ventilation par catégorie sur ' +
@@ -431,6 +447,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_expense',
+    scope: 'finance',
     title: 'Créer une dépense',
     description:
       'Enregistre une dépense. `date` au format `YYYY-MM-DD`, `amount` en ' +
@@ -445,6 +462,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_expense',
+    scope: 'finance',
     title: 'Modifier une dépense',
     description:
       'Met à jour une dépense de façon PARTIELLE : ne fournis que les champs à ' +
@@ -459,6 +477,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_expense',
+    scope: 'finance',
     title: 'Supprimer une dépense',
     description: 'Supprime définitivement une dépense. Action irréversible.',
     inputSchema: z.object({ id: idSchema }),
@@ -467,6 +486,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'set_expense_receipt',
+    scope: 'finance',
     title: 'Joindre un justificatif à une dépense',
     description:
       'Associe une photo de justificatif à une dépense. Deux modes : (1) ' +
@@ -505,6 +525,7 @@ export const tools: McpTool[] = [
   // — Investissements : sources de financement —
   {
     name: 'list_investment_sources',
+    scope: 'finance',
     title: 'Lister les sources de financement',
     description:
       'Renvoie les sources de financement (capital propre, prêt, apport ' +
@@ -516,6 +537,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_investment_source',
+    scope: 'finance',
     title: 'Créer une source de financement',
     description:
       'Crée une source de financement (ex. « Prêt bancaire », « Apport ' +
@@ -526,6 +548,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_investment_source',
+    scope: 'finance',
     title: 'Renommer une source de financement',
     description: 'Met à jour le nom d’une source de financement.',
     inputSchema: investmentSourceInputSchema.extend({ id: idSchema }),
@@ -537,6 +560,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_investment_source',
+    scope: 'finance',
     title: 'Supprimer une source de financement',
     description:
       'Supprime une source de financement. Refusé si des apports y sont ' +
@@ -549,6 +573,7 @@ export const tools: McpTool[] = [
   // — Investissements : apports —
   {
     name: 'list_investments',
+    scope: 'finance',
     title: 'Lister les apports',
     description:
       'Renvoie les apports/financements filtrés par plage de dates ' +
@@ -574,6 +599,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_investment_summary',
+    scope: 'finance',
     title: 'Synthèse des investissements',
     description:
       'Renvoie le total des apports, leur ventilation par source et le restant ' +
@@ -587,6 +613,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_investment',
+    scope: 'finance',
     title: 'Créer un apport',
     description:
       'Enregistre un apport / financement. `date` au format `YYYY-MM-DD`, ' +
@@ -603,6 +630,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_investment',
+    scope: 'finance',
     title: 'Modifier un apport',
     description:
       'Met à jour un apport de façon PARTIELLE : ne fournis que les champs à ' +
@@ -617,6 +645,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_investment',
+    scope: 'finance',
     title: 'Supprimer un apport',
     description: 'Supprime définitivement un apport. Action irréversible.',
     inputSchema: z.object({ id: idSchema }),
@@ -625,6 +654,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'set_investment_document',
+    scope: 'finance',
     title: 'Joindre un justificatif à un apport',
     description:
       'Associe une photo de justificatif à un apport. Deux modes : (1) ' +
@@ -663,6 +693,7 @@ export const tools: McpTool[] = [
   // — Régularisations de recette (ajustement manuel du CA) —
   {
     name: 'list_revenue_adjustments',
+    scope: 'finance',
     title: 'Lister les régularisations de recette',
     description:
       'Renvoie les régularisations de recette (ajustements manuels du CA, sans ' +
@@ -687,6 +718,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_revenue_adjustment_summary',
+    scope: 'finance',
     title: 'Synthèse des régularisations de recette',
     description:
       'Renvoie le total net des régularisations de recette et leur ventilation ' +
@@ -700,6 +732,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_revenue_adjustment',
+    scope: 'finance',
     title: 'Créer une régularisation de recette',
     description:
       'Enregistre un ajustement manuel du CA SANS créer de commande (ventes non ' +
@@ -714,6 +747,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_revenue_adjustment',
+    scope: 'finance',
     title: 'Modifier une régularisation de recette',
     description:
       'Met à jour une régularisation de recette de façon PARTIELLE : ne fournis ' +
@@ -729,6 +763,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_revenue_adjustment',
+    scope: 'finance',
     title: 'Supprimer une régularisation de recette',
     description:
       'Supprime définitivement une régularisation de recette. Action irréversible.',
@@ -740,6 +775,7 @@ export const tools: McpTool[] = [
   // — Clôture de caisse (espèces, journalière) —
   {
     name: 'get_cash_position',
+    scope: 'finance',
     title: 'Position de caisse (espèces) d’un jour',
     description:
       'Pour un jour (`date`, `YYYY-MM-DD`), renvoie les chiffres liquides ' +
@@ -758,6 +794,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_cash_closing',
+    scope: 'finance',
     title: 'Lire une clôture de caisse',
     description:
       'Renvoie la clôture enregistrée pour un jour (`date`, `YYYY-MM-DD`), ou ' +
@@ -771,6 +808,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'list_cash_closings',
+    scope: 'finance',
     title: 'Lister les clôtures de caisse',
     description:
       'Renvoie l’historique des clôtures de caisse sur une plage de dates ' +
@@ -784,6 +822,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'save_cash_closing',
+    scope: 'finance',
     title: 'Enregistrer une clôture de caisse',
     description:
       'Crée ou met à jour la clôture d’un jour (une par jour). Fournis `date` ' +
@@ -1978,3 +2017,12 @@ export const tools: McpTool[] = [
 ];
 
 export const toolsByName = new Map(tools.map((t) => [t.name, t]));
+
+/**
+ * Noms des outils accessibles au rôle COMPTABLE (finance uniquement).
+ * Utilisé par `withRoleGuard` dans `app/api/mcp/route.ts` pour restreindre
+ * `tools/list`/`tools/call`.
+ */
+export const FINANCE_TOOL_NAMES = new Set(
+  tools.filter((t) => t.scope === 'finance').map((t) => t.name)
+);

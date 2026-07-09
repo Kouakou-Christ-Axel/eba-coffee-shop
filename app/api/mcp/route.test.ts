@@ -116,6 +116,56 @@ describe('authentification — OAuth', () => {
     );
     expect(res.status).toBe(403);
   });
+
+  it('accepte un jeton OAuth d’un MANAGER (accès total)', async () => {
+    getMcpSession.mockResolvedValue({ userId: 'u3' });
+    userFindUnique.mockResolvedValue({ role: 'MANAGER' });
+    const res = await POST(
+      makeRequest(
+        { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+        { authorization: 'Bearer jeton-oauth-manager' }
+      )
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const names = (json.result.tools as Array<{ name: string }>).map(
+      (t) => t.name
+    );
+    expect(names).toContain('get_menu');
+    expect(names).toContain('list_expenses');
+  });
+
+  it('accepte un jeton OAuth d’un COMPTABLE mais restreint les outils finance', async () => {
+    getMcpSession.mockResolvedValue({ userId: 'u4' });
+    userFindUnique.mockResolvedValue({ role: 'COMPTABLE' });
+    const res = await POST(
+      makeRequest(
+        { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+        { authorization: 'Bearer jeton-oauth-comptable' }
+      )
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const names = (json.result.tools as Array<{ name: string }>).map(
+      (t) => t.name
+    );
+    expect(names).toContain('list_expenses');
+    expect(names).toContain('get_daily_stats');
+    expect(names).not.toContain('get_menu');
+    expect(names).not.toContain('create_product');
+  });
+
+  it('refuse (403) un jeton OAuth d’un CASHIER (hors rôles MCP)', async () => {
+    getMcpSession.mockResolvedValue({ userId: 'u5' });
+    userFindUnique.mockResolvedValue({ role: 'CASHIER' });
+    const res = await POST(
+      makeRequest(
+        { jsonrpc: '2.0', id: 1, method: 'ping' },
+        { authorization: 'Bearer jeton-oauth-cashier' }
+      )
+    );
+    expect(res.status).toBe(403);
+  });
 });
 
 describe('transport', () => {

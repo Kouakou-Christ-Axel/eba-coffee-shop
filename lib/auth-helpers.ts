@@ -14,9 +14,18 @@ export type AuthorizedSession = {
   user: SessionUser;
 };
 
-const DASHBOARD_ROLES: UserRole[] = ['ADMIN', 'CASHIER', 'KITCHEN'];
-const CASHIER_ROLES: UserRole[] = ['ADMIN', 'CASHIER'];
-const KITCHEN_ROLES: UserRole[] = ['ADMIN', 'CASHIER', 'KITCHEN'];
+const MANAGER_ROLES: UserRole[] = ['ADMIN', 'MANAGER'];
+const FINANCE_ROLES: UserRole[] = ['ADMIN', 'MANAGER', 'COMPTABLE'];
+const CASHIER_ROLES: UserRole[] = ['ADMIN', 'MANAGER', 'CASHIER'];
+const KITCHEN_ROLES: UserRole[] = ['ADMIN', 'MANAGER', 'CASHIER', 'KITCHEN'];
+const CLOTURE_ROLES: UserRole[] = ['ADMIN', 'MANAGER', 'CASHIER', 'COMPTABLE'];
+const DASHBOARD_ROLES: UserRole[] = [
+  'ADMIN',
+  'MANAGER',
+  'CASHIER',
+  'KITCHEN',
+  'COMPTABLE',
+];
 
 // Validation runtime du shape renvoyé par Better Auth.
 //
@@ -34,7 +43,14 @@ export const authorizedSessionSchema = z.object({
     id: z.string().min(1),
     email: z.string(),
     name: z.string().nullable(),
-    role: z.enum(['USER', 'ADMIN', 'CASHIER', 'KITCHEN']),
+    role: z.enum([
+      'USER',
+      'ADMIN',
+      'CASHIER',
+      'KITCHEN',
+      'MANAGER',
+      'COMPTABLE',
+    ]),
   }),
 });
 
@@ -84,23 +100,41 @@ export async function requireAdmin(): Promise<AuthorizedSession> {
   return requireRole(['ADMIN']);
 }
 
-/** ADMIN ou CASHIER. */
+/** ADMIN ou MANAGER. */
+export async function requireManager(): Promise<AuthorizedSession> {
+  return requireRole(MANAGER_ROLES);
+}
+
+/** ADMIN, MANAGER ou COMPTABLE (gestion financière). */
+export async function requireFinance(): Promise<AuthorizedSession> {
+  return requireRole(FINANCE_ROLES);
+}
+
+/** ADMIN, MANAGER ou CASHIER. */
 export async function requireCashier(): Promise<AuthorizedSession> {
   return requireRole(CASHIER_ROLES);
 }
 
-/** ADMIN, CASHIER ou KITCHEN (tout staff cuisine + caisse). */
+/** ADMIN, MANAGER, CASHIER ou KITCHEN (tout staff cuisine + caisse). */
 export async function requireKitchen(): Promise<AuthorizedSession> {
   return requireRole(KITCHEN_ROLES);
 }
 
-/** N'importe quel rôle staff (ADMIN, CASHIER, KITCHEN). */
+/** ADMIN, MANAGER, CASHIER ou COMPTABLE (accès à la clôture de caisse). */
+export async function requireCloture(): Promise<AuthorizedSession> {
+  return requireRole(CLOTURE_ROLES);
+}
+
+/** N'importe quel rôle staff (tous sauf USER). */
 export async function requireDashboardAccess(): Promise<AuthorizedSession> {
   return requireRole(DASHBOARD_ROLES);
 }
 
 export const ROLE_GROUPS = {
   DASHBOARD: DASHBOARD_ROLES,
+  MANAGER_PLUS: MANAGER_ROLES,
+  FINANCE: FINANCE_ROLES,
   CASHIER_PLUS: CASHIER_ROLES,
   KITCHEN_PLUS: KITCHEN_ROLES,
+  CLOTURE: CLOTURE_ROLES,
 } as const;

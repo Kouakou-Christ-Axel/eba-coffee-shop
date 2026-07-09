@@ -1,17 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getCurrentSession } from '@/lib/auth-helpers';
+import { requireFinance } from '@/lib/auth-helpers';
 import * as expenses from '@/lib/expense-mutations';
 import * as recurring from '@/lib/recurring-expense-mutations';
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
 async function requireAdminId(): Promise<string> {
-  const session = await getCurrentSession();
-  if (!session || session.user.role !== 'ADMIN') {
-    throw new Error('Non autorisé');
-  }
+  const session = await requireFinance();
   return session.user.id;
 }
 

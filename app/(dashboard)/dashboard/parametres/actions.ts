@@ -1,8 +1,7 @@
 'use server';
 
-import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { auth } from '@/lib/auth';
+import { requireAdmin } from '@/lib/auth-helpers';
 import {
   pickupSettingsSchema,
   type PickupSettings,
@@ -13,13 +12,6 @@ import {
   type LoyaltySettings,
 } from '@/lib/loyalty-settings';
 import { updateLoyaltySettings } from '@/lib/loyalty-settings-db';
-
-async function requireAdmin() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session || session.user.role !== 'ADMIN') {
-    throw new Error('Non autorisé');
-  }
-}
 
 export async function savePickupSettings(
   input: PickupSettings

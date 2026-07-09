@@ -9,6 +9,8 @@ import type { UserRole } from '@/generated/prisma/client';
 
 const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: 'Administrateur',
+  MANAGER: 'Gérant·e',
+  COMPTABLE: 'Comptable',
   CASHIER: 'Caissier·e',
   KITCHEN: 'Cuisine',
   USER: 'Client',
@@ -16,7 +18,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 const inviteSchema = z.object({
   email: z.string().email('Email invalide'),
-  role: z.enum(['ADMIN', 'CASHIER', 'KITCHEN']),
+  role: z.enum(['ADMIN', 'MANAGER', 'COMPTABLE', 'CASHIER', 'KITCHEN']),
 });
 
 export async function inviteStaff(input: { email: string; role: UserRole }) {
@@ -68,7 +70,14 @@ export async function updateUserRole(input: { id: string; role: UserRole }) {
   const parsed = z
     .object({
       id: z.string().min(1),
-      role: z.enum(['ADMIN', 'CASHIER', 'KITCHEN', 'USER']),
+      role: z.enum([
+        'ADMIN',
+        'MANAGER',
+        'COMPTABLE',
+        'CASHIER',
+        'KITCHEN',
+        'USER',
+      ]),
     })
     .safeParse(input);
   if (!parsed.success) {

@@ -6,8 +6,8 @@ type Transition = {
   roles: UserRole[];
 };
 
-const CASHIER_PLUS: UserRole[] = ['ADMIN', 'CASHIER'];
-const KITCHEN_PLUS: UserRole[] = ['ADMIN', 'CASHIER', 'KITCHEN'];
+const CASHIER_PLUS: UserRole[] = ['ADMIN', 'MANAGER', 'CASHIER'];
+const KITCHEN_PLUS: UserRole[] = ['ADMIN', 'MANAGER', 'CASHIER', 'KITCHEN'];
 
 const TRANSITIONS: readonly Transition[] = [
   { from: 'NEW', to: 'PREPARING', roles: KITCHEN_PLUS },
@@ -42,7 +42,7 @@ export function nextStatuses(from: OrderStatus, role: UserRole): OrderStatus[] {
 
 /** Le rôle peut-il toggle le flag `isPaid` ? */
 export function canTogglePayment(role: UserRole): boolean {
-  return role === 'ADMIN' || role === 'CASHIER';
+  return CASHIER_PLUS.includes(role);
 }
 
 /** Le rôle peut-il signaler "demander livreur" ? */

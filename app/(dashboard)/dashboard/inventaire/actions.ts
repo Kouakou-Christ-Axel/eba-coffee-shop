@@ -1,20 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getCurrentSession } from '@/lib/auth-helpers';
+import { requireKitchen } from '@/lib/auth-helpers';
 import * as inventory from '@/lib/inventory-mutations';
 import { updateInventorySettings } from '@/lib/inventory-settings-db';
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
 async function requireStaffId(): Promise<string> {
-  const session = await getCurrentSession();
-  if (
-    !session ||
-    !['ADMIN', 'CASHIER', 'KITCHEN'].includes(session.user.role)
-  ) {
-    throw new Error('Non autorisé');
-  }
+  const session = await requireKitchen();
   return session.user.id;
 }
 

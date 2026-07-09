@@ -2,7 +2,7 @@
 //
 // Téléchargement du modèle Excel (.xlsx) d'import inventaire (3 feuilles + aide).
 
-import { getCurrentSession } from '@/lib/auth-helpers';
+import { getCurrentSession, ROLE_GROUPS } from '@/lib/auth-helpers';
 import {
   buildImportTemplateWorkbook,
   xlsxResponse,
@@ -13,10 +13,7 @@ export const runtime = 'nodejs';
 
 export async function GET() {
   const session = await getCurrentSession();
-  if (
-    !session ||
-    !['ADMIN', 'CASHIER', 'KITCHEN'].includes(session.user.role)
-  ) {
+  if (!session || !ROLE_GROUPS.KITCHEN_PLUS.includes(session.user.role)) {
     return new Response('Non autorisé', { status: 403 });
   }
 
