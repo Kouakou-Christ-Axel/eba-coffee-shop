@@ -21,8 +21,8 @@ export async function promoteAdminIfMatch(user: { id: string; email: string }) {
 // exactement à l'URL du connecteur (`<domaine>/api/mcp`) : les clients stricts
 // comme Claude comparent ce champ à l'URL du serveur et refusent la connexion
 // en cas d'écart. Sans cette option, le plugin annonce l'origine seule
-// (`https://eba.otw.ci`) ≠ `https://eba.otw.ci/api/mcp` → « Authorization failed »
-// avant même l'écran de connexion.
+// (ex. `https://eba-coffee.com`) ≠ `https://eba-coffee.com/api/mcp` →
+// « Authorization failed » avant même l'écran de connexion.
 const mcpResource = process.env.BETTER_AUTH_URL
   ? `${process.env.BETTER_AUTH_URL.replace(/\/+$/, '')}/api/mcp`
   : undefined;

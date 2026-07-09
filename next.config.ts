@@ -68,7 +68,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['eba.otw.ci'],
+  // `eba.otw.ci` : ancien domaine, conservé pendant la transition vers
+  // `eba-coffee.com` (cf. la redirection dans `redirects()` ci-dessous).
+  allowedDevOrigins: ['eba.otw.ci', 'eba-coffee.com'],
   images: {
     dangerouslyAllowLocalIP: true,
     remotePatterns: [
@@ -87,6 +89,25 @@ const nextConfig: NextConfig = {
       {
         source: '/:path*',
         headers: securityHeaders,
+      },
+    ];
+  },
+  // Migration de domaine `eba.otw.ci` → `eba-coffee.com` : tant que le DNS/
+  // nginx de l'ancien domaine continue de router vers cette même app, on
+  // redirige tout son trafic vers le nouveau — limite la casse pour les PWA
+  // déjà installées (favoris, SEO) pendant la transition. `/sw.js` est
+  // EXCLU : un navigateur rejette une réponse redirigée pour le script de
+  // service worker lors de ses vérifications de mise à jour périodiques, ce
+  // qui casserait le SW déjà enregistré sur les installations existantes —
+  // or il doit continuer de tourner en tâche de fond (notifications push)
+  // pendant la transition.
+  async redirects() {
+    return [
+      {
+        source: '/:path((?!sw\\.js$).*)',
+        has: [{ type: 'host', value: 'eba.otw.ci' }],
+        destination: 'https://eba-coffee.com/:path',
+        permanent: true,
       },
     ];
   },
