@@ -12,12 +12,15 @@ langage naturel.
 
 | Mode                           | Pour qui / quoi                             | Multi-utilisateurs ? |
 | ------------------------------ | ------------------------------------------- | -------------------- |
-| **OAuth 2.0** (recommandé)     | Claude **web / mobile / desktop**           | ✅ par compte ADMIN  |
+| **OAuth 2.0** (recommandé)     | Claude **web / mobile / desktop**           | ✅ par compte ADMIN/MANAGER/COMPTABLE |
 | **Clé statique** `MCP_API_KEY` | Clients « machine » : Claude Code CLI, curl | ❌ secret partagé    |
 
 Le serveur tente d'abord la clé statique (si `MCP_API_KEY` est fournie en
 `Authorization: Bearer …`) ; sinon il bascule sur OAuth. **Toute requête sans
-identifiant valide reçoit 401** ; un compte sans rôle **ADMIN** reçoit **403**.
+identifiant valide reçoit 401** ; un compte sans rôle **ADMIN**, **MANAGER**
+ou **COMPTABLE** reçoit **403**. `ADMIN`/`MANAGER` ont accès à tous les
+outils ; `COMPTABLE` est restreint aux outils finance (dépenses,
+investissements, régularisations, clôture de caisse, statistiques).
 
 ---
 
@@ -25,8 +28,9 @@ identifiant valide reçoit 401** ; un compte sans rôle **ADMIN** reçoit **403*
 
 C'est le **seul** mode utilisable sur claude.ai (web) et l'app mobile Claude :
 ces clients ne permettent pas de coller un en-tête Bearer, ils exigent un flux
-OAuth. Chaque administrateur se connecte avec **son propre compte** (OTP email /
-Google) — pas de secret à partager, accès traçable et révocable individuellement.
+OAuth. Chaque collaborateur autorisé (ADMIN, MANAGER ou COMPTABLE) se connecte
+avec **son propre compte** (OTP email / Google) — pas de secret à partager,
+accès traçable et révocable individuellement.
 
 Le provider OAuth est fourni par le plugin MCP de Better Auth (`lib/auth.ts`).
 Il publie automatiquement la découverte (RFC 8414 / 9728) :
@@ -42,8 +46,8 @@ Il publie automatiquement la découverte (RFC 8414 / 9728) :
 - Les tables OAuth existent en base : après déploiement, lancer
   `pnpm db:push` (puis `pnpm db:generate`). Modèles `OauthApplication`,
   `OauthAccessToken`, `OauthConsent` dans `prisma/schema.prisma`.
-- Chaque utilisateur autorisé a le rôle **ADMIN** (voir « Donner accès à un
-  collaborateur » plus bas).
+- Chaque utilisateur autorisé a le rôle **ADMIN**, **MANAGER** ou
+  **COMPTABLE** (voir « Donner accès à un collaborateur » plus bas).
 - Côté Claude : un plan **Pro / Max / Team / Enterprise** (les connecteurs
   personnalisés y sont disponibles).
 
@@ -53,15 +57,16 @@ Il publie automatiquement la découverte (RFC 8414 / 9728) :
 2. Coller **uniquement l'URL** : `https://<votre-domaine>/api/mcp` (aucun en-tête
    à saisir).
 3. Claude découvre l'OAuth et ouvre la page de connexion EBA (`/login`). Se
-   connecter avec un email **ADMIN** → le flux revient automatiquement vers
-   Claude, qui obtient un jeton.
+   connecter avec un email **ADMIN**, **MANAGER** ou **COMPTABLE** → le flux
+   revient automatiquement vers Claude, qui obtient un jeton.
 
 ### Donner accès à un collaborateur
 
 1. Le collaborateur se connecte une première fois sur `https://<votre-domaine>/login`
    (il reçoit un code OTP par email) — cela crée son compte (rôle `USER`).
-2. Un administrateur lui attribue le rôle **ADMIN** via
-   **Dashboard → Utilisateurs** (`/dashboard/utilisateurs`).
+2. Un administrateur lui attribue le rôle **ADMIN**, **MANAGER** (accès
+   complet, comme ADMIN) ou **COMPTABLE** (accès MCP restreint aux outils
+   finance) via **Dashboard → Utilisateurs** (`/dashboard/utilisateurs`).
 3. Il peut alors ajouter le connecteur (étape ci-dessus). Pour **révoquer**
    l'accès : repasser son rôle à `USER` (ou le supprimer).
 
@@ -107,7 +112,8 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 ```
 
 > Claude Desktop sait aussi faire de l'OAuth : tu peux y ajouter le serveur
-> **sans** en-tête (comme sur le web) pour utiliser ton compte ADMIN.
+> **sans** en-tête (comme sur le web) pour utiliser ton compte ADMIN, MANAGER
+> ou COMPTABLE.
 
 ## Outils exposés
 
@@ -385,8 +391,9 @@ lève la pause manuellement avant son terme. Différent de
 ## Architecture
 
 - `app/api/mcp/route.ts` — transport HTTP : auth (clé statique à temps constant
-  **puis** OAuth via `withMcpAuth` + garde-fou rôle ADMIN), parsing JSON-RPC,
-  CORS, invalidation du cache menu après écriture.
+  **puis** OAuth via `withMcpAuth` + garde-fou rôle ADMIN/MANAGER/COMPTABLE,
+  ce dernier restreint aux outils finance via `FINANCE_TOOL_NAMES`), parsing
+  JSON-RPC, CORS, invalidation du cache menu après écriture.
 - `lib/auth.ts` — provider OAuth : plugin `mcp({ loginPage: '/login' })` de
   Better Auth + `baseURL` (issuer).
 - `app/.well-known/oauth-authorization-server/route.ts` et

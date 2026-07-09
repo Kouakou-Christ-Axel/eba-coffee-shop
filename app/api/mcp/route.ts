@@ -13,8 +13,10 @@
 //   2. OAuth 2.0 (plugin MCP de Better Auth). Le client (Claude web/mobile) ne
 //      sait pas coller un en-tête Bearer : il suit le flux OAuth, l'utilisateur
 //      se connecte avec SON compte, et un jeton d'accès lui est délivré. On
-//      n'autorise alors que les comptes ayant le rôle ADMIN — chaque
-//      collaborateur a son propre accès, traçable et révocable.
+//      n'autorise que les comptes ADMIN, MANAGER ou COMPTABLE — chaque
+//      collaborateur a son propre accès, traçable et révocable. COMPTABLE est
+//      restreint aux outils finance (dépenses, investissements,
+//      régularisations, clôture, stats — cf. `FINANCE_TOOL_NAMES`).
 //
 // Le dispatch JSON-RPC vit dans `lib/mcp/handler.ts` ; cette route ne gère que
 // le transport HTTP (auth, parsing, réponse, CORS) et l'invalidation du cache.
@@ -26,6 +28,8 @@ import { withMcpAuth } from 'better-auth/plugins';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { handleRpc } from '@/lib/mcp/handler';
+import { FINANCE_TOOL_NAMES } from '@/lib/mcp/tools';
+import type { UserRole } from '@/generated/prisma/client';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -101,7 +105,10 @@ function revalidateMenu() {
 
 // ─── Traitement JSON-RPC (commun aux deux chemins d'auth) ───────────────────
 
-async function processRpc(req: Request): Promise<Response> {
+async function processRpc(
+  req: Request,
+  allowedTools?: Set<string>
+): Promise<Response> {
   let body: unknown;
   try {
     body = await req.json();
@@ -116,7 +123,7 @@ async function processRpc(req: Request): Promise<Response> {
     );
   }
 
-  const options = { onWriteSuccess: revalidateMenu };
+  const options = { onWriteSuccess: revalidateMenu, allowedTools };
 
   // JSON-RPC 2.0 : on accepte un message unique ou (compat clients anciens) un
   // lot. Les notifications (sans réponse) sont filtrées.
@@ -148,13 +155,17 @@ async function processRpc(req: Request): Promise<Response> {
   return NextResponse.json(response);
 }
 
-// ─── Chemin OAuth : jeton valide + rôle ADMIN ───────────────────────────────
+// ─── Chemin OAuth : jeton valide + rôle autorisé ────────────────────────────
 //
 // `withMcpAuth` valide le jeton d'accès OAuth (sinon 401 + `WWW-Authenticate`
 // pointant vers la métadonnée de ressource, ce qui amorce la découverte côté
-// client). On exige ensuite que l'utilisateur derrière le jeton soit ADMIN.
-// `withAdminGuard` enveloppe un handler déjà autorisé (POST JSON-RPC ou flux
-// SSE GET) : même logique d'auth, deux usages.
+// client). On exige ensuite que l'utilisateur derrière le jeton ait un rôle
+// autorisé (ADMIN, MANAGER ou COMPTABLE). `withRoleGuard` enveloppe un
+// handler déjà autorisé (POST JSON-RPC ou flux SSE GET) : même logique
+// d'auth, deux usages. COMPTABLE reçoit en plus un `allowedTools` qui
+// restreint `tools/list`/`tools/call` aux outils finance.
+
+const MCP_ROLES: UserRole[] = ['ADMIN', 'MANAGER', 'COMPTABLE'];
 
 function forbidden(): Response {
   return NextResponse.json(
@@ -163,28 +174,33 @@ function forbidden(): Response {
       id: null,
       error: {
         code: -32001,
-        message: 'Accès refusé : compte sans rôle administrateur',
+        message: 'Accès refusé : rôle non autorisé pour le serveur MCP',
       },
     },
     { status: 403 }
   );
 }
 
-function withAdminGuard(
-  handler: (req: Request) => Response | Promise<Response>
+function withRoleGuard(
+  handler: (
+    req: Request,
+    allowedTools?: Set<string>
+  ) => Response | Promise<Response>
 ) {
   return withMcpAuth(auth, async (req, session) => {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
       select: { role: true },
     });
-    if (!user || user.role !== 'ADMIN') return forbidden();
-    return handler(req);
+    if (!user || !MCP_ROLES.includes(user.role)) return forbidden();
+    const allowedTools =
+      user.role === 'COMPTABLE' ? FINANCE_TOOL_NAMES : undefined;
+    return handler(req, allowedTools);
   });
 }
 
-const oauthPostHandler = withAdminGuard(processRpc);
-const oauthGetHandler = withAdminGuard(() => sseStream());
+const oauthPostHandler = withRoleGuard(processRpc);
+const oauthGetHandler = withRoleGuard(() => sseStream());
 
 // ─── Flux SSE pour GET (transport « Streamable HTTP ») ───────────────────────
 //

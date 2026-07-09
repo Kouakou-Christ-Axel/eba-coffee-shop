@@ -9,7 +9,7 @@ import {
   Wallet,
   XCircle,
 } from 'lucide-react';
-import { requireAdmin } from '@/lib/auth-helpers';
+import { requireStats } from '@/lib/auth-helpers';
 import { getRangeStats, getDailySeries, getTopProducts } from '@/lib/stats';
 import { getExpenseSummary } from '@/lib/expenses';
 import { getInvestmentSummary } from '@/lib/investments';
@@ -41,7 +41,7 @@ export default async function StatistiquesPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
-  await requireAdmin();
+  await requireStats();
   const params = await searchParams;
 
   const today = todayDateString();

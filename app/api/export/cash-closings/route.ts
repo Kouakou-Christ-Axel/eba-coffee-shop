@@ -1,9 +1,10 @@
 // app/api/export/cash-closings/route.ts
 //
-// Export CSV de l'historique des clôtures de caisse (ADMIN + CAISSE).
+// Export CSV de l'historique des clôtures de caisse (ADMIN, MANAGER, CASHIER,
+// COMPTABLE).
 
 import type { NextRequest } from 'next/server';
-import { getCurrentSession } from '@/lib/auth-helpers';
+import { getCurrentSession, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { listCashClosings } from '@/lib/cash-closing';
 import { toCsv, csvResponse } from '@/lib/csv';
 import {
@@ -16,11 +17,10 @@ import {
 export const dynamic = 'force-dynamic';
 
 const DEFAULT_RANGE_DAYS = 30;
-const CASHIER_ROLES = new Set(['ADMIN', 'CASHIER']);
 
 export async function GET(req: NextRequest) {
   const session = await getCurrentSession();
-  if (!session || !CASHIER_ROLES.has(session.user.role)) {
+  if (!session || !ROLE_GROUPS.CLOTURE.includes(session.user.role)) {
     return new Response('Non autorisé', { status: 403 });
   }
 

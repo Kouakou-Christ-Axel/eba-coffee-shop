@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
+import { ROLE_GROUPS } from '@/lib/auth-helpers';
+import type { UserRole } from '@/generated/prisma/client';
 import {
   MAX_UPLOAD_SIZE_BYTES,
   isAllowedImageMimeType,
@@ -29,7 +31,10 @@ function isAdminUploadSubdir(v: string): v is AdminUploadSubdir {
 
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session || session.user.role !== 'ADMIN') {
+  if (
+    !session ||
+    !ROLE_GROUPS.MANAGER_PLUS.includes(session.user.role as UserRole)
+  ) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
 

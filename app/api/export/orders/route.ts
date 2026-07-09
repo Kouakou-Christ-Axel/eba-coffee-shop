@@ -1,10 +1,11 @@
 // app/api/export/orders/route.ts
 //
-// Export CSV des commandes sur une plage de dates (admin-only). Réutilise les
+// Export CSV des commandes sur une plage de dates (ADMIN, MANAGER,
+// ASSISTANT_MANAGER, COMPTABLE). Réutilise les
 // filtres de la page Commandes (from/to/range/status/search) via getOrdersForExport.
 
 import type { NextRequest } from 'next/server';
-import { getCurrentSession } from '@/lib/auth-helpers';
+import { getCurrentSession, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { getOrdersForExport } from '@/lib/orders';
 import { toCsv, csvResponse } from '@/lib/csv';
 import {
@@ -63,7 +64,7 @@ function formatDateTime(d: Date | null): string {
 
 export async function GET(req: NextRequest) {
   const session = await getCurrentSession();
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session || !ROLE_GROUPS.STATS.includes(session.user.role)) {
     return new Response('Non autorisé', { status: 403 });
   }
 

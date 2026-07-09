@@ -75,6 +75,12 @@ export type HandleOptions = {
    * La route s’en sert pour invalider le cache du menu public.
    */
   onWriteSuccess?: (toolName: string) => void;
+  /**
+   * Restreint les outils visibles/appelables (rôle COMPTABLE : outils finance
+   * uniquement, cf. `FINANCE_TOOL_NAMES`). `undefined` = aucune restriction
+   * (ADMIN/MANAGER, accès à tous les outils).
+   */
+  allowedTools?: Set<string>;
 };
 
 // ─── Sérialisation d’un outil pour tools/list ──────────────────────────────────
@@ -112,6 +118,10 @@ async function callTool(
   const tool = toolsByName.get(callParams.data.name);
   if (!tool) {
     return fail(id, INVALID_PARAMS, `Outil inconnu : ${callParams.data.name}`);
+  }
+
+  if (options.allowedTools && !options.allowedTools.has(tool.name)) {
+    return toolError(id, 'Outil non autorisé pour ce rôle.');
   }
 
   // Validation des arguments via le schéma Zod de l’outil.
@@ -215,8 +225,12 @@ export async function handleRpc(
     case 'ping':
       return ok(id, {});
 
-    case 'tools/list':
-      return ok(id, { tools: tools.map(serializeTool) });
+    case 'tools/list': {
+      const visible = options.allowedTools
+        ? tools.filter((t) => options.allowedTools!.has(t.name))
+        : tools;
+      return ok(id, { tools: visible.map(serializeTool) });
+    }
 
     case 'tools/call':
       return callTool(id, msg.params, options);

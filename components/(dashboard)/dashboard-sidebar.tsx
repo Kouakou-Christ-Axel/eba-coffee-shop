@@ -50,79 +50,79 @@ const navItems: NavItem[] = [
     label: 'Vue d’ensemble',
     href: '/dashboard',
     icon: LayoutDashboard,
-    roles: ['ADMIN', 'CASHIER'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER', 'COMPTABLE'],
   },
   {
     label: 'Statistiques',
     href: '/dashboard/statistiques',
     icon: BarChart3,
-    roles: ['ADMIN'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'COMPTABLE'],
   },
   {
     label: 'Dépenses',
     href: '/dashboard/depenses',
     icon: Wallet,
-    roles: ['ADMIN'],
+    roles: ['ADMIN', 'MANAGER', 'COMPTABLE'],
   },
   {
     label: 'Investissements',
     href: '/dashboard/investissements',
     icon: PiggyBank,
-    roles: ['ADMIN'],
+    roles: ['ADMIN', 'MANAGER', 'COMPTABLE'],
   },
   {
     label: 'Régularisations',
     href: '/dashboard/regularisations',
     icon: Scale,
-    roles: ['ADMIN'],
+    roles: ['ADMIN', 'MANAGER', 'COMPTABLE'],
   },
   {
     label: 'Clients',
     href: '/dashboard/clients',
     icon: Contact,
-    roles: ['ADMIN'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER'],
   },
   {
     label: 'Caisse',
     href: '/dashboard/caisse',
     icon: ShoppingBag,
-    roles: ['ADMIN', 'CASHIER'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER'],
   },
   {
     label: 'Préparation',
     href: '/dashboard/preparation',
     icon: ChefHat,
-    roles: ['ADMIN', 'CASHIER', 'KITCHEN'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER', 'KITCHEN'],
   },
   {
     label: 'Commandes',
     href: '/dashboard/commandes',
     icon: ClipboardList,
-    roles: ['ADMIN', 'CASHIER'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER'],
   },
   {
     label: 'Clôture',
     href: '/dashboard/cloture',
     icon: Calculator,
-    roles: ['ADMIN', 'CASHIER'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER', 'COMPTABLE'],
   },
   {
     label: 'Menu',
     href: '/dashboard/menu',
     icon: UtensilsCrossed,
-    roles: ['ADMIN'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER'],
   },
   {
     label: 'Inventaire',
     href: '/dashboard/inventaire',
     icon: Boxes,
-    roles: ['ADMIN', 'CASHIER', 'KITCHEN'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER', 'KITCHEN'],
   },
   {
     label: 'Sondages',
     href: '/dashboard/sondages',
     icon: Vote,
-    roles: ['ADMIN'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER'],
   },
   {
     label: 'Paramètres',
@@ -247,6 +247,12 @@ function roleLabel(role: UserRole): string {
   switch (role) {
     case 'ADMIN':
       return 'Administration';
+    case 'MANAGER':
+      return 'Gérance';
+    case 'ASSISTANT_MANAGER':
+      return 'Gérance adjointe';
+    case 'COMPTABLE':
+      return 'Comptabilité';
     case 'CASHIER':
       return 'Caisse';
     case 'KITCHEN':

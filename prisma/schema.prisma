@@ -147,6 +147,9 @@ enum UserRole {
   ADMIN
   CASHIER
   KITCHEN
+  MANAGER
+  COMPTABLE
+  ASSISTANT_MANAGER
 }
 
 enum OrderStatus {

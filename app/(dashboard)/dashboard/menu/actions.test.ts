@@ -58,7 +58,7 @@ const mockGetSession = auth.api.getSession as MockedFunction<
 const mockRevalidate = revalidatePath as MockedFunction<typeof revalidatePath>;
 
 const adminSession = {
-  user: { role: 'ADMIN', id: 'u1', email: 'admin@eba.ci' },
+  user: { role: 'ADMIN', id: 'u1', email: 'admin@eba.ci', name: null },
   session: {},
 } as never;
 

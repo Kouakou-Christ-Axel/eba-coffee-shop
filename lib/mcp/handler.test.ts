@@ -36,6 +36,7 @@ vi.mock('@/lib/menu-mutations', async () => {
 import { getMenuAdmin } from '@/lib/menu';
 import { createCategory, createProduct } from '@/lib/menu-mutations';
 import { handleRpc, SERVER_INFO } from './handler';
+import { FINANCE_TOOL_NAMES } from './tools';
 
 const mockGetMenuAdmin = getMenuAdmin as MockedFunction<typeof getMenuAdmin>;
 const mockCreateCategory = createCategory as MockedFunction<
@@ -118,6 +119,19 @@ describe('tools/list', () => {
     expect(getMenu.annotations.readOnlyHint).toBe(true);
     expect(getMenu.inputSchema.type).toBe('object');
   });
+
+  it('restreint la liste aux `allowedTools` (rôle COMPTABLE)', async () => {
+    const res = await handleRpc(
+      { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+      { allowedTools: FINANCE_TOOL_NAMES }
+    );
+    const { tools } = res!.result as { tools: Array<{ name: string }> };
+    const names = tools.map((t) => t.name);
+    expect(names).toContain('list_expenses');
+    expect(names).toContain('get_daily_stats');
+    expect(names).not.toContain('get_menu');
+    expect(names).not.toContain('create_product');
+  });
 });
 
 describe('tools/call — lecture', () => {
@@ -138,6 +152,24 @@ describe('tools/call — lecture', () => {
     expect(result.isError).toBe(false);
     expect(result.content[0].text).toContain('Cafés');
     expect(mockGetMenuAdmin).toHaveBeenCalledOnce();
+  });
+
+  it('refuse un outil hors `allowedTools` (rôle COMPTABLE sur get_menu)', async () => {
+    const res = await handleRpc(
+      {
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'get_menu', arguments: {} },
+      },
+      { allowedTools: FINANCE_TOOL_NAMES }
+    );
+    const result = res!.result as {
+      content: Array<{ type: string; text: string }>;
+      isError: boolean;
+    };
+    expect(result.isError).toBe(true);
+    expect(mockGetMenuAdmin).not.toHaveBeenCalled();
   });
 });
 

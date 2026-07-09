@@ -1,11 +1,12 @@
 // app/api/export/revenue-adjustments/route.ts
 //
 // Export CSV des régularisations de recette sur une plage de dates + mode de
-// paiement (admin-only). Miroir de app/api/export/expenses/route.ts.
+// paiement (rôles finance : ADMIN, MANAGER, COMPTABLE). Miroir de
+// app/api/export/expenses/route.ts.
 
 import type { NextRequest } from 'next/server';
 import type { PaymentMode } from '@/generated/prisma/client';
-import { getCurrentSession } from '@/lib/auth-helpers';
+import { getCurrentSession, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { listRevenueAdjustments } from '@/lib/revenue-adjustments';
 import { toCsv, csvResponse } from '@/lib/csv';
 import {
@@ -28,7 +29,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 
 export async function GET(req: NextRequest) {
   const session = await getCurrentSession();
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session || !ROLE_GROUPS.FINANCE.includes(session.user.role)) {
     return new Response('Non autorisé', { status: 403 });
   }
 

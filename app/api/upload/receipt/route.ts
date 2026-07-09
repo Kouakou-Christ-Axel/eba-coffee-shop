@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
+import { ROLE_GROUPS } from '@/lib/auth-helpers';
+import type { UserRole } from '@/generated/prisma/client';
 import {
   MAX_UPLOAD_SIZE_BYTES,
   isAllowedImageMimeType,
@@ -9,11 +11,14 @@ import { saveReceiptImage } from '@/lib/uploads';
 
 const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
 
-// Upload d'un justificatif de dépense (photo). Réservé à l'ADMIN, même
-// validation que l'upload produit mais stocké sous /uploads/receipts/.
+// Upload d'un justificatif de dépense (photo). Réservé aux rôles finance,
+// même validation que l'upload produit mais stocké sous /uploads/receipts/.
 export async function POST(req: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session || session.user.role !== 'ADMIN') {
+  if (
+    !session ||
+    !ROLE_GROUPS.FINANCE.includes(session.user.role as UserRole)
+  ) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
 

@@ -1,10 +1,11 @@
 // app/api/export/investments/route.ts
 //
 // Export CSV des investissements (apports / financements) sur une plage de dates
-// + source (admin-only). Miroir de app/api/export/expenses/route.ts.
+// + source (rôles finance : ADMIN, MANAGER, COMPTABLE). Miroir de
+// app/api/export/expenses/route.ts.
 
 import type { NextRequest } from 'next/server';
-import { getCurrentSession } from '@/lib/auth-helpers';
+import { getCurrentSession, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { listInvestments } from '@/lib/investments';
 import { toCsv, csvResponse } from '@/lib/csv';
 import {
@@ -27,7 +28,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 
 export async function GET(req: NextRequest) {
   const session = await getCurrentSession();
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session || !ROLE_GROUPS.FINANCE.includes(session.user.role)) {
     return new Response('Non autorisé', { status: 403 });
   }
 

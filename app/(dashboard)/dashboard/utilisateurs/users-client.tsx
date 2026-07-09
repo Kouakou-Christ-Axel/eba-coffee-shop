@@ -27,11 +27,17 @@ type StaffUser = {
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: 'CASHIER', label: 'Caissier·e' },
   { value: 'KITCHEN', label: 'Cuisine' },
+  { value: 'COMPTABLE', label: 'Comptable' },
+  { value: 'ASSISTANT_MANAGER', label: 'Gérant·e adjoint·e' },
+  { value: 'MANAGER', label: 'Gérant·e' },
   { value: 'ADMIN', label: 'Administrateur' },
 ];
 
 const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: 'Administrateur',
+  MANAGER: 'Gérant·e',
+  ASSISTANT_MANAGER: 'Gérant·e adjoint·e',
+  COMPTABLE: 'Comptable',
   CASHIER: 'Caissier·e',
   KITCHEN: 'Cuisine',
   USER: 'Client',
@@ -42,6 +48,9 @@ const ROLE_VARIANTS: Record<
   'default' | 'secondary' | 'destructive' | 'outline'
 > = {
   ADMIN: 'destructive',
+  MANAGER: 'destructive',
+  ASSISTANT_MANAGER: 'secondary',
+  COMPTABLE: 'secondary',
   CASHIER: 'default',
   KITCHEN: 'secondary',
   USER: 'outline',
@@ -154,6 +163,9 @@ export function UsersClient({ users }: { users: StaffUser[] }) {
                   <option value="USER">Client</option>
                   <option value="CASHIER">Caissier·e</option>
                   <option value="KITCHEN">Cuisine</option>
+                  <option value="COMPTABLE">Comptable</option>
+                  <option value="ASSISTANT_MANAGER">Gérant·e adjoint·e</option>
+                  <option value="MANAGER">Gérant·e</option>
                   <option value="ADMIN">Administrateur</option>
                 </select>
               </TableCell>

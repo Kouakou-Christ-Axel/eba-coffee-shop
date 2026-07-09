@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { getCurrentSession } from '@/lib/auth-helpers';
+import { requireManager } from '@/lib/auth-helpers';
 import { createCustomer, updateCustomer } from '@/lib/customer-mutations';
 import { awardMissedOrderStamps } from '@/lib/loyalty-mutations';
 import {
@@ -16,10 +16,7 @@ type StampsActionResult =
   | { ok: false; error: string };
 
 async function requireAdminId(): Promise<string> {
-  const session = await getCurrentSession();
-  if (!session || session.user.role !== 'ADMIN') {
-    throw new Error('Non autorisé');
-  }
+  const session = await requireManager();
   return session.user.id;
 }
 

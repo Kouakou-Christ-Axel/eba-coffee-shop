@@ -6,7 +6,7 @@
 // lib/inventory-import.ts + lib/inventory-mutations.ts.
 
 import { NextResponse } from 'next/server';
-import { getCurrentSession } from '@/lib/auth-helpers';
+import { getCurrentSession, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { inventoryImportModeSchema } from '@/lib/schemas/inventory';
 import { parseImportWorkbook } from '@/lib/inventory-excel';
 import { bulkUpsertInventoryItems } from '@/lib/inventory-mutations';
@@ -27,10 +27,7 @@ function str(v: FormDataEntryValue | null): string | undefined {
 
 export async function POST(req: Request) {
   const session = await getCurrentSession();
-  if (
-    !session ||
-    !['ADMIN', 'CASHIER', 'KITCHEN'].includes(session.user.role)
-  ) {
+  if (!session || !ROLE_GROUPS.KITCHEN_PLUS.includes(session.user.role)) {
     return new Response('Non autorisé', { status: 403 });
   }
 

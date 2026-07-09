@@ -1,18 +1,10 @@
 'use server';
 
-import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { ZodError } from 'zod';
-import { auth } from '@/lib/auth';
+import { requireManager } from '@/lib/auth-helpers';
 import * as menu from '@/lib/menu-mutations';
 import type { ProductInput, ProductUpdate } from '@/lib/menu-mutations';
-
-async function requireAdmin() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session || session.user.role !== 'ADMIN') {
-    throw new Error('Non autorisé');
-  }
-}
 
 // Next.js redacte en production le message de toute erreur qui *traverse*
 // une Server Action (générique « An error occurred in the Server
@@ -37,7 +29,7 @@ function revalidateMenu() {
 // ── Catégories ──
 
 export async function createCategoryAction(input: { name: string }) {
-  await requireAdmin();
+  await requireManager();
   await menu.createCategory(input);
   revalidateMenu();
 }
@@ -46,25 +38,25 @@ export async function updateCategoryAction(
   id: string,
   input: { name: string }
 ) {
-  await requireAdmin();
+  await requireManager();
   await menu.updateCategory(id, input);
   revalidateMenu();
 }
 
 export async function deleteCategoryAction(id: string) {
-  await requireAdmin();
+  await requireManager();
   await menu.deleteCategory(id);
   revalidateMenu();
 }
 
 export async function toggleCategoryAvailabilityAction(id: string) {
-  await requireAdmin();
+  await requireManager();
   await menu.toggleCategoryAvailability(id);
   revalidateMenu();
 }
 
 export async function moveCategoryAction(id: string, direction: 'up' | 'down') {
-  await requireAdmin();
+  await requireManager();
   await menu.moveCategory(id, direction);
   revalidateMenu();
 }
@@ -74,7 +66,7 @@ export async function moveCategoryAction(id: string, direction: 'up' | 'down') {
 export async function createProductAction(
   input: ProductInput
 ): Promise<{ error: string } | undefined> {
-  await requireAdmin();
+  await requireManager();
   try {
     await menu.createProduct(input);
   } catch (err) {
@@ -87,7 +79,7 @@ export async function updateProductAction(
   id: string,
   input: ProductUpdate
 ): Promise<{ error: string } | undefined> {
-  await requireAdmin();
+  await requireManager();
   try {
     await menu.updateProduct(id, input);
   } catch (err) {
@@ -97,19 +89,19 @@ export async function updateProductAction(
 }
 
 export async function deleteProductAction(id: string) {
-  await requireAdmin();
+  await requireManager();
   await menu.deleteProduct(id);
   revalidateMenu();
 }
 
 export async function toggleProductAvailabilityAction(id: string) {
-  await requireAdmin();
+  await requireManager();
   await menu.toggleProductAvailability(id);
   revalidateMenu();
 }
 
 export async function toggleProductFeaturedAction(id: string) {
-  await requireAdmin();
+  await requireManager();
   await menu.toggleProductFeatured(id);
   revalidateMenu();
 }
@@ -117,7 +109,7 @@ export async function toggleProductFeaturedAction(id: string) {
 // ── Stock & pause ──
 
 export async function restockProductAction(id: string, delta: number) {
-  await requireAdmin();
+  await requireManager();
   if (!Number.isInteger(delta) || delta === 0) {
     throw new Error('Quantité invalide');
   }
@@ -126,7 +118,7 @@ export async function restockProductAction(id: string, delta: number) {
 }
 
 export async function pauseProductAction(id: string, until: string) {
-  await requireAdmin();
+  await requireManager();
   const untilDate = new Date(until);
   if (Number.isNaN(untilDate.getTime()) || untilDate.getTime() <= Date.now()) {
     throw new Error('Date de reprise invalide (doit être dans le futur)');
@@ -136,7 +128,7 @@ export async function pauseProductAction(id: string, until: string) {
 }
 
 export async function resumeProductAction(id: string) {
-  await requireAdmin();
+  await requireManager();
   await menu.resumeProduct(id);
   revalidateMenu();
 }
