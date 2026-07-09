@@ -38,7 +38,11 @@ vi.mock('@/lib/push-notify', () => ({
 }));
 
 import prisma from '@/lib/prisma';
-import { setOrderPayment, StockShortageError } from './order-mutations';
+import {
+  setOrderPayment,
+  payAndComplete,
+  StockShortageError,
+} from './order-mutations';
 import type { CartItem } from '@/lib/cart-store';
 
 const mockOrderFindUnique = prisma.order.findUnique as MockedFunction<
@@ -56,9 +60,13 @@ const mockOptionFindFirst = prisma.supplementOption.findFirst as MockedFunction<
 const mockOptionUpdateMany = prisma.supplementOption
   .updateMany as MockedFunction<typeof prisma.supplementOption.updateMany>;
 
-const orderWithOneItem = (item: Partial<CartItem> = {}) => ({
+const orderWithOneItem = (
+  item: Partial<CartItem> = {},
+  orderOverrides: { status?: string } = {}
+) => ({
   isPaid: false,
   status: 'NEW',
+  ...orderOverrides,
   items: [
     {
       cartId: 'c1',
@@ -170,6 +178,51 @@ describe('setOrderPayment — décrément du stock au paiement', () => {
     expect(mockOrderUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ isPaid: true }),
+      })
+    );
+  });
+
+  // Une commande déjà COMPLETED (récupérée/servie) avant l'encaissement ne
+  // doit pas revalider/décrémenter le stock : l'article a déjà été
+  // physiquement consommé, un stock épuisé ENTRE-TEMPS par d'autres
+  // commandes ne doit pas bloquer ce paiement rétroactif légitime.
+  it('commande déjà COMPLETED : encaisse sans toucher au stock', async () => {
+    mockOrderFindUnique.mockResolvedValue(
+      orderWithOneItem({}, { status: 'COMPLETED' }) as never
+    );
+
+    await setOrderPayment('order1', true, 'CASH');
+
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+    expect(mockOptionFindFirst).not.toHaveBeenCalled();
+    expect(mockOptionUpdateMany).not.toHaveBeenCalled();
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ isPaid: true }),
+      })
+    );
+  });
+});
+
+describe('payAndComplete — même exception pour une commande déjà COMPLETED', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOrderUpdateMany.mockResolvedValue({ count: 1 } as never);
+  });
+
+  it('commande déjà COMPLETED (récupérée), pas encore payée : encaisse sans toucher au stock', async () => {
+    mockOrderFindUnique.mockResolvedValue(
+      orderWithOneItem({}, { status: 'COMPLETED' }) as never
+    );
+
+    const result = await payAndComplete('order1', 'CASH', 'ADMIN');
+
+    expect(result).toEqual({ alreadyPaid: false });
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+    expect(mockOptionFindFirst).not.toHaveBeenCalled();
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'COMPLETED', isPaid: true }),
       })
     );
   });
