@@ -6,8 +6,19 @@ type Transition = {
   roles: UserRole[];
 };
 
-const CASHIER_PLUS: UserRole[] = ['ADMIN', 'MANAGER', 'CASHIER'];
-const KITCHEN_PLUS: UserRole[] = ['ADMIN', 'MANAGER', 'CASHIER', 'KITCHEN'];
+const CASHIER_PLUS: UserRole[] = [
+  'ADMIN',
+  'MANAGER',
+  'ASSISTANT_MANAGER',
+  'CASHIER',
+];
+const KITCHEN_PLUS: UserRole[] = [
+  'ADMIN',
+  'MANAGER',
+  'ASSISTANT_MANAGER',
+  'CASHIER',
+  'KITCHEN',
+];
 
 const TRANSITIONS: readonly Transition[] = [
   { from: 'NEW', to: 'PREPARING', roles: KITCHEN_PLUS },

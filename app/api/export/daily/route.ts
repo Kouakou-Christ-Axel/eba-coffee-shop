@@ -1,7 +1,8 @@
 // app/api/export/daily/route.ts
 //
 // Export CSV du récapitulatif journalier (commandes + CA encaissé par jour)
-// sur une plage de dates (ADMIN, MANAGER). Réutilise getDailySeries.
+// sur une plage de dates (ADMIN, MANAGER, ASSISTANT_MANAGER, COMPTABLE).
+// Réutilise getDailySeries.
 
 import type { NextRequest } from 'next/server';
 import { getCurrentSession, ROLE_GROUPS } from '@/lib/auth-helpers';
@@ -19,7 +20,7 @@ const DEFAULT_RANGE_DAYS = 30;
 
 export async function GET(req: NextRequest) {
   const session = await getCurrentSession();
-  if (!session || !ROLE_GROUPS.MANAGER_PLUS.includes(session.user.role)) {
+  if (!session || !ROLE_GROUPS.STATS.includes(session.user.role)) {
     return new Response('Non autorisé', { status: 403 });
   }
 

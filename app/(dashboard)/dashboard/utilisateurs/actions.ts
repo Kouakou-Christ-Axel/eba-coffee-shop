@@ -10,6 +10,7 @@ import type { UserRole } from '@/generated/prisma/client';
 const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: 'Administrateur',
   MANAGER: 'Gérant·e',
+  ASSISTANT_MANAGER: 'Gérant·e adjoint·e',
   COMPTABLE: 'Comptable',
   CASHIER: 'Caissier·e',
   KITCHEN: 'Cuisine',
@@ -18,7 +19,14 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 const inviteSchema = z.object({
   email: z.string().email('Email invalide'),
-  role: z.enum(['ADMIN', 'MANAGER', 'COMPTABLE', 'CASHIER', 'KITCHEN']),
+  role: z.enum([
+    'ADMIN',
+    'MANAGER',
+    'ASSISTANT_MANAGER',
+    'COMPTABLE',
+    'CASHIER',
+    'KITCHEN',
+  ]),
 });
 
 export async function inviteStaff(input: { email: string; role: UserRole }) {
@@ -73,6 +81,7 @@ export async function updateUserRole(input: { id: string; role: UserRole }) {
       role: z.enum([
         'ADMIN',
         'MANAGER',
+        'ASSISTANT_MANAGER',
         'COMPTABLE',
         'CASHIER',
         'KITCHEN',

@@ -31,6 +31,14 @@ describe('order-permissions — annulation / remboursement', () => {
     expect(canTransition('NEW', 'CANCELLED', 'MANAGER')).toBe(true);
   });
 
+  it('un gérant adjoint (ASSISTANT_MANAGER) a les mêmes droits qu’un gérant', () => {
+    expect(canTransition('NEW', 'PREPARING', 'ASSISTANT_MANAGER')).toBe(true);
+    expect(canTransition('READY', 'COMPLETED', 'ASSISTANT_MANAGER')).toBe(
+      true
+    );
+    expect(canTransition('NEW', 'CANCELLED', 'ASSISTANT_MANAGER')).toBe(true);
+  });
+
   it('un comptable (COMPTABLE) ne peut faire aucune transition de commande', () => {
     expect(canTransition('NEW', 'PREPARING', 'COMPTABLE')).toBe(false);
     expect(canTransition('READY', 'COMPLETED', 'COMPTABLE')).toBe(false);

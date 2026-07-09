@@ -149,6 +149,7 @@ enum UserRole {
   KITCHEN
   MANAGER
   COMPTABLE
+  ASSISTANT_MANAGER
 }
 
 enum OrderStatus {

@@ -50,13 +50,13 @@ const navItems: NavItem[] = [
     label: 'Vue d’ensemble',
     href: '/dashboard',
     icon: LayoutDashboard,
-    roles: ['ADMIN', 'MANAGER', 'CASHIER', 'COMPTABLE'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER', 'COMPTABLE'],
   },
   {
     label: 'Statistiques',
     href: '/dashboard/statistiques',
     icon: BarChart3,
-    roles: ['ADMIN', 'MANAGER', 'COMPTABLE'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'COMPTABLE'],
   },
   {
     label: 'Dépenses',
@@ -80,49 +80,49 @@ const navItems: NavItem[] = [
     label: 'Clients',
     href: '/dashboard/clients',
     icon: Contact,
-    roles: ['ADMIN', 'MANAGER'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER'],
   },
   {
     label: 'Caisse',
     href: '/dashboard/caisse',
     icon: ShoppingBag,
-    roles: ['ADMIN', 'MANAGER', 'CASHIER'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER'],
   },
   {
     label: 'Préparation',
     href: '/dashboard/preparation',
     icon: ChefHat,
-    roles: ['ADMIN', 'MANAGER', 'CASHIER', 'KITCHEN'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER', 'KITCHEN'],
   },
   {
     label: 'Commandes',
     href: '/dashboard/commandes',
     icon: ClipboardList,
-    roles: ['ADMIN', 'MANAGER', 'CASHIER'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER'],
   },
   {
     label: 'Clôture',
     href: '/dashboard/cloture',
     icon: Calculator,
-    roles: ['ADMIN', 'MANAGER', 'CASHIER', 'COMPTABLE'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER', 'COMPTABLE'],
   },
   {
     label: 'Menu',
     href: '/dashboard/menu',
     icon: UtensilsCrossed,
-    roles: ['ADMIN', 'MANAGER'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER'],
   },
   {
     label: 'Inventaire',
     href: '/dashboard/inventaire',
     icon: Boxes,
-    roles: ['ADMIN', 'MANAGER', 'CASHIER', 'KITCHEN'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER', 'KITCHEN'],
   },
   {
     label: 'Sondages',
     href: '/dashboard/sondages',
     icon: Vote,
-    roles: ['ADMIN', 'MANAGER'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER'],
   },
   {
     label: 'Paramètres',
@@ -249,6 +249,8 @@ function roleLabel(role: UserRole): string {
       return 'Administration';
     case 'MANAGER':
       return 'Gérance';
+    case 'ASSISTANT_MANAGER':
+      return 'Gérance adjointe';
     case 'COMPTABLE':
       return 'Comptabilité';
     case 'CASHIER':
