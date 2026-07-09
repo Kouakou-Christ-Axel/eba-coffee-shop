@@ -46,12 +46,7 @@ import {
   productInputSchema,
   productUpdateSchema,
 } from '@/lib/menu-mutations';
-import {
-  saveProductImageFromBase64,
-  saveProductImageFromUrl,
-  saveReceiptImageFromBase64,
-  saveReceiptImageFromUrl,
-} from '@/lib/uploads';
+import { uploadProductImage, uploadReceiptImage } from '@/lib/cloudinary';
 import { ALLOWED_IMAGE_MIME_TYPES, imageUrlSchema } from '@/lib/schemas/upload';
 import {
   listExpenseCategories,
@@ -199,12 +194,7 @@ import {
   pollSuggestionModerationSchema,
   pollFiltersSchema,
 } from '@/lib/schemas/poll';
-import {
-  savePollOptionImageFromBase64,
-  savePollOptionImageFromUrl,
-  savePollImageFromBase64,
-  savePollImageFromUrl,
-} from '@/lib/uploads';
+import { uploadPollOptionImage, uploadPollImage } from '@/lib/cloudinary';
 
 // ─── Type d'un outil ────────────────────────────────────────────────────────
 
@@ -515,8 +505,8 @@ export const tools: McpTool[] = [
       };
       const url = await resolveStoredImageUrl(
         image,
-        saveReceiptImageFromBase64,
-        saveReceiptImageFromUrl
+        uploadReceiptImage,
+        uploadReceiptImage
       );
       return updateExpense(id, { receiptUrl: url });
     },
@@ -683,8 +673,8 @@ export const tools: McpTool[] = [
       };
       const url = await resolveStoredImageUrl(
         image,
-        saveReceiptImageFromBase64,
-        saveReceiptImageFromUrl
+        uploadReceiptImage,
+        uploadReceiptImage
       );
       return updateInvestment(id, { documentUrl: url });
     },
@@ -1377,8 +1367,8 @@ export const tools: McpTool[] = [
       };
       const url = await resolveStoredImageUrl(
         image,
-        saveProductImageFromBase64,
-        saveProductImageFromUrl
+        uploadProductImage,
+        uploadProductImage
       );
       return updateProduct(id, { imageUrl: url });
     },
@@ -1778,7 +1768,8 @@ export const tools: McpTool[] = [
       'et `search` (titre).',
     inputSchema: pollFiltersSchema,
     readOnly: true,
-    handler: (args) => getPollsAdmin(args as Parameters<typeof getPollsAdmin>[0]),
+    handler: (args) =>
+      getPollsAdmin(args as Parameters<typeof getPollsAdmin>[0]),
   },
   {
     name: 'get_poll',
@@ -1837,7 +1828,10 @@ export const tools: McpTool[] = [
     inputSchema: pollStatusUpdateSchema.extend({ id: idSchema }),
     readOnly: false,
     handler: (args) => {
-      const { id, ...rest } = args as { id: string; status: 'DRAFT' | 'OPEN' | 'CLOSED' };
+      const { id, ...rest } = args as {
+        id: string;
+        status: 'DRAFT' | 'OPEN' | 'CLOSED';
+      };
       return setPollStatus(id, rest);
     },
   },
@@ -1881,8 +1875,8 @@ export const tools: McpTool[] = [
       };
       const url = await resolveStoredImageUrl(
         image,
-        savePollImageFromBase64,
-        savePollImageFromUrl
+        uploadPollImage,
+        uploadPollImage
       );
       return updatePoll(id, { imageUrl: url });
     },
@@ -1927,7 +1921,10 @@ export const tools: McpTool[] = [
     }),
     readOnly: false,
     handler: (args) => {
-      const { id, direction } = args as { id: string; direction: 'up' | 'down' };
+      const { id, direction } = args as {
+        id: string;
+        direction: 'up' | 'down';
+      };
       return movePollOption(id, direction);
     },
   },
@@ -1971,8 +1968,8 @@ export const tools: McpTool[] = [
       };
       const url = await resolveStoredImageUrl(
         image,
-        savePollOptionImageFromBase64,
-        savePollOptionImageFromUrl
+        uploadPollOptionImage,
+        uploadPollOptionImage
       );
       return updatePollOption(id, { imageUrl: url });
     },

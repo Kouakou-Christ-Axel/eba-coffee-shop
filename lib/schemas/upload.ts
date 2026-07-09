@@ -127,3 +127,50 @@ export const imageUrlSchema = z
   });
 
 export type ImageUrlInput = z.infer<typeof imageUrlSchema>;
+
+// ─── URL de livraison Cloudinary ───────────────────────────────────────────────
+//
+// Utilisé par les routes publiques de confirmation (preuve de paiement,
+// photo de suggestion) : le client leur transmet l'URL renvoyée par
+// Cloudinary après un upload signé direct. On restreint volontairement à
+// `res.cloudinary.com` (contrairement à `imageUrlSchema`, plus permissif) pour
+// qu'un appel direct à la route de confirmation, sans être passé par `/sign`
+// puis un upload réel, ne puisse pas faire persister une URL arbitraire.
+
+export const cloudinaryUrlSchema = z
+  .string()
+  .trim()
+  .url()
+  .refine(
+    (v) => {
+      try {
+        return new URL(v).hostname === 'res.cloudinary.com';
+      } catch {
+        return false;
+      }
+    },
+    { message: 'URL Cloudinary invalide (res.cloudinary.com attendu)' }
+  );
+
+// ─── Normalisation base64 → data URI ──────────────────────────────────────────
+//
+// Partagée entre le pipeline local (lib/uploads.ts::saveImageFromBase64) et
+// Cloudinary (lib/cloudinary.ts) : les deux acceptent en entrée soit du base64
+// brut (+ mimeType explicite), soit une data URI déjà construite
+// (`data:<mime>;base64,...`), et ont besoin du mimeType réel pour valider le
+// format avant traitement.
+
+export function normalizeToDataUri(input: string, mimeType?: string): string {
+  const trimmed = input.trim();
+  const existing = trimmed.match(/^data:([^;,]+);base64,/);
+  const mime = existing ? existing[1] : mimeType;
+  if (!mime) {
+    throw new Error(
+      'mimeType requis (ou fournis une data URI `data:<mime>;base64,...`)'
+    );
+  }
+  if (!isAllowedImageMimeType(mime)) {
+    throw new Error('Format non supporté (JPEG, PNG, WebP, AVIF, HEIC)');
+  }
+  return existing ? trimmed : `data:${mime};base64,${trimmed}`;
+}

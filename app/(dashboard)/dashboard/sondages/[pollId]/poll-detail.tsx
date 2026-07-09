@@ -1,9 +1,17 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import Image from 'next/image';
+import { MediaImage as Image } from '@/components/ui/media-image';
 import { useRouter } from 'next/navigation';
-import { ArrowDown, ArrowUp, Check, Loader2, Plus, Trash2, X } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Loader2,
+  Plus,
+  Trash2,
+  X,
+} from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -21,6 +29,7 @@ import {
   MAX_UPLOAD_SIZE_BYTES,
   isAllowedImageMimeType,
 } from '@/lib/schemas/upload';
+import { uploadToCloudinary } from '@/lib/cloudinary-client';
 import {
   createPollOptionAction,
   updatePollOptionAction,
@@ -52,16 +61,9 @@ type SuggestionRow = {
 };
 
 async function uploadPollOptionImage(file: File): Promise<string> {
-  const fd = new FormData();
-  fd.append('file', file);
-  fd.append('subdir', 'poll-options');
-  const res = await fetch('/api/upload', { method: 'POST', body: fd });
-  if (!res.ok) {
-    const j = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(j.error ?? `Erreur ${res.status}`);
-  }
-  const { url } = (await res.json()) as { url: string };
-  return url;
+  return uploadToCloudinary(file, '/api/upload/sign', {
+    subdir: 'poll-options',
+  });
 }
 
 export function PollDetail({
@@ -165,10 +167,7 @@ export function PollDetail({
     }
   }
 
-  function moderate(
-    suggestion: SuggestionRow,
-    decision: 'approve' | 'reject'
-  ) {
+  function moderate(suggestion: SuggestionRow, decision: 'approve' | 'reject') {
     let rejectionReason: string | undefined;
     if (decision === 'reject') {
       const reason = window.prompt('Motif du rejet ?');
@@ -210,7 +209,10 @@ export function PollDetail({
               const pct =
                 totalVotes > 0 ? Math.round((o.votes / totalVotes) * 100) : 0;
               return (
-                <TableRow key={o.id} className={o.deletedAt ? 'opacity-50' : ''}>
+                <TableRow
+                  key={o.id}
+                  className={o.deletedAt ? 'opacity-50' : ''}
+                >
                   <TableCell>
                     {o.imageUrl ? (
                       <Image
@@ -276,7 +278,9 @@ export function PollDetail({
                         size="icon"
                         variant="ghost"
                         onClick={() => move(o.id, 'down')}
-                        disabled={pendingId === o.id || i === options.length - 1}
+                        disabled={
+                          pendingId === o.id || i === options.length - 1
+                        }
                         aria-label="Descendre"
                       >
                         <ArrowDown className="h-4 w-4" />

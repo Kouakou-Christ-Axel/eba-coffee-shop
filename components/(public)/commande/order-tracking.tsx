@@ -8,7 +8,7 @@
 // localisation, paiement Wave + preuve, et bloc livreur modifiable.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
+import { MediaImage as Image } from '@/components/ui/media-image';
 import { Button, Chip, Input } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
@@ -39,6 +39,10 @@ import {
   buildWhatsAppShareLink,
 } from '@/lib/contact-links';
 import { compressImage } from '@/lib/image-compress';
+import {
+  uploadToCloudinary,
+  confirmCloudinaryUrl,
+} from '@/lib/cloudinary-client';
 import {
   ORDER_CUSTOMER_NAME_MAX,
   ORDER_CUSTOMER_PHONE_MAX,
@@ -398,27 +402,15 @@ function PaymentSection({
         );
       }
 
-      const fd = new FormData();
-      fd.append('file', toSend);
-      const res = await fetch(`/api/commandes/${order.id}/preuve-paiement`, {
-        method: 'POST',
-        body: fd,
-      });
-      // La réponse peut ne pas être du JSON (ex. page d'erreur d'un proxy).
-      const data = (await res.json().catch(() => null)) as {
-        url?: string;
-        error?: string;
-      } | null;
-      if (!res.ok || !data?.url) {
-        if (data?.error) throw new Error(data.error);
-        if (res.status === 413) {
-          throw new Error(
-            'Image trop lourde pour le serveur — réessaie avec une capture d’écran'
-          );
-        }
-        throw new Error(`Échec de l’envoi (erreur ${res.status})`);
-      }
-      onOrderChange({ ...order, paymentProofUrl: data.url });
+      const url = await uploadToCloudinary(
+        toSend,
+        `/api/commandes/${order.id}/preuve-paiement/sign`
+      );
+      await confirmCloudinaryUrl(
+        `/api/commandes/${order.id}/preuve-paiement`,
+        url
+      );
+      onOrderChange({ ...order, paymentProofUrl: url });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Échec de l’envoi');
     } finally {

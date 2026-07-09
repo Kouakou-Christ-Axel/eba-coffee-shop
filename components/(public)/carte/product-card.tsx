@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
-import Image from 'next/image';
+import { MediaImage as Image } from '@/components/ui/media-image';
 import { Button, Chip } from '@heroui/react';
 import { Check, Plus } from 'lucide-react';
 import { useCartStore } from '@/lib/cart-store';

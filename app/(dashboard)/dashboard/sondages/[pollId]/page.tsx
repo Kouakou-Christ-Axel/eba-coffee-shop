@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import { MediaImage as Image } from '@/components/ui/media-image';
 import { notFound } from 'next/navigation';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { getPollAdmin, listSuggestionsAdmin } from '@/lib/polls';

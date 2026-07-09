@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
+import { MediaImage as Image } from '@/components/ui/media-image';
 import { X } from 'lucide-react';
 import { Select, SelectItem } from '@heroui/react';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import {
   MAX_UPLOAD_SIZE_BYTES,
   isAllowedImageMimeType,
 } from '@/lib/schemas/upload';
+import { uploadToCloudinary } from '@/lib/cloudinary-client';
 
 const MAX_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
 
@@ -62,15 +63,9 @@ export function PollFormFields({
     }
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('subdir', 'polls');
-      const res = await fetch('/api/upload', { method: 'POST', body: fd });
-      if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(j.error ?? `Erreur ${res.status}`);
-      }
-      const { url } = (await res.json()) as { url: string };
+      const url = await uploadToCloudinary(file, '/api/upload/sign', {
+        subdir: 'polls',
+      });
       onChange({ ...values, imageUrl: url });
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Erreur upload');
@@ -98,9 +93,7 @@ export function PollFormFields({
         <Textarea
           id={`${idPrefix}-description`}
           value={values.description}
-          onChange={(e) =>
-            onChange({ ...values, description: e.target.value })
-          }
+          onChange={(e) => onChange({ ...values, description: e.target.value })}
           placeholder="Contexte affiché aux clients…"
         />
       </div>

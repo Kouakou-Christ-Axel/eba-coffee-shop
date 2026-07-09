@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import Image from 'next/image';
+import { MediaImage as Image } from '@/components/ui/media-image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
@@ -30,7 +30,11 @@ import {
   type PollScalarValues,
 } from './poll-form-fields';
 import { EditPollSheet } from './edit-poll-sheet';
-import { createPollAction, setPollStatusAction, deletePollAction } from './actions';
+import {
+  createPollAction,
+  setPollStatusAction,
+  deletePollAction,
+} from './actions';
 
 type PollRow = {
   id: string;
@@ -204,14 +208,10 @@ export function PollsTable({ polls }: { polls: PollRow[] }) {
                   >
                     <SelectItem key="DRAFT">{STATUS_LABELS.DRAFT}</SelectItem>
                     <SelectItem key="OPEN">{STATUS_LABELS.OPEN}</SelectItem>
-                    <SelectItem key="CLOSED">
-                      {STATUS_LABELS.CLOSED}
-                    </SelectItem>
+                    <SelectItem key="CLOSED">{STATUS_LABELS.CLOSED}</SelectItem>
                   </Select>
                 </TableCell>
-                <TableCell className="tabular-nums">
-                  {p.optionsCount}
-                </TableCell>
+                <TableCell className="tabular-nums">{p.optionsCount}</TableCell>
                 <TableCell className="tabular-nums">{p.votesCount}</TableCell>
                 <TableCell>
                   {p.pendingSuggestionsCount > 0 ? (
@@ -259,8 +259,8 @@ export function PollsTable({ polls }: { polls: PollRow[] }) {
           <SheetHeader>
             <SheetTitle>Nouveau sondage</SheetTitle>
             <SheetDescription>
-              Crée un sondage avec ses options de vote (au moins 2). Il est
-              créé en préparation — ouvre-le ensuite pour lancer le vote.
+              Crée un sondage avec ses options de vote (au moins 2). Il est créé
+              en préparation — ouvre-le ensuite pour lancer le vote.
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-4 px-4 pb-4">
