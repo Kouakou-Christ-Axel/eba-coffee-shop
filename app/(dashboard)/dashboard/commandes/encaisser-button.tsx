@@ -38,7 +38,11 @@ export function EncaisserButton({
     setError(null);
     startTransition(async () => {
       try {
-        await markOrderPaidAction(orderId, mode);
+        const result = await markOrderPaidAction(orderId, mode);
+        if (result?.error) {
+          setError(result.error);
+          return;
+        }
         setIsOpen(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Erreur serveur');

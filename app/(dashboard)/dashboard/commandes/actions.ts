@@ -27,6 +27,17 @@ function revalidateOrder(id: string): void {
   revalidatePath('/dashboard/commandes');
 }
 
+// Next.js redacte en production le message de toute erreur qui *traverse*
+// une Server Action (générique « An error occurred in the Server
+// Components render… », quel que soit le type d'erreur) : un throw ne suffit
+// pas à faire remonter au caissier la vraie raison d'un refus de paiement
+// (ex. `StockShortageError` — « Stock insuffisant pour « Produit — Option » »).
+// Cf. app/(dashboard)/dashboard/menu/actions.ts pour le même motif appliqué
+// à la sauvegarde d'un produit.
+function formatMutationError(err: unknown): string {
+  return err instanceof Error ? err.message : 'Erreur inattendue';
+}
+
 // Un paiement réussi peut avoir décrémenté du stock (produit/option) : la
 // carte publique (ISR) doit se rafraîchir. Best-effort, jamais bloquant.
 function revalidatePublicMenu(): void {
@@ -49,10 +60,14 @@ export async function updateOrderStatus(
 export async function markOrderPaidAction(
   id: string,
   paymentMode: PaymentMode
-): Promise<void> {
+): Promise<{ error: string } | undefined> {
   await requireCashier();
 
-  await setOrderPayment(id, true, paymentMode);
+  try {
+    await setOrderPayment(id, true, paymentMode);
+  } catch (err) {
+    return { error: formatMutationError(err) };
+  }
   revalidateOrder(id);
   revalidatePublicMenu();
 }
@@ -63,11 +78,15 @@ export async function markOrderPaidAction(
 export async function payAndCompleteAction(
   id: string,
   paymentMode: PaymentMode
-): Promise<void> {
+): Promise<{ error: string } | undefined> {
   const session = await requireCashier();
   const role = session.user.role as UserRole;
 
-  await payAndComplete(id, paymentMode, role);
+  try {
+    await payAndComplete(id, paymentMode, role);
+  } catch (err) {
+    return { error: formatMutationError(err) };
+  }
   revalidateOrder(id);
   revalidatePublicMenu();
 }
