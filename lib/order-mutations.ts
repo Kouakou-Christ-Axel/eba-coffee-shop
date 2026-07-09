@@ -473,6 +473,11 @@ export async function setOrderStatus(
  * de chaque article, DANS LA MÊME transaction, AVANT de flipper `isPaid` (voir
  * `decrementStockForOrderItems`) — une commande non payée ne réserve rien ; le
  * décrément au paiement, atomique, tranche « premier payé = premier servi ».
+ * EXCEPTION : une commande déjà `COMPLETED` (déjà récupérée/servie avant cet
+ * encaissement) ne décrémente PAS le stock — l'article a déjà été
+ * physiquement consommé ; ré-exiger du stock disponible au moment où on
+ * enregistre le paiement après coup bloquerait à tort un encaissement
+ * légitime pour un stock qui s'est épuisé ENTRE-TEMPS via d'autres commandes.
  * Passage à `isPaid=false` (dépaiement) : comportement inchangé, HORS
  * transaction, SANS jamais ré-incrémenter le stock déjà décrémenté.
  *
@@ -530,7 +535,9 @@ export async function setOrderPayment(
       const startedPreparation = order.status === 'NEW';
       const items = order.items as unknown as CartItem[];
 
-      await decrementStockForOrderItems(tx, items);
+      if (order.status !== 'COMPLETED') {
+        await decrementStockForOrderItems(tx, items);
+      }
 
       const result = await tx.order.updateMany({
         where: { id, isPaid: false },
@@ -636,7 +643,10 @@ export async function updateOrderDetails(id: string, input: unknown) {
  * Passage non-payée → payée : décrémente le stock (mêmes garanties atomiques
  * que `setOrderPayment`, via `decrementStockForOrderItems`) AVANT de flipper
  * `isPaid`, dans la même transaction. Une commande déjà payée qui se fait
- * juste finaliser (`COMPLETED`) ne touche pas au stock (déjà décrémenté).
+ * juste finaliser (`COMPLETED`) ne touche pas au stock (déjà décrémenté). Une
+ * commande DÉJÀ `COMPLETED` avant cet appel (récupérée séparément, paiement
+ * encaissé après coup) ne décrémente pas non plus — même exception que
+ * `setOrderPayment` : l'article a déjà été physiquement servi.
  *
  * Lève `OrderMutationError` (403 rôle, 404 introuvable, 409 conflit/déjà finale,
  * ou `StockShortageError` 409 si le stock ne suffit plus — le client perdant
@@ -672,7 +682,7 @@ export async function payAndComplete(
       const alreadyPaid = order.isPaid;
       const items = order.items as unknown as CartItem[];
 
-      if (!alreadyPaid) {
+      if (!alreadyPaid && order.status !== 'COMPLETED') {
         await decrementStockForOrderItems(tx, items);
       }
 
