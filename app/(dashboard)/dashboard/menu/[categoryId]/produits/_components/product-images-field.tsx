@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
+import { MediaImage as Image } from '@/components/ui/media-image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import {
   MAX_UPLOAD_SIZE_BYTES,
   isAllowedImageMimeType,
 } from '@/lib/schemas/upload';
+import { uploadToCloudinary } from '@/lib/cloudinary-client';
 
 const ACCEPT = ALLOWED_IMAGE_MIME_TYPES.join(',');
 const MAX_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
@@ -47,14 +48,9 @@ export function ProductImagesField({
     }
     onUploadStart();
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch('/api/upload', { method: 'POST', body: fd });
-      if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(j.error ?? `Erreur ${res.status}`);
-      }
-      const { url } = (await res.json()) as { url: string };
+      const url = await uploadToCloudinary(file, '/api/upload/sign', {
+        subdir: 'products',
+      });
       onUploaded(url);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Erreur upload');

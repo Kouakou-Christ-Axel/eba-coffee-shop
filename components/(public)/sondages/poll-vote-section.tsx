@@ -1,12 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Image from 'next/image';
+import { MediaImage as Image } from '@/components/ui/media-image';
 import { useRouter } from 'next/navigation';
-import { Button, Card, CardBody, Input, Radio, RadioGroup } from '@heroui/react';
+import {
+  Button,
+  Card,
+  CardBody,
+  Input,
+  Radio,
+  RadioGroup,
+} from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { CheckCircle2 } from 'lucide-react';
-import { castVoteAction, getMyVoteAction } from '@/app/(public)/sondages/actions';
+import {
+  castVoteAction,
+  getMyVoteAction,
+} from '@/app/(public)/sondages/actions';
 import PollResultsSection from './poll-results-section';
 import PastrySuggestionForm from './pastry-suggestion-form';
 
@@ -30,7 +40,12 @@ type PollOption = {
 
 type PollResults = {
   totalVotes: number;
-  options: { optionId: string; label: string; votes: number; percentage: number }[];
+  options: {
+    optionId: string;
+    label: string;
+    votes: number;
+    percentage: number;
+  }[];
 };
 
 function PollVoteSection({
@@ -105,9 +120,7 @@ function PollVoteSection({
       return;
     }
     setHasVoted(true);
-    setJustVotedLabel(
-      options.find((o) => o.id === selected)?.label ?? null
-    );
+    setJustVotedLabel(options.find((o) => o.id === selected)?.label ?? null);
     // Rafraîchit les données serveur (résultats, statut) pour que le tableau
     // de résultats reflète immédiatement ce vote — sans ça, l'écran restait
     // figé sur le décompte lu au premier chargement de la page, donnant

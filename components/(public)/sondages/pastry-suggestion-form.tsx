@@ -9,20 +9,22 @@ import {
   MAX_UPLOAD_SIZE_BYTES,
   isAllowedImageMimeType,
 } from '@/lib/schemas/upload';
+import {
+  uploadToCloudinary,
+  confirmCloudinaryUrl,
+} from '@/lib/cloudinary-client';
 
 const MAX_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
 
 async function uploadSuggestionPhoto(suggestionId: string, file: File) {
-  const fd = new FormData();
-  fd.append('file', file);
-  const res = await fetch(`/api/sondages/suggestions/${suggestionId}/photo`, {
-    method: 'POST',
-    body: fd,
-  });
-  if (!res.ok) {
-    const j = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(j.error ?? `Erreur ${res.status}`);
-  }
+  const url = await uploadToCloudinary(
+    file,
+    `/api/sondages/suggestions/${suggestionId}/photo/sign`
+  );
+  await confirmCloudinaryUrl(
+    `/api/sondages/suggestions/${suggestionId}/photo`,
+    url
+  );
 }
 
 function PastrySuggestionForm({ pollId }: { pollId: string }) {

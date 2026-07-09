@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import { MediaImage as Image } from '@/components/ui/media-image';
 import React from 'react';
 import { Button, Card, CardBody, CardFooter, Chip, Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';

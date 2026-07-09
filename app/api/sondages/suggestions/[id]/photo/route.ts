@@ -1,19 +1,17 @@
 // app/api/sondages/suggestions/[id]/photo/route.ts
 //
-// POST /api/sondages/suggestions/:id/photo — multipart { file }
+// POST /api/sondages/suggestions/:id/photo — JSON { url }
 //
-// Le client joint une photo à une suggestion de pâtisserie qu'il vient de
-// soumettre depuis la page publique du sondage (aucune session). Même modèle
-// de confiance que la preuve de paiement (`preuve-paiement/route.ts`) : l'`id`
-// cuid non devinable sert de capability URL. Refusé si la suggestion est
-// déjà modérée (approuvée/rejetée) — on ne modifie pas une décision figée.
-//
-// L'image passe par le pipeline commun `saveImage` (lib/uploads.ts) :
-// validation MIME/taille, ré-encodage WebP, stockage /uploads/poll-options/.
+// Le client a déjà uploadé sa photo directement vers Cloudinary (POST
+// .../photo/sign puis upload direct navigateur, cf. lib/cloudinary-client.ts)
+// depuis la page publique du sondage (aucune session) ; cette route confirme
+// et persiste l'URL obtenue. Même modèle de confiance que la preuve de
+// paiement (`preuve-paiement/route.ts`) : l'`id` cuid non devinable sert de
+// capability URL. Refusé si la suggestion est déjà modérée
+// (approuvée/rejetée) — on ne modifie pas une décision figée.
 
 import { NextResponse } from 'next/server';
-import { paymentProofFileSchema } from '@/lib/schemas/upload';
-import { savePollSuggestionImage } from '@/lib/uploads';
+import { cloudinaryUrlSchema } from '@/lib/schemas/upload';
 import { getSuggestion } from '@/lib/polls';
 import { setPollSuggestionImage } from '@/lib/poll-mutations';
 
@@ -22,24 +20,26 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(req: Request, { params }: Params) {
   const { id } = await params;
 
-  let file: File;
+  let url: string;
   try {
-    const formData = await req.formData();
-    const parsed = paymentProofFileSchema.safeParse(formData.get('file'));
+    const body = await req.json();
+    const parsed = cloudinaryUrlSchema.safeParse(body?.url);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? 'Fichier invalide' },
+        { error: parsed.error.issues[0]?.message ?? 'URL invalide' },
         { status: 400 }
       );
     }
-    file = parsed.data;
+    url = parsed.data;
   } catch {
     return NextResponse.json(
-      { error: 'Corps de requête invalide (multipart attendu)' },
+      { error: 'Corps de requête invalide (JSON attendu)' },
       { status: 400 }
     );
   }
 
+  // Re-vérifier la suggestion : la signature a pu être émise il y a un
+  // moment, elle a pu être modérée entre-temps.
   const suggestion = await getSuggestion(id);
   if (!suggestion) {
     return NextResponse.json(
@@ -55,8 +55,6 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   try {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const url = await savePollSuggestionImage(buffer, file.type);
     await setPollSuggestionImage(id, url);
     return NextResponse.json({ url });
   } catch (err) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
-import Image from 'next/image';
+import { MediaImage as Image } from '@/components/ui/media-image';
 import { Loader2, Paperclip, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { todayDateString } from '@/lib/timezone';
+import { uploadToCloudinary } from '@/lib/cloudinary-client';
 import { createInvestmentAction, updateInvestmentAction } from './actions';
 
 type Source = { id: string; name: string };
@@ -82,15 +83,8 @@ export function InvestmentForm({
     setError(null);
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch('/api/upload/receipt', {
-        method: 'POST',
-        body: fd,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Échec de l’upload');
-      set('documentUrl', data.url);
+      const url = await uploadToCloudinary(file, '/api/upload/receipt/sign');
+      set('documentUrl', url);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Échec de l’upload');
     } finally {

@@ -12,9 +12,11 @@ const isProduction = process.env.NODE_ENV === 'production';
 // - Next.js injecte des scripts inline pour l'hydration → `'unsafe-inline'`
 //   reste indispensable sans nonce-strategy (qu'on n'a pas câblée ici).
 // - Tailwind v4 + HeroUI injectent des styles inline → idem pour `style-src`.
-// - Images : `'self'` pour les uploads locaux (`/uploads/products/*` depuis la
-//   migration VPS), plus le legacy `*.public.blob.vercel-storage.com` qui
-//   reste autorisé dans `images.remotePatterns` pour compat.
+// - Images : `'self'` pour les uploads locaux (`/uploads/products/*`, repli
+//   legacy), plus `*.public.blob.vercel-storage.com` (legacy Vercel Blob) et
+//   `res.cloudinary.com` (nouveaux uploads, cf. lib/cloudinary.ts).
+// - `connect-src` autorise `api.cloudinary.com` : l'upload signé part
+//   directement du navigateur vers Cloudinary, sans passer par notre serveur.
 // - En dev, Next ouvre une websocket pour le HMR → on élargit `connect-src`.
 const cspDirectives: Record<string, string[]> = {
   'default-src': ["'self'"],
@@ -30,11 +32,13 @@ const cspDirectives: Record<string, string[]> = {
     'data:',
     'blob:',
     'https://*.public.blob.vercel-storage.com',
+    'https://res.cloudinary.com',
   ],
   'font-src': ["'self'", 'data:'],
   'connect-src': [
     "'self'",
     'https://cloudflareinsights.com',
+    'https://api.cloudinary.com',
     ...(isProduction ? [] : ['ws:', 'wss:']),
   ],
   'frame-src': ['https://www.google.com'],
@@ -71,6 +75,10 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: '*.public.blob.vercel-storage.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
       },
     ],
   },
