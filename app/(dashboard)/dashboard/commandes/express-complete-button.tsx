@@ -45,7 +45,11 @@ export function ExpressCompleteButton({
     setError(null);
     startTransition(async () => {
       try {
-        await payAndCompleteAction(orderId, mode);
+        const result = await payAndCompleteAction(orderId, mode);
+        if (result?.error) {
+          setError(result.error);
+          return;
+        }
         setIsOpen(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Erreur serveur');
