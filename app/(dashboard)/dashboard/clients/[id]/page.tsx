@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CustomerFormSheet } from '../customer-form';
+import { MissedOrderStampsSheet } from '../missed-order-stamps-form';
 import {
   Table,
   TableBody,
@@ -99,8 +100,9 @@ export default async function CustomerDetailPage({
 
       {card && card.settings.enabled && (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
             <CardTitle className="text-base">Carte de fidélité</CardTitle>
+            <MissedOrderStampsSheet customerId={customer.id} />
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center gap-3">

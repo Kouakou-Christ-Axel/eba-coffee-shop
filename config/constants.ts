@@ -176,3 +176,12 @@ export const POLL_REJECTION_REASON_MAX = 300;
 export const POLL_VOTER_TOKEN_MAX = 100;
 /** Taille de page par défaut pour les listes paginées (dashboard). */
 export const POLL_LIST_PAGE_SIZE = 20;
+
+/**
+ * Fidélité — rattrapage de commandes non enregistrées (paiement cash, oubli
+ * de saisie en caisse). Nombre max de commandes manquées ajoutables en une
+ * fois par un admin, et longueur max de la note d'audit associée.
+ * Source : lib/loyalty-mutations.ts (awardMissedOrderStamps).
+ */
+export const MISSED_ORDER_STAMPS_MAX = 20;
+export const MISSED_ORDER_STAMPS_NOTE_MAX = 200;

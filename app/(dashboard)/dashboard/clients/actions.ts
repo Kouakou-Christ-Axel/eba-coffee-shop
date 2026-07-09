@@ -3,8 +3,17 @@
 import { revalidatePath } from 'next/cache';
 import { getCurrentSession } from '@/lib/auth-helpers';
 import { createCustomer, updateCustomer } from '@/lib/customer-mutations';
+import { awardMissedOrderStamps } from '@/lib/loyalty-mutations';
+import {
+  MISSED_ORDER_STAMPS_MAX,
+  MISSED_ORDER_STAMPS_NOTE_MAX,
+} from '@/config/constants';
 
 type ActionResult = { ok: true; id: string } | { ok: false; error: string };
+
+type StampsActionResult =
+  | { ok: true; stampCount: number; rewardsCreated: number }
+  | { ok: false; error: string };
 
 async function requireAdminId(): Promise<string> {
   const session = await getCurrentSession();
@@ -45,6 +54,48 @@ export async function updateCustomerAction(
     const customer = await updateCustomer(id, input);
     revalidate(customer.id);
     return { ok: true, id: customer.id };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erreur inattendue',
+    };
+  }
+}
+
+export async function addMissedOrderStampsAction(
+  customerId: string,
+  count: number,
+  note?: string
+): Promise<StampsActionResult> {
+  const actorId = await requireAdminId();
+
+  if (
+    !Number.isInteger(count) ||
+    count < 1 ||
+    count > MISSED_ORDER_STAMPS_MAX
+  ) {
+    return {
+      ok: false,
+      error: `Le nombre de commandes doit être entre 1 et ${MISSED_ORDER_STAMPS_MAX}.`,
+    };
+  }
+  const trimmedNote = note?.trim() || undefined;
+  if (trimmedNote && trimmedNote.length > MISSED_ORDER_STAMPS_NOTE_MAX) {
+    return {
+      ok: false,
+      error: `La note dépasse ${MISSED_ORDER_STAMPS_NOTE_MAX} caractères.`,
+    };
+  }
+
+  try {
+    const { stampCount, rewardsCreated } = await awardMissedOrderStamps(
+      customerId,
+      count,
+      trimmedNote,
+      actorId
+    );
+    revalidate(customerId);
+    return { ok: true, stampCount, rewardsCreated };
   } catch (err) {
     return {
       ok: false,
