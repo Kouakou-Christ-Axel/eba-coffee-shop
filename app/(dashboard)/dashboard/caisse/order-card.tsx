@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { differenceInMinutes } from 'date-fns';
 import {
   Bike,
   Coffee,
@@ -11,8 +12,11 @@ import {
   Clock,
   Phone,
   Receipt,
+  PackageCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
+import { TrackingLinkButton } from '@/components/(dashboard)/tracking-link-button';
 import {
   ABIDJAN_TZ,
   formatAbidjanTime,
@@ -83,6 +87,16 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
   const urgencyStyle = URGENCY_STYLES[urgency];
   const scheduledAhead = isScheduledAhead(order, tickNow);
   const pickupCode = getPickupCode(order.reference);
+  // Minuteur « prête, en attente de récupération » : le client tarde souvent à
+  // venir (« fait la star »). On repli sur createdAt pour les commandes prêtes
+  // avant l'ajout de readyAt.
+  const readySince =
+    order.status === 'READY' ? (order.readyAt ?? order.createdAt) : null;
+  const readyMinutes = readySince
+    ? Math.max(0, differenceInMinutes(tickNow, readySince))
+    : null;
+  const readyLate =
+    readyMinutes != null && readyMinutes >= READY_WAIT_ALERT_MINUTES;
   // Commande rattachée à un autre jour civil (ex. passée hier pour un retrait
   // aujourd'hui) : on date son n° pour éviter la collision avec le #003 du jour.
   const otherDay =
@@ -158,6 +172,25 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
         </div>
         <PaymentBadgePill payment={payment} />
       </header>
+
+      {/* Prête, en attente de récupération : minuteur « prête depuis X ».
+          Rouge quand le client tarde (fait la star), vert sinon. */}
+      {readyMinutes != null && (
+        <div
+          className={cn(
+            'mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold ring-1',
+            readyLate
+              ? 'bg-red-100 text-red-900 ring-red-300 dark:bg-red-950/40 dark:text-red-100 dark:ring-red-800'
+              : 'bg-green-100 text-green-900 ring-green-300 dark:bg-green-950/40 dark:text-green-100 dark:ring-green-800'
+          )}
+        >
+          <PackageCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>
+            Prête depuis {readyMinutes} min — en attente de récupération
+            {readyLate && ' · relancer le client'}
+          </span>
+        </div>
+      )}
 
       {/* Override pickupTime dépassé */}
       {overdue && (
@@ -275,6 +308,12 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
           {priceFormatter.format(order.total)} F
         </p>
       </div>
+
+      {/* Lien de suivi de la commande, accessible directement (partage client /
+          livreur). Masqué une fois la commande terminée ou annulée. */}
+      {order.status !== 'COMPLETED' && order.status !== 'CANCELLED' && (
+        <TrackingLinkButton orderId={order.id} className="mt-3" />
+      )}
 
       {/* Slot actions */}
       {actions && <div className="mt-3">{actions}</div>}

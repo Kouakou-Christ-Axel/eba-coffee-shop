@@ -41,6 +41,10 @@ export type CashierOrder = {
   driverName: string | null;
   driverPhone: string | null;
   createdAt: Date;
+  // Amorces des minuteurs caisse : entrée en cuisine et passage prête. Null
+  // pour les commandes antérieures à l'ajout des colonnes.
+  preparingStartedAt: Date | null;
+  readyAt: Date | null;
   /** Vrai si au moins un article n'est plus dispo au stock actuel (commande
    * non payée uniquement — toujours faux pour une commande déjà payée, son
    * stock étant déjà réservé). Signal caisse (flag rouge + garde bouton payer). */
@@ -125,6 +129,8 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       driverName: o.driverName,
       driverPhone: o.driverPhone,
       createdAt: o.createdAt,
+      preparingStartedAt: o.preparingStartedAt,
+      readyAt: o.readyAt,
       stockShortage,
       unavailableItemNames,
     };

@@ -30,31 +30,41 @@ export function getPickupCode(reference: string): string {
 }
 
 /**
- * Forme "raw" d'une commande telle que reçue depuis un flux SSE :
- * `pickupTime` et `createdAt` sont des chaînes ISO (ou `null` pour pickupTime).
+ * Forme "raw" d'une commande telle que reçue depuis un flux SSE : les champs
+ * `Date` traversent JSON en chaînes ISO (ou `null`). `preparingStartedAt` /
+ * `readyAt` sont optionnels : toutes les files ne les portent pas.
  */
 export type RawOrderDates = {
   pickupTime: string | null;
   createdAt: string;
+  preparingStartedAt?: string | null;
+  readyAt?: string | null;
 };
 
 /**
- * Convertit `pickupTime` / `createdAt` d'une commande SSE en objets `Date`.
+ * Convertit les champs date d'une commande SSE (`pickupTime`, `createdAt`,
+ * et les optionnels `preparingStartedAt` / `readyAt`) en objets `Date`.
  *
  * Pur, sans effet de bord — sûr côté serveur comme client. Conserve toutes
  * les autres clés inchangées via le spread, de sorte que le générique
  * passe par référence : tout type étendant `RawOrderDates` se retrouve avec
- * `pickupTime: Date | null` et `createdAt: Date` dans le résultat.
+ * ces champs re-désérialisés en `Date` (ou `null`).
  */
 export function normalizeOrderDates<T extends RawOrderDates>(
   raw: T
-): Omit<T, 'pickupTime' | 'createdAt'> & {
+): Omit<T, 'pickupTime' | 'createdAt' | 'preparingStartedAt' | 'readyAt'> & {
   pickupTime: Date | null;
   createdAt: Date;
+  preparingStartedAt: Date | null;
+  readyAt: Date | null;
 } {
   return {
     ...raw,
     pickupTime: raw.pickupTime ? new Date(raw.pickupTime) : null,
     createdAt: new Date(raw.createdAt),
+    preparingStartedAt: raw.preparingStartedAt
+      ? new Date(raw.preparingStartedAt)
+      : null,
+    readyAt: raw.readyAt ? new Date(raw.readyAt) : null,
   };
 }

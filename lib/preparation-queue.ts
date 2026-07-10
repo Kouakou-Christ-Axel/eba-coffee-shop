@@ -24,16 +24,24 @@ export type PreparationOrder = {
   items: CartItem[];
   note: string | null;
   total: number;
-  status: 'PREPARING';
+  // La cuisine voit désormais les commandes EN cours (PREPARING) ET celles
+  // prêtes en attente de récupération (READY) — pour emballer et suivre les
+  // clients qui tardent à venir chercher.
+  status: 'PREPARING' | 'READY';
   isPaid: boolean;
   driverRequested: boolean;
   driverName: string | null;
   driverPhone: string | null;
   createdAt: Date;
+  // Amorces des minuteurs : entrée en cuisine et passage prête. Null pour les
+  // commandes créées avant l'ajout des colonnes (repli createdAt côté UI).
+  preparingStartedAt: Date | null;
+  readyAt: Date | null;
 };
 
 /**
- * Renvoie les commandes du jour actuellement en cuisine (status=PREPARING),
+ * Renvoie les commandes du jour visibles en cuisine : en préparation
+ * (status=PREPARING) et prêtes en attente de récupération (status=READY),
  * triées en FIFO strict par createdAt asc.
  *
  * Une commande arrive en cuisine soit :
@@ -41,12 +49,14 @@ export type PreparationOrder = {
  *   - explicitement quand le caissier clique "Envoyer en cuisine sans paiement"
  *
  * Les commandes NEW (en attente d'encaissement) ne sont jamais visibles ici.
+ * Les READY restent affichées (section « en attente de récupération ») jusqu'à
+ * leur passage COMPLETED (récupérée) côté caisse.
  */
 export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
   const now = new Date();
   const orders = await prisma.order.findMany({
     where: {
-      status: 'PREPARING',
+      status: { in: ['PREPARING', 'READY'] },
       createdAt: {
         gte: startOfDay(now),
         lte: endOfDay(now),
@@ -66,11 +76,13 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     items: o.items as CartItem[],
     note: o.note,
     total: o.total,
-    status: 'PREPARING' as const,
+    status: o.status as 'PREPARING' | 'READY',
     isPaid: o.isPaid,
     driverRequested: o.driverRequested,
     driverName: o.driverName,
     driverPhone: o.driverPhone,
     createdAt: o.createdAt,
+    preparingStartedAt: o.preparingStartedAt,
+    readyAt: o.readyAt,
   }));
 }

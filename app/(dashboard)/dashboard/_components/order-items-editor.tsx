@@ -20,6 +20,7 @@ import {
   getMaxItemDiscount,
 } from '@/lib/orders/totals';
 import { formatSupplementLabel } from '@/lib/orders/format';
+import { useLiveMenu } from '@/lib/hooks/use-live-menu';
 import { updateOrderItemsAction } from '../commandes/actions';
 import { ProductCatalog } from '../caisse/new/product-catalog';
 import { SupplementPicker } from '../caisse/new/supplement-picker';
@@ -64,7 +65,7 @@ const fmt = new Intl.NumberFormat('fr-FR');
 export function OrderItemsEditor({
   orderId,
   initialItems,
-  menu,
+  menu: initialMenu,
   onClose,
 }: Props) {
   const [items, setItems] = useState<CartItem[]>(initialItems);
@@ -72,6 +73,9 @@ export function OrderItemsEditor({
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Menu « live » : une réappro (goût recrédité) faite ici ou ailleurs se
+  // reflète dans le catalogue et le sélecteur sans recharger.
+  const { menu, applyRestock } = useLiveMenu(initialMenu);
 
   // Index produit par id, pour retrouver les groupes de suppléments d'une
   // ligne (les lignes ne stockent que les options choisies, pas les groupes).
@@ -203,6 +207,18 @@ export function OrderItemsEditor({
       initialSupplements={editingItem?.supplements ?? []}
       editToken={picker?.mode === 'edit' ? picker.cartId : undefined}
       confirmVerb={picker?.mode === 'edit' ? 'Mettre à jour' : 'Ajouter'}
+      onRestocked={(groupName, optionName, stock) => {
+        if (!picker) return;
+        applyRestock(
+          {
+            target: 'option',
+            productId: picker.product.id,
+            groupName,
+            optionName,
+          },
+          stock
+        );
+      }}
     />
   );
 

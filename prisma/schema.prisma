@@ -190,6 +190,15 @@ model Order {
   paymentMode       PaymentMode?
   paidAt            DateTime?
 
+  // Horodatages du cycle cuisine, servant les minuteurs des écrans staff
+  // (cuisine + caisse). `preparingStartedAt` : entrée en cuisine (NEW →
+  // PREPARING, par encaissement ou envoi manuel) — origine du chrono « en
+  // cuisine depuis X ». `readyAt` : passage READY — origine du minuteur « prête
+  // depuis X » (le client tarde à récupérer). Null tant que l'étape n'a pas eu
+  // lieu. Distincts de `updatedAt` (bougé par toute écriture) et de `paidAt`.
+  preparingStartedAt DateTime?
+  readyAt            DateTime?
+
   driverRequested   Boolean   @default(false)
   driverRequestedAt DateTime?
 

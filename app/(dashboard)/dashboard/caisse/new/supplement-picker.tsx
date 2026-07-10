@@ -26,6 +26,8 @@ import {
   type Selections,
 } from '@/lib/supplements';
 import { useResettableState } from '@/lib/hooks/use-resettable-state';
+import { applyOptionStock } from '@/lib/caisse-restock';
+import { RestockControl } from '../_components/restock-control';
 
 type Props = {
   product: Product | null;
@@ -44,6 +46,17 @@ type Props = {
   editToken?: string;
   /** Libellé du verbe d'action (« Ajouter » par défaut, « Mettre à jour » en édition). */
   confirmVerb?: string;
+  /**
+   * Réappro caisse déclenchée depuis le sélecteur (cas tartelettes : recréditer
+   * le stock d'un goût épuisé). Quand fourni, un bouton « Réappro » apparaît sur
+   * les goûts à stock suivi des groupes de type `quantity`. Le parent en profite
+   * pour synchroniser son menu (stock live).
+   */
+  onRestocked?: (
+    groupName: string,
+    optionName: string,
+    stockQuantity: number | null
+  ) => void;
 };
 
 export function SupplementPicker({
@@ -54,15 +67,33 @@ export function SupplementPicker({
   initialSupplements,
   editToken,
   confirmVerb = 'Ajouter',
+  onRestocked,
 }: Props) {
-  const groups = product?.supplements ?? [];
-
   const [selections, setSelections] = useResettableState<Selections>(
     `${product?.id ?? ''}::${editToken ?? ''}`,
     () => buildInitialSelections(product, initialSupplements ?? [])
   );
+  // Copie « live » du produit : la réappro d'un goût met à jour le stock ici
+  // pour que le stepper le rende immédiatement commandable, sans rechargement.
+  const [liveProduct, setLiveProduct] = useResettableState<Product | null>(
+    product?.id ?? '',
+    () => product
+  );
 
   if (!product) return null;
+  const activeProduct = liveProduct ?? product;
+  const groups = activeProduct.supplements ?? [];
+
+  function handleOptionRestocked(
+    groupName: string,
+    optionName: string,
+    stockQuantity: number | null
+  ) {
+    setLiveProduct((prev) =>
+      prev ? applyOptionStock(prev, groupName, optionName, stockQuantity) : prev
+    );
+    onRestocked?.(groupName, optionName, stockQuantity);
+  }
 
   function setSingle(groupName: string, value: string) {
     setSelections((prev) => ({ ...prev, [groupName]: value }));
@@ -87,17 +118,17 @@ export function SupplementPicker({
   }
 
   function handleAdd() {
-    if (!canSubmitSelections(product!, selections)) return;
+    if (!canSubmitSelections(activeProduct, selections)) return;
     onAdd({
-      product: product!,
-      supplements: getSelectedSupplements(product!, selections),
+      product: activeProduct,
+      supplements: getSelectedSupplements(activeProduct, selections),
     });
     onClose();
   }
 
   const runningTotal =
-    product.price +
-    getSupplementsPrice(getSelectedSupplements(product, selections));
+    activeProduct.price +
+    getSupplementsPrice(getSelectedSupplements(activeProduct, selections));
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} placement="center" size="md">
@@ -235,13 +266,36 @@ export function SupplementPicker({
                                 +{priceFormatter.format(opt.price)} F
                               </span>
                             )}
-                            {opt.soldOut && (
+                            {opt.soldOut ? (
                               <span className="ml-1.5 text-xs font-medium text-danger">
                                 épuisé
                               </span>
+                            ) : (
+                              opt.remaining != null && (
+                                <span className="ml-1.5 text-xs text-foreground/40">
+                                  reste {opt.remaining}
+                                </span>
+                              )
                             )}
                           </span>
                           <div className="flex items-center gap-2">
+                            {onRestocked && opt.stockQuantity != null && (
+                              <RestockControl
+                                body={{
+                                  target: 'option',
+                                  productId: activeProduct.id,
+                                  groupName: group.name,
+                                  optionName: opt.name,
+                                }}
+                                onDone={(stock) =>
+                                  handleOptionRestocked(
+                                    group.name,
+                                    opt.name,
+                                    stock
+                                  )
+                                }
+                              />
+                            )}
                             <Button
                               isIconOnly
                               size="sm"
@@ -291,7 +345,7 @@ export function SupplementPicker({
             className="w-full"
             size="lg"
             onPress={handleAdd}
-            isDisabled={!canSubmitSelections(product, selections)}
+            isDisabled={!canSubmitSelections(activeProduct, selections)}
           >
             {confirmVerb} — {priceFormatter.format(runningTotal)} F
           </Button>

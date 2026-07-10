@@ -31,9 +31,14 @@ const HEARTBEAT_INTERVAL_MS = 20_000;
 const DEBOUNCE_MS = 150;
 
 // Types sérialisables : Date → string ISO (ou null) pour traverser JSON.
-type SerializedOrder = Omit<PreparationOrder, 'pickupTime' | 'createdAt'> & {
+type SerializedOrder = Omit<
+  PreparationOrder,
+  'pickupTime' | 'createdAt' | 'preparingStartedAt' | 'readyAt'
+> & {
   pickupTime: string | null;
   createdAt: string;
+  preparingStartedAt: string | null;
+  readyAt: string | null;
 };
 
 function serializeQueue(orders: PreparationOrder[]): SerializedOrder[] {
@@ -41,6 +46,10 @@ function serializeQueue(orders: PreparationOrder[]): SerializedOrder[] {
     ...o,
     pickupTime: o.pickupTime ? o.pickupTime.toISOString() : null,
     createdAt: o.createdAt.toISOString(),
+    preparingStartedAt: o.preparingStartedAt
+      ? o.preparingStartedAt.toISOString()
+      : null,
+    readyAt: o.readyAt ? o.readyAt.toISOString() : null,
   }));
 }
 

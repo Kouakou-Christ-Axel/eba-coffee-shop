@@ -110,6 +110,14 @@ export const SCHEDULED_LEAD_IN_MINUTES = 60;
 export const SCHEDULED_ALERT_MINUTES = 15;
 
 /**
+ * Minuteur « prête, en attente de récupération » (écrans cuisine + caisse).
+ * Au-delà de ce délai après le passage READY, la commande est signalée en
+ * rouge : le client « fait la star » (tarde à venir chercher) — on la relance.
+ * Source : `Order.readyAt` (prisma/schema.prisma).
+ */
+export const READY_WAIT_ALERT_MINUTES = 5;
+
+/**
  * Suivi des dépenses (back-office). Longueurs max des champs de saisie et
  * plafond de montant (garde-fou anti-faute de frappe, en francs CFA).
  */

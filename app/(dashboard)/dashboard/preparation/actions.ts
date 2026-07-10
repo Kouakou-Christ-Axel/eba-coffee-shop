@@ -20,7 +20,7 @@ export async function startPreparation(id: string): Promise<void> {
 
   const result = await prisma.order.updateMany({
     where: { id, status: 'NEW' },
-    data: { status: 'PREPARING' },
+    data: { status: 'PREPARING', preparingStartedAt: new Date() },
   });
 
   if (result.count === 0) {
@@ -39,7 +39,7 @@ export async function markOrderReady(id: string): Promise<void> {
 
   const result = await prisma.order.updateMany({
     where: { id, status: 'PREPARING' },
-    data: { status: 'READY' },
+    data: { status: 'READY', readyAt: new Date() },
   });
 
   if (result.count === 0) {
