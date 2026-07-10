@@ -26,13 +26,18 @@ const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
 /** Délai max (ms) pour télécharger une image distante depuis une URL. */
 const REMOTE_FETCH_TIMEOUT_MS = 15000;
 
-/** Sous-dossiers d'upload autorisés (whitelist — pas de chemin arbitraire). */
+/**
+ * Sous-dossiers d'upload autorisés (whitelist — pas de chemin arbitraire).
+ * `menu-pdf` n'existe que côté Cloudinary (cf. lib/cloudinary.ts) — jamais
+ * traité par le pipeline sharp de ce fichier (image-only).
+ */
 export type UploadSubdir =
   | 'products'
   | 'receipts'
   | 'payment-proofs'
   | 'poll-options'
-  | 'polls';
+  | 'polls'
+  | 'menu-pdf';
 
 /**
  * Racine disque des fichiers uploadés : `<cwd>/public/uploads`.

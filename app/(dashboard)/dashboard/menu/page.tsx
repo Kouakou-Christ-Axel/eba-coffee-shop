@@ -10,23 +10,30 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { getMenuSettings } from '@/lib/menu-settings-db';
 import { CategoryForm } from './category-form';
 import { CategoryRowActions } from './category-row-actions';
+import { MenuPdfField } from './menu-pdf-field';
 
 export default async function MenuPage() {
-  const categories = await prisma.menuCategory.findMany({
-    where: { deletedAt: null },
-    orderBy: { sortOrder: 'asc' },
-    include: {
-      _count: { select: { products: { where: { deletedAt: null } } } },
-    },
-  });
+  const [categories, menuSettings] = await Promise.all([
+    prisma.menuCategory.findMany({
+      where: { deletedAt: null },
+      orderBy: { sortOrder: 'asc' },
+      include: {
+        _count: { select: { products: { where: { deletedAt: null } } } },
+      },
+    }),
+    getMenuSettings(),
+  ]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Menu — Catégories</h1>
       </div>
+
+      <MenuPdfField initialUrl={menuSettings.menuPdfUrl} />
 
       <div className="rounded-lg border p-4">
         <h2 className="mb-3 text-sm font-semibold">

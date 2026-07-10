@@ -564,6 +564,17 @@ model PickupSettings {
   @@map("pickup_settings")
 }
 
+// Carte du menu au format PDF (téléchargeable), gérée depuis /dashboard/menu.
+// Ligne singleton comme `PickupSettings`/`LoyaltySettings` — un seul PDF actif
+// à la fois, uploadé vers Cloudinary (`resource_type: 'raw'`, dossier `menu-pdf`).
+model MenuSettings {
+  id         String   @id @default("singleton")
+  menuPdfUrl String?
+  updatedAt  DateTime @updatedAt
+
+  @@map("menu_settings")
+}
+
 enum ExpensePaymentMethod {
   CASH
   WAVE

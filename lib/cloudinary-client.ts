@@ -7,12 +7,14 @@
 //
 // Client only — à importer uniquement depuis des composants 'use client'.
 
-import type { SignedUploadParams } from '@/lib/cloudinary';
+import type {
+  SignedRawUploadParams,
+  SignedUploadParams,
+} from '@/lib/cloudinary';
 
-async function fetchSignature(
-  signEndpoint: string,
-  signBody?: Record<string, string>
-): Promise<SignedUploadParams> {
+async function fetchSignature<
+  T extends SignedUploadParams | SignedRawUploadParams = SignedUploadParams,
+>(signEndpoint: string, signBody?: Record<string, string>): Promise<T> {
   const res = await fetch(signEndpoint, {
     method: 'POST',
     headers: signBody ? { 'Content-Type': 'application/json' } : undefined,
@@ -49,6 +51,47 @@ export async function uploadToCloudinary(
 
   const uploadRes = await fetch(
     `https://api.cloudinary.com/v1_1/${params.cloud_name}/image/upload`,
+    { method: 'POST', body: fd }
+  );
+  if (!uploadRes.ok) {
+    const j = (await uploadRes.json().catch(() => ({}))) as {
+      error?: { message?: string };
+    };
+    throw new Error(
+      j.error?.message ?? `Échec upload Cloudinary (${uploadRes.status})`
+    );
+  }
+  const { secure_url: secureUrl } = (await uploadRes.json()) as {
+    secure_url: string;
+  };
+  return secureUrl;
+}
+
+/**
+ * Uploade `file` directement vers Cloudinary en `resource_type: 'raw'` (carte
+ * PDF) — pendant de `uploadToCloudinary` pour les fichiers non-image : pas de
+ * `transformation`, endpoint `.../raw/upload`.
+ */
+export async function uploadRawToCloudinary(
+  file: File,
+  signEndpoint: string,
+  signBody?: Record<string, string>
+): Promise<string> {
+  const params = await fetchSignature<SignedRawUploadParams>(
+    signEndpoint,
+    signBody
+  );
+
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('api_key', params.api_key);
+  fd.append('timestamp', String(params.timestamp));
+  fd.append('folder', params.folder);
+  fd.append('allowed_formats', params.allowed_formats);
+  fd.append('signature', params.signature);
+
+  const uploadRes = await fetch(
+    `https://api.cloudinary.com/v1_1/${params.cloud_name}/raw/upload`,
     { method: 'POST', body: fd }
   );
   if (!uploadRes.ok) {

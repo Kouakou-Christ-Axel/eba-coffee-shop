@@ -10,13 +10,21 @@ import { z } from 'zod';
 import {
   MAX_UPLOAD_SIZE_BYTES,
   PAYMENT_PROOF_MAX_SIZE_BYTES,
+  MENU_PDF_MAX_SIZE_BYTES,
 } from '@/config/constants';
 
-export { MAX_UPLOAD_SIZE_BYTES, PAYMENT_PROOF_MAX_SIZE_BYTES };
+export {
+  MAX_UPLOAD_SIZE_BYTES,
+  PAYMENT_PROOF_MAX_SIZE_BYTES,
+  MENU_PDF_MAX_SIZE_BYTES,
+};
 
 const MAX_UPLOAD_SIZE_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
 const PAYMENT_PROOF_MAX_SIZE_MB = Math.round(
   PAYMENT_PROOF_MAX_SIZE_BYTES / (1024 * 1024)
+);
+const MENU_PDF_MAX_SIZE_MB = Math.round(
+  MENU_PDF_MAX_SIZE_BYTES / (1024 * 1024)
 );
 
 // ─── MIME types autorisés en entrée (whitelist) ───────────────────────────────
@@ -100,6 +108,34 @@ export const paymentProofFileSchema = z
   });
 
 export type PaymentProofFileInput = z.infer<typeof paymentProofFileSchema>;
+
+// ─── PDF de la carte (menu téléchargeable, dashboard) ─────────────────────────
+//
+// Contrairement aux images, ce fichier est stocké tel quel sur Cloudinary
+// (`resource_type: 'raw'`, cf. lib/cloudinary.ts) — pas de pipeline sharp.
+
+export const ALLOWED_DOCUMENT_MIME_TYPES = ['application/pdf'] as const;
+
+export type AllowedDocumentMimeType =
+  (typeof ALLOWED_DOCUMENT_MIME_TYPES)[number];
+
+export function isAllowedDocumentMimeType(
+  mime: string
+): mime is AllowedDocumentMimeType {
+  return mime === 'application/pdf';
+}
+
+export const menuPdfFileSchema = z
+  .instanceof(File, { message: 'Fichier manquant' })
+  .refine((file) => isAllowedDocumentMimeType(file.type), {
+    message: 'Format non supporté (PDF uniquement)',
+  })
+  .refine((file) => file.size > 0, { message: 'Fichier vide' })
+  .refine((file) => file.size <= MENU_PDF_MAX_SIZE_BYTES, {
+    message: `Fichier trop volumineux (max ${MENU_PDF_MAX_SIZE_MB} MB)`,
+  });
+
+export type MenuPdfFileInput = z.infer<typeof menuPdfFileSchema>;
 
 // ─── URL/chemin d'image d'un produit ──────────────────────────────────────────
 //

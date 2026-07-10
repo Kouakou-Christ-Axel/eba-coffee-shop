@@ -5,6 +5,8 @@ import { ZodError } from 'zod';
 import { requireManager } from '@/lib/auth-helpers';
 import * as menu from '@/lib/menu-mutations';
 import type { ProductInput, ProductUpdate } from '@/lib/menu-mutations';
+import { menuSettingsSchema } from '@/lib/menu-settings';
+import { updateMenuSettings } from '@/lib/menu-settings-db';
 
 // Next.js redacte en production le message de toute erreur qui *traverse*
 // une Server Action (générique « An error occurred in the Server
@@ -130,5 +132,19 @@ export async function pauseProductAction(id: string, until: string) {
 export async function resumeProductAction(id: string) {
   await requireManager();
   await menu.resumeProduct(id);
+  revalidateMenu();
+}
+
+// ── Carte PDF ──
+
+export async function saveMenuPdfUrlAction(
+  url: string | null
+): Promise<{ error: string } | undefined> {
+  await requireManager();
+  const parsed = menuSettingsSchema.safeParse({ menuPdfUrl: url });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? 'URL invalide' };
+  }
+  await updateMenuSettings(parsed.data);
   revalidateMenu();
 }

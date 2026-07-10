@@ -30,6 +30,14 @@ export const IMAGE_MAX_DIMENSION = 2200;
 export const PAYMENT_PROOF_MAX_SIZE_BYTES = 1 * 1024 * 1024;
 
 /**
+ * Taille maximale du PDF de la carte téléversé depuis le dashboard (10 MB) :
+ * document imprimable, pas besoin d'un plafond aussi large que les photos
+ * (`MAX_UPLOAD_SIZE_BYTES`). Stocké tel quel sur Cloudinary (`resource_type:
+ * 'raw'`), sans retraitement — voir lib/cloudinary.ts.
+ */
+export const MENU_PDF_MAX_SIZE_BYTES = 10 * 1024 * 1024;
+
+/**
  * Compression navigateur de la preuve de paiement : plus grand côté (px) et
  * qualité JPEG. Une capture Wave reste parfaitement lisible à 1600 px.
  */

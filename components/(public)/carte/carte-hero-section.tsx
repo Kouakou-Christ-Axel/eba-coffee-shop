@@ -1,6 +1,12 @@
 // components/(public)/carte/carte-hero-section.tsx
 
-function CarteHeroSection() {
+import { Button, Link } from '@heroui/react';
+
+type Props = {
+  menuPdfUrl: string | null;
+};
+
+function CarteHeroSection({ menuPdfUrl }: Props) {
   return (
     <section
       aria-labelledby="carte-hero-title"
@@ -21,6 +27,20 @@ function CarteHeroSection() {
             Chaque boisson et chaque pâtisserie est préparée sur place, chaque
             jour.
           </p>
+          {menuPdfUrl && (
+            <Button
+              as={Link}
+              href={menuPdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              color="primary"
+              radius="full"
+              variant="bordered"
+              className="mt-6"
+            >
+              Télécharger la carte (PDF)
+            </Button>
+          )}
         </div>
       </div>
     </section>

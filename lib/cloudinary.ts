@@ -59,6 +59,19 @@ export type SignedUploadParams = {
   cloud_name: string;
 };
 
+/** Formats de document acceptés pour la carte PDF (subdir `menu-pdf`). */
+const ALLOWED_DOCUMENT_FORMATS = ['pdf'];
+
+export type SignedRawUploadParams = {
+  timestamp: number;
+  folder: string;
+  allowed_formats: string;
+  signature: string;
+  api_key: string;
+  cloud_name: string;
+  resource_type: 'raw';
+};
+
 /**
  * Calcule les paramètres d'upload signés pour un `subdir` donné : le
  * navigateur les reçoit puis poste directement le fichier à
@@ -102,6 +115,44 @@ export function buildSignedUploadParams(
     signature,
     api_key: apiKey,
     cloud_name: cloudName,
+  };
+}
+
+/**
+ * Calcule les paramètres d'upload signés pour la carte PDF (subdir figé
+ * `menu-pdf`, `resource_type: 'raw'`) : pas de `transformation` (réservée aux
+ * images), le fichier est stocké tel quel. Même principe que
+ * `buildSignedUploadParams` — le navigateur poste directement à
+ * `https://api.cloudinary.com/v1_1/<cloud_name>/raw/upload`.
+ */
+export function buildMenuPdfSignedUploadParams(): SignedRawUploadParams {
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY;
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  if (!apiSecret || !apiKey || !cloudName) {
+    throw new Error(
+      'Cloudinary non configuré (NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME / ' +
+        'NEXT_PUBLIC_CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET manquants)'
+    );
+  }
+
+  const timestamp = Math.round(Date.now() / 1000);
+  const folder = cloudinaryFolder('menu-pdf');
+  const allowedFormats = ALLOWED_DOCUMENT_FORMATS.join(',');
+
+  const signature = cloudinary.utils.api_sign_request(
+    { timestamp, folder, allowed_formats: allowedFormats },
+    apiSecret
+  );
+
+  return {
+    timestamp,
+    folder,
+    allowed_formats: allowedFormats,
+    signature,
+    api_key: apiKey,
+    cloud_name: cloudName,
+    resource_type: 'raw',
   };
 }
 
