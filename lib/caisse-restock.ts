@@ -19,8 +19,9 @@ export type RestockRef =
       optionName: string;
     };
 
-// Corps de requête complet : la référence + la quantité à ajouter.
-export type RestockBody = RestockRef & { delta: number };
+// Corps de requête complet : la référence + le nombre disponible (valeur
+// absolue à écrire, pas un ajout).
+export type RestockBody = RestockRef & { stock: number };
 
 export type RestockResult =
   | { ok: true; stockQuantity: number | null }

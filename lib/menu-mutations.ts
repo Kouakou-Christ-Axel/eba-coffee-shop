@@ -489,18 +489,16 @@ export async function restockOption(id: string, delta: number) {
   });
 }
 
-// Réappro d'une option depuis la caisse : le panier/menu ne connaît que les
-// NOMS (produit → groupe → option), jamais l'id interne de l'option. On résout
+// Réappro caisse d'une option (« goût ») : le caissier DÉFINIT directement le
+// nombre disponible (valeur absolue), pas un ajout. Le panier/menu ne connaît
+// que les NOMS (produit → groupe → option), jamais l'id interne — on résout
 // donc l'id (option la plus ancienne portant ce nom dans ce groupe, comme le
-// décrément au paiement) avant d'incrémenter. Une option à stock illimité
-// (`null`) est déjà toujours disponible : on la bascule alors sur `delta`
-// (borne concrète) plutôt que de refuser — le caissier veut la rendre
-// commandable dans la limite de la fournée annoncée. Renvoie le nouveau stock.
-export async function restockOptionByRef(input: {
+// décrément au paiement) avant d'écrire le stock. Renvoie le nouveau stock.
+export async function setOptionStockByRef(input: {
   productId: string;
   groupName: string;
   optionName: string;
-  delta: number;
+  stock: number;
 }): Promise<{ stockQuantity: number | null }> {
   const option = await prisma.supplementOption.findFirst({
     where: {
@@ -508,39 +506,33 @@ export async function restockOptionByRef(input: {
       group: { productId: input.productId, name: input.groupName },
     },
     orderBy: { id: 'asc' },
-    select: { id: true, stockQuantity: true },
+    select: { id: true },
   });
   if (!option) throw new Error('Option introuvable');
 
   const updated = await prisma.supplementOption.update({
     where: { id: option.id },
-    data:
-      option.stockQuantity === null
-        ? { stockQuantity: input.delta }
-        : { stockQuantity: { increment: input.delta } },
+    data: { stockQuantity: input.stock },
     select: { stockQuantity: true },
   });
   return { stockQuantity: updated.stockQuantity };
 }
 
-// Réappro d'un produit par id, renvoyant le nouveau stock. Même bascule que
-// `restockOptionByRef` pour un produit à stock illimité.
-export async function restockProductById(input: {
+// Réappro caisse d'un produit par id : DÉFINIT le nombre disponible (absolu).
+// Renvoie le nouveau stock.
+export async function setProductStockById(input: {
   productId: string;
-  delta: number;
+  stock: number;
 }): Promise<{ stockQuantity: number | null }> {
   const product = await prisma.product.findUnique({
     where: { id: input.productId },
-    select: { stockQuantity: true },
+    select: { id: true },
   });
   if (!product) throw new Error('Produit introuvable');
 
   const updated = await prisma.product.update({
     where: { id: input.productId },
-    data:
-      product.stockQuantity === null
-        ? { stockQuantity: input.delta }
-        : { stockQuantity: { increment: input.delta } },
+    data: { stockQuantity: input.stock },
     select: { stockQuantity: true },
   });
   return { stockQuantity: updated.stockQuantity };
