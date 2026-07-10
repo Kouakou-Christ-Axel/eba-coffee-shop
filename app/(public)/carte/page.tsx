@@ -4,6 +4,7 @@ import { getMenuSettings } from '@/lib/menu-settings-db';
 import CarteHeroSection from '@/components/(public)/carte/carte-hero-section';
 import CarteMenuSection from '@/components/(public)/carte/carte-menu-section';
 import CartFloatingButton from '@/components/(public)/carte/cart-floating-button';
+import DownloadMenuPdf from '@/components/(public)/carte/download-menu-pdf';
 
 // ISR: regenerate the carte at most every 5 minutes. The menu changes more
 // often than the homepage (prices, availability, supplements). The dashboard
@@ -26,6 +27,7 @@ async function CartePage() {
       <CarteHeroSection menuPdfUrl={menuPdfUrl} />
       <CarteMenuSection />
       <CartFloatingButton />
+      {menuPdfUrl && <DownloadMenuPdf pdfUrl={menuPdfUrl} />}
     </>
   );
 }
