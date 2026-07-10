@@ -435,7 +435,13 @@ export async function setOrderStatus(
 
   const result = await prisma.order.updateMany({
     where: { id, status: order.status },
-    data: { status: newStatus },
+    data: {
+      status: newStatus,
+      // Horodatages des minuteurs staff : l'entrée en cuisine amorce le chrono
+      // « en cuisine depuis X », le passage prête amorce « prête depuis X ».
+      ...(newStatus === 'PREPARING' ? { preparingStartedAt: new Date() } : {}),
+      ...(newStatus === 'READY' ? { readyAt: new Date() } : {}),
+    },
   });
 
   if (result.count === 0) {
@@ -545,7 +551,11 @@ export async function setOrderPayment(
           isPaid: true,
           paymentMode: paymentMode ?? null,
           paidAt: new Date(),
-          ...(startedPreparation ? { status: 'PREPARING' as const } : {}),
+          // Encaisser une commande encore NEW la pousse en cuisine : on amorce
+          // alors le chrono « en cuisine depuis X » au même instant.
+          ...(startedPreparation
+            ? { status: 'PREPARING' as const, preparingStartedAt: new Date() }
+            : {}),
         },
       });
 

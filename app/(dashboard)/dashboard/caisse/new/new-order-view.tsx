@@ -4,14 +4,18 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { MenuCategory } from '@/config/menu';
 import { useNewOrder } from '@/lib/hooks/use-new-order';
+import { useLiveMenu } from '@/lib/hooks/use-live-menu';
 import { ProductCatalog } from './product-catalog';
 import { CartSummary } from './cart-summary';
 import { SupplementPicker } from './supplement-picker';
 import { CustomerInfoStep } from './_components/customer-info-step';
 import { OrderBottomBar } from './_components/order-bottom-bar';
 
-export function NewOrderView({ menu }: { menu: MenuCategory[] }) {
+export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
   const o = useNewOrder();
+  // Menu « live » : reflète en direct une réappro (goût recrédité) faite ici ou
+  // ailleurs, sans recharger la page.
+  const { menu, applyRestock } = useLiveMenu(initialMenu);
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] min-w-0 flex-col gap-4 pb-24">
@@ -67,6 +71,18 @@ export function NewOrderView({ menu }: { menu: MenuCategory[] }) {
         isOpen={o.isPickerOpen}
         onClose={o.closePicker}
         onAdd={({ product, supplements }) => o.addToCart(product, supplements)}
+        onRestocked={(groupName, optionName, stock) => {
+          if (!o.pickerProduct) return;
+          applyRestock(
+            {
+              target: 'option',
+              productId: o.pickerProduct.id,
+              groupName,
+              optionName,
+            },
+            stock
+          );
+        }}
       />
     </div>
   );

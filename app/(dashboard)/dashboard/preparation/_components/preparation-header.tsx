@@ -7,7 +7,7 @@ import { ConnectionBadge } from '@/lib/hooks/connection-badge';
 import type { ConnState } from '@/lib/hooks/use-orders-stream';
 
 type Props = {
-  position: { index: number; total: number } | null;
+  counts: { preparing: number; ready: number };
   connState: ConnState;
   lastSync: Date | null;
   soundEnabled: boolean;
@@ -15,7 +15,7 @@ type Props = {
 };
 
 export function PreparationHeader({
-  position,
+  counts,
   connState,
   lastSync,
   soundEnabled,
@@ -23,17 +23,13 @@ export function PreparationHeader({
 }: Props) {
   return (
     <div className="flex items-center justify-between border-b pb-3">
-      <div className="flex items-center gap-3">
-        <span className="text-sm font-medium text-muted-foreground">
-          Commande
+      <div className="flex items-center gap-2">
+        <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-bold text-primary">
+          {counts.preparing} en cuisine
         </span>
-        {position ? (
-          <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-bold text-primary">
-            {position.index + 1} / {position.total}
-          </span>
-        ) : (
-          <span className="rounded-full bg-muted px-3 py-1 text-sm font-medium text-muted-foreground">
-            0 / 0
+        {counts.ready > 0 && (
+          <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-bold text-green-800 dark:bg-green-950 dark:text-green-100">
+            {counts.ready} à remettre
           </span>
         )}
       </div>

@@ -19,9 +19,14 @@ const HEARTBEAT_INTERVAL_MS = 20_000;
 const DEBOUNCE_MS = 150;
 
 // Types sérialisables : Date → string ISO (ou null) pour traverser JSON.
-type SerializedCashierOrder = Omit<CashierOrder, 'pickupTime' | 'createdAt'> & {
+type SerializedCashierOrder = Omit<
+  CashierOrder,
+  'pickupTime' | 'createdAt' | 'preparingStartedAt' | 'readyAt'
+> & {
   pickupTime: string | null;
   createdAt: string;
+  preparingStartedAt: string | null;
+  readyAt: string | null;
 };
 
 function serialize(orders: CashierOrder[]): SerializedCashierOrder[] {
@@ -29,6 +34,10 @@ function serialize(orders: CashierOrder[]): SerializedCashierOrder[] {
     ...o,
     pickupTime: o.pickupTime ? o.pickupTime.toISOString() : null,
     createdAt: o.createdAt.toISOString(),
+    preparingStartedAt: o.preparingStartedAt
+      ? o.preparingStartedAt.toISOString()
+      : null,
+    readyAt: o.readyAt ? o.readyAt.toISOString() : null,
   }));
 }
 

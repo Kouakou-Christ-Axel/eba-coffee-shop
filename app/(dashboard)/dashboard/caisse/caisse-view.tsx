@@ -1,10 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { PackageCheck, X } from 'lucide-react';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
+import type { OrderStatus } from '@/generated/prisma/client';
 import {
   playNewOrderChime,
+  playReadyChime,
   useOrdersStream,
   useSoundPreference,
 } from '@/lib/hooks/use-orders-stream';
@@ -30,9 +33,14 @@ const SSE_URL = '/api/caisse/stream';
 const SOUND_STORAGE_KEY = 'eba.caisse.sound-enabled';
 const CHIME_REPEAT_MS = 3 * 60_000;
 
-type RawCashierOrder = Omit<CashierOrder, 'pickupTime' | 'createdAt'> & {
+type RawCashierOrder = Omit<
+  CashierOrder,
+  'pickupTime' | 'createdAt' | 'preparingStartedAt' | 'readyAt'
+> & {
   pickupTime: string | null;
   createdAt: string;
+  preparingStartedAt: string | null;
+  readyAt: string | null;
 };
 
 function normalize(raw: unknown): CashierOrder {
@@ -54,6 +62,17 @@ export function CaisseView({
   const lastChimedAtRef = useRef<Map<string, number>>(new Map());
   // Commandes programmées déjà signalées à l'approche du retrait (carillon unique à −15 min).
   const scheduledAlertedRef = useRef<Set<string>>(new Set());
+  // Statut précédent de chaque commande, pour détecter le passage → READY
+  // (cuisine → caisse) et déclencher une notification DISTINCTE. Amorcé depuis
+  // le snapshot initial pour ne pas notifier au premier rendu.
+  const prevStatusRef = useRef<Map<string, OrderStatus>>(
+    new Map(initialQueue.map((o) => [o.id, o.status]))
+  );
+  const readyFlashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
+  // Commandes qui viennent de passer « prête » : bandeau éphémère en caisse.
+  const [readyFlash, setReadyFlash] = useState<number[] | null>(null);
 
   const now = useNowTick(30_000);
 
@@ -129,6 +148,40 @@ export function CaisseView({
     if (shouldChime && soundEnabledRef.current) playNewOrderChime();
   }, [now, queue, soundEnabledRef]);
 
+  // Notification DISTINCTE « Commande prête » : la cuisine a marqué une commande
+  // prête (→ READY). On compare au statut précédent pour ne réagir qu'à la
+  // transition (jamais au chargement ni à un simple re-render). Carillon dédié
+  // + bandeau éphémère.
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    const newlyReady: CashierOrder[] = [];
+    for (const o of queue) {
+      const before = prev.get(o.id);
+      if (before !== undefined && before !== 'READY' && o.status === 'READY') {
+        newlyReady.push(o);
+      }
+    }
+    prevStatusRef.current = new Map(queue.map((o) => [o.id, o.status]));
+
+    if (newlyReady.length > 0) {
+      if (soundEnabledRef.current) playReadyChime();
+      // Réaction à un changement du flux SSE externe (transition → READY) : le
+      // setState est intentionnel ici (notification en direct), pas un dérivé
+      // d'état recalculable pendant le rendu.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setReadyFlash(newlyReady.map((o) => o.dailyNumber));
+      if (readyFlashTimer.current) clearTimeout(readyFlashTimer.current);
+      readyFlashTimer.current = setTimeout(() => setReadyFlash(null), 10_000);
+    }
+  }, [queue, soundEnabledRef]);
+
+  useEffect(
+    () => () => {
+      if (readyFlashTimer.current) clearTimeout(readyFlashTimer.current);
+    },
+    []
+  );
+
   const scheduledOrders = useMemo(
     () => filterScheduledAhead(queue, now),
     [queue, now]
@@ -157,6 +210,33 @@ export function CaisseView({
         soundEnabled={soundEnabled}
         onToggleSound={toggleSound}
       />
+
+      {readyFlash && readyFlash.length > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border-2 border-green-300 bg-green-50 px-4 py-3 text-green-900 shadow-sm dark:border-green-800 dark:bg-green-950/40 dark:text-green-100">
+          <PackageCheck className="h-6 w-6 shrink-0" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold">
+              {readyFlash.length > 1
+                ? `${readyFlash.length} commandes prêtes !`
+                : 'Commande prête !'}
+            </p>
+            <p className="truncate text-xs">
+              {readyFlash
+                .map((n) => `#${String(n).padStart(3, '0')}`)
+                .join(', ')}{' '}
+              — à remettre au client
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setReadyFlash(null)}
+            aria-label="Fermer"
+            className="shrink-0 rounded-full p-1 text-green-700 transition-colors hover:bg-green-100 dark:text-green-300 dark:hover:bg-green-900/40"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {criticalTotal > 0 && (
         <AlertBanner

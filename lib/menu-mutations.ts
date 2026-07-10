@@ -489,6 +489,63 @@ export async function restockOption(id: string, delta: number) {
   });
 }
 
+// Réappro d'une option depuis la caisse : le panier/menu ne connaît que les
+// NOMS (produit → groupe → option), jamais l'id interne de l'option. On résout
+// donc l'id (option la plus ancienne portant ce nom dans ce groupe, comme le
+// décrément au paiement) avant d'incrémenter. Une option à stock illimité
+// (`null`) est déjà toujours disponible : on la bascule alors sur `delta`
+// (borne concrète) plutôt que de refuser — le caissier veut la rendre
+// commandable dans la limite de la fournée annoncée. Renvoie le nouveau stock.
+export async function restockOptionByRef(input: {
+  productId: string;
+  groupName: string;
+  optionName: string;
+  delta: number;
+}): Promise<{ stockQuantity: number | null }> {
+  const option = await prisma.supplementOption.findFirst({
+    where: {
+      name: input.optionName,
+      group: { productId: input.productId, name: input.groupName },
+    },
+    orderBy: { id: 'asc' },
+    select: { id: true, stockQuantity: true },
+  });
+  if (!option) throw new Error('Option introuvable');
+
+  const updated = await prisma.supplementOption.update({
+    where: { id: option.id },
+    data:
+      option.stockQuantity === null
+        ? { stockQuantity: input.delta }
+        : { stockQuantity: { increment: input.delta } },
+    select: { stockQuantity: true },
+  });
+  return { stockQuantity: updated.stockQuantity };
+}
+
+// Réappro d'un produit par id, renvoyant le nouveau stock. Même bascule que
+// `restockOptionByRef` pour un produit à stock illimité.
+export async function restockProductById(input: {
+  productId: string;
+  delta: number;
+}): Promise<{ stockQuantity: number | null }> {
+  const product = await prisma.product.findUnique({
+    where: { id: input.productId },
+    select: { stockQuantity: true },
+  });
+  if (!product) throw new Error('Produit introuvable');
+
+  const updated = await prisma.product.update({
+    where: { id: input.productId },
+    data:
+      product.stockQuantity === null
+        ? { stockQuantity: input.delta }
+        : { stockQuantity: { increment: input.delta } },
+    select: { stockQuantity: true },
+  });
+  return { stockQuantity: updated.stockQuantity };
+}
+
 // Met un produit en pause jusqu'à `until` (non commandable, mais toujours
 // visible côté carte publique avec un tag de statut). La reprise est ensuite
 // automatique : calculée à la lecture (`unavailableUntil > now`), sans cron.
