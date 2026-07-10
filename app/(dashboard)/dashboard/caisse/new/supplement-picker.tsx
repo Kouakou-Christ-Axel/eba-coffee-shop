@@ -287,6 +287,9 @@ export function SupplementPicker({
                                   groupName: group.name,
                                   optionName: opt.name,
                                 }}
+                                currentStock={
+                                  opt.remaining ?? opt.stockQuantity
+                                }
                                 onDone={(stock) =>
                                   handleOptionRestocked(
                                     group.name,
