@@ -1,4 +1,5 @@
 // components/(public)/carte/carte-hero-section.tsx
+'use client';
 
 import { Button, Link } from '@heroui/react';
 
