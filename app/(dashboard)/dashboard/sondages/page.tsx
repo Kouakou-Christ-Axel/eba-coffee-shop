@@ -1,5 +1,5 @@
 import { Vote } from 'lucide-react';
-import { requireAdmin } from '@/lib/auth-helpers';
+import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
 import { getPollsAdmin } from '@/lib/polls';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PollsTable } from './polls-table';
@@ -7,7 +7,7 @@ import { PollsTable } from './polls-table';
 export const dynamic = 'force-dynamic';
 
 export default async function SondagesPage() {
-  await requireAdmin();
+  await requireRoleOrAnalyst(['ADMIN']);
 
   const { polls } = await getPollsAdmin();
   const rows = polls.map((p) => ({

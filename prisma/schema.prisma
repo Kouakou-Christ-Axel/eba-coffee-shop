@@ -150,6 +150,7 @@ enum UserRole {
   MANAGER
   COMPTABLE
   ASSISTANT_MANAGER
+  ANALYSTE
 }
 
 enum OrderStatus {

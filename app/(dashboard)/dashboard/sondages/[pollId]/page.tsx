@@ -1,6 +1,6 @@
 import { MediaImage as Image } from '@/components/ui/media-image';
 import { notFound } from 'next/navigation';
-import { requireAdmin } from '@/lib/auth-helpers';
+import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
 import { getPollAdmin, listSuggestionsAdmin } from '@/lib/polls';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PollDetail } from './poll-detail';
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 type Params = { params: Promise<{ pollId: string }> };
 
 export default async function PollDetailPage({ params }: Params) {
-  await requireAdmin();
+  await requireRoleOrAnalyst(['ADMIN']);
   const { pollId } = await params;
 
   const data = await getPollAdmin(pollId);

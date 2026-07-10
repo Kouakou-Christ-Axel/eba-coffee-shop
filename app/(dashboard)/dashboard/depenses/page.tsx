@@ -1,5 +1,5 @@
 import { Download, Layers, ReceiptText, Sigma, Wallet } from 'lucide-react';
-import { requireAdmin } from '@/lib/auth-helpers';
+import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
 import {
   listExpenses,
   listExpenseCategories,
@@ -53,7 +53,7 @@ export default async function DepensesPage({
     search?: string;
   }>;
 }) {
-  await requireAdmin();
+  await requireRoleOrAnalyst(['ADMIN']);
   const params = await searchParams;
 
   const isAll = params.range === 'all';

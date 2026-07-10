@@ -50,37 +50,44 @@ const navItems: NavItem[] = [
     label: 'Vue d’ensemble',
     href: '/dashboard',
     icon: LayoutDashboard,
-    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER', 'COMPTABLE'],
+    roles: [
+      'ADMIN',
+      'MANAGER',
+      'ASSISTANT_MANAGER',
+      'CASHIER',
+      'COMPTABLE',
+      'ANALYSTE',
+    ],
   },
   {
     label: 'Statistiques',
     href: '/dashboard/statistiques',
     icon: BarChart3,
-    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'COMPTABLE'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'COMPTABLE', 'ANALYSTE'],
   },
   {
     label: 'Dépenses',
     href: '/dashboard/depenses',
     icon: Wallet,
-    roles: ['ADMIN', 'MANAGER', 'COMPTABLE'],
+    roles: ['ADMIN', 'MANAGER', 'COMPTABLE', 'ANALYSTE'],
   },
   {
     label: 'Investissements',
     href: '/dashboard/investissements',
     icon: PiggyBank,
-    roles: ['ADMIN', 'MANAGER', 'COMPTABLE'],
+    roles: ['ADMIN', 'MANAGER', 'COMPTABLE', 'ANALYSTE'],
   },
   {
     label: 'Régularisations',
     href: '/dashboard/regularisations',
     icon: Scale,
-    roles: ['ADMIN', 'MANAGER', 'COMPTABLE'],
+    roles: ['ADMIN', 'MANAGER', 'COMPTABLE', 'ANALYSTE'],
   },
   {
     label: 'Clients',
     href: '/dashboard/clients',
     icon: Contact,
-    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'ANALYSTE'],
   },
   {
     label: 'Caisse',
@@ -98,13 +105,20 @@ const navItems: NavItem[] = [
     label: 'Commandes',
     href: '/dashboard/commandes',
     icon: ClipboardList,
-    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER', 'ANALYSTE'],
   },
   {
     label: 'Clôture',
     href: '/dashboard/cloture',
     icon: Calculator,
-    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER', 'COMPTABLE'],
+    roles: [
+      'ADMIN',
+      'MANAGER',
+      'ASSISTANT_MANAGER',
+      'CASHIER',
+      'COMPTABLE',
+      'ANALYSTE',
+    ],
   },
   {
     label: 'Menu',
@@ -116,13 +130,20 @@ const navItems: NavItem[] = [
     label: 'Inventaire',
     href: '/dashboard/inventaire',
     icon: Boxes,
-    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER', 'KITCHEN'],
+    roles: [
+      'ADMIN',
+      'MANAGER',
+      'ASSISTANT_MANAGER',
+      'CASHIER',
+      'KITCHEN',
+      'ANALYSTE',
+    ],
   },
   {
     label: 'Sondages',
     href: '/dashboard/sondages',
     icon: Vote,
-    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'ANALYSTE'],
   },
   {
     label: 'Paramètres',
@@ -257,6 +278,8 @@ function roleLabel(role: UserRole): string {
       return 'Caisse';
     case 'KITCHEN':
       return 'Préparation';
+    case 'ANALYSTE':
+      return 'Analyste';
     default:
       return 'Staff';
   }

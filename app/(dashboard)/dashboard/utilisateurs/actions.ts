@@ -14,6 +14,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   COMPTABLE: 'Comptable',
   CASHIER: 'Caissier·e',
   KITCHEN: 'Cuisine',
+  ANALYSTE: 'Analyste',
   USER: 'Client',
 };
 
@@ -26,6 +27,7 @@ const inviteSchema = z.object({
     'COMPTABLE',
     'CASHIER',
     'KITCHEN',
+    'ANALYSTE',
   ]),
 });
 
@@ -85,6 +87,7 @@ export async function updateUserRole(input: { id: string; role: UserRole }) {
         'COMPTABLE',
         'CASHIER',
         'KITCHEN',
+        'ANALYSTE',
         'USER',
       ]),
     })

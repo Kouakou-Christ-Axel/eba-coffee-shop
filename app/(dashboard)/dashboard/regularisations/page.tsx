@@ -1,6 +1,6 @@
 import { Download, ReceiptText, Scale } from 'lucide-react';
 import type { PaymentMode } from '@/generated/prisma/client';
-import { requireAdmin } from '@/lib/auth-helpers';
+import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
 import { listRevenueAdjustments } from '@/lib/revenue-adjustments';
 import {
   parseDateOnlyToUTC,
@@ -46,7 +46,7 @@ export default async function RegularisationsPage({
     mode?: string;
   }>;
 }) {
-  await requireAdmin();
+  await requireRoleOrAnalyst(['ADMIN']);
   const params = await searchParams;
 
   const isAll = params.range === 'all';

@@ -1,5 +1,5 @@
 import { Download } from 'lucide-react';
-import { requireCloture } from '@/lib/auth-helpers';
+import { requireRoleOrAnalyst, ROLE_GROUPS } from '@/lib/auth-helpers';
 import {
   getCashFigures,
   getCashClosing,
@@ -49,7 +49,7 @@ export default async function CloturePage({
     range?: string;
   }>;
 }) {
-  await requireCloture();
+  await requireRoleOrAnalyst(ROLE_GROUPS.CLOTURE);
   const params = await searchParams;
 
   // Jour à clôturer.
