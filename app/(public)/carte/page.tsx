@@ -1,5 +1,6 @@
 // app/(public)/carte/page.tsx
 import type { Metadata } from 'next';
+import { getMenuSettings } from '@/lib/menu-settings-db';
 import CarteHeroSection from '@/components/(public)/carte/carte-hero-section';
 import CarteMenuSection from '@/components/(public)/carte/carte-menu-section';
 import CartFloatingButton from '@/components/(public)/carte/cart-floating-button';
@@ -17,10 +18,12 @@ export const metadata: Metadata = {
   alternates: { canonical: '/carte' },
 };
 
-function CartePage() {
+async function CartePage() {
+  const { menuPdfUrl } = await getMenuSettings();
+
   return (
     <>
-      <CarteHeroSection />
+      <CarteHeroSection menuPdfUrl={menuPdfUrl} />
       <CarteMenuSection />
       <CartFloatingButton />
     </>
