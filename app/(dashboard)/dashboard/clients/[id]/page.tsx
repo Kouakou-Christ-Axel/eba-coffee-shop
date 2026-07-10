@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { requireAdmin } from '@/lib/auth-helpers';
+import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
 import { BackButton } from '@/components/(dashboard)/back-button';
 import { getCustomer } from '@/lib/customers';
 import { getLoyaltyCard } from '@/lib/loyalty';
@@ -55,7 +55,7 @@ export default async function CustomerDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireAdmin();
+  await requireRoleOrAnalyst(['ADMIN']);
   const { id } = await params;
 
   const [data, card] = await Promise.all([getCustomer(id), getLoyaltyCard(id)]);

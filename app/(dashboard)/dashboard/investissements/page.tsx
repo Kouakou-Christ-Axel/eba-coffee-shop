@@ -5,7 +5,7 @@ import {
   ReceiptText,
   Wallet,
 } from 'lucide-react';
-import { requireAdmin } from '@/lib/auth-helpers';
+import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
 import { listInvestments, listInvestmentSources } from '@/lib/investments';
 import {
   parseDateOnlyToUTC,
@@ -43,7 +43,7 @@ export default async function InvestissementsPage({
     source?: string;
   }>;
 }) {
-  await requireAdmin();
+  await requireRoleOrAnalyst(['ADMIN']);
   const params = await searchParams;
 
   const isAll = params.range === 'all';

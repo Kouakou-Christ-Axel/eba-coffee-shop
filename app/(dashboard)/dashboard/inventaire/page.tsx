@@ -6,7 +6,7 @@ import {
   Download,
   FileSpreadsheet,
 } from 'lucide-react';
-import { requireKitchen } from '@/lib/auth-helpers';
+import { requireRoleOrAnalyst, ROLE_GROUPS } from '@/lib/auth-helpers';
 import {
   listInventoryItems,
   getInventorySummary,
@@ -33,7 +33,7 @@ export const dynamic = 'force-dynamic';
 const priceFmt = new Intl.NumberFormat('fr-FR');
 
 export default async function InventairePage() {
-  await requireKitchen();
+  await requireRoleOrAnalyst(ROLE_GROUPS.KITCHEN_PLUS);
 
   const [items, summary, categories, expenseCats, batches, counts, daysSince] =
     await Promise.all([

@@ -13,10 +13,12 @@
 //   2. OAuth 2.0 (plugin MCP de Better Auth). Le client (Claude web/mobile) ne
 //      sait pas coller un en-tête Bearer : il suit le flux OAuth, l'utilisateur
 //      se connecte avec SON compte, et un jeton d'accès lui est délivré. On
-//      n'autorise que les comptes ADMIN, MANAGER ou COMPTABLE — chaque
-//      collaborateur a son propre accès, traçable et révocable. COMPTABLE est
-//      restreint aux outils finance (dépenses, investissements,
-//      régularisations, clôture, stats — cf. `FINANCE_TOOL_NAMES`).
+//      n'autorise que les comptes ADMIN, MANAGER, COMPTABLE ou ANALYSTE —
+//      chaque collaborateur a son propre accès, traçable et révocable.
+//      COMPTABLE est restreint aux outils finance (dépenses, investissements,
+//      régularisations, clôture, stats — cf. `FINANCE_TOOL_NAMES`). ANALYSTE
+//      est restreint aux outils en lecture seule, tous domaines confondus
+//      (cf. `READ_ONLY_TOOL_NAMES`).
 //
 // Le dispatch JSON-RPC vit dans `lib/mcp/handler.ts` ; cette route ne gère que
 // le transport HTTP (auth, parsing, réponse, CORS) et l'invalidation du cache.
@@ -28,7 +30,7 @@ import { withMcpAuth } from 'better-auth/plugins';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { handleRpc } from '@/lib/mcp/handler';
-import { FINANCE_TOOL_NAMES } from '@/lib/mcp/tools';
+import { FINANCE_TOOL_NAMES, READ_ONLY_TOOL_NAMES } from '@/lib/mcp/tools';
 import type { UserRole } from '@/generated/prisma/client';
 
 export const runtime = 'nodejs';
@@ -160,12 +162,14 @@ async function processRpc(
 // `withMcpAuth` valide le jeton d'accès OAuth (sinon 401 + `WWW-Authenticate`
 // pointant vers la métadonnée de ressource, ce qui amorce la découverte côté
 // client). On exige ensuite que l'utilisateur derrière le jeton ait un rôle
-// autorisé (ADMIN, MANAGER ou COMPTABLE). `withRoleGuard` enveloppe un
-// handler déjà autorisé (POST JSON-RPC ou flux SSE GET) : même logique
+// autorisé (ADMIN, MANAGER, COMPTABLE ou ANALYSTE). `withRoleGuard` enveloppe
+// un handler déjà autorisé (POST JSON-RPC ou flux SSE GET) : même logique
 // d'auth, deux usages. COMPTABLE reçoit en plus un `allowedTools` qui
-// restreint `tools/list`/`tools/call` aux outils finance.
+// restreint `tools/list`/`tools/call` aux outils finance ; ANALYSTE reçoit un
+// `allowedTools` restreint aux outils en lecture seule, tous domaines
+// confondus.
 
-const MCP_ROLES: UserRole[] = ['ADMIN', 'MANAGER', 'COMPTABLE'];
+const MCP_ROLES: UserRole[] = ['ADMIN', 'MANAGER', 'COMPTABLE', 'ANALYSTE'];
 
 function forbidden(): Response {
   return NextResponse.json(
@@ -194,7 +198,11 @@ function withRoleGuard(
     });
     if (!user || !MCP_ROLES.includes(user.role)) return forbidden();
     const allowedTools =
-      user.role === 'COMPTABLE' ? FINANCE_TOOL_NAMES : undefined;
+      user.role === 'COMPTABLE'
+        ? FINANCE_TOOL_NAMES
+        : user.role === 'ANALYSTE'
+          ? READ_ONLY_TOOL_NAMES
+          : undefined;
     return handler(req, allowedTools);
   });
 }

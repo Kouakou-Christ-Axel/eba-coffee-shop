@@ -2023,3 +2023,12 @@ export const toolsByName = new Map(tools.map((t) => [t.name, t]));
 export const FINANCE_TOOL_NAMES = new Set(
   tools.filter((t) => t.scope === 'finance').map((t) => t.name)
 );
+
+/**
+ * Noms des outils accessibles au rôle ANALYSTE (lecture seule, tous
+ * domaines). Utilisé par `withRoleGuard` dans `app/api/mcp/route.ts` pour
+ * restreindre `tools/list`/`tools/call` aux outils annotés `readOnly: true`.
+ */
+export const READ_ONLY_TOOL_NAMES = new Set(
+  tools.filter((t) => t.readOnly).map((t) => t.name)
+);

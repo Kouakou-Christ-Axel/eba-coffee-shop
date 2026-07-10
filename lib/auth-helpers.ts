@@ -25,6 +25,7 @@ const STATS_ROLES: UserRole[] = [
   'MANAGER',
   'ASSISTANT_MANAGER',
   'COMPTABLE',
+  'ANALYSTE',
 ];
 const CASHIER_ROLES: UserRole[] = [
   'ADMIN',
@@ -53,6 +54,7 @@ const DASHBOARD_ROLES: UserRole[] = [
   'CASHIER',
   'KITCHEN',
   'COMPTABLE',
+  'ANALYSTE',
 ];
 
 // Validation runtime du shape renvoyé par Better Auth.
@@ -79,6 +81,7 @@ export const authorizedSessionSchema = z.object({
       'MANAGER',
       'COMPTABLE',
       'ASSISTANT_MANAGER',
+      'ANALYSTE',
     ]),
   }),
 });
@@ -122,6 +125,19 @@ async function requireRole(allowed: UserRole[]): Promise<AuthorizedSession> {
     throw new Error('Non autorisé');
   }
   return session;
+}
+
+/**
+ * Autorise `roles` OU le rôle ANALYSTE (lecture seule, tous domaines).
+ *
+ * À utiliser UNIQUEMENT sur les guards de page (vue) — jamais sur un guard
+ * qui protège aussi une mutation dans un `actions.ts`, sous peine de donner
+ * involontairement des droits d'écriture à ANALYSTE.
+ */
+export async function requireRoleOrAnalyst(
+  roles: UserRole[]
+): Promise<AuthorizedSession> {
+  return requireRole([...roles, 'ANALYSTE']);
 }
 
 /** ADMIN seul. */

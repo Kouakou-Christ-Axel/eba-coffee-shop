@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { requireAdmin } from '@/lib/auth-helpers';
+import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
 import { listCustomers } from '@/lib/customers';
 import { formatPhoneForDisplay } from '@/lib/phone';
 import {
@@ -28,7 +28,7 @@ export default async function ClientsPage({
 }: {
   searchParams: Promise<{ search?: string; page?: string }>;
 }) {
-  await requireAdmin();
+  await requireRoleOrAnalyst(['ADMIN']);
   const params = await searchParams;
   const page = Math.max(1, Number(params.page ?? 1));
   const search = params.search?.trim() || undefined;
