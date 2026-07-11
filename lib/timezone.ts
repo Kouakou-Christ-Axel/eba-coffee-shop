@@ -90,6 +90,45 @@ export function shiftDateString(value: string, delta: number): string {
   return formatLocalDateOnly(base);
 }
 
+// ─── Bucketing mensuel (stats dépenses) ────────────────────────────────────────
+
+/** Mois civil 'YYYY-MM' d'une Date (Abidjan = UTC → composantes UTC). */
+export function monthKeyFromDate(d: Date): string {
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}`;
+}
+
+/**
+ * Liste des mois civils 'YYYY-MM' couverts (inclus) par une plage de Dates —
+ * sert à remplir les mois vides à zéro dans les séries mensuelles.
+ */
+export function listMonthKeys(from: Date, to: Date): string[] {
+  const keys: string[] = [];
+  const cursor = new Date(
+    Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1)
+  );
+  const end = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), 1);
+  while (cursor.getTime() <= end) {
+    keys.push(monthKeyFromDate(cursor));
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+  }
+  return keys;
+}
+
+/**
+ * Bornes (à minuit UTC, cohérentes avec les colonnes @db.Date) du mois civil
+ * en cours à Abidjan — plage par défaut des stats de fréquence d'achat.
+ */
+export function currentMonthRange(): { from: Date; to: Date } {
+  const today = parseDateOnlyToUTC(todayDateString())!;
+  const from = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)
+  );
+  const to = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)
+  );
+  return { from, to };
+}
+
 // ─── Créneaux de retrait : datetime-local ⇄ instant, ancrés Abidjan ────────────
 //
 // Le widget <input type="datetime-local"> n'a AUCUNE notion de fuseau : sa valeur

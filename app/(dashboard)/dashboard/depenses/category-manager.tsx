@@ -11,9 +11,17 @@ import {
   deleteExpenseCategoryAction,
 } from './actions';
 
-type Category = { id: string; name: string; _count: { expenses: number } };
+export type CategoryRow = {
+  id: string;
+  name: string;
+  nature: 'FIXED' | 'VARIABLE';
+  _count: { expenses: number };
+};
 
-export function CategoryManager({ categories }: { categories: Category[] }) {
+const selectClass =
+  'h-8 rounded-md border border-input bg-transparent px-2 text-xs shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
+
+export function CategoryManager({ categories }: { categories: CategoryRow[] }) {
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -39,6 +47,16 @@ export function CategoryManager({ categories }: { categories: Category[] }) {
       const r = await updateExpenseCategoryAction(id, { name });
       if (!r.ok) setError(r.error);
       else setEditingId(null);
+    });
+  }
+
+  // Fixe (loyer, salaires, abonnements…) ou variable (achats) : alimente le
+  // split fixes/variables des statistiques.
+  function setNature(id: string, nature: 'FIXED' | 'VARIABLE') {
+    setError(null);
+    startTransition(async () => {
+      const r = await updateExpenseCategoryAction(id, { nature });
+      if (!r.ok) setError(r.error);
     });
   }
 
@@ -117,6 +135,18 @@ export function CategoryManager({ categories }: { categories: Category[] }) {
                     <Badge variant="outline">{c._count.expenses}</Badge>
                   </span>
                   <div className="flex items-center gap-1">
+                    <select
+                      className={selectClass}
+                      value={c.nature}
+                      onChange={(e) =>
+                        setNature(c.id, e.target.value as 'FIXED' | 'VARIABLE')
+                      }
+                      disabled={pending}
+                      aria-label={`Nature de « ${c.name} »`}
+                    >
+                      <option value="VARIABLE">Variable</option>
+                      <option value="FIXED">Fixe</option>
+                    </select>
                     <Button
                       size="icon"
                       variant="ghost"

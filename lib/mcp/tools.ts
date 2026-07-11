@@ -22,7 +22,7 @@ import {
   getDailySeries,
   getTopProducts,
 } from '@/lib/stats';
-import { parseDateOnlyToUTC } from '@/lib/timezone';
+import { parseDateOnlyToUTC, currentMonthRange } from '@/lib/timezone';
 import {
   createCategory,
   updateCategory,
@@ -52,6 +52,10 @@ import {
   listExpenseCategories,
   listExpenses,
   getExpenseSummary,
+  listExpenseArticles,
+  getExpenseArticleStats,
+  getExpenseArticleHistory,
+  getExpenseMonthlySeries,
 } from '@/lib/expenses';
 import {
   createExpenseCategory,
@@ -60,11 +64,16 @@ import {
   createExpense,
   updateExpense,
   deleteExpense,
+  renameExpenseArticle,
+  deleteExpenseArticle,
 } from '@/lib/expense-mutations';
 import {
   expenseCategoryInputSchema,
   expenseInputSchema,
+  expenseUpdateObjectSchema,
   expenseFiltersSchema,
+  expenseFrequencyFiltersSchema,
+  expenseArticleRenameSchema,
 } from '@/lib/schemas/expense';
 import {
   listInvestmentSources,
@@ -361,7 +370,9 @@ export const tools: McpTool[] = [
     title: 'Créer une catégorie de dépense',
     description:
       'Crée une catégorie de dépense (ex. « Emballages », « Loyer »). Le nom ' +
-      'doit être unique.',
+      'doit être unique. `nature` ∈ FIXED (charges fixes : loyer, salaires, ' +
+      'abonnements…) / VARIABLE (défaut — achats variables) : elle alimente le ' +
+      'split fixes/variables des statistiques.',
     inputSchema: expenseCategoryInputSchema,
     readOnly: false,
     handler: (args) => createExpenseCategory(args),
@@ -369,12 +380,14 @@ export const tools: McpTool[] = [
   {
     name: 'update_expense_category',
     scope: 'finance',
-    title: 'Renommer une catégorie de dépense',
-    description: 'Met à jour le nom d’une catégorie de dépense.',
-    inputSchema: expenseCategoryInputSchema.extend({ id: idSchema }),
+    title: 'Modifier une catégorie de dépense',
+    description:
+      'Met à jour une catégorie de dépense de façon PARTIELLE : `name` et/ou ' +
+      '`nature` (FIXED = charge fixe, VARIABLE = achat variable).',
+    inputSchema: expenseCategoryInputSchema.partial().extend({ id: idSchema }),
     readOnly: false,
     handler: (args) => {
-      const { id, ...rest } = args as { id: string; name: string };
+      const { id, ...rest } = args as { id: string } & Record<string, unknown>;
       return updateExpenseCategory(id, rest);
     },
   },
@@ -398,8 +411,10 @@ export const tools: McpTool[] = [
     description:
       'Renvoie les dépenses filtrées par plage de dates (`from`/`to`, ' +
       '`YYYY-MM-DD`, jour civil Abidjan), `categoryId`, `paymentMethod` ' +
-      '(CASH/WAVE/BANK/OTHER) et/ou `search` (fournisseur ou note), avec le ' +
-      'total. Chaque dépense porte un numéro de reçu `receiptNo` ' +
+      '(CASH/WAVE/BANK/OTHER) et/ou `search` (fournisseur, note, ou nom ' +
+      'd’article du détail — « farine » retrouve les dépenses contenant une ' +
+      'ligne « Farine T45 »), avec le total. Chaque dépense inclut ses lignes ' +
+      'de détail (`items`) et porte un numéro de reçu `receiptNo` ' +
       '(DEP-YYYY-MM-NNNN, séquence remise à zéro chaque mois). Tous les ' +
       'filtres sont optionnels.',
     inputSchema: expenseFiltersSchema,
@@ -426,13 +441,15 @@ export const tools: McpTool[] = [
     scope: 'finance',
     title: 'Synthèse des dépenses',
     description:
-      'Renvoie le total des dépenses et leur ventilation par catégorie sur ' +
-      'une plage de dates. Montants en francs CFA.',
+      'Renvoie le total des dépenses, le split charges fixes / dépenses ' +
+      'variables (`fixed`/`variable`, selon la nature des catégories) et la ' +
+      'ventilation par catégorie (montant + nombre) sur une plage de dates. ' +
+      'Montants en francs CFA.',
     inputSchema: rangeSchema,
     readOnly: true,
     handler: (args) => {
       const { from, to } = toRange(args);
-      return getExpenseSummary(from, to);
+      return getExpenseSummary({ dateFrom: from, dateTo: to });
     },
   },
   {
@@ -440,12 +457,19 @@ export const tools: McpTool[] = [
     scope: 'finance',
     title: 'Créer une dépense',
     description:
-      'Enregistre une dépense. `date` au format `YYYY-MM-DD`, `amount` en ' +
-      'francs CFA entiers, `categoryId` issu de `list_expense_categories`. ' +
-      '`paymentMethod` ∈ CASH/WAVE/BANK/OTHER (défaut CASH). `supplier`, ' +
-      '`note` et `receiptUrl` sont optionnels ; pour joindre une photo encodée, ' +
-      'utilise `set_expense_receipt` après création. Un numéro de reçu ' +
-      '`receiptNo` (DEP-YYYY-MM-NNNN) est attribué automatiquement et renvoyé.',
+      'Enregistre une dépense, en UN SEUL appel même détaillée. `date` au ' +
+      'format `YYYY-MM-DD`, `categoryId` issu de `list_expense_categories`, ' +
+      '`paymentMethod` ∈ CASH/WAVE/BANK/OTHER (défaut CASH) ; `supplier` et ' +
+      '`note` optionnels. DÉTAIL PAR ARTICLE (recommandé — il alimente les ' +
+      'stats de fréquence) : fournis `items[]`, une ligne par article acheté ' +
+      'avec `articleName` en texte libre (ex. « Farine T45 » — l’article est ' +
+      'retrouvé, insensible à la casse, ou créé automatiquement ; pas d’étape ' +
+      'préalable), et `quantity` + `unit` + `unitPrice`, OU directement ' +
+      '`amount`. Aucun calcul à faire : le montant d’une ligne est dérivé de ' +
+      'quantité × prix unitaire, et le montant total de la dépense (`amount`, ' +
+      'optionnel avec `items`) est dérivé de la somme des lignes. Un numéro ' +
+      'de reçu `receiptNo` (DEP-YYYY-MM-NNNN) est attribué automatiquement. ' +
+      'Pour joindre une photo, utilise `set_expense_receipt` après création.',
     inputSchema: expenseInputSchema,
     readOnly: false,
     handler: (args) => createExpense(args),
@@ -456,9 +480,13 @@ export const tools: McpTool[] = [
     title: 'Modifier une dépense',
     description:
       'Met à jour une dépense de façon PARTIELLE : ne fournis que les champs à ' +
-      'modifier. Le numéro de reçu (`receiptNo`) est immuable et ne change ' +
-      'jamais, même si la `date` est modifiée.',
-    inputSchema: expenseInputSchema.partial().extend({ id: idSchema }),
+      'modifier. `items` REMPLACE tout le détail existant (mêmes règles que ' +
+      '`create_expense` ; `amount` omis = dérivé de la somme) ; `items: null` ' +
+      'retire le détail. Modifier `amount` seul est refusé si la dépense a un ' +
+      'détail (l’invariant somme des lignes == montant est garanti). Le numéro ' +
+      'de reçu (`receiptNo`) est immuable et ne change jamais, même si la ' +
+      '`date` est modifiée.',
+    inputSchema: expenseUpdateObjectSchema.extend({ id: idSchema }),
     readOnly: false,
     handler: (args) => {
       const { id, ...rest } = args as { id: string } & Record<string, unknown>;
@@ -510,6 +538,121 @@ export const tools: McpTool[] = [
       );
       return updateExpense(id, { receiptUrl: url });
     },
+  },
+
+  // — Dépenses : articles & fréquence d'achat —
+  {
+    name: 'list_expense_articles',
+    scope: 'finance',
+    title: 'Lister les articles de dépense',
+    description:
+      'Renvoie le référentiel des articles de dépense (« Farine T45 », ' +
+      '« Sucre », « Gaz »…) avec leur `id`, le nombre de lignes rattachées et ' +
+      'l’éventuel lien inventaire. `search` filtre par nom (contains, ' +
+      'insensible). Utile pour désambiguïser avant `get_expense_article_history` ' +
+      'ou pour réutiliser un `articleId` exact — mais `create_expense` accepte ' +
+      'directement `articleName` en texte libre.',
+    inputSchema: z.object({
+      search: z.string().trim().min(1).optional(),
+    }),
+    readOnly: true,
+    handler: (args) =>
+      listExpenseArticles((args as { search?: string }).search),
+  },
+  {
+    name: 'get_expense_frequency',
+    scope: 'finance',
+    title: 'Fréquence d’achat par article',
+    description:
+      'Répond à « combien de fois a-t-on acheté X ? » : stats par article de ' +
+      'dépense sur une plage de jours civils — nombre d’achats (dépenses ' +
+      'distinctes), montant total, quantité cumulée et prix unitaire moyen ' +
+      'pondéré (si unités homogènes), premier/dernier achat, intervalle moyen ' +
+      'entre achats (jours) et cadence mensuelle. SANS `from`/`to`, la plage ' +
+      'est LE MOIS EN COURS (Abidjan). `search` filtre par nom d’article ' +
+      '(ex. « farine » → « Farine T45 »). Tri : montant total décroissant. ' +
+      'Ne couvre que les dépenses détaillées (avec lignes d’articles).',
+    inputSchema: expenseFrequencyFiltersSchema,
+    readOnly: true,
+    handler: (args) => {
+      const f = args as { from?: string; to?: string; search?: string };
+      const defaults = currentMonthRange();
+      let from = parseDateOnlyToUTC(f.from) ?? defaults.from;
+      let to = parseDateOnlyToUTC(f.to) ?? defaults.to;
+      if (from.getTime() > to.getTime()) [from, to] = [to, from];
+      return getExpenseArticleStats({ from, to, search: f.search });
+    },
+  },
+  {
+    name: 'get_expense_article_history',
+    scope: 'finance',
+    title: 'Historique d’achat d’un article',
+    description:
+      'Renvoie l’historique détaillé des achats d’un article de dépense ' +
+      '(`articleId` issu de `list_expense_articles` ou ' +
+      '`get_expense_frequency`) : chaque ligne avec quantité, prix unitaire, ' +
+      'montant, et sa dépense (date, numéro de reçu, fournisseur, paiement, ' +
+      'catégorie). `from`/`to` optionnels (toutes dates sinon). Ordre ' +
+      'antichronologique.',
+    inputSchema: z.object({
+      articleId: idSchema,
+      from: dateOnly.optional(),
+      to: dateOnly.optional(),
+    }),
+    readOnly: true,
+    handler: async (args) => {
+      const a = args as { articleId: string; from?: string; to?: string };
+      const history = await getExpenseArticleHistory(
+        a.articleId,
+        parseDateOnlyToUTC(a.from),
+        parseDateOnlyToUTC(a.to)
+      );
+      if (!history) throw new Error('Article de dépense introuvable.');
+      return history;
+    },
+  },
+  {
+    name: 'get_expense_monthly_series',
+    scope: 'finance',
+    title: 'Série mensuelle des dépenses',
+    description:
+      'Renvoie les dépenses par mois civil (`YYYY-MM`) sur une plage de ' +
+      'dates, éclatées charges fixes / dépenses variables selon la nature des ' +
+      'catégories. Les mois sans dépense figurent à zéro. Montants en francs ' +
+      'CFA.',
+    inputSchema: rangeSchema,
+    readOnly: true,
+    handler: (args) => {
+      const { from, to } = toRange(args);
+      return getExpenseMonthlySeries(from, to);
+    },
+  },
+  {
+    name: 'rename_expense_article',
+    scope: 'finance',
+    title: 'Renommer un article de dépense',
+    description:
+      'Renomme un article du référentiel (ex. corriger « farine t45 » en ' +
+      '« Farine T45 »). Toutes les lignes existantes suivent. Refusé si un ' +
+      'autre article porte déjà ce nom (à normalisation près).',
+    inputSchema: expenseArticleRenameSchema.extend({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, ...rest } = args as { id: string; name: string };
+      return renameExpenseArticle(id, rest);
+    },
+  },
+  {
+    name: 'delete_expense_article',
+    scope: 'finance',
+    title: 'Supprimer un article de dépense',
+    description:
+      'Retire un article du référentiel (soft delete) : il disparaît de ' +
+      'l’autocomplétion mais les lignes et statistiques existantes le ' +
+      'conservent. Recréer un article du même nom le réactive.',
+    inputSchema: z.object({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => deleteExpenseArticle((args as { id: string }).id),
   },
 
   // — Investissements : sources de financement —
@@ -1703,7 +1846,9 @@ export const tools: McpTool[] = [
       '`quantity` (décimale) et un `unitCost` (coût unitaire en francs CFA) ; le ' +
       'stock et le PMP de chaque référence sont mis à jour. `supplier` optionnel. ' +
       'Si `createExpense` est true, une dépense liée du montant total est créée ' +
-      '(fournis alors `expenseCategoryId`). Renvoie le lot créé.',
+      '(fournis alors `expenseCategoryId`), détaillée automatiquement par ' +
+      'article (une ligne par achat — elle alimente `get_expense_frequency`). ' +
+      'Renvoie le lot créé.',
     inputSchema: batchRestockSchema,
     readOnly: false,
     handler: (args) => batchRestock(args),

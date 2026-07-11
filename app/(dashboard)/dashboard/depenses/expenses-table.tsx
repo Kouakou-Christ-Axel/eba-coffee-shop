@@ -1,7 +1,9 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { Fragment, useMemo, useState, useTransition } from 'react';
 import {
+  ChevronDown,
+  ChevronRight,
   Copy,
   Loader2,
   Pencil,
@@ -27,7 +29,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { todayDateString } from '@/lib/timezone';
 import { deleteExpenseAction } from './actions';
 import {
@@ -35,11 +36,19 @@ import {
   emptyExpense,
   type ExpenseFormValues,
 } from './expense-form';
-import { CategoryManager } from './category-manager';
-import { RecurringManager, type RecurringRow } from './recurring-manager';
+import { CategoryManager, type CategoryRow } from './category-manager';
 
 type Category = { id: string; name: string };
-type CategoryWithCount = Category & { _count: { expenses: number } };
+type Article = { id: string; name: string };
+
+export type ExpenseItemRow = {
+  articleName: string;
+  label: string | null;
+  quantity: number | null;
+  unit: string | null;
+  unitPrice: number | null;
+  amount: number;
+};
 
 export type ExpenseRow = {
   id: string;
@@ -53,9 +62,11 @@ export type ExpenseRow = {
   receiptUrl: string | null;
   categoryId: string;
   categoryName: string;
+  items: ExpenseItemRow[];
 };
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
+const qtyFmt = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 });
 
 function rowToValues(
   r: ExpenseRow,
@@ -70,23 +81,34 @@ function rowToValues(
     supplier: r.supplier ?? '',
     note: r.note ?? '',
     receiptUrl: mode === 'duplicate' ? null : r.receiptUrl,
+    // La duplication recopie aussi le détail : re-saisir le même panier du
+    // marché = 2 clics.
+    items: r.items.map((i) => ({
+      articleName: i.articleName,
+      quantity: i.quantity != null ? String(i.quantity) : '',
+      unit: i.unit ?? '',
+      unitPrice: i.unitPrice != null ? String(i.unitPrice) : '',
+      amount: String(i.amount),
+    })),
   };
 }
 
 export function ExpensesTable({
   expenses,
   categories,
-  recurring,
+  articles,
   total,
 }: {
   expenses: ExpenseRow[];
-  categories: CategoryWithCount[];
-  recurring: RecurringRow[];
+  categories: CategoryRow[];
+  articles: Article[];
   total: number;
 }) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  // Lignes dépliées (détail par article visible).
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   // Sheet de saisie (création / édition / duplication).
   const [formOpen, setFormOpen] = useState(false);
@@ -110,6 +132,15 @@ export function ExpensesTable({
     }
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
   }, [expenses]);
+
+  function toggleExpanded(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function openCreate() {
     setFormMode('create');
@@ -162,6 +193,7 @@ export function ExpensesTable({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8" />
               <TableHead>N° reçu</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Catégorie</TableHead>
@@ -175,78 +207,148 @@ export function ExpensesTable({
           </TableHeader>
           <TableBody>
             {expenses.map((e) => (
-              <TableRow key={e.id}>
-                <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
-                  {e.receiptNo ?? '—'}
-                </TableCell>
-                <TableCell className="whitespace-nowrap font-mono text-sm">
-                  {e.date}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary">{e.categoryName}</Badge>
-                </TableCell>
-                <TableCell className="tabular-nums">
-                  {priceFmt.format(e.amount)} F
-                </TableCell>
-                <TableCell className="text-sm">{e.paymentLabel}</TableCell>
-                <TableCell className="text-sm">{e.supplier ?? '—'}</TableCell>
-                <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">
-                  {e.note ?? '—'}
-                </TableCell>
-                <TableCell>
-                  {e.receiptUrl ? (
-                    <a
-                      href={e.receiptUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center text-primary hover:underline"
-                      aria-label="Voir le justificatif"
-                    >
-                      <Receipt className="h-4 w-4" />
-                    </a>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => openEdit(e)}
-                      aria-label="Modifier la dépense"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => openDuplicate(e)}
-                      aria-label="Dupliquer la dépense"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => remove(e.id)}
-                      disabled={pendingId === e.id}
-                      aria-label="Supprimer la dépense"
-                    >
-                      {pendingId === e.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4 text-destructive" />
+              <Fragment key={e.id}>
+                <TableRow>
+                  <TableCell className="pr-0">
+                    {e.items.length > 0 && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-6"
+                        onClick={() => toggleExpanded(e.id)}
+                        aria-label={
+                          expanded.has(e.id)
+                            ? 'Masquer le détail'
+                            : 'Voir le détail'
+                        }
+                      >
+                        {expanded.has(e.id) ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+                    {e.receiptNo ?? '—'}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap font-mono text-sm">
+                    {e.date}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="secondary">{e.categoryName}</Badge>
+                      {e.items.length > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="cursor-pointer whitespace-nowrap"
+                          onClick={() => toggleExpanded(e.id)}
+                        >
+                          {e.items.length} article
+                          {e.items.length > 1 ? 's' : ''}
+                        </Badge>
                       )}
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
+                    </div>
+                  </TableCell>
+                  <TableCell className="tabular-nums">
+                    {priceFmt.format(e.amount)} F
+                  </TableCell>
+                  <TableCell className="text-sm">{e.paymentLabel}</TableCell>
+                  <TableCell className="text-sm">{e.supplier ?? '—'}</TableCell>
+                  <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">
+                    {e.note ?? '—'}
+                  </TableCell>
+                  <TableCell>
+                    {e.receiptUrl ? (
+                      <a
+                        href={e.receiptUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center text-primary hover:underline"
+                        aria-label="Voir le justificatif"
+                      >
+                        <Receipt className="h-4 w-4" />
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openEdit(e)}
+                        aria-label="Modifier la dépense"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => openDuplicate(e)}
+                        aria-label="Dupliquer la dépense"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => remove(e.id)}
+                        disabled={pendingId === e.id}
+                        aria-label="Supprimer la dépense"
+                      >
+                        {pendingId === e.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        )}
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+                {expanded.has(e.id) && e.items.length > 0 && (
+                  <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableCell />
+                    <TableCell colSpan={9} className="py-2">
+                      <ul className="space-y-1 text-sm">
+                        {e.items.map((item, i) => (
+                          <li
+                            key={i}
+                            className="flex flex-wrap items-baseline gap-x-2"
+                          >
+                            <span className="font-medium">
+                              {item.articleName}
+                            </span>
+                            {item.label && (
+                              <span className="text-muted-foreground">
+                                {item.label}
+                              </span>
+                            )}
+                            <span className="text-muted-foreground">
+                              {item.quantity != null
+                                ? `${qtyFmt.format(item.quantity)} ${item.unit ?? ''}`.trim()
+                                : ''}
+                              {item.quantity != null &&
+                                item.unitPrice != null &&
+                                ` × ${priceFmt.format(item.unitPrice)} F`}
+                            </span>
+                            <span className="ml-auto font-medium tabular-nums">
+                              {priceFmt.format(item.amount)} F
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
             ))}
             {expenses.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={10}
                   className="py-8 text-center text-sm text-muted-foreground"
                 >
                   Aucune dépense sur cette sélection.
@@ -285,7 +387,8 @@ export function ExpensesTable({
               {formMode === 'edit' ? 'Modifier la dépense' : 'Nouvelle dépense'}
             </SheetTitle>
             <SheetDescription>
-              Dépense d’exploitation catégorisée.
+              Dépense d’exploitation catégorisée — détaille les articles pour
+              alimenter les statistiques de fréquence.
             </SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-4">
@@ -293,6 +396,7 @@ export function ExpensesTable({
               // Remonte le formulaire à chaque ouverture (reset des champs).
               key={`${formMode}-${formInitial.id ?? 'new'}-${formOpen}`}
               categories={plainCategories}
+              articles={articles}
               mode={formMode}
               initial={formInitial}
               onSuccess={() => setFormOpen(false)}
@@ -305,27 +409,13 @@ export function ExpensesTable({
       <Sheet open={categoriesOpen} onOpenChange={setCategoriesOpen}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           <SheetHeader>
-            <SheetTitle>Catégories & récurrentes</SheetTitle>
+            <SheetTitle>Catégories</SheetTitle>
             <SheetDescription>
-              Catégories de dépense et modèles récurrents (loyer, abonnements…).
+              Catégories de dépense et leur nature (fixe / variable).
             </SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-4">
-            <Tabs defaultValue="categories">
-              <TabsList className="mb-4">
-                <TabsTrigger value="categories">Catégories</TabsTrigger>
-                <TabsTrigger value="recurring">Récurrentes</TabsTrigger>
-              </TabsList>
-              <TabsContent value="categories">
-                <CategoryManager categories={categories} />
-              </TabsContent>
-              <TabsContent value="recurring">
-                <RecurringManager
-                  recurring={recurring}
-                  categories={plainCategories}
-                />
-              </TabsContent>
-            </Tabs>
+            <CategoryManager categories={categories} />
           </div>
         </SheetContent>
       </Sheet>

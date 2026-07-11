@@ -34,6 +34,18 @@ export const inventoryUnitSchema = z.enum([
 
 export type InventoryUnitInput = z.infer<typeof inventoryUnitSchema>;
 
+// Unité d'inventaire → libellé libre côté lignes de dépense (ExpenseItem.unit).
+// Partagé par batchRestock (lib/inventory-mutations.ts) et le backfill du
+// détail des dépenses (lib/expense-mutations.ts).
+export const INVENTORY_UNIT_LABEL: Record<InventoryUnitInput, string> = {
+  UNIT: 'unité',
+  KG: 'kg',
+  G: 'g',
+  L: 'L',
+  ML: 'ml',
+  BOX: 'carton',
+};
+
 const quantity = z
   .number()
   .nonnegative('Quantité invalide')

@@ -10,10 +10,10 @@ langage naturel.
 
 ## Deux façons de s'authentifier
 
-| Mode                           | Pour qui / quoi                             | Multi-utilisateurs ? |
-| ------------------------------ | ------------------------------------------- | -------------------- |
+| Mode                           | Pour qui / quoi                             | Multi-utilisateurs ?                           |
+| ------------------------------ | ------------------------------------------- | ---------------------------------------------- |
 | **OAuth 2.0** (recommandé)     | Claude **web / mobile / desktop**           | ✅ par compte ADMIN/MANAGER/COMPTABLE/ANALYSTE |
-| **Clé statique** `MCP_API_KEY` | Clients « machine » : Claude Code CLI, curl | ❌ secret partagé    |
+| **Clé statique** `MCP_API_KEY` | Clients « machine » : Claude Code CLI, curl | ❌ secret partagé                              |
 
 Le serveur tente d'abord la clé statique (si `MCP_API_KEY` est fournie en
 `Authorization: Bearer …`) ; sinon il bascule sur OAuth. **Toute requête sans
@@ -129,15 +129,21 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `get_daily_series`               | lecture  | Série jour par jour (commandes + CA) sur plage               |
 | `get_top_products`               | lecture  | Top produits vendus sur une plage (`limit?`)                 |
 | `list_expense_categories`        | lecture  | Catégories de dépense (+ nombre de dépenses)                 |
-| `create_expense_category`        | écriture | Créer une catégorie de dépense                               |
-| `update_expense_category`        | écriture | Renommer une catégorie de dépense                            |
+| `create_expense_category`        | écriture | Créer une catégorie de dépense (nature fixe/variable)        |
+| `update_expense_category`        | écriture | Modifier une catégorie (nom et/ou nature, partiel)           |
 | `delete_expense_category`        | écriture | Supprimer une catégorie (soft delete, conserve les dépenses) |
-| `list_expenses`                  | lecture  | Lister les dépenses (filtres date/catégorie)                 |
-| `get_expense_summary`            | lecture  | Total + ventilation des dépenses par catégorie               |
-| `create_expense`                 | écriture | Enregistrer une dépense                                      |
-| `update_expense`                 | écriture | Modifier une dépense (mise à jour **partielle**)             |
-| `delete_expense`                 | écriture | Supprimer une dépense                                        |
+| `list_expenses`                  | lecture  | Lister les dépenses + détail (recherche incl. articles)      |
+| `get_expense_summary`            | lecture  | Total + split fixes/variables + ventilation par catégorie    |
+| `create_expense`                 | écriture | Enregistrer une dépense, détail par article en un appel      |
+| `update_expense`                 | écriture | Modifier une dépense (partiel ; `items` remplace le détail)  |
+| `delete_expense`                 | écriture | Supprimer une dépense (et son détail)                        |
 | `set_expense_receipt`            | écriture | Joindre un justificatif (base64 ou URL)                      |
+| `list_expense_articles`          | lecture  | Référentiel des articles de dépense (« Farine T45 »…)        |
+| `get_expense_frequency`          | lecture  | Fréquence d’achat par article (défaut : mois en cours)       |
+| `get_expense_article_history`    | lecture  | Historique des achats d’un article (drill-down)              |
+| `get_expense_monthly_series`     | lecture  | Dépenses par mois, éclatées fixes/variables                  |
+| `rename_expense_article`         | écriture | Renommer un article du référentiel                           |
+| `delete_expense_article`         | écriture | Retirer un article du référentiel (soft delete)              |
 | `list_investment_sources`        | lecture  | Sources de financement (+ nombre d’apports)                  |
 | `create_investment_source`       | écriture | Créer une source de financement                              |
 | `update_investment_source`       | écriture | Renommer une source de financement                           |

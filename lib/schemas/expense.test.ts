@@ -4,6 +4,8 @@ import {
   expenseInputSchema,
   expenseUpdateSchema,
   expenseCategoryInputSchema,
+  expenseItemInputSchema,
+  resolveExpenseItemAmount,
 } from '@/lib/schemas/expense';
 
 describe('expenseInputSchema', () => {
@@ -51,10 +53,120 @@ describe('expenseInputSchema', () => {
   });
 });
 
+describe('expenseInputSchema — lignes de détail (items)', () => {
+  const base = { date: '2026-07-10', categoryId: 'c' };
+
+  it('exige amount OU items (dépense sans montant ni détail refusée)', () => {
+    expect(expenseInputSchema.safeParse(base).success).toBe(false);
+  });
+
+  it('accepte des items sans amount global (dérivé de la somme)', () => {
+    const parsed = expenseInputSchema.parse({
+      ...base,
+      items: [
+        { articleName: 'Farine T45', quantity: 2, unitPrice: 5000 },
+        { articleName: 'Sucre', amount: 3000 },
+      ],
+    });
+    expect(parsed.amount).toBeUndefined();
+    expect(parsed.items).toHaveLength(2);
+  });
+
+  it('refuse un amount global différent de la somme des lignes', () => {
+    const r = expenseInputSchema.safeParse({
+      ...base,
+      amount: 12000,
+      items: [{ articleName: 'Farine T45', amount: 13000 }],
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('accepte un amount global égal à la somme (lignes dérivées comprises)', () => {
+    const r = expenseInputSchema.safeParse({
+      ...base,
+      amount: 13000,
+      items: [
+        { articleName: 'Farine T45', quantity: 2, unitPrice: 5000 }, // 10 000
+        { articleName: 'Sucre', amount: 3000 },
+      ],
+    });
+    expect(r.success).toBe(true);
+  });
+});
+
+describe('expenseItemInputSchema', () => {
+  it('exige articleId XOR articleName', () => {
+    expect(expenseItemInputSchema.safeParse({ amount: 100 }).success).toBe(
+      false
+    );
+    expect(
+      expenseItemInputSchema.safeParse({
+        articleId: 'a',
+        articleName: 'Farine',
+        amount: 100,
+      }).success
+    ).toBe(false);
+    expect(
+      expenseItemInputSchema.safeParse({ articleName: 'Farine', amount: 100 })
+        .success
+    ).toBe(true);
+  });
+
+  it('exige amount, ou quantity + unitPrice', () => {
+    expect(
+      expenseItemInputSchema.safeParse({ articleName: 'Farine', quantity: 2 })
+        .success
+    ).toBe(false);
+    expect(
+      expenseItemInputSchema.safeParse({
+        articleName: 'Farine',
+        quantity: 2,
+        unitPrice: 5000,
+      }).success
+    ).toBe(true);
+  });
+
+  it('tolère 1 F d’arrondi entre amount et quantity × unitPrice', () => {
+    const line = { articleName: 'Café', quantity: 1.5, unitPrice: 333 }; // 499.5
+    expect(
+      expenseItemInputSchema.safeParse({ ...line, amount: 500 }).success
+    ).toBe(true);
+    expect(
+      expenseItemInputSchema.safeParse({ ...line, amount: 600 }).success
+    ).toBe(false);
+  });
+
+  it('resolveExpenseItemAmount dérive le montant manquant', () => {
+    expect(resolveExpenseItemAmount({ amount: 750 })).toBe(750);
+    expect(resolveExpenseItemAmount({ quantity: 2, unitPrice: 5000 })).toBe(
+      10000
+    );
+    expect(resolveExpenseItemAmount({ quantity: 1.5, unitPrice: 333 })).toBe(
+      500
+    );
+  });
+});
+
 describe('expenseUpdateSchema', () => {
   it('exige au moins un champ', () => {
     expect(expenseUpdateSchema.safeParse({}).success).toBe(false);
     expect(expenseUpdateSchema.safeParse({ amount: 200 }).success).toBe(true);
+  });
+
+  it('accepte items: null (dé-itemisation) et items en replace-all', () => {
+    expect(expenseUpdateSchema.safeParse({ items: null }).success).toBe(true);
+    expect(
+      expenseUpdateSchema.safeParse({
+        items: [{ articleName: 'Farine T45', amount: 5000 }],
+      }).success
+    ).toBe(true);
+    // Somme incohérente avec l'amount fourni → refus.
+    expect(
+      expenseUpdateSchema.safeParse({
+        amount: 9000,
+        items: [{ articleName: 'Farine T45', amount: 5000 }],
+      }).success
+    ).toBe(false);
   });
 });
 
@@ -66,5 +178,16 @@ describe('expenseCategoryInputSchema', () => {
     expect(expenseCategoryInputSchema.safeParse({ name: '   ' }).success).toBe(
       false
     );
+  });
+
+  it('accepte la nature FIXED/VARIABLE (optionnelle)', () => {
+    expect(
+      expenseCategoryInputSchema.parse({ name: 'Loyer', nature: 'FIXED' })
+        .nature
+    ).toBe('FIXED');
+    expect(
+      expenseCategoryInputSchema.safeParse({ name: 'X', nature: 'AUTRE' })
+        .success
+    ).toBe(false);
   });
 });

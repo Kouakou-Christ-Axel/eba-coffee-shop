@@ -583,10 +583,19 @@ enum ExpensePaymentMethod {
   OTHER
 }
 
+// Nature d'une catégorie de dépense : FIXED = charges fixes (loyer, salaires,
+// abonnements…), VARIABLE = achats variables (matières premières…). Portée par
+// la catégorie (pas par la dépense) : c'est l'axe d'analyse du module.
+enum ExpenseNature {
+  FIXED
+  VARIABLE
+}
+
 model ExpenseCategory {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  sortOrder Int       @default(0)
+  id        String        @id @default(cuid())
+  name      String        @unique
+  nature    ExpenseNature @default(VARIABLE)
+  sortOrder Int           @default(0)
   // Soft delete : `deletedAt` non nul = catégorie « supprimée » (retirée des
   // listes/sélecteurs) mais conservée — les dépenses rattachées gardent leur
   // libellé. Recréer une catégorie du même nom « ressuscite » la version
@@ -655,6 +664,11 @@ model Expense {
   inventoryPurchases InventoryPurchase[]     @relation("ExpenseInventoryPurchases")
   restockBatches     InventoryRestockBatch[] @relation("ExpenseRestockBatch")
 
+  // Détail optionnel par article. Si des lignes existent, sum(items.amount)
+  // == amount (invariant imposé par les mutations, pas par la DB — les
+  // dépenses antérieures à la fonctionnalité n'ont pas de lignes).
+  items ExpenseItem[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -662,6 +676,51 @@ model Expense {
   @@index([date(sort: Desc)])
   @@index([categoryId])
   @@map("expense")
+}
+
+// Référentiel d'articles de dépense (« Farine », « Sucre », « Gaz »…).
+// Auto-créé à la première utilisation (dédup par nom normalisé), soft delete
+// comme ExpenseCategory. Le lien optionnel vers l'inventaire unifie les deux
+// vues quand un réappro matérialise une dépense détaillée.
+model ExpenseArticle {
+  id             String  @id @default(cuid())
+  name           String // libellé affiché, ex. « Farine »
+  nameNormalized String  @unique // lower + trim + espaces réduits (clé de dédup)
+
+  inventoryItemId String?        @unique
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+
+  deletedAt DateTime?
+  items     ExpenseItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([deletedAt])
+  @@map("expense_article")
+}
+
+// Ligne de détail OPTIONNELLE d'une dépense (« Farine — 2 sacs × 5 000 F »).
+// Si des lignes existent, sum(amount) == Expense.amount (imposé par les
+// mutations). Supprimée en cascade avec sa dépense (le détail suit le reçu).
+model ExpenseItem {
+  id        String  @id @default(cuid())
+  expenseId String
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  articleId String
+  article   ExpenseArticle @relation(fields: [articleId], references: [id], onDelete: Restrict)
+
+  label     String? // précision libre (« sac 50 kg », « marque X »)
+  quantity  Decimal? @db.Decimal(12, 3)
+  unit      String? // texte libre court (« kg », « sac », « L »)
+  unitPrice Int? // FCFA
+  amount    Int // FCFA, requis
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([expenseId])
+  @@index([articleId])
+  @@map("expense_item")
 }
 
 model CashClosing {
@@ -814,6 +873,9 @@ model InventoryItem {
 
   purchases  InventoryPurchase[]
   countLines InventoryCountLine[]
+
+  // Article de dépense adossé à cet item (unification réappros ↔ dépenses).
+  expenseArticle ExpenseArticle?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

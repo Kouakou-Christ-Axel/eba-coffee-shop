@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { MediaImage as Image } from '@/components/ui/media-image';
-import { Loader2, Paperclip, X } from 'lucide-react';
+import { ListPlus, Loader2, Paperclip, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,16 @@ import { uploadToCloudinary } from '@/lib/cloudinary-client';
 import { createExpenseAction, updateExpenseAction } from './actions';
 
 type Category = { id: string; name: string };
+type Article = { id: string; name: string };
+
+/** Ligne de détail en cours de saisie (chaînes brutes des inputs). */
+export type ExpenseItemFormValues = {
+  articleName: string;
+  quantity: string;
+  unit: string;
+  unitPrice: string;
+  amount: string;
+};
 
 export type ExpenseFormValues = {
   id?: string;
@@ -22,6 +32,8 @@ export type ExpenseFormValues = {
   supplier: string;
   note: string;
   receiptUrl: string | null;
+  /** Lignes de détail (vide = dépense simple, sans détail). */
+  items: ExpenseItemFormValues[];
 };
 
 const PAYMENT_METHODS = [
@@ -34,6 +46,12 @@ const PAYMENT_METHODS = [
 const selectClass =
   'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
+const priceFmt = new Intl.NumberFormat('fr-FR');
+
+export function emptyExpenseItem(): ExpenseItemFormValues {
+  return { articleName: '', quantity: '', unit: '', unitPrice: '', amount: '' };
+}
+
 /** Valeurs par défaut d'une nouvelle dépense (formulaire vierge). */
 export function emptyExpense(categories: Category[]): ExpenseFormValues {
   return {
@@ -44,16 +62,28 @@ export function emptyExpense(categories: Category[]): ExpenseFormValues {
     supplier: '',
     note: '',
     receiptUrl: null,
+    items: [],
   };
+}
+
+/** Somme des montants de lignes saisis (0 si non numérique). */
+function itemsTotal(items: ExpenseItemFormValues[]): number {
+  return items.reduce((s, i) => {
+    const n = Number(i.amount);
+    return s + (Number.isFinite(n) && n > 0 ? Math.round(n) : 0);
+  }, 0);
 }
 
 export function ExpenseForm({
   categories,
+  articles,
   mode,
   initial,
   onSuccess,
 }: {
   categories: Category[];
+  /** Référentiel pour l'autocomplétion des noms d'articles (datalist). */
+  articles: Article[];
   mode: 'create' | 'edit';
   initial: ExpenseFormValues;
   /** Appelé après une écriture réussie (fermeture du Sheet par le parent). */
@@ -64,12 +94,50 @@ export function ExpenseForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
+  // En édition, retirer toutes les lignes doit envoyer `items: null`
+  // (dé-itemisation explicite côté serveur).
+  const initialHadItems = useRef(initial.items.length > 0);
+
+  const detailed = values.items.length > 0;
+  const total = itemsTotal(values.items);
 
   function set<K extends keyof ExpenseFormValues>(
     key: K,
     value: ExpenseFormValues[K]
   ) {
     setValues((v) => ({ ...v, [key]: value }));
+  }
+
+  function setItem(index: number, patch: Partial<ExpenseItemFormValues>) {
+    setValues((v) => {
+      const items = v.items.map((item, i) => {
+        if (i !== index) return item;
+        const next = { ...item, ...patch };
+        // Ergonomie : le montant de ligne suit quantité × prix unitaire dès
+        // que les deux sont saisis (reste éditable à la main ensuite).
+        if (
+          ('quantity' in patch || 'unitPrice' in patch) &&
+          next.quantity &&
+          next.unitPrice
+        ) {
+          const q = Number(next.quantity);
+          const p = Number(next.unitPrice);
+          if (Number.isFinite(q) && Number.isFinite(p) && q > 0 && p > 0) {
+            next.amount = String(Math.round(q * p));
+          }
+        }
+        return next;
+      });
+      return { ...v, items };
+    });
+  }
+
+  function addItem() {
+    setValues((v) => ({ ...v, items: [...v.items, emptyExpenseItem()] }));
+  }
+
+  function removeItem(index: number) {
+    setValues((v) => ({ ...v, items: v.items.filter((_, i) => i !== index) }));
   }
 
   async function onPickFile(file: File) {
@@ -87,24 +155,65 @@ export function ExpenseForm({
 
   function submit() {
     setError(null);
-    const amountInt = Number(values.amount);
-    if (!Number.isFinite(amountInt) || amountInt <= 0) {
-      setError('Montant invalide');
-      return;
-    }
     if (!values.categoryId) {
       setError('Choisis une catégorie');
       return;
     }
 
+    let amountInt: number;
+    let itemsPayload:
+      | {
+          articleName: string;
+          quantity: number | null;
+          unit: string | null;
+          unitPrice: number | null;
+          amount: number;
+        }[]
+      | null
+      | undefined;
+
+    if (detailed) {
+      for (const item of values.items) {
+        if (!item.articleName.trim()) {
+          setError('Chaque ligne doit nommer son article (ex. « Farine T45 »)');
+          return;
+        }
+        const a = Number(item.amount);
+        if (!Number.isFinite(a) || a <= 0) {
+          setError(
+            `Ligne « ${item.articleName.trim()} » : montant invalide (saisis quantité × prix unitaire, ou un montant direct)`
+          );
+          return;
+        }
+      }
+      itemsPayload = values.items.map((item) => ({
+        articleName: item.articleName.trim(),
+        quantity: item.quantity ? Number(item.quantity) : null,
+        unit: item.unit.trim() || null,
+        unitPrice: item.unitPrice ? Math.round(Number(item.unitPrice)) : null,
+        amount: Math.round(Number(item.amount)),
+      }));
+      amountInt = total;
+    } else {
+      amountInt = Math.round(Number(values.amount));
+      if (!Number.isFinite(amountInt) || amountInt <= 0) {
+        setError('Montant invalide');
+        return;
+      }
+      // Dé-itemisation explicite : la dépense avait un détail, il a été retiré.
+      itemsPayload =
+        mode === 'edit' && initialHadItems.current ? null : undefined;
+    }
+
     const payload = {
       date: values.date,
-      amount: Math.round(amountInt),
+      amount: amountInt,
       categoryId: values.categoryId,
       paymentMethod: values.paymentMethod,
       supplier: values.supplier.trim() || null,
       note: values.note.trim() || null,
       receiptUrl: values.receiptUrl,
+      ...(itemsPayload !== undefined ? { items: itemsPayload } : {}),
     };
 
     startTransition(async () => {
@@ -143,15 +252,18 @@ export function ExpenseForm({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="exp-amount">Montant (FCFA)</Label>
+          <Label htmlFor="exp-amount">
+            Montant (FCFA){detailed && ' — somme des lignes'}
+          </Label>
           <Input
             id="exp-amount"
             type="number"
             min={1}
             inputMode="numeric"
-            value={values.amount}
+            value={detailed ? String(total || '') : values.amount}
             onChange={(e) => set('amount', e.target.value)}
             placeholder="0"
+            disabled={detailed}
           />
         </div>
         <div className="space-y-1.5">
@@ -203,6 +315,110 @@ export function ExpenseForm({
           />
         </div>
       </div>
+
+      {/* Détail par article (optionnel) : alimente les stats de fréquence. */}
+      {detailed ? (
+        <div className="space-y-2 rounded-lg border p-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Détail des articles</p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => set('items', [])}
+            >
+              <X className="mr-1 h-4 w-4" />
+              Retirer le détail
+            </Button>
+          </div>
+          <datalist id="exp-articles">
+            {articles.map((a) => (
+              <option key={a.id} value={a.name} />
+            ))}
+          </datalist>
+          <div className="space-y-2">
+            {values.items.map((item, i) => (
+              <div
+                key={i}
+                className="grid grid-cols-[1fr_auto] items-end gap-2"
+              >
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_1fr]">
+                  <Input
+                    aria-label="Article"
+                    list="exp-articles"
+                    value={item.articleName}
+                    onChange={(e) =>
+                      setItem(i, { articleName: e.target.value })
+                    }
+                    placeholder="Article (ex. Farine T45)"
+                    className="col-span-2 sm:col-span-1"
+                  />
+                  <Input
+                    aria-label="Quantité"
+                    type="number"
+                    min={0}
+                    step="any"
+                    inputMode="decimal"
+                    value={item.quantity}
+                    onChange={(e) => setItem(i, { quantity: e.target.value })}
+                    placeholder="Qté"
+                  />
+                  <Input
+                    aria-label="Unité"
+                    value={item.unit}
+                    onChange={(e) => setItem(i, { unit: e.target.value })}
+                    placeholder="kg, sac…"
+                  />
+                  <Input
+                    aria-label="Prix unitaire (FCFA)"
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={item.unitPrice}
+                    onChange={(e) => setItem(i, { unitPrice: e.target.value })}
+                    placeholder="PU (F)"
+                  />
+                  <Input
+                    aria-label="Montant (FCFA)"
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    value={item.amount}
+                    onChange={(e) => setItem(i, { amount: e.target.value })}
+                    placeholder="Montant"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => removeItem(i)}
+                  aria-label="Retirer la ligne"
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <Button type="button" variant="outline" size="sm" onClick={addItem}>
+              <Plus className="mr-1 h-4 w-4" />
+              Ajouter une ligne
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              Total des lignes :{' '}
+              <span className="font-semibold tabular-nums text-foreground">
+                {priceFmt.format(total)} F
+              </span>
+            </p>
+          </div>
+        </div>
+      ) : (
+        <Button type="button" variant="outline" size="sm" onClick={addItem}>
+          <ListPlus className="mr-1.5 h-4 w-4" />
+          Détailler les articles
+        </Button>
+      )}
 
       {/* Justificatif */}
       <div className="flex flex-wrap items-center gap-3">

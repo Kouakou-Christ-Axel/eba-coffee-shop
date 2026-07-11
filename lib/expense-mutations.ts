@@ -19,12 +19,16 @@ import {
   expenseCategoryUpdateSchema,
   expenseInputSchema,
   expenseUpdateSchema,
+  expenseArticleRenameSchema,
+  resolveExpenseItemAmount,
+  type ExpenseItemInput,
 } from '@/lib/schemas/expense';
+import { INVENTORY_UNIT_LABEL } from '@/lib/schemas/inventory';
 
 // ─── Catégories ───────────────────────────────────────────────────────────────
 
 export async function createExpenseCategory(input: unknown) {
-  const { name } = expenseCategoryInputSchema.parse(input);
+  const { name, nature } = expenseCategoryInputSchema.parse(input);
   // Le nom reste unique globalement. Si une catégorie du même nom a été soft
   // delete, on la « ressuscite » (deletedAt → null) au lieu d'échouer.
   const existing = await prisma.expenseCategory.findUnique({ where: { name } });
@@ -37,12 +41,20 @@ export async function createExpenseCategory(input: unknown) {
     }
     return prisma.expenseCategory.update({
       where: { id: existing.id },
-      data: { deletedAt: null, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+      data: {
+        deletedAt: null,
+        sortOrder: (max._max.sortOrder ?? -1) + 1,
+        ...(nature !== undefined ? { nature } : {}),
+      },
     });
   }
   try {
     return await prisma.expenseCategory.create({
-      data: { name, sortOrder: (max._max.sortOrder ?? -1) + 1 },
+      data: {
+        name,
+        sortOrder: (max._max.sortOrder ?? -1) + 1,
+        ...(nature !== undefined ? { nature } : {}),
+      },
     });
   } catch (err) {
     throw rethrowUniqueName(err);
@@ -50,11 +62,14 @@ export async function createExpenseCategory(input: unknown) {
 }
 
 export async function updateExpenseCategory(id: string, input: unknown) {
-  const { name } = expenseCategoryUpdateSchema.parse(input);
+  const data = expenseCategoryUpdateSchema.parse(input);
   try {
     return await prisma.expenseCategory.update({
       where: { id },
-      data: { name },
+      data: {
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.nature !== undefined ? { nature: data.nature } : {}),
+      },
     });
   } catch (err) {
     throw rethrowUniqueName(err);
@@ -70,11 +85,153 @@ export async function deleteExpenseCategory(id: string) {
   });
 }
 
+// ─── Articles (référentiel) ───────────────────────────────────────────────────
+
+/** Clé de déduplication du référentiel : minuscules, trim, espaces réduits. */
+export function normalizeArticleName(name: string): string {
+  return name.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+const expenseItemsInclude = {
+  items: {
+    orderBy: { sortOrder: 'asc' },
+    include: { article: { select: { id: true, name: true } } },
+  },
+} satisfies Prisma.ExpenseInclude;
+
+/**
+ * Retrouve (ou crée) l'article visé par une ligne : par `articleId` explicite,
+ * sinon par item d'inventaire lié, sinon par nom normalisé (« farine t45 » =
+ * « Farine T45 » — l'article soft-deleted est ressuscité). Créé à la volée en
+ * dernier recours : la saisie en texte libre ne demande aucune étape préalable.
+ */
+async function ensureExpenseArticle(
+  tx: Prisma.TransactionClient,
+  spec: { articleId?: string; name?: string; inventoryItemId?: string | null }
+) {
+  if (spec.articleId) {
+    const article = await tx.expenseArticle.findUnique({
+      where: { id: spec.articleId },
+    });
+    if (!article) throw new Error('Article de dépense introuvable.');
+    if (article.deletedAt) {
+      return tx.expenseArticle.update({
+        where: { id: article.id },
+        data: { deletedAt: null },
+      });
+    }
+    return article;
+  }
+
+  if (spec.inventoryItemId) {
+    const linked = await tx.expenseArticle.findUnique({
+      where: { inventoryItemId: spec.inventoryItemId },
+    });
+    if (linked) {
+      return linked.deletedAt
+        ? tx.expenseArticle.update({
+            where: { id: linked.id },
+            data: { deletedAt: null },
+          })
+        : linked;
+    }
+  }
+
+  const name = spec.name!;
+  const nameNormalized = normalizeArticleName(name);
+  const existing = await tx.expenseArticle.findUnique({
+    where: { nameNormalized },
+  });
+  if (existing) {
+    const stampInventory = spec.inventoryItemId && !existing.inventoryItemId;
+    if (existing.deletedAt || stampInventory) {
+      return tx.expenseArticle.update({
+        where: { id: existing.id },
+        data: {
+          deletedAt: null,
+          ...(stampInventory ? { inventoryItemId: spec.inventoryItemId } : {}),
+        },
+      });
+    }
+    return existing;
+  }
+  return tx.expenseArticle.create({
+    data: {
+      name,
+      nameNormalized,
+      inventoryItemId: spec.inventoryItemId ?? null,
+    },
+  });
+}
+
+/** Renomme un article (la clé normalisée suit ; unicité contrôlée). */
+export async function renameExpenseArticle(id: string, input: unknown) {
+  const { name } = expenseArticleRenameSchema.parse(input);
+  try {
+    return await prisma.expenseArticle.update({
+      where: { id },
+      data: { name, nameNormalized: normalizeArticleName(name) },
+    });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === 'P2002'
+    ) {
+      throw new Error('Un article porte déjà ce nom.');
+    }
+    throw err;
+  }
+}
+
+// Soft delete : l'article disparaît de l'autocomplétion mais les lignes
+// existantes (et donc l'historique/stats) le conservent.
+export async function deleteExpenseArticle(id: string) {
+  return prisma.expenseArticle.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+}
+
 // ─── Dépenses ─────────────────────────────────────────────────────────────────
+
+/** Somme des montants effectifs (fournis ou dérivés de qté × PU) des lignes. */
+function sumExpenseItems(items: ExpenseItemInput[]): number {
+  return items.reduce((s, i) => s + resolveExpenseItemAmount(i), 0);
+}
+
+async function createExpenseItems(
+  tx: Prisma.TransactionClient,
+  expenseId: string,
+  items: ExpenseItemInput[]
+) {
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const article = await ensureExpenseArticle(tx, {
+      articleId: item.articleId,
+      name: item.articleName,
+      inventoryItemId: item.inventoryItemId ?? null,
+    });
+    await tx.expenseItem.create({
+      data: {
+        expenseId,
+        articleId: article.id,
+        label: item.label ?? null,
+        quantity: item.quantity ?? null,
+        unit: item.unit ?? null,
+        unitPrice: item.unitPrice ?? null,
+        amount: resolveExpenseItemAmount(item),
+        sortOrder: i,
+      },
+    });
+  }
+}
 
 export async function createExpense(input: unknown, createdById?: string) {
   const data = expenseInputSchema.parse(input);
   const date = parseDateOnlyToUTC(data.date)!;
+  // Montant : fourni, ou dérivé de la somme des lignes (le schéma garantit
+  // l'égalité quand les deux sont présents).
+  const amount = data.amount ?? sumExpenseItems(data.items!);
   // Numéro de reçu : compteur du mois civil de la dépense. Figé à la création.
   const receiptPeriod = receiptPeriodFromDate(date);
 
@@ -84,10 +241,10 @@ export async function createExpense(input: unknown, createdById?: string) {
     try {
       return await prisma.$transaction(async (tx) => {
         const receiptSeq = await getNextReceiptSeq(tx, receiptPeriod);
-        return tx.expense.create({
+        const expense = await tx.expense.create({
           data: {
             date,
-            amount: data.amount,
+            amount,
             categoryId: data.categoryId,
             paymentMethod: data.paymentMethod ?? 'CASH',
             supplier: data.supplier ?? null,
@@ -99,6 +256,14 @@ export async function createExpense(input: unknown, createdById?: string) {
             receiptNo: formatReceiptNo(receiptPeriod, receiptSeq),
           },
         });
+        if (data.items) {
+          await createExpenseItems(tx, expense.id, data.items);
+          return tx.expense.findUniqueOrThrow({
+            where: { id: expense.id },
+            include: expenseItemsInclude,
+          });
+        }
+        return expense;
       });
     } catch (err) {
       if (
@@ -117,26 +282,65 @@ export async function createExpense(input: unknown, createdById?: string) {
 
 // Note : le numéro de reçu (receiptNo/receiptPeriod/receiptSeq) est IMMUABLE et
 // n'est donc jamais modifié ici — même si la `date` est éditée vers un autre mois.
+// Détail : `items` = remplacement complet des lignes ; `items: null` = retrait
+// du détail ; invariant sum(items) == amount préservé dans tous les cas.
 export async function updateExpense(id: string, input: unknown) {
   const data = expenseUpdateSchema.parse(input);
-  return prisma.expense.update({
-    where: { id },
-    data: {
-      ...(data.date !== undefined
-        ? { date: parseDateOnlyToUTC(data.date)! }
-        : {}),
-      ...(data.amount !== undefined ? { amount: data.amount } : {}),
-      ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
-      ...(data.paymentMethod !== undefined
-        ? { paymentMethod: data.paymentMethod }
-        : {}),
-      ...(data.supplier !== undefined ? { supplier: data.supplier } : {}),
-      ...(data.note !== undefined ? { note: data.note } : {}),
-      ...(data.receiptUrl !== undefined ? { receiptUrl: data.receiptUrl } : {}),
-    },
+  return prisma.$transaction(async (tx) => {
+    const itemsProvided = data.items !== undefined;
+    if (!itemsProvided && data.amount !== undefined) {
+      // Garde-fou : changer le montant d'une dépense détaillée sans toucher
+      // aux lignes casserait l'invariant somme == montant.
+      const existingItems = await tx.expenseItem.count({
+        where: { expenseId: id },
+      });
+      if (existingItems > 0) {
+        throw new Error(
+          'Cette dépense est détaillée : modifiez ses lignes (items), ou retirez le détail (items: null) pour changer le montant seul.'
+        );
+      }
+    }
+
+    // Montant : explicite, sinon dérivé des nouvelles lignes.
+    const amount =
+      data.amount ?? (data.items ? sumExpenseItems(data.items) : undefined);
+
+    if (itemsProvided) {
+      await tx.expenseItem.deleteMany({ where: { expenseId: id } });
+    }
+    const expense = await tx.expense.update({
+      where: { id },
+      data: {
+        ...(data.date !== undefined
+          ? { date: parseDateOnlyToUTC(data.date)! }
+          : {}),
+        ...(amount !== undefined ? { amount } : {}),
+        ...(data.categoryId !== undefined
+          ? { categoryId: data.categoryId }
+          : {}),
+        ...(data.paymentMethod !== undefined
+          ? { paymentMethod: data.paymentMethod }
+          : {}),
+        ...(data.supplier !== undefined ? { supplier: data.supplier } : {}),
+        ...(data.note !== undefined ? { note: data.note } : {}),
+        ...(data.receiptUrl !== undefined
+          ? { receiptUrl: data.receiptUrl }
+          : {}),
+      },
+    });
+    if (data.items) {
+      await createExpenseItems(tx, id, data.items);
+      return tx.expense.findUniqueOrThrow({
+        where: { id },
+        include: expenseItemsInclude,
+      });
+    }
+    return expense;
   });
 }
 
+// Les lignes de détail suivent la dépense (cascade DB) ; le référentiel
+// d'articles, lui, est préservé.
 export async function deleteExpense(id: string) {
   return prisma.expense.delete({ where: { id } });
 }
@@ -194,6 +398,94 @@ export async function backfillExpenseReceipts(
   }
 
   return { updated, total: expenses.length };
+}
+
+/**
+ * Génère rétroactivement les lignes de détail (`ExpenseItem`) des dépenses
+ * liées à des achats d'inventaire (`InventoryPurchase.expenseId`, posé par
+ * `batchRestock`) qui n'en ont pas encore. Garde-fou : on ne crée les lignes
+ * que si la somme des achats égale exactement le montant de la dépense (vrai
+ * pour les dépenses créées par `batchRestock`, sauf montant édité après coup) ;
+ * sinon la dépense est ignorée et rapportée. Le montant de la dépense n'est
+ * JAMAIS modifié. Idempotent (filtre `items: { none: {} }`).
+ *
+ * Partagé avec le script CLI (`prisma/backfill-expense-items.ts`), d'où le
+ * `client` injectable.
+ */
+export async function backfillExpenseItems(
+  client: PrismaClient = prisma,
+  opts: { dry?: boolean } = {}
+): Promise<{
+  processed: number;
+  itemsCreated: number;
+  skippedMismatch: {
+    expenseId: string;
+    receiptNo: string | null;
+    amount: number;
+    purchasesSum: number;
+  }[];
+}> {
+  const expenses = await client.expense.findMany({
+    where: { inventoryPurchases: { some: {} }, items: { none: {} } },
+    orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    include: {
+      inventoryPurchases: {
+        orderBy: { createdAt: 'asc' },
+        include: { item: { select: { id: true, name: true, unit: true } } },
+      },
+    },
+  });
+
+  let processed = 0;
+  let itemsCreated = 0;
+  const skippedMismatch: {
+    expenseId: string;
+    receiptNo: string | null;
+    amount: number;
+    purchasesSum: number;
+  }[] = [];
+
+  for (const expense of expenses) {
+    const purchasesSum = expense.inventoryPurchases.reduce(
+      (s, p) => s + p.totalCost,
+      0
+    );
+    if (purchasesSum !== expense.amount) {
+      skippedMismatch.push({
+        expenseId: expense.id,
+        receiptNo: expense.receiptNo,
+        amount: expense.amount,
+        purchasesSum,
+      });
+      continue;
+    }
+    if (!opts.dry) {
+      await client.$transaction(async (tx) => {
+        for (let i = 0; i < expense.inventoryPurchases.length; i++) {
+          const p = expense.inventoryPurchases[i];
+          const article = await ensureExpenseArticle(tx, {
+            name: p.item.name,
+            inventoryItemId: p.itemId,
+          });
+          await tx.expenseItem.create({
+            data: {
+              expenseId: expense.id,
+              articleId: article.id,
+              quantity: p.quantity,
+              unit: INVENTORY_UNIT_LABEL[p.item.unit],
+              unitPrice: p.unitCost,
+              amount: p.totalCost,
+              sortOrder: i,
+            },
+          });
+        }
+      });
+    }
+    processed++;
+    itemsCreated += expense.inventoryPurchases.length;
+  }
+
+  return { processed, itemsCreated, skippedMismatch };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

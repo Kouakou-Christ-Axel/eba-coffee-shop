@@ -23,6 +23,7 @@ import {
   inventoryImportRowSchema,
   batchRestockSchema,
   batchCountSchema,
+  INVENTORY_UNIT_LABEL,
   type InventoryImportRowInput,
 } from '@/lib/schemas/inventory';
 
@@ -270,6 +271,14 @@ export async function batchRestock(
         'Montant total nul : impossible de créer une dépense liée.'
       );
     }
+    // Détail par article de la dépense : une ligne par achat, adossée au
+    // référentiel des articles de dépense (créés/retrouvés via le lien
+    // inventoryItemId — les vues stock et dépenses restent cohérentes).
+    const itemInfos = await prisma.inventoryItem.findMany({
+      where: { id: { in: lines.map((l) => l.itemId) } },
+      select: { id: true, name: true, unit: true },
+    });
+    const infoById = new Map(itemInfos.map((i) => [i.id, i]));
     const expense = await createExpense(
       {
         date: data.date,
@@ -278,6 +287,17 @@ export async function batchRestock(
         paymentMethod: data.paymentMethod,
         supplier: data.supplier ?? null,
         note: data.note ?? `Réappro stock (${lines.length} article(s))`,
+        items: lines.map((l) => {
+          const info = infoById.get(l.itemId);
+          return {
+            articleName: info?.name ?? l.itemId,
+            inventoryItemId: l.itemId,
+            quantity: l.quantity,
+            unit: info ? INVENTORY_UNIT_LABEL[info.unit] : null,
+            unitPrice: l.unitCost,
+            amount: l.totalCost,
+          };
+        }),
       },
       createdById
     );
@@ -379,6 +399,8 @@ export async function cancelRestockBatch(batchId: string) {
       await recomputeItemFromHistory(tx, itemId);
     }
     if (batch.expenseId) {
+      // Supprime aussi ses lignes de détail (cascade DB) — voulu : le détail
+      // suit le reçu. Le référentiel d'articles, lui, est préservé.
       await tx.expense.delete({ where: { id: batch.expenseId } });
     }
     return { batchId, itemsRestored: itemIds.length };

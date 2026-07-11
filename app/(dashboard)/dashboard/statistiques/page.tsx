@@ -64,7 +64,7 @@ export default async function StatistiquesPage({
     getRangeStats(from, to),
     getDailySeries(from, to),
     getTopProducts(from, to),
-    getExpenseSummary(from, to),
+    getExpenseSummary({ dateFrom: from, dateTo: to }),
     getInvestmentSummary(from, to),
     getRevenueAdjustmentSummary(from, to),
   ]);
@@ -126,6 +126,11 @@ export default async function StatistiquesPage({
           label="Dépenses"
           value={`${priceFormatter.format(expenseSummary.total)} F`}
           Icon={Wallet}
+          hint={
+            expenseSummary.fixed > 0
+              ? `fixes : ${priceFormatter.format(expenseSummary.fixed)} F · variables : ${priceFormatter.format(expenseSummary.variable)} F`
+              : undefined
+          }
         />
         <Kpi
           label="Marge nette"

@@ -35,6 +35,7 @@ async function run(fn: () => Promise<unknown>): Promise<ActionResult> {
 
 export async function createExpenseCategoryAction(input: {
   name: string;
+  nature?: 'FIXED' | 'VARIABLE';
 }): Promise<ActionResult> {
   await requireAdminId();
   return run(() => expenses.createExpenseCategory(input));
@@ -42,7 +43,7 @@ export async function createExpenseCategoryAction(input: {
 
 export async function updateExpenseCategoryAction(
   id: string,
-  input: { name: string }
+  input: { name?: string; nature?: 'FIXED' | 'VARIABLE' }
 ): Promise<ActionResult> {
   await requireAdminId();
   return run(() => expenses.updateExpenseCategory(id, input));
@@ -95,6 +96,23 @@ export async function backfillExpenseReceiptsAction(): Promise<
       error: err instanceof Error ? err.message : 'Erreur inattendue',
     };
   }
+}
+
+// ── Articles (référentiel du détail) ──
+
+export async function renameExpenseArticleAction(
+  id: string,
+  input: { name: string }
+): Promise<ActionResult> {
+  await requireAdminId();
+  return run(() => expenses.renameExpenseArticle(id, input));
+}
+
+export async function deleteExpenseArticleAction(
+  id: string
+): Promise<ActionResult> {
+  await requireAdminId();
+  return run(() => expenses.deleteExpenseArticle(id));
 }
 
 // ── Dépenses récurrentes (modèles) ──

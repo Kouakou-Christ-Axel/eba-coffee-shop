@@ -72,24 +72,28 @@ export async function GET(req: NextRequest) {
     'N° reçu',
     'Date',
     'Catégorie',
+    'Nature',
     'Montant (FCFA)',
     'Paiement',
     'Fournisseur',
     'Note',
+    'Articles',
     'Justificatif',
   ];
   const rows = expenses.map((e) => [
     e.receiptNo ?? '',
     formatLocalDateOnly(e.date),
     e.category.name,
+    e.category.nature === 'FIXED' ? 'Fixe' : 'Variable',
     e.amount,
     PAYMENT_LABELS[e.paymentMethod] ?? e.paymentMethod,
     e.supplier ?? '',
     e.note ?? '',
+    e.items.map((i) => i.article.name).join(', '),
     e.receiptUrl ?? '',
   ]);
   // Ligne de total.
-  rows.push(['', '', 'TOTAL', total, '', '', '', '']);
+  rows.push(['', '', 'TOTAL', '', total, '', '', '', '', '']);
 
   return csvResponse(`depenses_${fromStr}_${toStr}.csv`, toCsv(headers, rows));
 }
