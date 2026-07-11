@@ -400,6 +400,88 @@ export async function backfillExpenseReceipts(
   return { updated, total: expenses.length };
 }
 
+type PurchaseWithItem = {
+  itemId: string;
+  quantity: Prisma.Decimal;
+  unitCost: number;
+  totalCost: number;
+  item: { name: string; unit: keyof typeof INVENTORY_UNIT_LABEL };
+};
+
+/**
+ * Génère les lignes de détail (`ExpenseItem`) d'une dépense depuis ses achats
+ * d'inventaire — chemin INTERNE, volontairement hors du schéma de saisie
+ * (`expenseItemInputSchema`) : pas de plafond de lignes (un import peut en
+ * compter jusqu'à 1000) et montants à 0 autorisés (ligne de réappro gratuite),
+ * l'invariant somme(items) == amount tenant par construction. Le montant de la
+ * dépense n'est JAMAIS modifié.
+ */
+async function createExpenseItemsFromPurchases(
+  client: PrismaClient,
+  expenseId: string,
+  purchases: PurchaseWithItem[]
+): Promise<number> {
+  await client.$transaction(async (tx) => {
+    for (let i = 0; i < purchases.length; i++) {
+      const p = purchases[i];
+      const article = await ensureExpenseArticle(tx, {
+        name: p.item.name,
+        inventoryItemId: p.itemId,
+      });
+      await tx.expenseItem.create({
+        data: {
+          expenseId,
+          articleId: article.id,
+          quantity: p.quantity,
+          unit: INVENTORY_UNIT_LABEL[p.item.unit],
+          unitPrice: p.unitCost,
+          amount: p.totalCost,
+          sortOrder: i,
+        },
+      });
+    }
+  });
+  return purchases.length;
+}
+
+const purchasesWithItemInclude = {
+  inventoryPurchases: {
+    orderBy: { createdAt: 'asc' },
+    include: { item: { select: { id: true, name: true, unit: true } } },
+  },
+} satisfies Prisma.ExpenseInclude;
+
+/**
+ * Complète le détail d'une dépense liée à un réappro qui vient d'être créé
+ * (appelé par `batchRestock` APRÈS le commit de sa transaction, quand les
+ * achats sont estampillés `expenseId`). Mêmes garde-fous que le backfill :
+ * skip si des lignes existent déjà ou si la somme des achats ne correspond
+ * pas au montant.
+ */
+export async function detailExpenseFromPurchases(
+  expenseId: string,
+  client: PrismaClient = prisma
+): Promise<number> {
+  const expense = await client.expense.findUnique({
+    where: { id: expenseId },
+    include: {
+      ...purchasesWithItemInclude,
+      _count: { select: { items: true } },
+    },
+  });
+  if (!expense || expense._count.items > 0) return 0;
+  const purchasesSum = expense.inventoryPurchases.reduce(
+    (s, p) => s + p.totalCost,
+    0
+  );
+  if (purchasesSum !== expense.amount) return 0;
+  return createExpenseItemsFromPurchases(
+    client,
+    expense.id,
+    expense.inventoryPurchases
+  );
+}
+
 /**
  * Génère rétroactivement les lignes de détail (`ExpenseItem`) des dépenses
  * liées à des achats d'inventaire (`InventoryPurchase.expenseId`, posé par
@@ -428,12 +510,7 @@ export async function backfillExpenseItems(
   const expenses = await client.expense.findMany({
     where: { inventoryPurchases: { some: {} }, items: { none: {} } },
     orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
-    include: {
-      inventoryPurchases: {
-        orderBy: { createdAt: 'asc' },
-        include: { item: { select: { id: true, name: true, unit: true } } },
-      },
-    },
+    include: purchasesWithItemInclude,
   });
 
   let processed = 0;
@@ -460,26 +537,11 @@ export async function backfillExpenseItems(
       continue;
     }
     if (!opts.dry) {
-      await client.$transaction(async (tx) => {
-        for (let i = 0; i < expense.inventoryPurchases.length; i++) {
-          const p = expense.inventoryPurchases[i];
-          const article = await ensureExpenseArticle(tx, {
-            name: p.item.name,
-            inventoryItemId: p.itemId,
-          });
-          await tx.expenseItem.create({
-            data: {
-              expenseId: expense.id,
-              articleId: article.id,
-              quantity: p.quantity,
-              unit: INVENTORY_UNIT_LABEL[p.item.unit],
-              unitPrice: p.unitCost,
-              amount: p.totalCost,
-              sortOrder: i,
-            },
-          });
-        }
-      });
+      await createExpenseItemsFromPurchases(
+        client,
+        expense.id,
+        expense.inventoryPurchases
+      );
     }
     processed++;
     itemsCreated += expense.inventoryPurchases.length;

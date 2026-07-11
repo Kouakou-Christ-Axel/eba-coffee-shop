@@ -424,14 +424,17 @@ export type ExpenseMonthlyPoint = {
 
 /**
  * Série mensuelle des dépenses, éclatée fixes/variables (nature de la
- * catégorie). Les mois sans dépense sont présents à zéro.
+ * catégorie). Les mois sans dépense sont présents à zéro. `extra` applique
+ * les mêmes filtres que `getExpenseSummary` (catégorie, paiement, recherche)
+ * pour que les vues d'une même sélection restent cohérentes entre elles.
  */
 export async function getExpenseMonthlySeries(
   from: Date,
-  to: Date
+  to: Date,
+  extra: Omit<ExpenseFilters, 'dateFrom' | 'dateTo'> = {}
 ): Promise<ExpenseMonthlyPoint[]> {
   const rows = await prisma.expense.findMany({
-    where: { date: { gte: from, lte: to } },
+    where: buildExpenseWhere({ ...extra, dateFrom: from, dateTo: to }),
     select: {
       date: true,
       amount: true,

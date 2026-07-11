@@ -13,7 +13,11 @@ import { Prisma } from '@/generated/prisma/client';
 import type { Prisma as PrismaNS } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { parseDateOnlyToUTC } from '@/lib/timezone';
-import { createExpense, deleteExpense } from '@/lib/expense-mutations';
+import {
+  createExpense,
+  deleteExpense,
+  detailExpenseFromPurchases,
+} from '@/lib/expense-mutations';
 import { getInventorySettings } from '@/lib/inventory-settings-db';
 import { getDaysSinceLastCount, listLowStockItems } from '@/lib/inventory';
 import { sendInventoryReminderEmail } from '@/lib/email';
@@ -23,7 +27,6 @@ import {
   inventoryImportRowSchema,
   batchRestockSchema,
   batchCountSchema,
-  INVENTORY_UNIT_LABEL,
   type InventoryImportRowInput,
 } from '@/lib/schemas/inventory';
 
@@ -263,7 +266,12 @@ export async function batchRestock(
   }));
   const amount = lines.reduce((s, l) => s + l.totalCost, 0);
 
-  // Dépense liée créée AVANT (sa propre transaction gère la numérotation de reçu).
+  // Dépense liée créée AVANT (sa propre transaction gère la numérotation de
+  // reçu), AGRÉGÉE (sans lignes) : le schéma de saisie des items plafonne le
+  // nombre de lignes et refuse les montants nuls, contraintes qui ne valent
+  // pas pour ce chemin interne (import jusqu'à 1000 lignes, ligne gratuite à
+  // coût 0). Le détail par article est généré APRÈS la transaction de réappro
+  // (cf. plus bas), via le même chemin interne que le backfill.
   let expenseId: string | null = null;
   if (data.createExpense) {
     if (amount <= 0) {
@@ -271,14 +279,6 @@ export async function batchRestock(
         'Montant total nul : impossible de créer une dépense liée.'
       );
     }
-    // Détail par article de la dépense : une ligne par achat, adossée au
-    // référentiel des articles de dépense (créés/retrouvés via le lien
-    // inventoryItemId — les vues stock et dépenses restent cohérentes).
-    const itemInfos = await prisma.inventoryItem.findMany({
-      where: { id: { in: lines.map((l) => l.itemId) } },
-      select: { id: true, name: true, unit: true },
-    });
-    const infoById = new Map(itemInfos.map((i) => [i.id, i]));
     const expense = await createExpense(
       {
         date: data.date,
@@ -287,25 +287,15 @@ export async function batchRestock(
         paymentMethod: data.paymentMethod,
         supplier: data.supplier ?? null,
         note: data.note ?? `Réappro stock (${lines.length} article(s))`,
-        items: lines.map((l) => {
-          const info = infoById.get(l.itemId);
-          return {
-            articleName: info?.name ?? l.itemId,
-            inventoryItemId: l.itemId,
-            quantity: l.quantity,
-            unit: info ? INVENTORY_UNIT_LABEL[info.unit] : null,
-            unitPrice: l.unitCost,
-            amount: l.totalCost,
-          };
-        }),
       },
       createdById
     );
     expenseId = expense.id;
   }
 
+  let result;
   try {
-    return await prisma.$transaction(async (tx) => {
+    result = await prisma.$transaction(async (tx) => {
       const batch = await tx.inventoryRestockBatch.create({
         data: {
           date,
@@ -366,6 +356,21 @@ export async function batchRestock(
     }
     throw err;
   }
+
+  // Détail par article de la dépense liée, généré depuis les achats désormais
+  // estampillés `expenseId` — chemin interne sans plafond ni positivité.
+  // Best effort : le réappro et la dépense (agrégée, correcte) sont déjà
+  // committés ; en cas d'échec ici, `pnpm db:backfill-expense-items` peut
+  // régénérer le détail.
+  if (expenseId) {
+    try {
+      await detailExpenseFromPurchases(expenseId);
+    } catch {
+      /* best effort */
+    }
+  }
+
+  return result;
 }
 
 /** Annule un lot de réappro entier en une fois (restaure stock + PMP, supprime la dépense liée). */

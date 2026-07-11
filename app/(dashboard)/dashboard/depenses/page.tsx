@@ -128,7 +128,11 @@ export default async function DepensesPage({
     (expenses.length > 0 ? expenses[expenses.length - 1].date : null);
   const monthlyTo = dateTo ?? parseDateOnlyToUTC(today)!;
   const monthlySeries = monthlyFrom
-    ? await getExpenseMonthlySeries(monthlyFrom, monthlyTo)
+    ? await getExpenseMonthlySeries(monthlyFrom, monthlyTo, {
+        categoryId,
+        paymentMethod,
+        search,
+      })
     : [];
 
   const recurringRows = recurringList.map((r) => ({
