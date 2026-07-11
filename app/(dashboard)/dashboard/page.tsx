@@ -15,12 +15,14 @@ import {
   Wallet,
 } from 'lucide-react';
 import { requireDashboardAccess } from '@/lib/auth-helpers';
-import { getDailyStats, getDailySeries } from '@/lib/stats';
+import { getDailySeries } from '@/lib/stats';
+import { compareDays, type Delta } from '@/lib/stats-compare';
 import { listLowStockItems } from '@/lib/inventory';
 import { maybeSendInventoryReminder } from '@/lib/inventory-mutations';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { KpiCard } from '@/components/(dashboard)/kpi-card';
 import { RevenueTrendChart } from '@/components/(dashboard)/charts/revenue-trend-chart';
 import { OrdersByTypeChart } from '@/components/(dashboard)/charts/orders-by-type-chart';
 
@@ -39,10 +41,14 @@ export default async function DashboardPage() {
   // Rappel d'inventaire (idempotent, fire-and-forget, ne lève jamais).
   void maybeSendInventoryReminder().catch(() => {});
 
-  const [stats, lowStock] = await Promise.all([
-    getDailyStats(),
+  // Comparaison jour courant (partiel) vs hier / même jour semaine dernière
+  // (complets) : le delta est structurellement pessimiste en cours de journée,
+  // le label « vs hier » assume ce biais.
+  const [comparison, lowStock] = await Promise.all([
+    compareDays(),
     listLowStockItems(),
   ]);
+  const stats = comparison.today;
 
   // Tendance des 7 derniers jours (jour courant inclus).
   const seriesFrom = new Date(stats.date.getTime());
@@ -86,23 +92,27 @@ export default async function DashboardPage() {
 
       {/* Cartes de stats principales */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard
+        <KpiCard
           label="Commandes du jour"
           value={stats.totalOrders.toString()}
           Icon={TrendingUp}
+          delta={{ pct: comparison.vsYesterday.orders.pct, label: 'vs hier' }}
+          hint={lastWeekHint(comparison.vsLastWeek.orders)}
         />
-        <StatCard
+        <KpiCard
           label="Revenu encaissé"
           value={`${priceFormatter.format(stats.revenue)} F`}
           Icon={Banknote}
+          delta={{ pct: comparison.vsYesterday.revenue.pct, label: 'vs hier' }}
+          hint={lastWeekHint(comparison.vsLastWeek.revenue)}
         />
-        <StatCard
+        <KpiCard
           label="Actives"
           value={stats.activeOrders.toString()}
           Icon={Clock}
           subtle
         />
-        <StatCard
+        <KpiCard
           label="Terminées"
           value={stats.completedOrders.toString()}
           Icon={CheckCheck}
@@ -255,30 +265,11 @@ export default async function DashboardPage() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  Icon,
-  subtle,
-}: {
-  label: string;
-  value: string;
-  Icon: typeof TrendingUp;
-  subtle?: boolean;
-}) {
-  return (
-    <div
-      className={cn('rounded-xl border bg-card p-4', subtle && 'bg-muted/30')}
-    >
-      <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          {label}
-        </p>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </div>
-      <p className="mt-2 text-2xl font-bold tabular-nums">{value}</p>
-    </div>
-  );
+/** « vs même jour sem. dernière : +X % » (rien si la référence est vide). */
+function lastWeekHint(delta: Delta): string | undefined {
+  if (delta.pct === null) return undefined;
+  const pct = Math.round(Math.abs(delta.pct) * 100);
+  return `vs même jour sem. dernière : ${delta.pct >= 0 ? '+' : '−'}${pct} %`;
 }
 
 function BreakdownRow({
