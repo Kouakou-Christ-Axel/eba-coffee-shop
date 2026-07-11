@@ -19,6 +19,7 @@ import {
   ChefHat,
   Loader2,
   MapPin,
+  MessageCircle,
   Pencil,
   Receipt,
   Share2,
@@ -34,10 +35,12 @@ import { formatPickupTime } from '@/lib/format-order';
 import { priceFormatter } from '@/config/menu';
 import {
   buildDriverShareMessage,
+  buildPaymentProofMessage,
   buildWaveLink,
   buildWhatsAppLink,
   buildWhatsAppShareLink,
 } from '@/lib/contact-links';
+import { brandConfig } from '@/config/brand.config';
 import { compressImage } from '@/lib/image-compress';
 import {
   uploadToCloudinary,
@@ -387,6 +390,14 @@ function PaymentSection({
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const waveLink = buildWaveLink(order.total);
+  const paymentProofWhatsAppLink = buildWhatsAppLink(
+    brandConfig.location.whatsapp,
+    buildPaymentProofMessage({
+      customerName: order.customerName,
+      dailyNumber: order.dailyNumber,
+      amount: order.total,
+    })
+  );
 
   async function onPickFile(file: File) {
     setError(null);
@@ -511,10 +522,25 @@ function PaymentSection({
             </Button>
           )}
 
+          {paymentProofWhatsAppLink && !order.paymentProofUrl && (
+            <Button
+              as="a"
+              href={paymentProofWhatsAppLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="bordered"
+              size="lg"
+              className="w-full"
+              startContent={<MessageCircle className="h-4 w-4" />}
+            >
+              Envoyer ma preuve sur WhatsApp
+            </Button>
+          )}
+
           <p className="text-xs text-foreground/50">
-            Après ton paiement Wave, envoie la capture ici — plus besoin de
-            l&apos;envoyer sur WhatsApp. Tu peux aussi payer sur place (espèces
-            ou mobile money).
+            Après ton paiement Wave, envoie la capture ici ou sur WhatsApp
+            (joins la capture au message). Tu peux aussi payer sur place
+            (espèces ou mobile money).
           </p>
 
           {error && <p className="text-xs text-danger">{error}</p>}
@@ -555,6 +581,7 @@ function DriverSection({
   }, []);
 
   const isReady = order.status === 'READY';
+  const reduceMotion = useReducedMotion();
   const showForm = !isFinal && (editing || !hasDriver);
 
   async function save() {
@@ -615,26 +642,40 @@ function DriverSection({
       buildWhatsAppShareLink(shareMessage))
     : buildWhatsAppShareLink(shareMessage);
 
+  // Avant que la commande soit prête, on ne montre ni formulaire ni partage
+  // — rien à faire tant que le livreur ne peut pas encore venir chercher la
+  // commande. La section complète apparaît dès le passage à READY.
+  if (!isFinal && !isReady) {
+    return (
+      <div className="rounded-xl border border-foreground/10 bg-default-50 p-5">
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-foreground/40">
+          <Bike className="h-4 w-4" />
+          Ton livreur
+        </p>
+        <p className="mt-3 text-sm text-foreground/60">
+          On te préviendra dès que ta commande est prête pour envoyer ton
+          livreur. Cette page se met à jour toute seule.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-xl border border-foreground/10 bg-default-50 p-5">
+    <motion.div
+      initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="rounded-xl border border-foreground/10 bg-default-50 p-5"
+    >
       <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-foreground/40">
         <Bike className="h-4 w-4" />
         Ton livreur
       </p>
 
-      {/* Message contextuel : ne pas déplacer le livreur trop tôt. */}
+      {/* Message contextuel : la commande est prête. */}
       {!isFinal && (
-        <div
-          className={cn(
-            'mt-3 rounded-lg px-3 py-2 text-sm font-medium',
-            isReady
-              ? 'bg-success/15 text-success-700 dark:text-success'
-              : 'bg-warning/15 text-warning-700 dark:text-warning'
-          )}
-        >
-          {isReady
-            ? 'C’est prêt ! Tu peux envoyer ton livreur dès maintenant.'
-            : 'Pas encore prête — ne fais pas déplacer ton livreur tout de suite. Cette page se met à jour toute seule.'}
+        <div className="mt-3 rounded-lg bg-success/15 px-3 py-2 text-sm font-medium text-success-700 dark:text-success">
+          C’est prêt ! Tu peux envoyer ton livreur dès maintenant.
         </div>
       )}
 
@@ -725,6 +766,6 @@ function DriverSection({
           Partager au livreur sur WhatsApp
         </Button>
       )}
-    </div>
+    </motion.div>
   );
 }

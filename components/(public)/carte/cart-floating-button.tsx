@@ -5,7 +5,9 @@ import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag } from 'lucide-react';
 import { useCartStore } from '@/lib/cart-store';
+import { useHasBottomBanner } from '@/lib/bottom-banner-store';
 import { priceFormatter } from '@/config/menu';
+import { cn } from '@/lib/utils';
 
 // Lazy-load the cart drawer — it only opens once the user has items AND
 // clicks the floating button. Pulls in HeroUI Modal + checkout form, which
@@ -23,6 +25,10 @@ function CartFloatingButton() {
     return sum + (i.basePrice + supps) * i.quantity;
   }, 0);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Les bandeaux "installer l'app" / "carte PDF" sont fixed-bottom, z-50 :
+  // on remonte le bouton au-dessus (et on passe devant, z-60) quand l'un
+  // d'eux est affiché, pour qu'il ne soit jamais recouvert/inaccessible.
+  const hasBanner = useHasBottomBanner();
 
   return (
     <>
@@ -34,7 +40,12 @@ function CartFloatingButton() {
             exit={{ scale: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 25 }}
             onClick={() => setDrawerOpen(true)}
-            className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-6 z-40 flex items-center gap-2.5 rounded-full bg-primary px-5 py-3 text-primary-foreground shadow-xl shadow-primary/25 transition-shadow duration-200 hover:shadow-2xl hover:shadow-primary/30"
+            className={cn(
+              'fixed right-6 z-[60] flex items-center gap-2.5 rounded-full bg-primary px-5 py-3 text-primary-foreground shadow-xl shadow-primary/25 transition-[bottom,box-shadow] duration-200 hover:shadow-2xl hover:shadow-primary/30',
+              hasBanner
+                ? 'bottom-48'
+                : 'bottom-[max(1.5rem,env(safe-area-inset-bottom))]'
+            )}
             aria-label={`Voir le panier, ${totalItems} article${totalItems > 1 ? 's' : ''}`}
           >
             <ShoppingBag className="h-5 w-5" />
