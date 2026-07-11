@@ -35,7 +35,7 @@ export function CheckoutPage() {
   if (items.length === 0) return null;
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-8 sm:py-12">
+    <div className="mx-auto max-w-xl px-4 pb-8 pt-28 sm:pb-12 sm:pt-32">
       <h1 className="text-2xl font-bold">Finaliser ta commande</h1>
 
       <div className="mt-5 rounded-xl border border-foreground/10 bg-default-50 p-4">
