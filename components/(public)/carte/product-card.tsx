@@ -82,7 +82,12 @@ function ProductCard({ product }: ProductCardProps) {
 
   return (
     <>
-      <div className="group flex items-center gap-4 rounded-2xl border border-foreground/5 bg-white/60 p-3 transition-colors duration-200 hover:border-primary/10 hover:bg-white/80 sm:p-4">
+      <div
+        onClick={isUnorderable ? undefined : handleAdd}
+        className={`group flex items-center gap-4 rounded-2xl border border-foreground/5 bg-white/60 p-3 transition-colors duration-200 hover:border-primary/10 hover:bg-white/80 sm:p-4 ${
+          isUnorderable ? '' : 'cursor-pointer'
+        }`}
+      >
         {/* Image */}
         {product.image ? (
           <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl sm:h-24 sm:w-24">
@@ -150,6 +155,7 @@ function ProductCard({ product }: ProductCardProps) {
               : `Ajouter ${product.name}`
           }
           onPress={handleAdd}
+          onClick={(e) => e.stopPropagation()}
           className="shrink-0 cursor-pointer transition-transform duration-150 active:scale-90 hover:scale-110 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
         >
           {justAdded ? (
