@@ -17,6 +17,7 @@ import {
   Check,
   CheckCircle2,
   ChefHat,
+  Gift,
   Loader2,
   MapPin,
   MessageCircle,
@@ -27,7 +28,7 @@ import {
   Wallet,
   XCircle,
 } from 'lucide-react';
-import type { PublicOrderView } from '@/lib/orders';
+import type { PublicOrderLoyaltyView, PublicOrderView } from '@/lib/orders';
 import { OrderNotifications } from '@/components/(public)/commande/order-notifications';
 import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
 import { getItemGross } from '@/lib/orders/totals';
@@ -179,6 +180,11 @@ export function OrderTracking({
             : 'dès que prêt'}
         </p>
       </div>
+
+      {/* ── Fidélité ── */}
+      {!isCancelled && order.loyalty && (
+        <LoyaltySection loyalty={order.loyalty} />
+      )}
 
       {/* ── Paiement ── */}
       {!isCancelled && (
@@ -377,6 +383,61 @@ function StatusTimeline({
   );
 }
 
+// ─── Fidélité ─────────────────────────────────────────────────────────────────
+
+function LoyaltySection({ loyalty }: { loyalty: PublicOrderLoyaltyView }) {
+  const {
+    stampCount,
+    stampsPerCard,
+    tier1Stamps,
+    tier1RewardCap,
+    tier2RewardCap,
+    minOrderAmount,
+    availableRewardsCount,
+    isFirstOrder,
+  } = loyalty;
+
+  const reachedTier1 = stampCount >= tier1Stamps;
+  const nextTarget = reachedTier1 ? stampsPerCard : tier1Stamps;
+  const nextCap = reachedTier1 ? tier2RewardCap : tier1RewardCap;
+  const remaining = Math.max(0, nextTarget - stampCount);
+
+  return (
+    <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-foreground/40">
+          <Gift className="h-4 w-4" />
+          Ta fidélité
+        </p>
+        <span className="text-xs font-medium text-foreground/50">
+          {stampCount}/{stampsPerCard} tampons
+        </span>
+      </div>
+
+      {availableRewardsCount > 0 ? (
+        <p className="mt-3 text-sm font-medium text-primary">
+          🎁 Tu as {availableRewardsCount} réduction
+          {availableRewardsCount > 1 ? 's' : ''} prête
+          {availableRewardsCount > 1 ? 's' : ''} à utiliser — montre cette page
+          au comptoir&nbsp;!
+        </p>
+      ) : isFirstOrder ? (
+        <p className="mt-3 text-sm text-foreground/70">
+          Merci pour ta première commande chez EBA&nbsp;! 🎉{' '}
+          {stampCount > 0
+            ? 'Tu viens de gagner ton premier tampon fidélité — encore quelques commandes et une réduction t’attend.'
+            : `Dès ${priceFormatter.format(minOrderAmount)} FCFA d’achat, chaque commande te fait gagner un tampon fidélité.`}
+        </p>
+      ) : (
+        <p className="mt-3 text-sm text-foreground/70">
+          Plus que {remaining} commande{remaining > 1 ? 's' : ''} pour ta
+          réduction (jusqu’à {priceFormatter.format(nextCap)} FCFA)&nbsp;!
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── Paiement (Wave + preuve) ─────────────────────────────────────────────────
 
 function PaymentSection({
@@ -453,6 +514,11 @@ function PaymentSection({
 
       {!order.isPaid && (
         <div className="mt-4 flex flex-col gap-3">
+          <p className="rounded-lg bg-warning/15 px-3 py-2 text-sm font-medium text-warning-700 dark:text-warning">
+            Ta commande part en préparation dès que le paiement est confirmé —
+            paye maintenant pour ne pas perdre de temps.
+          </p>
+
           {waveLink && (
             <Button
               as="a"

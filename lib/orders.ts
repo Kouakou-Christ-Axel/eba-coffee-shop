@@ -10,6 +10,7 @@ import prisma from '@/lib/prisma';
 import { getNextDailyNumber, todayDailyDate } from '@/lib/daily-numbering';
 import { upsertCustomerForOrder } from '@/lib/customer-mutations';
 import { awardLoyaltyForOrder } from '@/lib/loyalty-mutations';
+import { getLoyaltyCard, getLoyaltyCardByPhone } from '@/lib/loyalty';
 import {
   createOrderSchema as baseCreateOrderSchema,
   orderDriverFieldsSchema,
@@ -168,6 +169,19 @@ export async function getOrder(id: string) {
 /** Article de commande enrichi de sa disponibilité courante (voir plus bas). */
 export type PublicOrderItemView = CartItem & { available: boolean };
 
+/** Avancement de la carte fidélité du client, pour la page de suivi. */
+export type PublicOrderLoyaltyView = {
+  stampCount: number;
+  stampsPerCard: number;
+  tier1Stamps: number;
+  tier1RewardCap: number;
+  tier2RewardCap: number;
+  minOrderAmount: number;
+  availableRewardsCount: number;
+  /** Vrai si c'est la seule commande (à ce jour) rattachée à ce client. */
+  isFirstOrder: boolean;
+};
+
 export type PublicOrderView = {
   id: string;
   reference: string;
@@ -188,6 +202,10 @@ export type PublicOrderView = {
   driverName: string | null;
   driverPhone: string | null;
   createdAt: string;
+  /** Null si le programme est désactivé ou si le client n'a pas pu être
+   * identifié (pas de téléphone exploitable) — toujours résolu par
+   * téléphone (clé unique de `Customer`), jamais par le nom. */
+  loyalty: PublicOrderLoyaltyView | null;
 };
 
 /**
@@ -223,6 +241,8 @@ export async function getPublicOrder(
     fulfillable = availability.fulfillable;
   }
 
+  const loyalty = await getPublicOrderLoyalty(order);
+
   return {
     id: order.id,
     reference: order.reference,
@@ -240,6 +260,40 @@ export async function getPublicOrder(
     driverName: order.driverName,
     driverPhone: order.driverPhone,
     createdAt: order.createdAt.toISOString(),
+    loyalty,
+  };
+}
+
+/**
+ * Résout la carte fidélité du client d'une commande — toujours via
+ * `customerId` (client déjà rattaché) ou, à défaut, via `customerPhone`
+ * (clé unique de `Customer`, jamais le nom). `null` si le programme est
+ * désactivé ou si aucun client n'a pu être identifié.
+ */
+async function getPublicOrderLoyalty(order: {
+  customerId: string | null;
+  customerPhone: string | null;
+}): Promise<PublicOrderLoyaltyView | null> {
+  const card = order.customerId
+    ? await getLoyaltyCard(order.customerId)
+    : order.customerPhone
+      ? await getLoyaltyCardByPhone(order.customerPhone)
+      : null;
+  if (!card || !card.settings.enabled) return null;
+
+  const ordersCount = await prisma.order.count({
+    where: { customerId: card.customer.id },
+  });
+
+  return {
+    stampCount: card.stampCount,
+    stampsPerCard: card.settings.stampsPerCard,
+    tier1Stamps: card.settings.tier1Stamps,
+    tier1RewardCap: card.settings.tier1RewardCap,
+    tier2RewardCap: card.settings.tier2RewardCap,
+    minOrderAmount: card.settings.minOrderAmount,
+    availableRewardsCount: card.availableRewards.length,
+    isFirstOrder: ordersCount <= 1,
   };
 }
 
