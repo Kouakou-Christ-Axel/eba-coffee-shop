@@ -28,7 +28,7 @@ export default async function CommandePage({ params }: Props) {
   if (!order) notFound();
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-12">
+    <div className="mx-auto max-w-xl px-4 pb-12 pt-28 sm:pt-32">
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold">
           {order.status === 'CANCELLED'
