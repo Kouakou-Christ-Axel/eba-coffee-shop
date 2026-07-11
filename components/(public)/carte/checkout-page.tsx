@@ -7,9 +7,11 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Sparkles } from 'lucide-react';
 import { useCartStore, getItemTotal } from '@/lib/cart-store';
 import { priceFormatter } from '@/config/menu';
 import { formatSupplementLabel } from '@/lib/orders/format';
+import { useLoyaltyInfo } from '@/lib/hooks/use-loyalty-info';
 import { CheckoutForm } from './checkout-form';
 
 export function CheckoutPage() {
@@ -17,6 +19,7 @@ export function CheckoutPage() {
   const items = useCartStore((s) => s.items);
   const clearCart = useCartStore((s) => s.clearCart);
   const totalPrice = items.reduce((sum, i) => sum + getItemTotal(i), 0);
+  const loyaltyInfo = useLoyaltyInfo();
 
   // Panier vide (accès direct à l'URL, refresh, ou commande déjà envoyée) :
   // rien à finaliser, on renvoie vers la carte.
@@ -65,6 +68,17 @@ export function CheckoutPage() {
           </span>
         </div>
       </div>
+
+      {loyaltyInfo.status === 'ready' &&
+        loyaltyInfo.enabled &&
+        totalPrice > 0 && (
+          <p className="mt-3 flex items-center gap-2 text-xs font-medium text-primary">
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            {totalPrice < loyaltyInfo.minOrderAmount
+              ? `Plus que ${priceFormatter.format(loyaltyInfo.minOrderAmount - totalPrice)} FCFA pour gagner ton point de fidélité !`
+              : 'Cette commande te fait gagner un tampon fidélité 🎉'}
+          </p>
+        )}
 
       <div className="mt-6">
         <CheckoutForm
