@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +30,30 @@ type Props = {
   groups: SupplementGroup[];
   onChange: (groups: SupplementGroup[]) => void;
 };
+
+function OptionPriceInput({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  return (
+    <Input
+      type="number"
+      placeholder="Prix"
+      min={0}
+      step={1}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        onChange(Number(e.target.value) || 0);
+      }}
+      className="w-24 sm:w-32"
+    />
+  );
+}
 
 export function SupplementsEditor({ groups, onChange }: Props) {
   function addGroup() {
@@ -211,18 +236,9 @@ export function SupplementsEditor({ groups, onChange }: Props) {
                     }
                     className="w-full sm:w-auto sm:min-w-[120px] sm:flex-1"
                   />
-                  <Input
-                    type="number"
-                    placeholder="Prix"
-                    min={0}
-                    step={100}
+                  <OptionPriceInput
                     value={o.price}
-                    onChange={(e) =>
-                      updateOption(gi, oi, {
-                        price: Number(e.target.value),
-                      })
-                    }
-                    className="w-24 sm:w-32"
+                    onChange={(price) => updateOption(gi, oi, { price })}
                   />
                   <Input
                     type="number"

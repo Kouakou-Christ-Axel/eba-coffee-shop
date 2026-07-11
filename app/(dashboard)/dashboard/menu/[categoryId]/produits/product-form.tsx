@@ -72,13 +72,18 @@ export function ProductForm({
   const [description, setDescription] = useState(
     initial?.description ?? EMPTY.description
   );
-  const [price, setPrice] = useState<number>(initial?.price ?? EMPTY.price);
-  const [coutMatiere, setCoutMatiere] = useState<number>(
-    initial?.coutMatiere ?? EMPTY.coutMatiere
+  const [price, setPrice] = useState<string>(
+    String(initial?.price ?? EMPTY.price)
   );
-  const [coutEmballage, setCoutEmballage] = useState<number>(
-    initial?.coutEmballage ?? EMPTY.coutEmballage
+  const [coutMatiere, setCoutMatiere] = useState<string>(
+    String(initial?.coutMatiere ?? EMPTY.coutMatiere)
   );
+  const [coutEmballage, setCoutEmballage] = useState<string>(
+    String(initial?.coutEmballage ?? EMPTY.coutEmballage)
+  );
+  const priceNum = Number(price) || 0;
+  const coutMatiereNum = Number(coutMatiere) || 0;
+  const coutEmballageNum = Number(coutEmballage) || 0;
   const [imageUrl, setImageUrl] = useState<string | null>(
     initial?.imageUrl ?? null
   );
@@ -167,9 +172,9 @@ export function ProductForm({
         const payload = {
           name: name.trim(),
           description: description.trim(),
-          price: Number(price) || 0,
-          coutMatiere: Number(coutMatiere) || 0,
-          coutEmballage: Number(coutEmballage) || 0,
+          price: priceNum,
+          coutMatiere: coutMatiereNum,
+          coutEmballage: coutEmballageNum,
           imageUrl,
           supplementGroups: groups.map((g) => ({
             ...g,
@@ -227,9 +232,9 @@ export function ProductForm({
               id="price"
               type="number"
               min={0}
-              step={100}
+              step={1}
               value={price}
-              onChange={(e) => setPrice(Number(e.target.value))}
+              onChange={(e) => setPrice(e.target.value)}
               required
             />
           </div>
@@ -240,9 +245,9 @@ export function ProductForm({
                 id="cout-matiere"
                 type="number"
                 min={0}
-                step={100}
+                step={1}
                 value={coutMatiere}
-                onChange={(e) => setCoutMatiere(Number(e.target.value))}
+                onChange={(e) => setCoutMatiere(e.target.value)}
               />
             </div>
             <div className="space-y-1.5">
@@ -251,9 +256,9 @@ export function ProductForm({
                 id="cout-emballage"
                 type="number"
                 min={0}
-                step={100}
+                step={1}
                 value={coutEmballage}
-                onChange={(e) => setCoutEmballage(Number(e.target.value))}
+                onChange={(e) => setCoutEmballage(e.target.value)}
               />
             </div>
           </div>
@@ -277,24 +282,24 @@ export function ProductForm({
               décrémenté au paiement.
             </p>
           </div>
-          {price > 0 && (
+          {priceNum > 0 && (
             <div className="rounded-lg bg-muted px-3 py-2 text-sm">
               <span className="text-muted-foreground">Marge estimée : </span>
               <span className="font-semibold">
                 {new Intl.NumberFormat('fr-FR').format(
-                  price - coutMatiere - coutEmballage
+                  priceNum - coutMatiereNum - coutEmballageNum
                 )}{' '}
                 FCFA
               </span>
-              {price > 0 && (
-                <span className="ml-2 text-muted-foreground">
-                  (
-                  {Math.round(
-                    ((price - coutMatiere - coutEmballage) / price) * 100
-                  )}{' '}
-                  %)
-                </span>
-              )}
+              <span className="ml-2 text-muted-foreground">
+                (
+                {Math.round(
+                  ((priceNum - coutMatiereNum - coutEmballageNum) /
+                    priceNum) *
+                    100
+                )}{' '}
+                %)
+              </span>
             </div>
           )}
         </CardContent>
