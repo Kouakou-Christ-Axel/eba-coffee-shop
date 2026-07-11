@@ -18,6 +18,7 @@ import {
   IconDeviceMobile,
 } from '@tabler/icons-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { useBottomBannerStore } from '@/lib/bottom-banner-store';
 
 // Événement non standard exposé par Chromium pour l'installation des PWA.
 interface BeforeInstallPromptEvent extends Event {
@@ -137,6 +138,14 @@ export default function InstallPwa() {
       /* noop */
     }
   }, []);
+
+  // Signale au bouton panier flottant (/carte) qu'un bandeau occupe le bas
+  // de l'écran, pour qu'il se décale au-dessus au lieu d'être recouvert.
+  React.useEffect(() => {
+    useBottomBannerStore.getState().setVisible('pwa-install', showBanner);
+    return () =>
+      useBottomBannerStore.getState().setVisible('pwa-install', false);
+  }, [showBanner]);
 
   const handleInstallClick = React.useCallback(async () => {
     // iOS : pas d'API d'installation → on ouvre le tutoriel.

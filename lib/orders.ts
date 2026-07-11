@@ -171,6 +171,7 @@ export type PublicOrderItemView = CartItem & { available: boolean };
 export type PublicOrderView = {
   id: string;
   reference: string;
+  dailyNumber: number;
   status: OrderStatus;
   orderType: OrderType;
   isPaid: boolean;
@@ -225,6 +226,7 @@ export async function getPublicOrder(
   return {
     id: order.id,
     reference: order.reference,
+    dailyNumber: order.dailyNumber,
     status: order.status,
     orderType: order.orderType,
     isPaid: order.isPaid,

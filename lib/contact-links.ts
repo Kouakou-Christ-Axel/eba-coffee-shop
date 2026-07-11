@@ -106,6 +106,27 @@ export function buildWaveRequestMessage(params: {
   ].join('\n');
 }
 
+/**
+ * Message que le CLIENT envoie à la boutique (depuis la page de suivi)
+ * pour signaler son paiement — il joint sa capture d'écran dans WhatsApp
+ * juste après (un lien wa.me ne peut pas joindre une image automatiquement).
+ * Permet à la caisse de valider manuellement dans le dashboard.
+ */
+export function buildPaymentProofMessage(params: {
+  customerName: string | null;
+  dailyNumber: number;
+  amount: number;
+}): string {
+  const { customerName, dailyNumber, amount } = params;
+  const greeting = customerName ? `Bonjour, ici ${customerName}` : 'Bonjour';
+  const number = String(dailyNumber).padStart(3, '0');
+  return [
+    `${greeting}.`,
+    `Je viens de payer ma commande EBA #${number} (${priceFormatter.format(amount)} F).`,
+    "Je t'envoie la capture de mon paiement juste après ce message.",
+  ].join('\n');
+}
+
 /** Message "ta commande est prête" via WhatsApp. */
 export function buildPickupReadyMessage(params: {
   customerName: string | null;
@@ -160,8 +181,13 @@ export function buildDriverShareMessage(params: {
   pickupMapsUrl: string | null;
   trackingUrl: string;
 }): string {
-  const { pickupCode, customerName, pickupAddress, pickupMapsUrl, trackingUrl } =
-    params;
+  const {
+    pickupCode,
+    customerName,
+    pickupAddress,
+    pickupMapsUrl,
+    trackingUrl,
+  } = params;
   const who = customerName ? `la commande de ${customerName}` : 'ma commande';
 
   const lines = [
@@ -171,6 +197,9 @@ export function buildDriverShareMessage(params: {
   ];
   if (pickupAddress) lines.push(`Adresse : ${pickupAddress}`);
   if (pickupMapsUrl) lines.push(`Localisation : ${pickupMapsUrl}`);
-  lines.push('', `Statut en direct (pars quand c'est « Prête ») : ${trackingUrl}`);
+  lines.push(
+    '',
+    `Statut en direct (pars quand c'est « Prête ») : ${trackingUrl}`
+  );
   return lines.join('\n');
 }

@@ -4,6 +4,7 @@ import React from 'react';
 import { Button, Link } from '@heroui/react';
 import { IconDownload, IconFileTypePdf, IconX } from '@tabler/icons-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { useBottomBannerStore } from '@/lib/bottom-banner-store';
 
 // Même principe que components/pwa/install-pwa.tsx : bannière flottante
 // proposant une action, avec mémorisation du rejet (localStorage + TTL) pour
@@ -46,6 +47,13 @@ export default function DownloadMenuPdf({ pdfUrl }: Props) {
       /* noop */
     }
   }, []);
+
+  // Signale au bouton panier flottant qu'un bandeau occupe le bas de
+  // l'écran, pour qu'il se décale au-dessus au lieu d'être recouvert.
+  React.useEffect(() => {
+    useBottomBannerStore.getState().setVisible('menu-pdf', showBanner);
+    return () => useBottomBannerStore.getState().setVisible('menu-pdf', false);
+  }, [showBanner]);
 
   const initial = reduceMotion ? false : { y: 120, opacity: 0 };
   const animate = reduceMotion ? {} : { y: 0, opacity: 1 };
