@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -28,6 +29,10 @@ export function BadgesField({
   onFeaturedOrderChange,
   onFeaturedBadgeChange,
 }: Props) {
+  const [featuredOrderText, setFeaturedOrderText] = useState(
+    String(featuredOrder)
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -58,8 +63,11 @@ export function BadgesField({
                 type="number"
                 min={0}
                 step={1}
-                value={featuredOrder}
-                onChange={(e) => onFeaturedOrderChange(Number(e.target.value))}
+                value={featuredOrderText}
+                onChange={(e) => {
+                  setFeaturedOrderText(e.target.value);
+                  onFeaturedOrderChange(Number(e.target.value) || 0);
+                }}
               />
               <p className="text-xs text-muted-foreground">
                 Plus petit = affiché en premier.
