@@ -58,7 +58,12 @@ import {
   listExpenseCategories,
   listExpenses,
   getExpenseSummary,
+  listExpenseArticles,
+  getExpenseArticleHistory,
+  getExpenseMonthlySeries,
+  getPurchaseFrequency,
 } from '@/lib/expenses';
+import { resolveArticle } from '@/lib/expense-matching';
 import {
   createExpenseCategory,
   updateExpenseCategory,
@@ -66,12 +71,28 @@ import {
   createExpense,
   updateExpense,
   deleteExpense,
+  renameExpenseArticle,
+  setExpenseArticleSettings,
+  mergeArticles,
+  relinkExpenseItem,
+  backfillExpenseItems,
+  rematchUnlinkedItems,
 } from '@/lib/expense-mutations';
 import {
   expenseCategoryInputSchema,
   expenseInputSchema,
   expenseFiltersSchema,
+  expenseFrequencyFiltersSchema,
+  expenseArticleRenameSchema,
+  expenseArticleSettingsSchema,
+  articleMergeSchema,
+  relinkExpenseItemSchema,
 } from '@/lib/schemas/expense';
+import {
+  getExpenseSettings,
+  updateExpenseSettings,
+} from '@/lib/expense-settings-db';
+import { expenseSettingsSchema } from '@/lib/expense-settings';
 import {
   listInvestmentSources,
   listInvestments,
@@ -526,7 +547,15 @@ export const tools: McpTool[] = [
       '`paymentMethod` ∈ CASH/WAVE/BANK/OTHER (défaut CASH). `supplier`, ' +
       '`note` et `receiptUrl` sont optionnels ; pour joindre une photo encodée, ' +
       'utilise `set_expense_receipt` après création. Un numéro de reçu ' +
-      '`receiptNo` (DEP-YYYY-MM-NNNN) est attribué automatiquement et renvoyé.',
+      '`receiptNo` (DEP-YYYY-MM-NNNN) est attribué automatiquement et renvoyé. ' +
+      '`items[]` optionnel détaille la dépense par article (comportement par ' +
+      'défaut : dépense globale, sans détail) : `articleName` (texte libre — ' +
+      'rapproche ou crée l’article) ou `articleId` (article existant, cf. ' +
+      '`search_article`/`detect_article`), `rawLabel` (libellé brut saisi, ' +
+      'toujours conservé), `formatQty`/`formatSize`/`unit` (format d’achat) et ' +
+      '`unitPrice`. `amount` de la ligne peut être omis s’il est dérivable de ' +
+      '`formatQty × formatSize × unitPrice` ; la somme des lignes doit alors ' +
+      'égaler le montant total de la dépense.',
     inputSchema: expenseInputSchema,
     readOnly: false,
     handler: (args) => createExpense(args),
@@ -538,7 +567,10 @@ export const tools: McpTool[] = [
     description:
       'Met à jour une dépense de façon PARTIELLE : ne fournis que les champs à ' +
       'modifier. Le numéro de reçu (`receiptNo`) est immuable et ne change ' +
-      'jamais, même si la `date` est modifiée.',
+      'jamais, même si la `date` est modifiée. `items` suit la même logique ' +
+      'que `create_expense` ; `items: null` retire tout le détail existant (la ' +
+      'dépense redevient globale), `items: [...]` remplace entièrement les ' +
+      'lignes (la somme doit égaler le montant).',
     inputSchema: expenseInputSchema.partial().extend({ id: idSchema }),
     readOnly: false,
     handler: (args) => {
@@ -590,6 +622,274 @@ export const tools: McpTool[] = [
         uploadReceiptImage
       );
       return updateExpense(id, { receiptUrl: url });
+    },
+  },
+
+  // — Dépenses : articles (référentiel, rapprochement, fréquence d'achat) —
+  {
+    name: 'search_article',
+    scope: 'finance',
+    title: 'Rechercher un article de dépense',
+    description:
+      'Recherche/rapproche un libellé (`q`) avec le référentiel d’articles ' +
+      '(`ExpenseArticle`) : alias scopé fournisseur → alias global → nom ' +
+      'normalisé exact → candidats approchants (jusqu’à 5). `supplierId` (clé ' +
+      'fournisseur) affine le rapprochement par alias scopé. Ne crée jamais ' +
+      'd’article — utile avant `create_expense`/`relink_expense_item` pour ' +
+      'trouver l’`articleId` correct.',
+    inputSchema: z.object({
+      q: z.string().min(1),
+      supplierId: z.string().optional(),
+    }),
+    readOnly: true,
+    handler: (args) => {
+      const { q, supplierId } = args as { q: string; supplierId?: string };
+      return resolveArticle({ rawLabel: q, supplierKey: supplierId });
+    },
+  },
+  {
+    name: 'detect_article',
+    scope: 'finance',
+    title: 'Détecter l’article correspondant à un libellé',
+    description:
+      'Même rapprochement que `search_article`, pensé pour qu’une IA décide ' +
+      'AVANT de créer une ligne de dépense : la réponse contient soit un ' +
+      'article rapproché avec certitude (`matched`), soit plusieurs candidats ' +
+      'ambigus à départager explicitement (`candidates`), soit aucune ' +
+      'correspondance (`none`, il faudra alors laisser `create_expense` ' +
+      '(`items[].articleName`) créer un nouvel article).',
+    inputSchema: z.object({
+      q: z.string().min(1),
+      supplierId: z.string().optional(),
+    }),
+    readOnly: true,
+    handler: (args) => {
+      const { q, supplierId } = args as { q: string; supplierId?: string };
+      return resolveArticle({ rawLabel: q, supplierKey: supplierId });
+    },
+  },
+  {
+    name: 'get_purchase_frequency',
+    scope: 'finance',
+    title: 'Fréquence d’achat par article',
+    description:
+      'Nombre d’achats (COMPTAGE recalculé à chaque appel, jamais un compteur ' +
+      'stocké), montant cumulé, prix unitaire moyen pondéré, intervalle moyen ' +
+      'entre deux achats (jours) et cadence mensuelle. `articleId` restreint à ' +
+      'un seul article (omis = tous les articles achetés sur la période). ' +
+      'Période (`from`/`to`, `YYYY-MM-DD`) optionnelle : défaut le mois civil ' +
+      'Abidjan en cours.',
+    inputSchema: expenseFrequencyFiltersSchema.extend({
+      articleId: idSchema.optional(),
+    }),
+    readOnly: true,
+    handler: (args) => {
+      const { articleId, from, to } = args as {
+        articleId?: string;
+        from?: string;
+        to?: string;
+      };
+      return getPurchaseFrequency(articleId, {
+        from: parseDateOnlyToUTC(from),
+        to: parseDateOnlyToUTC(to),
+      });
+    },
+  },
+  {
+    name: 'list_expense_articles',
+    scope: 'finance',
+    title: 'Lister les articles de dépense',
+    description:
+      'Renvoie les articles de dépense actifs (référentiel de rapprochement), ' +
+      'triés par nom, avec unité de base, suivi de stock, emplacement, lien ' +
+      'inventaire, prix de référence grossiste et nombre de lignes ' +
+      'rattachées. `search` filtre par nom (auto-complétion/désambiguïsation).',
+    inputSchema: z.object({ search: z.string().optional() }),
+    readOnly: true,
+    handler: (args) =>
+      listExpenseArticles((args as { search?: string }).search),
+  },
+  {
+    name: 'get_expense_article_history',
+    scope: 'finance',
+    title: 'Historique d’achat d’un article',
+    description:
+      'Renvoie le détail de chaque ligne d’achat d’un article (drill-down), ' +
+      'les plus récentes d’abord, avec la dépense associée (reçu, date, ' +
+      'fournisseur, mode de paiement). Plage `from`/`to` (`YYYY-MM-DD`) ' +
+      'optionnelle. Renvoie `null` si l’article est introuvable.',
+    inputSchema: expenseFrequencyFiltersSchema.extend({ articleId: idSchema }),
+    readOnly: true,
+    handler: (args) => {
+      const { articleId, from, to } = args as {
+        articleId: string;
+        from?: string;
+        to?: string;
+      };
+      return getExpenseArticleHistory(articleId, {
+        from: parseDateOnlyToUTC(from),
+        to: parseDateOnlyToUTC(to),
+      });
+    },
+  },
+  {
+    name: 'get_expense_monthly_series',
+    scope: 'finance',
+    title: 'Série mensuelle des dépenses',
+    description:
+      'Renvoie, mois par mois sur la plage demandée (mois sans dépense inclus ' +
+      'à zéro), le total des dépenses éclaté fixes/variables (nature de la ' +
+      'catégorie). Montants en francs CFA.',
+    inputSchema: rangeSchema,
+    readOnly: true,
+    handler: (args) => {
+      const { from, to } = toRange(args);
+      return getExpenseMonthlySeries(from, to);
+    },
+  },
+  {
+    name: 'get_expense_settings',
+    scope: 'finance',
+    title: 'Lire les réglages du module dépenses',
+    description:
+      'Renvoie la configuration du module dépenses : fenêtre et seuil de ' +
+      'fréquence d’achat, montant cumulé minimal, facteur de détection de ' +
+      'prix aberrant, durée de vie d’un brouillon et seuil de suggestion de ' +
+      'récurrence.',
+    inputSchema: z.object({}),
+    readOnly: true,
+    handler: () => getExpenseSettings(),
+  },
+  {
+    name: 'relink_expense_item',
+    scope: 'finance',
+    title: 'Re-lier une ligne de dépense à un article',
+    description:
+      'Re-lie une ligne de dépense (`itemId`) à l’article correct ' +
+      '(`articleId`) — corrige un rapprochement erroné ou absent — et ' +
+      'APPREND l’alias (`rawLabel` → article) pour que la prochaine saisie du ' +
+      'même libellé se rapproche automatiquement. Sans effet sur le stock.',
+    inputSchema: relinkExpenseItemSchema,
+    readOnly: false,
+    handler: (args) => {
+      const { itemId, articleId } = args as {
+        itemId: string;
+        articleId: string;
+      };
+      return relinkExpenseItem(itemId, articleId);
+    },
+  },
+  {
+    name: 'merge_articles',
+    scope: 'finance',
+    title: 'Fusionner deux articles en doublon',
+    description:
+      'Fusionne `sourceId` dans `targetId` (dédoublonnage) : toutes les ' +
+      'lignes de dépense et tous les alias pointant vers la source sont ' +
+      're-rattachés à la cible, puis la source est archivée. Ne supprime ' +
+      'jamais de ligne.',
+    inputSchema: articleMergeSchema,
+    readOnly: false,
+    handler: (args) => {
+      const { sourceId, targetId } = args as {
+        sourceId: string;
+        targetId: string;
+      };
+      return mergeArticles(sourceId, targetId);
+    },
+  },
+  {
+    name: 'rename_expense_article',
+    scope: 'finance',
+    title: 'Renommer un article de dépense',
+    description:
+      'Met à jour le nom d’un article de dépense (le nom normalisé suit ; ' +
+      'unicité contrôlée).',
+    inputSchema: expenseArticleRenameSchema.extend({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, ...rest } = args as { id: string; name: string };
+      return renameExpenseArticle(id, rest);
+    },
+  },
+  {
+    name: 'set_expense_article_settings',
+    scope: 'finance',
+    title: 'Régler un article de dépense',
+    description:
+      'Met à jour de façon PARTIELLE les réglages d’un article : `baseUnit` ' +
+      '(unité de base pour normaliser les quantités), `trackInventory` (le ' +
+      'lie au module inventaire), `location` (emplacement de stockage), ' +
+      '`wholesaleRefPrice` (prix de référence grossiste, francs CFA) et ' +
+      '`inventoryItemId` (référence d’inventaire liée).',
+    inputSchema: expenseArticleSettingsSchema.extend({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, ...rest } = args as { id: string } & Record<string, unknown>;
+      return setExpenseArticleSettings(id, rest);
+    },
+  },
+  {
+    name: 'update_expense_settings',
+    scope: 'finance',
+    title: 'Modifier les réglages du module dépenses',
+    description:
+      'Met à jour la configuration du module dépenses (fenêtre et seuil de ' +
+      'fréquence d’achat, montant cumulé minimal, facteur de prix aberrant, ' +
+      'durée de vie d’un brouillon, seuil de suggestion de récurrence). ' +
+      'Renvoie les réglages mis à jour.',
+    inputSchema: expenseSettingsSchema,
+    readOnly: false,
+    handler: async (args) => {
+      await updateExpenseSettings(args);
+      return getExpenseSettings();
+    },
+  },
+  {
+    name: 'rematch_expense_items',
+    scope: 'finance',
+    title: 'Rapprocher les lignes non liées',
+    description:
+      'Outil d’ENTRETIEN : passe en revue les lignes de dépense non ' +
+      'rapprochées (`articleId` manquant) et tente de les relier via le même ' +
+      'moteur que `search_article` — lie automatiquement en cas de ' +
+      'correspondance UNIQUE (alias ou nom normalisé exact) et apprend ' +
+      'l’alias correspondant, laisse de côté les lignes ambiguës (plusieurs ' +
+      'candidats) ou sans correspondance. Utilise `dryRun: true` pour un ' +
+      'aperçu (compte les lignes qui seraient liées/ambiguës/sans ' +
+      'correspondance) AVANT d’appliquer réellement. `supplierKey` force la ' +
+      'clé fournisseur (sinon dérivée du fournisseur de chaque dépense).',
+    inputSchema: z.object({
+      dryRun: z.boolean().optional(),
+      supplierKey: z.string().optional(),
+    }),
+    readOnly: false,
+    handler: (args) => {
+      const { dryRun, supplierKey } = args as {
+        dryRun?: boolean;
+        supplierKey?: string;
+      };
+      return rematchUnlinkedItems(undefined, { dry: dryRun, supplierKey });
+    },
+  },
+  {
+    name: 'backfill_expense_items',
+    scope: 'finance',
+    title: 'Régénérer le détail des dépenses liées aux réappros',
+    description:
+      'Outil d’ENTRETIEN : génère rétroactivement les lignes de détail ' +
+      '(`ExpenseItem`) des dépenses liées à des achats d’inventaire ' +
+      '(`record_inventory_purchases`) qui n’en ont pas encore. Idempotent — ' +
+      'ne traite que les dépenses sans détail existant — et ne modifie ' +
+      'JAMAIS le montant de la dépense : les dépenses dont la somme des ' +
+      'achats ne correspond pas exactement sont ignorées et rapportées ' +
+      '(`skippedMismatch`). Utilise `dryRun: true` pour un aperçu avant ' +
+      'd’appliquer.',
+    inputSchema: z.object({ dryRun: z.boolean().optional() }),
+    readOnly: false,
+    handler: (args) => {
+      const { dryRun } = args as { dryRun?: boolean };
+      return backfillExpenseItems(undefined, { dry: dryRun });
     },
   },
 
