@@ -138,10 +138,14 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `delete_expense_category`        | écriture | Supprimer une catégorie (soft delete, conserve les dépenses)      |
 | `list_expenses`                  | lecture  | Lister les dépenses (filtres date/catégorie)                      |
 | `get_expense_summary`            | lecture  | Total + ventilation des dépenses par catégorie                    |
-| `create_expense`                 | écriture | Enregistrer une dépense                                           |
+| `create_expense`                 | écriture | Enregistrer une dépense (⚠️ déprécié pour les achats fournisseur) |
 | `update_expense`                 | écriture | Modifier une dépense (mise à jour **partielle**)                  |
 | `delete_expense`                 | écriture | Supprimer une dépense                                             |
 | `set_expense_receipt`            | écriture | Joindre un justificatif (base64 ou URL)                           |
+| `prepare_purchase`               | écriture | Préparer un achat détaillé (brouillon + récapitulatif)            |
+| `confirm_purchase`               | écriture | Confirmer un brouillon d’achat → dépense                          |
+| `prepare_other_expense`          | écriture | Préparer une dépense simple (brouillon + récapitulatif)           |
+| `confirm_other_expense`          | écriture | Confirmer un brouillon de dépense simple → dépense                |
 | `search_article`                 | lecture  | Rapprocher un libellé avec le référentiel d’articles              |
 | `detect_article`                 | lecture  | Idem, formaté pour la décision d’une IA (matched/candidates/none) |
 | `get_purchase_frequency`         | lecture  | Fréquence d’achat par article (compte, PU moyen, cadence)         |
@@ -309,6 +313,61 @@ tester avec `dryRun: true` d'abord) :
   des réapprovisionnements d'inventaire (`record_inventory_purchases`) qui
   n'en ont pas encore — idempotent, ne modifie jamais le montant de la
   dépense.
+
+### Achats : brouillon → confirmation (draft→confirm)
+
+Aucun outil n'enregistre un achat fournisseur **en un seul appel** : le flux
+passe systématiquement par un **brouillon persisté** (`PurchaseDraft`, durée de
+vie = `ExpenseSettings.draftTtlMinutes`, lisible/réglable via
+`get_expense_settings`/`update_expense_settings`) que l'utilisateur doit
+valider explicitement avant écriture définitive. `create_expense` reste
+disponible mais est **déprécié pour les achats fournisseur** — préférez ce
+flux en deux temps ; il reste approprié pour une dépense simple déjà décidée
+ou pour la compatibilité.
+
+1. **`prepare_purchase`** — reçoit un ou plusieurs lignes d'achat
+   (`lines[]`, chacune avec `rawLabel` et, au choix, `articleId` connu ou
+   `articleName` à rapprocher, plus `formatQty`/`formatSize`/`unit`/
+   `unitPrice`/`amount`), `categoryId`, `supplier`, `date` (`YYYY-MM-DD`,
+   défaut aujourd'hui) et `paymentMethod`. Rapproche chaque ligne au
+   référentiel d'articles (même moteur que `search_article`/`detect_article`,
+   **sans jamais créer d'article** à ce stade), calcule les montants
+   dérivables et renvoie `{ draftId, expiresAt, summary, warnings }`. N'écrit
+   RIEN de définitif.
+2. **L'agent DOIT présenter `summary` et `warnings` à l'utilisateur et
+   attendre sa confirmation explicite** avant d'appeler `confirm_purchase` —
+   ce n'est pas optionnel, c'est le seul garde-fou avant écriture.
+3. **`confirm_purchase`** — reçoit `draftId` et, en option, `resolutions`
+   (par **index** de ligne, celui du tableau `lines` fourni à
+   `prepare_purchase`) pour trancher les cas laissés en suspens :
+   `articleId`/`articleName` (choisir l'article d'une ligne ambiguë ou non
+   rapprochée), `excluded: true` (retirer une ligne, ex. doublon confirmé),
+   ou corriger `formatQty`/`formatSize`/`unitPrice`/`amount`. Construit les
+   `items[]` et délègue à `createExpense` (même chemin que `create_expense`,
+   y compris la création d'un nouvel article si aucun n'a été rapproché).
+   Échoue si le brouillon est **inexistant, expiré ou déjà confirmé** (claim
+   atomique — un brouillon ne peut être confirmé qu'une seule fois).
+
+Le même contrat (prepare → présenter → confirm) s'applique aux dépenses
+**simples** (sans détail par article) via `prepare_other_expense` /
+`confirm_other_expense` — sans rapprochement ni `resolutions`, juste la
+validation des champs (`amount`, `categoryId`, `date`, `paymentMethod`,
+`supplier`, `note`) puis confirmation.
+
+Codes d'avertissement (`warnings[].code`) renvoyés par `prepare_purchase` :
+
+| Code                  | Signification                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `UNMATCHED_LINE`      | Aucun article rapproché : un nouvel article sera créé à la confirmation (sauf résolution explicite).          |
+| `AMBIGUOUS_LINE`      | Plusieurs articles candidats (`candidates` dans `summary.lines[]`) : préciser `articleId` dans `resolutions`. |
+| `PRICE_ABERRANT`      | Prix unitaire très supérieur au prix moyen récent du même article.                                            |
+| `SUM_MISMATCH`        | La somme des lignes ne correspond pas au `totalAmount` indiqué.                                               |
+| `DUPLICATE_SUSPECTED` | Une dépense similaire (même fournisseur, même montant, même jour) existe déjà.                                |
+| `BULK_RECHUTE`        | L'article est habituellement acheté en gros : vérifier qu'un réappro est nécessaire.                          |
+| `RECURRENCE_SUGGEST`  | Un libellé libre non rapproché revient souvent ce mois-ci : envisager de créer une référence dédiée.          |
+
+Les brouillons non confirmés expirent (`expiresAt`) et sont purgés
+périodiquement (`purgeExpiredDrafts`, hors périmètre des outils MCP).
 
 Les outils **investissements** (apports / financements injectés dans l'affaire :
 capital, prêt, apport d'associé, subvention…) couvrent l'administration complète
