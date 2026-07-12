@@ -356,15 +356,15 @@ validation des champs (`amount`, `categoryId`, `date`, `paymentMethod`,
 
 Codes d'avertissement (`warnings[].code`) renvoyés par `prepare_purchase` :
 
-| Code                 | Signification                                                             |
-| -------------------- | -------------------------------------------------------------------------- |
-| `UNMATCHED_LINE`      | Aucun article rapproché : un nouvel article sera créé à la confirmation (sauf résolution explicite). |
+| Code                  | Signification                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `UNMATCHED_LINE`      | Aucun article rapproché : un nouvel article sera créé à la confirmation (sauf résolution explicite).          |
 | `AMBIGUOUS_LINE`      | Plusieurs articles candidats (`candidates` dans `summary.lines[]`) : préciser `articleId` dans `resolutions`. |
-| `PRICE_ABERRANT`      | Prix unitaire très supérieur au prix moyen récent du même article.       |
-| `SUM_MISMATCH`        | La somme des lignes ne correspond pas au `totalAmount` indiqué.          |
-| `DUPLICATE_SUSPECTED` | Une dépense similaire (même fournisseur, même montant, même jour) existe déjà. |
-| `BULK_RECHUTE`        | L'article est habituellement acheté en gros : vérifier qu'un réappro est nécessaire. |
-| `RECURRENCE_SUGGEST`  | Un libellé libre non rapproché revient souvent ce mois-ci : envisager de créer une référence dédiée. |
+| `PRICE_ABERRANT`      | Prix unitaire très supérieur au prix moyen récent du même article.                                            |
+| `SUM_MISMATCH`        | La somme des lignes ne correspond pas au `totalAmount` indiqué.                                               |
+| `DUPLICATE_SUSPECTED` | Une dépense similaire (même fournisseur, même montant, même jour) existe déjà.                                |
+| `BULK_RECHUTE`        | L'article est habituellement acheté en gros : vérifier qu'un réappro est nécessaire.                          |
+| `RECURRENCE_SUGGEST`  | Un libellé libre non rapproché revient souvent ce mois-ci : envisager de créer une référence dédiée.          |
 
 Les brouillons non confirmés expirent (`expiresAt`) et sont purgés
 périodiquement (`purgeExpiredDrafts`, hors périmètre des outils MCP).
