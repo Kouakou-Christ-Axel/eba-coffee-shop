@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useMemo, useState, useTransition } from 'react';
-import { PackageCheck } from 'lucide-react';
 import {
   cancelOrderFromKitchen,
   markOrderReady,
@@ -15,11 +14,14 @@ import {
 } from '@/lib/hooks/use-orders-stream';
 import { useNowTick } from '@/lib/hooks/use-now-tick';
 import { normalizeOrderDates } from '@/lib/orders/format';
+import { isScheduledAhead } from '@/lib/orders/scheduling';
+import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
 import { PreparationHeader } from './_components/preparation-header';
 import { EmptyState } from './_components/empty-state';
 import { PrepOrderCard } from './_components/prep-order-card';
-import { ReadyOrderCard } from './_components/ready-order-card';
-import { PackingModal } from './_components/packing-modal';
+import { OrderDetailSheet } from './_components/order-detail-sheet';
+import { OrdersListSheet } from './_components/orders-list-sheet';
+import { elapsedMinutes } from './_components/elapsed';
 
 const SOUND_STORAGE_KEY = 'eba.preparation.sound-enabled';
 const SSE_URL = '/api/preparation/stream';
@@ -51,6 +53,12 @@ export function PreparationView({
   );
   // Cartes en cours d'action (spinner + double-clic bloqué), par commande.
   const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
+  // Commande agrandie dans le bottom sheet de détail (null = fermé).
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Bottom sheet de liste ouvert (programmées / prêtes), null = aucun.
+  const [openSheet, setOpenSheet] = useState<'scheduled' | 'ready' | null>(
+    null
+  );
   const { soundEnabled, soundEnabledRef, toggleSound } =
     useSoundPreference(SOUND_STORAGE_KEY);
   const now = useNowTick(15_000);
@@ -72,13 +80,43 @@ export function PreparationView({
     () => orders.filter((o) => !optimisticHidden.has(o.id)),
     [orders, optimisticHidden]
   );
-  const preparing = useMemo(
-    () => visible.filter((o) => o.status === 'PREPARING'),
-    [visible]
+  // « À cuisiner maintenant » : en préparation et PAS programmée lointaine.
+  const cooking = useMemo(
+    () =>
+      visible.filter(
+        (o) => o.status === 'PREPARING' && !isScheduledAhead(o, now)
+      ),
+    [visible, now]
+  );
+  // Programmées lointaines (retrait > seuil) : déchargées de la grille.
+  const scheduled = useMemo(
+    () =>
+      visible
+        .filter((o) => o.status === 'PREPARING' && isScheduledAhead(o, now))
+        .sort(
+          (a, b) =>
+            (a.pickupTime?.getTime() ?? 0) - (b.pickupTime?.getTime() ?? 0)
+        ),
+    [visible, now]
   );
   const ready = useMemo(
     () => visible.filter((o) => o.status === 'READY'),
     [visible]
+  );
+  const readyAlert = useMemo(
+    () =>
+      ready.some(
+        (o) =>
+          elapsedMinutes(o.readyAt ?? o.createdAt, now) >=
+          READY_WAIT_ALERT_MINUTES
+      ),
+    [ready, now]
+  );
+  // Commande actuellement agrandie (retrouvée dans le flux live → chrono/statut
+  // à jour ; le sheet se ferme tout seul si elle disparaît).
+  const selected = useMemo(
+    () => visible.find((o) => o.id === selectedId) ?? null,
+    [visible, selectedId]
   );
 
   const setPending = useCallback((id: string, on: boolean) => {
@@ -141,16 +179,24 @@ export function PreparationView({
     [orders, setPending]
   );
 
-  const isEmpty = preparing.length === 0 && ready.length === 0;
+  // Grille principale vide : plus aucune commande à cuisiner maintenant.
+  const isEmpty = cooking.length === 0;
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] flex-col">
       <PreparationHeader
-        counts={{ preparing: preparing.length, ready: ready.length }}
+        counts={{
+          cooking: cooking.length,
+          scheduled: scheduled.length,
+          ready: ready.length,
+        }}
+        readyAlert={readyAlert}
         connState={connState}
         lastSync={lastSync}
         soundEnabled={soundEnabled}
         onToggleSound={toggleSound}
+        onOpenScheduled={() => setOpenSheet('scheduled')}
+        onOpenReady={() => setOpenSheet('ready')}
       />
 
       {isEmpty ? (
@@ -159,41 +205,59 @@ export function PreparationView({
         </div>
       ) : (
         <div className="flex flex-1 flex-col gap-5 pt-4">
-          {/* File en préparation : grille de cartes, visible d'un coup d'œil. */}
-          {preparing.length > 0 && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {preparing.map((order) => (
-                <PrepOrderCard
-                  key={order.id}
-                  order={order}
-                  now={now}
-                  pending={pendingIds.has(order.id) || isPending}
-                  onReady={handleReady}
-                  onCancel={handleCancel}
-                  onRequestDriver={handleRequestDriver}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* En attente de récupération (prêtes) */}
-          {ready.length > 0 && (
-            <section>
-              <h2 className="mb-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-green-700 dark:text-green-400">
-                <PackageCheck className="h-4 w-4" />
-                En attente de récupération ({ready.length})
-              </h2>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {ready.map((order) => (
-                  <ReadyOrderCard key={order.id} order={order} now={now} />
-                ))}
-              </div>
-            </section>
-          )}
+          {/* À cuisiner maintenant : grille de cartes, visible d'un coup d'œil.
+              Toucher une carte l'agrandit dans le bottom sheet de détail. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {cooking.map((order) => (
+              <PrepOrderCard
+                key={order.id}
+                order={order}
+                now={now}
+                pending={pendingIds.has(order.id) || isPending}
+                onExpand={setSelectedId}
+                onReady={handleReady}
+                onCancel={handleCancel}
+                onRequestDriver={handleRequestDriver}
+              />
+            ))}
+          </div>
         </div>
       )}
 
-      <PackingModal orders={visible} now={now} />
+      {/* Détail agrandi (lisible de loin), ouvert au toucher d'une carte/ligne. */}
+      <OrderDetailSheet
+        order={selected}
+        now={now}
+        pending={selected ? pendingIds.has(selected.id) || isPending : false}
+        onClose={() => setSelectedId(null)}
+        onReady={(id) => {
+          setSelectedId(null);
+          handleReady(id);
+        }}
+        onCancel={(id) => {
+          setSelectedId(null);
+          handleCancel(id);
+        }}
+        onRequestDriver={handleRequestDriver}
+      />
+
+      {/* Commandes hors du travail courant, rangées dans des bottom sheets. */}
+      <OrdersListSheet
+        variant="scheduled"
+        orders={scheduled}
+        now={now}
+        open={openSheet === 'scheduled'}
+        onOpenChange={(o) => setOpenSheet(o ? 'scheduled' : null)}
+        onExpand={setSelectedId}
+      />
+      <OrdersListSheet
+        variant="ready"
+        orders={ready}
+        now={now}
+        open={openSheet === 'ready'}
+        onOpenChange={(o) => setOpenSheet(o ? 'ready' : null)}
+        onExpand={setSelectedId}
+      />
     </div>
   );
 }

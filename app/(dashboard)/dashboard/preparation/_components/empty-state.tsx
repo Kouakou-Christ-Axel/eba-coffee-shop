@@ -8,10 +8,11 @@ export function EmptyState() {
       <div className="rounded-full bg-green-100 p-6 dark:bg-green-950">
         <Check className="h-16 w-16 text-green-600 dark:text-green-400" />
       </div>
-      <h1 className="text-3xl font-bold">Aucune commande en cuisine</h1>
+      <h1 className="text-3xl font-bold">Rien à cuisiner pour le moment</h1>
       <p className="max-w-md text-base text-muted-foreground">
         Les commandes apparaissent ici dès qu&apos;elles sont encaissées par la
-        caisse, ou envoyées en cuisine manuellement.
+        caisse, ou envoyées en cuisine manuellement. Les commandes programmées et
+        prêtes restent accessibles via les boutons en haut.
       </p>
     </div>
   );

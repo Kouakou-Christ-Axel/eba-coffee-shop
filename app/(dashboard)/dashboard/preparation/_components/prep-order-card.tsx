@@ -6,6 +6,7 @@ import {
   Check,
   ChefHat,
   Coffee,
+  Maximize2,
   ShoppingBag,
   StickyNote,
   Timer,
@@ -15,29 +16,29 @@ import { cn } from '@/lib/utils';
 import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
 import type { PreparationOrder } from '@/lib/preparation-queue';
 import type { OrderType } from '@/generated/prisma/client';
-import { elapsedMinutes, elapsedTone, formatElapsed } from './elapsed';
+import {
+  elapsedMinutes,
+  elapsedTone,
+  formatElapsed,
+  KITCHEN_ALERT_MIN,
+  KITCHEN_WARN_MIN,
+  TONE_CLASS,
+} from './elapsed';
 
-const ORDER_TYPE_META: Record<OrderType, { label: string; Icon: typeof Bike }> =
-  {
-    DELIVERY: { label: 'Livraison', Icon: Bike },
-    DINE_IN: { label: 'Sur place', Icon: Coffee },
-    TAKEAWAY: { label: 'À emporter', Icon: ShoppingBag },
-  };
-
-// Seuils du chrono « en cuisine depuis X » (minutes) : attention puis alerte.
-const KITCHEN_WARN_MIN = 12;
-const KITCHEN_ALERT_MIN = 20;
-
-const TONE_CLASS = {
-  calm: 'bg-muted text-muted-foreground',
-  warn: 'bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-100',
-  alert: 'bg-red-100 text-red-900 dark:bg-red-950/60 dark:text-red-100',
-} as const;
+export const ORDER_TYPE_META: Record<
+  OrderType,
+  { label: string; Icon: typeof Bike }
+> = {
+  DELIVERY: { label: 'Livraison', Icon: Bike },
+  DINE_IN: { label: 'Sur place', Icon: Coffee },
+  TAKEAWAY: { label: 'À emporter', Icon: ShoppingBag },
+};
 
 type Props = {
   order: PreparationOrder;
   now: Date;
   pending: boolean;
+  onExpand: (id: string) => void;
   onReady: (id: string) => void;
   onCancel: (id: string) => void;
   onRequestDriver: (id: string) => void;
@@ -47,6 +48,7 @@ export function PrepOrderCard({
   order,
   now,
   pending,
+  onExpand,
   onReady,
   onCancel,
   onRequestDriver,
@@ -71,11 +73,18 @@ export function PrepOrderCard({
             : 'border-border'
       )}
     >
-      <div className="flex flex-1 flex-col gap-2 p-3">
+      {/* Corps tactile : toucher pour agrandir la commande dans un bottom sheet
+          lisible de loin. Les boutons d'action vivent hors de cette zone. */}
+      <button
+        type="button"
+        onClick={() => onExpand(order.id)}
+        aria-label={`Agrandir la commande #${String(order.dailyNumber).padStart(3, '0')}`}
+        className="flex flex-1 cursor-pointer flex-col gap-2 rounded-t-2xl p-3 text-left transition-colors hover:bg-muted/40 active:bg-muted/60"
+      >
         {/* En-tête : n° + code retrait + chrono */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="flex items-baseline gap-1.5 font-mono text-xl font-bold leading-none">
+            <p className="flex items-center gap-1.5 font-mono text-xl font-bold leading-none">
               #{String(order.dailyNumber).padStart(3, '0')}
               <span
                 className="rounded bg-primary/10 px-1.5 text-base text-primary"
@@ -83,6 +92,10 @@ export function PrepOrderCard({
               >
                 {getPickupCode(order.reference)}
               </span>
+              <Maximize2
+                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                aria-hidden
+              />
             </p>
             <p className="mt-1 flex items-center gap-1.5 text-sm">
               <TypeIcon
@@ -133,7 +146,7 @@ export function PrepOrderCard({
         {/* Articles */}
         <ul className="space-y-1.5">
           {order.items.map((item) => (
-            <li key={item.cartId} className="text-sm leading-tight">
+            <li key={item.cartId} className="text-base leading-tight">
               <span className="flex items-baseline gap-1.5">
                 <span className="font-bold tabular-nums text-primary">
                   ×{item.quantity}
@@ -153,15 +166,17 @@ export function PrepOrderCard({
             </li>
           ))}
         </ul>
+      </button>
 
-        {/* Demander le livreur (livraison) */}
-        {isDelivery && (
+      {/* Demander le livreur (livraison) — hors de la zone tactile d'agrandissement */}
+      {isDelivery && (
+        <div className="px-3 pb-1">
           <button
             type="button"
             onClick={() => onRequestDriver(order.id)}
             disabled={pending || order.driverRequested}
             className={cn(
-              'flex items-center justify-center gap-1.5 rounded-lg border py-1.5 text-xs font-semibold transition-colors',
+              'flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-xs font-semibold transition-colors',
               order.driverRequested
                 ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100'
                 : 'border-amber-500 bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-950/50 dark:hover:bg-amber-900/40'
@@ -170,8 +185,8 @@ export function PrepOrderCard({
             <Bike className="h-3.5 w-3.5" />
             {order.driverRequested ? 'Livreur demandé' : 'Demander le livreur'}
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="grid grid-cols-[1fr_2.5fr] gap-2 border-t p-2">
