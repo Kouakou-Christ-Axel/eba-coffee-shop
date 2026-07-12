@@ -133,6 +133,10 @@ export const createOrderSchema = z.object({
     .max(500, 'Note trop longue (max 500 caractères)')
     .nullable()
     .optional(),
+  // Récompense fidélité (carte à tampons) à appliquer à cette commande — la
+  // résolution (appartenance au client, statut AVAILABLE, plafond) est
+  // vérifiée côté serveur dans `createCashierOrder` (lib/order-mutations.ts).
+  loyaltyRewardId: z.string().min(1).nullable().optional(),
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;

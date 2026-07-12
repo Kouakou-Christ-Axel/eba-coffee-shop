@@ -227,6 +227,8 @@ export type CreateCashierOrderInput = {
   orderDate?: string | null;
   /** Utilisateur caisse à l'origine ; null pour un outil MCP. */
   createdById?: string | null;
+  /** Récompense fidélité (carte à tampons) à appliquer à cette commande. */
+  loyaltyRewardId?: string | null;
 };
 
 /**
@@ -235,6 +237,13 @@ export type CreateCashierOrderInput = {
  * Le total est TOUJOURS recalculé côté serveur (net après remises) : on ne fait
  * pas confiance à un total fourni. Retry sur conflit de l'index unique
  * (dailyDate, dailyNumber).
+ *
+ * Récompense fidélité (`loyaltyRewardId`) : appliquée comme une remise globale
+ * plafonnée (`capAmount`, jamais plus que le total), déduite du total AVANT
+ * l'attribution du tampon de cette commande (le tampon se calcule donc sur le
+ * montant réellement encaissé). La récompense est vérifiée (appartient au
+ * client résolu, statut `AVAILABLE`) et marquée `USED` dans la MÊME
+ * transaction que la création — jamais réutilisable deux fois.
  */
 export async function createCashierOrder(input: CreateCashierOrderInput) {
   // Normalisation téléphone : saisie libre acceptée, stockée en E.164 si
@@ -252,7 +261,7 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
     : today;
   const isBackdated = dailyDate.getTime() !== today.getTime();
 
-  const total = computeItemsTotal(input.items as CartItem[]);
+  const grossTotal = computeItemsTotal(input.items as CartItem[]);
 
   for (let attempt = 0; attempt < DAILY_NUMBER_MAX_RETRIES; attempt++) {
     try {
@@ -264,6 +273,36 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
           normalizedPhone,
           input.customerName
         );
+
+        // Récompense fidélité : vérifiée à nouveau à CHAQUE tentative (une
+        // transaction annulée par un conflit de numéro n'a rien écrit).
+        let reward: { id: string; capAmount: number } | null = null;
+        if (input.loyaltyRewardId) {
+          if (!customerId) {
+            throw new OrderMutationError(
+              'Récompense fidélité : aucun client associé à la commande',
+              400
+            );
+          }
+          const found = await tx.loyaltyReward.findUnique({
+            where: { id: input.loyaltyRewardId },
+            select: { id: true, customerId: true, capAmount: true, status: true },
+          });
+          if (
+            !found ||
+            found.customerId !== customerId ||
+            found.status !== 'AVAILABLE'
+          ) {
+            throw new OrderMutationError(
+              'Récompense fidélité indisponible',
+              400
+            );
+          }
+          reward = { id: found.id, capAmount: found.capAmount };
+        }
+
+        const discount = reward ? Math.min(reward.capAmount, grossTotal) : 0;
+        const total = grossTotal - discount;
 
         const created = await tx.order.create({
           data: {
@@ -279,11 +318,33 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
             total,
             note: input.note ?? null,
             createdById: input.createdById ?? null,
+            loyaltyRewardId: reward?.id ?? null,
+            loyaltyDiscount: discount || null,
             // Antidatage : aligner createdAt sur le jour civil ciblé pour que le
             // tri chronologique (createdAt desc) reflète la date réelle.
             ...(isBackdated ? { createdAt: dailyDate } : {}),
           },
         });
+
+        if (reward) {
+          await tx.loyaltyReward.update({
+            where: { id: reward.id },
+            data: {
+              status: 'USED',
+              usedOrderId: created.id,
+              usedAt: new Date(),
+            },
+          });
+          await tx.loyaltyLedger.create({
+            data: {
+              customerId: customerId as string,
+              type: 'REWARD_USED',
+              orderId: created.id,
+              actorId: input.createdById ?? null,
+              note: `Récompense ${reward.capAmount} F utilisée`,
+            },
+          });
+        }
 
         if (customerId) {
           await awardLoyaltyForOrder(tx, {

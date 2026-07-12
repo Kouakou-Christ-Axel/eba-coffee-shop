@@ -211,6 +211,13 @@ model Order {
   // (/uploads/payment-proofs/…). Validée manuellement en caisse.
   paymentProofUrl String?
 
+  // Récompense fidélité appliquée à cette commande (réduction déjà déduite de
+  // `total`). `loyaltyRewardId` référence `LoyaltyReward.id` (pas de relation
+  // Prisma, cf. `LoyaltyReward.usedOrderId` — même convention côté inverse).
+  // Null = aucune récompense utilisée sur cette commande.
+  loyaltyRewardId String?
+  loyaltyDiscount Int?
+
   createdById String?
   createdBy   User?   @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
