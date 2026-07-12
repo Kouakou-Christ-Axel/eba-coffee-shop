@@ -15,7 +15,7 @@
 //   panier du client. On garde donc un état local — encapsulé dans ce hook
 //   pour soulager `new-order-view.tsx`.
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Product } from '@/config/menu';
 import {
@@ -26,6 +26,16 @@ import {
 import type { OrderType } from '@/generated/prisma/client';
 
 export type NewOrderStep = 'catalog' | 'review';
+
+export type LoyaltyReward = { id: string; tier: number; capAmount: number };
+export type LoyaltyCard = {
+  stampCount: number;
+  stampsPerCard: number;
+  availableRewards: LoyaltyReward[];
+};
+
+const MIN_LOYALTY_PHONE_LENGTH = 8;
+const LOYALTY_DEBOUNCE_MS = 400;
 
 function makeCartId(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -64,6 +74,54 @@ export function useNewOrder() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, startSubmit] = useTransition();
 
+  // Fidélité : carte du client identifié par téléphone (tampons + récompenses
+  // disponibles), et récompense choisie pour cette commande (au plus une).
+  const [loyaltyCard, setLoyaltyCard] = useState<LoyaltyCard | null>(null);
+  const [loyaltyRewardId, setLoyaltyRewardId] = useState<string | null>(null);
+  const loyaltyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loyaltyAbort = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (loyaltyTimer.current) clearTimeout(loyaltyTimer.current);
+    // Différé (même pour la remise à zéro) : le setState ne doit jamais
+    // s'exécuter de façon synchrone dans le corps de l'effet.
+    loyaltyTimer.current = setTimeout(() => {
+      const phone = customerPhone.trim();
+      if (phone.length < MIN_LOYALTY_PHONE_LENGTH) {
+        setLoyaltyCard(null);
+        setLoyaltyRewardId(null);
+        return;
+      }
+      loyaltyAbort.current?.abort();
+      const controller = new AbortController();
+      loyaltyAbort.current = controller;
+      fetch(`/api/caisse/loyalty?phone=${encodeURIComponent(phone)}`, {
+        signal: controller.signal,
+      })
+        .then((res) => (res.ok ? res.json() : { card: null }))
+        .then((data: { card: LoyaltyCard | null }) => {
+          setLoyaltyCard(data.card);
+          // La récompense sélectionnée n'a plus cours (client différent /
+          // récompense entre-temps utilisée ailleurs) : on la désélectionne.
+          setLoyaltyRewardId((prev) =>
+            prev && data.card?.availableRewards.some((r) => r.id === prev)
+              ? prev
+              : null
+          );
+        })
+        .catch(() => {
+          // Requête annulée ou erreur réseau : pas de carte affichée.
+        });
+    }, LOYALTY_DEBOUNCE_MS);
+  }, [customerPhone]);
+
+  useEffect(() => {
+    return () => {
+      if (loyaltyTimer.current) clearTimeout(loyaltyTimer.current);
+      loyaltyAbort.current?.abort();
+    };
+  }, []);
+
   const totalItems = useMemo(
     () => items.reduce((s, i) => s + i.quantity, 0),
     [items]
@@ -72,6 +130,17 @@ export function useNewOrder() {
     () => items.reduce((s, i) => s + getItemTotal(i), 0),
     [items]
   );
+
+  const selectedReward = useMemo(
+    () =>
+      loyaltyCard?.availableRewards.find((r) => r.id === loyaltyRewardId) ??
+      null,
+    [loyaltyCard, loyaltyRewardId]
+  );
+  const loyaltyDiscount = selectedReward
+    ? Math.min(selectedReward.capAmount, totalPrice)
+    : 0;
+  const totalDue = totalPrice - loyaltyDiscount;
 
   function addToCart(product: Product, supplements: CartItemSupplement[]) {
     setItems((prev) => {
@@ -169,6 +238,7 @@ export function useNewOrder() {
             note: note.trim() || null,
             pickupTime: pickupTime ?? null,
             orderDate: orderDate ?? null,
+            loyaltyRewardId,
           }),
         });
         if (!res.ok) {
@@ -196,6 +266,12 @@ export function useNewOrder() {
     items,
     totalItems,
     totalPrice,
+    loyaltyCard,
+    loyaltyRewardId,
+    selectedReward,
+    loyaltyDiscount,
+    totalDue,
+    setLoyaltyRewardId,
     pickerProduct,
     isPickerOpen,
     customerName,

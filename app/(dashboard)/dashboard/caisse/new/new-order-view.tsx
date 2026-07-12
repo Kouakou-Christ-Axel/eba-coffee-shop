@@ -37,6 +37,9 @@ export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
             onQuantityChange={o.handleQuantityChange}
             onRemove={o.handleRemove}
             onDiscountChange={o.handleDiscountChange}
+            loyaltyCard={o.loyaltyCard}
+            loyaltyRewardId={o.loyaltyRewardId}
+            onLoyaltyRewardChange={o.setLoyaltyRewardId}
           />
           <CustomerInfoStep
             customerName={o.customerName}
@@ -60,7 +63,7 @@ export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
         step={o.step}
         itemsCount={o.items.length}
         totalItems={o.totalItems}
-        totalPrice={o.totalPrice}
+        totalPrice={o.totalDue}
         isSubmitting={o.isSubmitting}
         onReview={() => o.setStep('review')}
         onSubmit={o.submit}

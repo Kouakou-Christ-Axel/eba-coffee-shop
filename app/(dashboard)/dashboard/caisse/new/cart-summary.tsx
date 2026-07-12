@@ -1,6 +1,6 @@
 'use client';
 
-import { Minus, Plus, Trash2 } from 'lucide-react';
+import { Gift, Minus, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { priceFormatter } from '@/config/menu';
 import { getItemTotal, type CartItem } from '@/lib/cart-store';
@@ -11,6 +11,7 @@ import {
 } from '@/lib/orders/totals';
 import { formatSupplementLabel } from '@/lib/orders/format';
 import { LineDiscountControl } from '../../_components/line-discount-control';
+import type { LoyaltyCard } from '@/lib/hooks/use-new-order';
 
 type Props = {
   items: CartItem[];
@@ -21,6 +22,9 @@ type Props = {
     discount: number,
     reason: string | null
   ) => void;
+  loyaltyCard: LoyaltyCard | null;
+  loyaltyRewardId: string | null;
+  onLoyaltyRewardChange: (rewardId: string | null) => void;
 };
 
 export function CartSummary({
@@ -28,6 +32,9 @@ export function CartSummary({
   onQuantityChange,
   onRemove,
   onDiscountChange,
+  loyaltyCard,
+  loyaltyRewardId,
+  onLoyaltyRewardChange,
 }: Props) {
   if (items.length === 0) {
     return (
@@ -39,6 +46,13 @@ export function CartSummary({
 
   const total = items.reduce((s, i) => s + getItemTotal(i), 0);
   const count = items.reduce((s, i) => s + i.quantity, 0);
+
+  const availableRewards = loyaltyCard?.availableRewards ?? [];
+  const selectedReward =
+    availableRewards.find((r) => r.id === loyaltyRewardId) ?? null;
+  const loyaltyDiscount = selectedReward
+    ? Math.min(selectedReward.capAmount, total)
+    : 0;
 
   return (
     <div className="rounded-xl border bg-card">
@@ -115,12 +129,51 @@ export function CartSummary({
           );
         })}
       </ul>
+
+      {availableRewards.length > 0 && (
+        <div className="border-t bg-amber-50 px-3 py-2 dark:bg-amber-950/30">
+          <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-100">
+            <Gift className="h-3.5 w-3.5" />
+            Récompense fidélité disponible
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {availableRewards.map((r) => {
+              const active = r.id === loyaltyRewardId;
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => onLoyaltyRewardChange(active ? null : r.id)}
+                  className={cn(
+                    'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                    active
+                      ? 'border-amber-600 bg-amber-600 text-white'
+                      : 'border-amber-300 bg-white text-amber-900 hover:bg-amber-100 dark:bg-transparent dark:text-amber-100'
+                  )}
+                >
+                  {active ? '✓ ' : ''}-{priceFormatter.format(r.capAmount)} F
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {loyaltyDiscount > 0 && (
+        <div className="flex items-center justify-between border-t px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+          <span>Récompense fidélité</span>
+          <span className="tabular-nums">
+            -{priceFormatter.format(loyaltyDiscount)} F
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between border-t px-3 py-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Total
         </span>
         <span className="text-base font-bold tabular-nums">
-          {priceFormatter.format(total)} F
+          {priceFormatter.format(total - loyaltyDiscount)} F
         </span>
       </div>
     </div>
