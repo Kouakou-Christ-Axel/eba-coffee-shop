@@ -35,6 +35,7 @@ async function run(fn: () => Promise<unknown>): Promise<ActionResult> {
 
 export async function createExpenseCategoryAction(input: {
   name: string;
+  nature?: 'FIXED' | 'VARIABLE';
 }): Promise<ActionResult> {
   await requireAdminId();
   return run(() => expenses.createExpenseCategory(input));
@@ -42,7 +43,7 @@ export async function createExpenseCategoryAction(input: {
 
 export async function updateExpenseCategoryAction(
   id: string,
-  input: { name: string }
+  input: { name?: string; nature?: 'FIXED' | 'VARIABLE' }
 ): Promise<ActionResult> {
   await requireAdminId();
   return run(() => expenses.updateExpenseCategory(id, input));
@@ -95,6 +96,61 @@ export async function backfillExpenseReceiptsAction(): Promise<
       error: err instanceof Error ? err.message : 'Erreur inattendue',
     };
   }
+}
+
+// ── Référentiel d'articles (détail des lignes de dépense) ──
+
+export async function renameExpenseArticleAction(
+  id: string,
+  input: { name: string }
+): Promise<ActionResult> {
+  await requireAdminId();
+  return run(() => expenses.renameExpenseArticle(id, input));
+}
+
+/** Soft delete : retire l'article des sélecteurs/de l'auto-complétion sans
+ * toucher aux lignes de dépense existantes. */
+export async function archiveExpenseArticleAction(
+  id: string
+): Promise<ActionResult> {
+  await requireAdminId();
+  return run(() => expenses.archiveExpenseArticle(id));
+}
+
+/** Réglages d'un article (unité de base, suivi de stock, emplacement, prix de
+ * référence en gros). Mise à jour partielle. */
+export async function setExpenseArticleSettingsAction(
+  id: string,
+  input: unknown
+): Promise<ActionResult> {
+  await requireAdminId();
+  return run(() => expenses.setExpenseArticleSettings(id, input));
+}
+
+/**
+ * Fusionne deux articles en double : `sourceId` est absorbé par `targetId`
+ * (toutes ses lignes de dépense et alias sont re-rattachés, puis il est
+ * archivé). Jamais l'inverse.
+ */
+export async function mergeArticlesAction(
+  sourceId: string,
+  targetId: string
+): Promise<ActionResult> {
+  await requireAdminId();
+  return run(() => expenses.mergeArticles(sourceId, targetId));
+}
+
+/**
+ * Re-rattache une ligne de dépense (`ExpenseItem`) à un autre article —
+ * correction d'un rapprochement erroné ou absent. Apprend l'alias
+ * correspondant pour la prochaine saisie.
+ */
+export async function relinkExpenseItemAction(
+  itemId: string,
+  articleId: string
+): Promise<ActionResult> {
+  await requireAdminId();
+  return run(() => expenses.relinkExpenseItem(itemId, articleId));
 }
 
 // ── Dépenses récurrentes (modèles) ──

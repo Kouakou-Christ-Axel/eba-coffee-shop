@@ -115,6 +115,11 @@ export {
 export type { InventorySettings } from '@/lib/inventory-settings';
 export { inventorySettingsSchema } from '@/lib/inventory-settings';
 
+// ─── Réglages du module dépenses ───────────────────────────────────────────────
+
+export type { ExpenseSettings } from '@/lib/expense-settings';
+export { expenseSettingsSchema } from '@/lib/expense-settings';
+
 // ─── Sondages ───────────────────────────────────────────────────────────────────
 
 export type {
