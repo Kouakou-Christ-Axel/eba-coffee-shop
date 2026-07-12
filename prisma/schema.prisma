@@ -36,6 +36,7 @@ model User {
   pushSubscriptions         PushSubscription[]
   createdPolls              Poll[]             @relation("PollCreatedBy")
   moderatedPollSuggestions  PollSuggestion[]   @relation("PollSuggestionModeratedBy")
+  purchaseDrafts            PurchaseDraft[]    @relation("PurchaseDraftCreatedBy")
 
   @@map("user")
 }
@@ -786,6 +787,30 @@ model ExpenseItem {
   @@index([expenseId])
   @@index([articleId])
   @@map("expense_item")
+}
+
+// ─── Brouillon d'achat/dépense (flux MCP prepare → confirm) ────────────────────
+// Toute écriture sensible d'achat/dépense côté MCP passe par un brouillon
+// PERSISTÉ (payload JSON libre — voir `lib/purchase-drafts.ts`) plutôt qu'une
+// création directe : `kind` distingue 'purchase' (achat détaillé, lignes
+// rapprochées au référentiel d'articles) de 'other_expense' (dépense simple,
+// pas de lignes). `expiresAt` borne la durée de vie du brouillon (réglage
+// `ExpenseSettings.draftTtlMinutes`) ; `confirmedAt` marque la confirmation
+// (claim atomique — un brouillon ne peut être confirmé qu'une seule fois, cf.
+// `confirmPurchase`/`confirmOtherExpense`). Purge des brouillons expirés non
+// confirmés via `purgeExpiredDrafts` (cron, hors périmètre de ce step).
+model PurchaseDraft {
+  id          String    @id @default(cuid())
+  kind        String // 'purchase' | 'other_expense'
+  payload     Json
+  expiresAt   DateTime
+  confirmedAt DateTime?
+  createdById String?
+  createdBy   User?     @relation("PurchaseDraftCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+
+  @@index([expiresAt])
+  @@map("purchase_draft")
 }
 
 model CashClosing {
