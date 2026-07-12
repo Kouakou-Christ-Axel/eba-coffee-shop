@@ -128,6 +128,10 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `get_range_stats`                | lecture  | KPIs sur une plage (`from`/`to`, `YYYY-MM-DD`)               |
 | `get_daily_series`               | lecture  | Série jour par jour (commandes + CA) sur plage               |
 | `get_top_products`               | lecture  | Top produits vendus sur une plage (`limit?`)                 |
+| `get_stats_comparison`           | lecture  | KPIs de la plage vs période précédente de même durée         |
+| `get_hourly_stats`               | lecture  | Heures de pointe : commandes + CA par heure (0–23)           |
+| `get_kitchen_performance`        | lecture  | Temps de préparation / d’attente (moyenne, médiane, série)   |
+| `get_customer_stats`             | lecture  | Clients & fidélité : nouveaux, actifs, top clients, tampons  |
 | `list_expense_categories`        | lecture  | Catégories de dépense (+ nombre de dépenses)                 |
 | `create_expense_category`        | écriture | Créer une catégorie de dépense (nature fixe/variable)        |
 | `update_expense_category`        | écriture | Modifier une catégorie (nom et/ou nature, partiel)           |
