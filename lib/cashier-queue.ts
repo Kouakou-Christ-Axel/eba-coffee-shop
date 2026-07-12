@@ -16,6 +16,11 @@ import {
   fetchStockSnapshot,
   computeOrderItemsAvailability,
 } from '@/lib/orders/availability';
+import {
+  getLoyaltyRecapLookup,
+  resolveLoyaltyRecap,
+  type LoyaltyRecapInfo,
+} from '@/lib/loyalty';
 import type {
   OrderStatus,
   OrderType,
@@ -51,6 +56,8 @@ export type CashierOrder = {
   stockShortage: boolean;
   /** Noms des articles en cause quand `stockShortage`, pour l'affichage. */
   unavailableItemNames: string[];
+  /** Bloc fidélité à glisser dans le récap client (Wave/WhatsApp) — cf. `lib/loyalty.ts`. */
+  loyaltyRecap: LoyaltyRecapInfo | null;
 };
 
 export async function fetchCashierQueue(): Promise<CashierOrder[]> {
@@ -91,6 +98,12 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
     .filter((o) => !o.isPaid)
     .map((o) => o.items as CartItem[]);
   const stock = await fetchStockSnapshot(unpaidItemsList);
+
+  // Fidélité : lookup batché (2 requêtes) sur tous les clients de la file,
+  // plutôt qu'un aller-retour DB par commande.
+  const loyaltyLookup = await getLoyaltyRecapLookup(
+    orders.map((o) => o.customerId)
+  );
 
   return orders.map((o) => {
     const items = o.items as CartItem[];
@@ -133,6 +146,7 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       readyAt: o.readyAt,
       stockShortage,
       unavailableItemNames,
+      loyaltyRecap: resolveLoyaltyRecap(o, loyaltyLookup),
     };
   });
 }

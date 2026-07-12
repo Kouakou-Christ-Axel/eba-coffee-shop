@@ -5,6 +5,7 @@ import { Check, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { buildWaveRequestMessage } from '@/lib/contact-links';
 import type { CartItem } from '@/lib/cart-store';
+import type { LoyaltyRecapInfo } from '@/lib/loyalty';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -12,6 +13,7 @@ type Props = {
   dailyNumber: number;
   amount: number;
   items: CartItem[];
+  loyalty?: LoyaltyRecapInfo | null;
   className?: string;
   size?: React.ComponentProps<typeof Button>['size'];
   variant?: React.ComponentProps<typeof Button>['variant'];
@@ -28,6 +30,7 @@ export function CopyRecapButton({
   dailyNumber,
   amount,
   items,
+  loyalty,
   className,
   size = 'lg',
   variant = 'outline',
@@ -41,6 +44,7 @@ export function CopyRecapButton({
       dailyNumber,
       amount,
       items,
+      loyalty,
     });
     try {
       await navigator.clipboard.writeText(message);

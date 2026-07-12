@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getOrder } from '@/lib/orders';
+import { getLoyaltyRecapForOrder } from '@/lib/loyalty';
 import { getMenu } from '@/lib/menu';
 import { getCurrentSession } from '@/lib/auth-helpers';
 import { formatAbidjanDateTime } from '@/lib/timezone';
@@ -75,6 +76,7 @@ export default async function CommandeDetailPage({
 
   const items = order.items as CartItem[];
   const menu = await getMenu();
+  const loyaltyRecap = await getLoyaltyRecapForOrder(order);
   // Édition des métadonnées (paiement, type, créneau, note) réservée à l'ADMIN.
   const session = await getCurrentSession();
   const isAdmin = session?.user.role === 'ADMIN';
@@ -208,6 +210,7 @@ export default async function CommandeDetailPage({
                 dailyNumber={order.dailyNumber}
                 amount={order.total}
                 items={items}
+                loyalty={loyaltyRecap}
                 size="sm"
                 className="w-auto"
               />

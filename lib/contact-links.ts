@@ -10,6 +10,7 @@ import { normalizeIvorianPhone, toWhatsAppNumber } from '@/lib/phone';
 import type { CartItem } from '@/lib/cart-store';
 import { getItemGross, getItemNet } from '@/lib/orders/totals';
 import { formatSupplementLabel } from '@/lib/orders/format';
+import type { LoyaltyRecapInfo } from '@/lib/loyalty';
 
 const priceFormatter = new Intl.NumberFormat('fr-FR');
 
@@ -72,18 +73,37 @@ function formatItemLine(item: CartItem): string {
   return `- ${item.quantity}× ${item.productName}${supplementsLabel} : ${priceLabel}`;
 }
 
+/** Bloc marketing fidélité, ajouté au récap client quand pertinent (cf. `LoyaltyRecapInfo`). */
+function formatLoyaltyLine(loyalty: LoyaltyRecapInfo | null): string | null {
+  if (!loyalty) return null;
+  switch (loyalty.kind) {
+    case 'reward_applied':
+      return `🎁 Récompense fidélité appliquée : -${priceFormatter.format(loyalty.amount)} F sur cette commande. Merci pour ta fidélité !`;
+    case 'reward_available':
+      return `🎁 Tu as une récompense fidélité de ${priceFormatter.format(loyalty.amount)} F disponible — à réclamer à ta prochaine visite !`;
+    case 'progress': {
+      const remaining = Math.max(1, loyalty.stampsPerCard - loyalty.stampCount);
+      return `☕ Fidélité : ${loyalty.stampCount}/${loyalty.stampsPerCard} tampons. Encore ${remaining} commande${remaining > 1 ? 's' : ''} et une réduction t'attend !`;
+    }
+    case 'anonymous':
+      return '💡 Donne ton numéro à ta prochaine commande pour cumuler des points et profiter de réductions fidélité !';
+  }
+}
+
 /**
  * Message WhatsApp pour demander un paiement Wave. Inclut le détail des
  * articles, le total, et le lien Wave avec le montant déjà pré-rempli.
  * Si le merchant ID n'est pas configuré, un placeholder remplace le lien.
+ * `loyalty` (optionnel) ajoute un message marketing fidélité (cf. `lib/loyalty.ts`).
  */
 export function buildWaveRequestMessage(params: {
   customerName: string | null;
   dailyNumber: number;
   amount: number;
   items: CartItem[];
+  loyalty?: LoyaltyRecapInfo | null;
 }): string {
-  const { customerName, dailyNumber, amount, items } = params;
+  const { customerName, dailyNumber, amount, items, loyalty } = params;
   const greeting = customerName ? `Bonjour ${customerName}` : 'Bonjour';
   const number = String(dailyNumber).padStart(3, '0');
   const itemsBlock = items.map(formatItemLine).join('\n');
@@ -91,6 +111,7 @@ export function buildWaveRequestMessage(params: {
   const linkBlock = waveLink
     ? `Paye via Wave en cliquant sur ce lien :\n${waveLink}`
     : 'Paye via Wave : [lien à compléter]';
+  const loyaltyLine = formatLoyaltyLine(loyalty ?? null);
 
   return [
     `${greeting},`,
@@ -99,6 +120,7 @@ export function buildWaveRequestMessage(params: {
     itemsBlock,
     '',
     `Total : ${priceFormatter.format(amount)} F`,
+    ...(loyaltyLine ? ['', loyaltyLine] : []),
     '',
     linkBlock,
     '',
