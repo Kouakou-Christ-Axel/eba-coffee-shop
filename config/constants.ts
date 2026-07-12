@@ -136,6 +136,14 @@ export const EXPENSE_AMOUNT_MAX = 100_000_000;
 /** Libellé d'un modèle de dépense récurrente (ex. « Loyer »). */
 export const EXPENSE_RECURRING_LABEL_MAX = 50;
 
+/** Détail par article des dépenses (référentiel + lignes). */
+export const EXPENSE_ARTICLE_NAME_MAX = 60;
+export const EXPENSE_ITEM_LABEL_MAX = 100;
+export const EXPENSE_ITEM_UNIT_MAX = 20;
+/** Nombre max de lignes de détail par dépense. */
+export const EXPENSE_ITEMS_MAX = 50;
+export const EXPENSE_ITEM_QUANTITY_MAX = 1_000_000;
+
 /**
  * Investissements (apports / financements). Longueurs max des champs et plafond
  * de montant. Le plafond est plus élevé que celui des dépenses : un apport en

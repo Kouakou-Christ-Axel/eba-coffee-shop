@@ -590,6 +590,29 @@ enum ExpensePaymentMethod {
   OTHER
 }
 
+// Nature comptable d'une catégorie de dépense (cf. ExpenseCategory.nature).
+enum ExpenseNature {
+  FIXED
+  VARIABLE
+}
+
+// Réglages du module dépenses (singleton) : seuils utilisés par les
+// statistiques de fréquence/récurrence et de cumul, facteur de détection des
+// prix aberrants, durée de vie d'un brouillon de saisie, seuil de suggestion
+// de récurrence.
+model ExpenseSettings {
+  id                       String   @id @default("singleton")
+  freqWindowDays           Int      @default(30)
+  freqMinCount             Int      @default(3)
+  cumulativeMinAmount      Int      @default(20000)
+  priceAberrantFactor      Int      @default(3)
+  draftTtlMinutes          Int      @default(10)
+  recurrenceSuggestMinHits Int      @default(3)
+  updatedAt                DateTime @updatedAt
+
+  @@map("expense_settings")
+}
+
 model ExpenseCategory {
   id        String    @id @default(cuid())
   name      String    @unique
@@ -599,6 +622,10 @@ model ExpenseCategory {
   // libellé. Recréer une catégorie du même nom « ressuscite » la version
   // supprimée (le nom reste unique).
   deletedAt DateTime?
+  // Nature comptable : FIXED (loyer, salaires, abonnements…) ou VARIABLE
+  // (achats courants). Défaut VARIABLE — l'admin reclasse les catégories fixes
+  // dans l'UI. Alimente les statistiques de fréquence/récurrence des dépenses.
+  nature    ExpenseNature      @default(VARIABLE)
   expenses  Expense[]
   recurring RecurringExpense[]
   createdAt DateTime  @default(now())
@@ -662,6 +689,10 @@ model Expense {
   inventoryPurchases InventoryPurchase[]     @relation("ExpenseInventoryPurchases")
   restockBatches     InventoryRestockBatch[] @relation("ExpenseRestockBatch")
 
+  // Détail par article (ligne à ligne). Optionnel : une dépense peut rester
+  // « globale » (un seul montant, sans détail) — voir ExpenseItem.
+  items ExpenseItem[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -669,6 +700,92 @@ model Expense {
   @@index([date(sort: Desc)])
   @@index([categoryId])
   @@map("expense")
+}
+
+// ─── Articles de dépense (détail par article) ──────────────────────────────────
+// Référentiel d'articles (« Farine T45 », « Sucre », « Gaz »…) permettant de
+// détailler une dépense ligne à ligne (ExpenseItem) au lieu d'un seul montant
+// global. Optionnellement lié à une référence d'inventaire (InventoryItem) —
+// achats de stock et dépenses partagent alors le même article. Fusion
+// possible (mergedIntoId) pour dédoublonner deux libellés du même article.
+
+model ExpenseArticle {
+  id                String    @id @default(cuid())
+  name              String
+  normalizedName    String    @unique
+  baseUnit          String?
+  // Suivi de stock : article rattaché à une référence d'inventaire.
+  trackInventory    Boolean   @default(false)
+  inventoryItemId   String?   @unique
+  inventoryItem     InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  location          String?
+  // Achat en gros (ex. carton de gobelets) : indicatif, pas de logique métier
+  // conditionnée dessus dans ce step.
+  bulkPurchase      Boolean   @default(false)
+  bulkPurchaseAt    DateTime?
+  wholesaleRefPrice Int?
+  // Soft delete : voir ExpenseCategory. Retiré des sélecteurs mais conservé ;
+  // les lignes de dépense existantes gardent leur référence.
+  archivedAt        DateTime?
+  // Fusion : cet article a été absorbé par `mergedInto` (dédoublonnage de deux
+  // libellés désignant le même article). `mergedFrom` = relation inverse.
+  mergedIntoId      String?
+  mergedInto        ExpenseArticle?  @relation("ArticleMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom        ExpenseArticle[] @relation("ArticleMerge")
+  aliases           ArticleAlias[]
+  items             ExpenseItem[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([archivedAt])
+  @@index([bulkPurchase])
+  @@map("expense_article")
+}
+
+// Alias de saisie (libellé fournisseur, orthographe alternative…) pointant
+// vers un article existant — alimente l'auto-complétion/rapprochement à la
+// saisie. `supplierKey` optionnel : un même alias peut désigner un article
+// différent selon le fournisseur.
+model ArticleAlias {
+  id          String   @id @default(cuid())
+  alias       String
+  supplierKey String?
+  articleId   String
+  article     ExpenseArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([alias, supplierKey])
+  @@index([articleId])
+  @@map("article_alias")
+}
+
+// Ligne de détail d'une dépense. `rawLabel` = libellé brut saisi (toujours
+// renseigné) ; `article`/`label` = rapprochement effectué (peut rester null,
+// saisie libre non rapprochée). `qtyBase` = quantité normalisée dans l'unité
+// de base de l'article ; `formatQty`/`formatSize` = saisie « format d'achat »
+// (ex. 2 cartons de 24) avant conversion. `pendingQuantity` = montant connu
+// mais quantité pas encore renseignée (à compléter plus tard).
+model ExpenseItem {
+  id              String   @id @default(cuid())
+  expenseId       String
+  expense         Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  articleId       String?
+  article         ExpenseArticle? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  rawLabel        String
+  label           String?
+  qtyBase         Decimal? @db.Decimal(12, 3)
+  formatQty       Decimal? @db.Decimal(12, 3)
+  formatSize      Decimal? @db.Decimal(12, 3)
+  unit            String?
+  unitPrice       Int?
+  amount          Int
+  pendingQuantity Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([expenseId])
+  @@index([articleId])
+  @@map("expense_item")
 }
 
 model CashClosing {
@@ -821,6 +938,10 @@ model InventoryItem {
 
   purchases  InventoryPurchase[]
   countLines InventoryCountLine[]
+
+  // Relation inverse : article de dépense rattaché à cette référence
+  // d'inventaire (voir ExpenseArticle.inventoryItemId).
+  expenseArticle ExpenseArticle?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
