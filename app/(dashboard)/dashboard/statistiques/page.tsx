@@ -111,8 +111,7 @@ export default async function StatistiquesPage({
       : `vs ${priceFormatter.format(rangeDays)} j précédents`;
   const kitchenByDay = kitchen.byDay.map((d) => ({
     date: d.date,
-    avgPrepMin:
-      d.avgPrepSec !== null ? Math.round(d.avgPrepSec / 60) : null,
+    avgPrepMin: d.avgPrepSec !== null ? Math.round(d.avgPrepSec / 60) : null,
     measured: d.measured,
   }));
 
@@ -171,7 +170,16 @@ export default async function StatistiquesPage({
           label="Dépenses"
           value={`${priceFormatter.format(comparison.expenses.current.total)} F`}
           Icon={Wallet}
-          delta={{ pct: deltas.expenses.pct, label: vsLabel, goodWhenUp: false }}
+          delta={{
+            pct: deltas.expenses.pct,
+            label: vsLabel,
+            goodWhenUp: false,
+          }}
+          hint={
+            comparison.expenses.current.fixed > 0
+              ? `fixes : ${priceFormatter.format(comparison.expenses.current.fixed)} F · variables : ${priceFormatter.format(comparison.expenses.current.variable)} F`
+              : undefined
+          }
         />
         <KpiCard
           label="Marge nette"
@@ -330,8 +338,8 @@ export default async function StatistiquesPage({
           <h2 className="text-lg font-semibold">Clients & fidélité</h2>
           <p className="text-sm text-muted-foreground">
             Activité des clients identifiés (
-            {Math.round(customerStats.identificationRate * 100)} % des
-            commandes de la période) et mouvements de la carte de fidélité.
+            {Math.round(customerStats.identificationRate * 100)} % des commandes
+            de la période) et mouvements de la carte de fidélité.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">

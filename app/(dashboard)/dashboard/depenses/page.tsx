@@ -1,30 +1,47 @@
-import { Download, Layers, ReceiptText, Sigma, Wallet } from 'lucide-react';
+import {
+  Download,
+  Landmark,
+  ReceiptText,
+  ShoppingBasket,
+  Wallet,
+} from 'lucide-react';
 import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
 import {
   listExpenses,
   listExpenseCategories,
+  listExpenseArticles,
+  getExpenseSummary,
+  getExpenseArticleStats,
+  getExpenseArticleHistory,
+  getExpenseMonthlySeries,
   countUnnumberedExpenses,
 } from '@/lib/expenses';
 import {
   listRecurringExpenses,
   getMissingRecurringExpenses,
 } from '@/lib/recurring-expenses';
+import prisma from '@/lib/prisma';
 import {
   parseDateOnlyToUTC,
   todayDateString,
   shiftDateString,
   formatLocalDateOnly,
 } from '@/lib/timezone';
-import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { DateRangeFilter } from '@/components/(dashboard)/date-range-filter';
+import { KpiCard } from '@/components/(dashboard)/kpi-card';
 import { ExpensesByCategoryChart } from '@/components/(dashboard)/charts/expenses-by-category-chart';
+import { ExpenseTrendChart } from '@/components/(dashboard)/charts/expense-trend-chart';
 import { ExpensesTable, type ExpenseRow } from './expenses-table';
 import { CategoryFilter } from './category-filter';
 import { ExpenseFilters } from './expense-filters';
 import { RecurringAlert } from './recurring-alert';
 import { ReceiptBackfillAlert } from './receipt-backfill-alert';
+import { DepensesTabs } from './depenses-tabs';
+import { ArticlesTable } from './articles-table';
+import { ArticleHistorySheet } from './article-history-sheet';
+import { RecurringManager } from './recurring-manager';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +68,8 @@ export default async function DepensesPage({
     category?: string;
     payment?: string;
     search?: string;
+    tab?: string;
+    article?: string;
   }>;
 }) {
   await requireRoleOrAnalyst(['ADMIN']);
@@ -82,16 +101,79 @@ export default async function DepensesPage({
   const [
     categories,
     { expenses, total, count },
+    articlesFull,
+    allTimeArticleStats,
+    articleStats,
+    articleHistory,
     recurringList,
     missingRecurring,
     unnumberedCount,
   ] = await Promise.all([
     listExpenseCategories(),
     listExpenses({ dateFrom, dateTo, categoryId, paymentMethod, search }),
+    listExpenseArticles(),
+    // Non filtré (tout l'historique) : sert de repère de prix pour
+    // l'autocomplétion du formulaire, utile même hors période affichée.
+    getExpenseArticleStats({}),
+    getExpenseArticleStats({
+      from: dateFrom,
+      to: dateTo,
+      categoryId,
+      paymentMethod,
+      search,
+    }),
+    params.article
+      ? getExpenseArticleHistory(params.article, { from: dateFrom, to: dateTo })
+      : Promise.resolve(null),
     listRecurringExpenses(),
     getMissingRecurringExpenses(),
     countUnnumberedExpenses(),
   ]);
+
+  // getExpenseSummary/getExpenseMonthlySeries exigent des bornes concrètes :
+  // en mode « tout l'historique », on retient l'étendue réelle de la
+  // sélection (première dépense) plutôt qu'une borne arbitraire, pour ne pas
+  // fausser les cadences moyennes.
+  const effectiveFrom =
+    dateFrom ??
+    (expenses.length > 0
+      ? expenses[expenses.length - 1].date
+      : parseDateOnlyToUTC(today)!);
+  const effectiveTo = dateTo ?? parseDateOnlyToUTC(today)!;
+
+  const [summary, monthlySeries] = await Promise.all([
+    getExpenseSummary(effectiveFrom, effectiveTo, {
+      categoryId,
+      paymentMethod,
+      search,
+    }),
+    getExpenseMonthlySeries(effectiveFrom, effectiveTo, {
+      categoryId,
+      paymentMethod,
+      search,
+    }),
+  ]);
+
+  // Détail par article (ExpenseItem) des dépenses de la sélection :
+  // lib/expenses.ts::listExpenses reste volontairement sans `items` (hors
+  // périmètre de ce step) — on les charge ici directement, comme le fait déjà
+  // l'export CSV (app/api/export/expense-items/route.ts) ; simple eager-load
+  // en lecture, aucune logique métier dupliquée.
+  const expenseIds = expenses.map((e) => e.id);
+  const items =
+    expenseIds.length > 0
+      ? await prisma.expenseItem.findMany({
+          where: { expenseId: { in: expenseIds } },
+          orderBy: { sortOrder: 'asc' },
+          include: { article: { select: { id: true, name: true } } },
+        })
+      : [];
+  const itemsByExpense = new Map<string, typeof items>();
+  for (const it of items) {
+    const arr = itemsByExpense.get(it.expenseId) ?? [];
+    arr.push(it);
+    itemsByExpense.set(it.expenseId, arr);
+  }
 
   const recurringRows = recurringList.map((r) => ({
     id: r.id,
@@ -103,20 +185,29 @@ export default async function DepensesPage({
   }));
   const plainCategories = categories.map((c) => ({ id: c.id, name: c.name }));
 
-  // Ventilation par catégorie (sur la sélection courante) : graphique + KPI.
-  const byCategoryMap = new Map<string, number>();
-  for (const e of expenses) {
-    byCategoryMap.set(
-      e.category.id,
-      (byCategoryMap.get(e.category.id) ?? 0) + e.amount
-    );
-  }
-  const byCategory = categories
-    .map((c) => ({ name: c.name, amount: byCategoryMap.get(c.id) ?? 0 }))
-    .filter((c) => c.amount > 0)
-    .sort((a, b) => b.amount - a.amount);
-  const topCategory = byCategory[0];
-  const avg = count > 0 ? Math.round(total / count) : 0;
+  // Référentiel d'articles pour l'autocomplétion du formulaire de saisie :
+  // fusionne le référentiel (nom, unité, suivi de stock) avec le prix moyen
+  // pondéré connu (repère indicatif, pas garanti être EXACTEMENT le dernier
+  // achat) issu des stats non filtrées.
+  const priceByArticle = new Map(
+    allTimeArticleStats.map((s) => [s.articleId, s.avgUnitPrice])
+  );
+  const articleOptions = articlesFull.map((a) => ({
+    id: a.id,
+    name: a.name,
+    baseUnit: a.baseUnit,
+    trackInventory: a.trackInventory,
+    lastUnitPrice: priceByArticle.get(a.id) ?? null,
+  }));
+  const articlesMeta = articlesFull.map((a) => ({
+    id: a.id,
+    name: a.name,
+    baseUnit: a.baseUnit,
+    trackInventory: a.trackInventory,
+    location: a.location,
+    wholesaleRefPrice: a.wholesaleRefPrice,
+    itemsCount: a._count.items,
+  }));
 
   const exportSp = new URLSearchParams();
   if (isAll) exportSp.set('range', 'all');
@@ -128,6 +219,14 @@ export default async function DepensesPage({
   if (paymentMethod) exportSp.set('payment', paymentMethod);
   if (search) exportSp.set('search', search);
   const exportHref = `/api/export/expenses?${exportSp.toString()}`;
+
+  const exportItemsSp = new URLSearchParams();
+  if (isAll) exportItemsSp.set('range', 'all');
+  else {
+    exportItemsSp.set('from', fromStr);
+    exportItemsSp.set('to', toStr);
+  }
+  const exportItemsHref = `/api/export/expense-items?${exportItemsSp.toString()}`;
 
   const rows: ExpenseRow[] = expenses.map((e) => ({
     id: e.id,
@@ -141,121 +240,173 @@ export default async function DepensesPage({
     receiptUrl: e.receiptUrl,
     categoryId: e.category.id,
     categoryName: e.category.name,
+    items: (itemsByExpense.get(e.id) ?? []).map((i) => ({
+      id: i.id,
+      articleId: i.articleId,
+      articleName: i.article?.name ?? null,
+      rawLabel: i.rawLabel,
+      label: i.label,
+      formatQty: i.formatQty?.toNumber() ?? null,
+      formatSize: i.formatSize?.toNumber() ?? null,
+      unit: i.unit,
+      unitPrice: i.unitPrice,
+      amount: i.amount,
+      pendingQuantity: i.pendingQuantity,
+    })),
   }));
+
+  const periodLabel = isAll ? 'Tout l’historique' : `Du ${fromStr} au ${toStr}`;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Dépenses</h1>
-        <p className="text-sm text-muted-foreground">
-          Suivi des dépenses catégorisées du restaurant.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Dépenses</h1>
+          <p className="text-sm text-muted-foreground">{periodLabel}</p>
+        </div>
+        <DateRangeFilter from={fromStr} to={toStr} isAll={isAll} />
       </div>
 
       <ReceiptBackfillAlert count={unnumberedCount} />
 
       <RecurringAlert missing={missingRecurring} categories={plainCategories} />
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi
-          label="Total période"
-          value={`${priceFmt.format(total)} F`}
-          Icon={Wallet}
+      <DepensesTabs
+        defaultTab={params.tab}
+        apercu={
+          <>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <KpiCard
+                label="Total période"
+                value={`${priceFmt.format(summary.total)} F`}
+                Icon={Wallet}
+              />
+              <KpiCard
+                label="Fixes"
+                value={`${priceFmt.format(summary.fixed)} F`}
+                Icon={Landmark}
+                hint="loyer, salaires, abonnements…"
+              />
+              <KpiCard
+                label="Variables"
+                value={`${priceFmt.format(summary.variable)} F`}
+                Icon={ShoppingBasket}
+                hint="achats, matières premières…"
+              />
+              <KpiCard
+                label="Nombre"
+                value={priceFmt.format(count)}
+                Icon={ReceiptText}
+                hint={
+                  count > 0
+                    ? `moyenne : ${priceFmt.format(Math.round(total / count))} F`
+                    : undefined
+                }
+              />
+            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Dépenses par mois — fixes vs variables
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ExpenseTrendChart data={monthlySeries} />
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Dépenses par catégorie
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ExpensesByCategoryChart data={summary.byCategory} />
+              </CardContent>
+            </Card>
+          </>
+        }
+        historique={
+          <Card>
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-base">
+                Historique
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  {periodLabel}
+                </span>
+              </CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <CategoryFilter
+                  categories={categories}
+                  selected={categoryId ?? ''}
+                />
+                <ExpenseFilters
+                  payment={paymentMethod ?? ''}
+                  search={search ?? ''}
+                />
+                <Button asChild variant="outline" size="sm">
+                  <a href={exportHref}>
+                    <Download className="mr-1.5 h-4 w-4" />
+                    Exporter CSV
+                  </a>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ExpensesTable
+                expenses={rows}
+                categories={categories}
+                articles={articleOptions}
+                total={total}
+              />
+            </CardContent>
+          </Card>
+        }
+        articles={
+          <Card>
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-base">
+                Fréquence d’achat par article
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  {periodLabel}
+                </span>
+              </CardTitle>
+              <Button asChild variant="outline" size="sm">
+                <a href={exportItemsHref}>
+                  <Download className="mr-1.5 h-4 w-4" />
+                  Exporter le détail CSV
+                </a>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <ArticlesTable stats={articleStats} articlesMeta={articlesMeta} />
+            </CardContent>
+          </Card>
+        }
+        recurrentes={
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                Dépenses récurrentes (aide-mémoire)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RecurringManager
+                recurring={recurringRows}
+                categories={plainCategories}
+              />
+            </CardContent>
+          </Card>
+        }
+      />
+
+      {articleHistory && (
+        <ArticleHistorySheet
+          articleId={articleHistory.article.id}
+          articleName={articleHistory.article.name}
+          lines={articleHistory.lines}
+          articlesMeta={articlesMeta}
         />
-        <Kpi label="Nombre" value={priceFmt.format(count)} Icon={ReceiptText} />
-        <Kpi label="Moyenne" value={`${priceFmt.format(avg)} F`} Icon={Sigma} />
-        <Kpi
-          label="Top catégorie"
-          value={topCategory ? topCategory.name : '—'}
-          hint={
-            topCategory ? `${priceFmt.format(topCategory.amount)} F` : undefined
-          }
-          Icon={Layers}
-        />
-      </div>
-
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-base">
-            Historique
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              {isAll ? 'Tout l’historique' : `Du ${fromStr} au ${toStr}`}
-            </span>
-          </CardTitle>
-          <div className="flex flex-wrap items-center gap-2">
-            <CategoryFilter
-              categories={categories}
-              selected={categoryId ?? ''}
-            />
-            <ExpenseFilters
-              payment={paymentMethod ?? ''}
-              search={search ?? ''}
-            />
-            <DateRangeFilter from={fromStr} to={toStr} isAll={isAll} />
-            <Button asChild variant="outline" size="sm">
-              <a href={exportHref}>
-                <Download className="mr-1.5 h-4 w-4" />
-                Exporter CSV
-              </a>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ExpensesTable
-            expenses={rows}
-            categories={categories}
-            recurring={recurringRows}
-            total={total}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Dépenses par catégorie</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ExpensesByCategoryChart data={byCategory} />
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  hint,
-  Icon,
-  valueClassName,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  Icon: typeof Wallet;
-  valueClassName?: string;
-}) {
-  return (
-    <div className="rounded-xl border bg-card p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          {label}
-        </p>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </div>
-      <p
-        className={cn(
-          'mt-2 truncate text-2xl font-bold tabular-nums',
-          valueClassName
-        )}
-      >
-        {value}
-      </p>
-      {hint && (
-        <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-          {hint}
-        </p>
       )}
     </div>
   );

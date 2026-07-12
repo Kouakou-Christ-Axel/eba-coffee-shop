@@ -92,6 +92,9 @@ export function RecurringAlert({
             <ExpenseForm
               key={`${initial.categoryId}-${open}`}
               categories={categories}
+              // Pas d'autocomplétion ici : une récurrente (loyer, abonnement…)
+              // se saisit sans détail par article.
+              articles={[]}
               mode="create"
               initial={initial}
               onSuccess={() => setOpen(false)}
