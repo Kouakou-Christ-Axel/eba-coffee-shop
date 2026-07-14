@@ -67,16 +67,20 @@ export default async function CommandeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const order = await getOrder(id);
+  // Les 3 lectures sont indépendantes (menu et session ne dépendent pas de
+  // `order`) : parallélisées pour éviter une waterfall à 3 allers-retours DB.
+  const [order, menu, session] = await Promise.all([
+    getOrder(id),
+    getMenu(),
+    // Édition des métadonnées (paiement, type, créneau, note) réservée à l'ADMIN.
+    getCurrentSession(),
+  ]);
 
   if (!order) {
     notFound();
   }
 
   const items = order.items as CartItem[];
-  const menu = await getMenu();
-  // Édition des métadonnées (paiement, type, créneau, note) réservée à l'ADMIN.
-  const session = await getCurrentSession();
   const isAdmin = session?.user.role === 'ADMIN';
 
   return (

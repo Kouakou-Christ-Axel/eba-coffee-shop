@@ -63,7 +63,7 @@ describe('DashboardLayout', () => {
 
   it('redirige vers / si session avec rôle USER', async () => {
     mockGetSession.mockResolvedValue({
-      user: { role: 'USER', id: 'u1', email: 'user@test.com' },
+      user: { role: 'USER', id: 'u1', email: 'user@test.com', name: 'User' },
       session: {},
     } as never);
     await expect(
@@ -73,7 +73,7 @@ describe('DashboardLayout', () => {
 
   it('affiche le layout avec sidebar si session ADMIN', async () => {
     mockGetSession.mockResolvedValue({
-      user: { role: 'ADMIN', id: 'u1', email: 'admin@eba.ci' },
+      user: { role: 'ADMIN', id: 'u1', email: 'admin@eba.ci', name: 'Admin' },
       session: {},
     } as never);
     const element = await DashboardLayout({
