@@ -29,6 +29,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { withMcpAuth } from 'better-auth/plugins';
 import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { withCors, corsPreflight } from '@/lib/mcp/cors';
 import { handleRpc } from '@/lib/mcp/handler';
 import { FINANCE_TOOL_NAMES, READ_ONLY_TOOL_NAMES } from '@/lib/mcp/tools';
 import type { UserRole } from '@/generated/prisma/client';
@@ -36,35 +37,8 @@ import type { UserRole } from '@/generated/prisma/client';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// ─── CORS ─────────────────────────────────────────────────────────────────
-//
-// Les clients MCP web (claude.ai, inspecteurs, playgrounds) appellent l'endpoint
-// depuis un navigateur : il faut un préflight CORS qui autorise TOUS les en-têtes
-// envoyés par le client. Plutôt qu'une liste figée (qui omettait par ex.
-// `MCP-Protocol-Version` → préflight rejeté → « Problème de connexion »), on
-// **reflète** les en-têtes demandés. `Authorization` est toujours ajouté
-// explicitement : le wildcard ne le couvre jamais. On expose `WWW-Authenticate`
-// pour que la découverte OAuth (401 → resource_metadata) marche côté navigateur.
-
-const DEFAULT_ALLOW_HEADERS =
-  'Content-Type, Authorization, Accept, Mcp-Session-Id, Mcp-Protocol-Version, Last-Event-ID';
-
-function withCors(res: Response, req?: Request): Response {
-  const requested = req?.headers.get('access-control-request-headers');
-  const allowHeaders = requested
-    ? `${requested}, Authorization`
-    : DEFAULT_ALLOW_HEADERS;
-
-  res.headers.set('Access-Control-Allow-Origin', '*');
-  res.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.headers.set('Access-Control-Allow-Headers', allowHeaders);
-  res.headers.set(
-    'Access-Control-Expose-Headers',
-    'WWW-Authenticate, Mcp-Session-Id, Mcp-Protocol-Version'
-  );
-  res.headers.set('Access-Control-Max-Age', '86400');
-  return res;
-}
+// Le CORS (reflet des en-têtes + préflight) est partagé avec les endpoints de
+// découverte OAuth : voir `lib/mcp/cors.ts`.
 
 // ─── Authentification par jeton statique (optionnelle) ──────────────────────
 //
@@ -263,9 +237,7 @@ export async function POST(req: Request): Promise<Response> {
 
 // ─── OPTIONS : préflight CORS ────────────────────────────────────────────────
 
-export function OPTIONS(req: Request): Response {
-  return withCors(new NextResponse(null, { status: 204 }), req);
-}
+export const OPTIONS = corsPreflight;
 
 // ─── GET : flux SSE serveur→client (Streamable HTTP) ─────────────────────────
 
