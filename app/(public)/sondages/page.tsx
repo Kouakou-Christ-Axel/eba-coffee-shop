@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { listPublicPolls } from '@/lib/polls';
+import { BreadcrumbJsonLd } from '@/components/(public)/breadcrumb-json-ld';
 import PollsListSection from '@/components/(public)/sondages/polls-list-section';
 
 // ISR : TTFB quasi instantané pour une liste peu volatile. Les actions admin
@@ -29,5 +30,10 @@ export default async function SondagesPage() {
     listPublicPolls({ status: 'CLOSED' }),
   ]);
 
-  return <PollsListSection open={open} closed={closed} />;
+  return (
+    <>
+      <BreadcrumbJsonLd items={[{ name: 'Sondages', path: '/sondages' }]} />
+      <PollsListSection open={open} closed={closed} />
+    </>
+  );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getPublicPoll } from '@/lib/polls';
+import { BreadcrumbJsonLd } from '@/components/(public)/breadcrumb-json-ld';
 import PollVoteSection from '@/components/(public)/sondages/poll-vote-section';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!data) return {};
   return {
     title: data.poll.title,
-    description: data.poll.description ?? 'Donne ton avis chez EBA Coffee Shop.',
+    description:
+      data.poll.description ?? 'Donne ton avis chez EBA Coffee Shop.',
     alternates: { canonical: `/sondages/${pollId}` },
   };
 }
@@ -24,15 +26,23 @@ export default async function PollPage({ params }: Params) {
   if (!data) notFound();
 
   return (
-    <PollVoteSection
-      pollId={pollId}
-      title={data.poll.title}
-      description={data.poll.description}
-      imageUrl={data.poll.imageUrl}
-      status={data.poll.status}
-      allowSuggestions={data.poll.allowSuggestions}
-      options={data.poll.options}
-      results={data.results}
-    />
+    <>
+      <BreadcrumbJsonLd
+        items={[
+          { name: 'Sondages', path: '/sondages' },
+          { name: data.poll.title, path: `/sondages/${pollId}` },
+        ]}
+      />
+      <PollVoteSection
+        pollId={pollId}
+        title={data.poll.title}
+        description={data.poll.description}
+        imageUrl={data.poll.imageUrl}
+        status={data.poll.status}
+        allowSuggestions={data.poll.allowSuggestions}
+        options={data.poll.options}
+        results={data.results}
+      />
+    </>
   );
 }

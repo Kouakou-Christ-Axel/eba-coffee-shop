@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { BreadcrumbJsonLd } from '@/components/(public)/breadcrumb-json-ld';
 import AboutHeroSection from '@/components/(public)/a-propos/about-hero-section';
 import AboutPatissiereStorySection from '@/components/(public)/a-propos/about-patissiere-story-section';
 import AboutVisionSection from '@/components/(public)/a-propos/about-vision-section';
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
 function AProposPage() {
   return (
     <>
+      <BreadcrumbJsonLd items={[{ name: 'À propos', path: '/a-propos' }]} />
       <AboutHeroSection />
       <AboutPatissiereStorySection />
       <AboutVisionSection />

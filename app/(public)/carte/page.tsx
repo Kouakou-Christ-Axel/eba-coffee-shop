@@ -2,6 +2,7 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { getMenuSettings } from '@/lib/menu-settings-db';
+import { BreadcrumbJsonLd } from '@/components/(public)/breadcrumb-json-ld';
 import CarteHeroSection from '@/components/(public)/carte/carte-hero-section';
 import CarteMenuSection from '@/components/(public)/carte/carte-menu-section';
 import CarteMenuSkeleton from '@/components/(public)/carte/carte-menu-skeleton';
@@ -26,6 +27,7 @@ async function CartePage() {
 
   return (
     <>
+      <BreadcrumbJsonLd items={[{ name: 'La carte', path: '/carte' }]} />
       <CarteHeroSection menuPdfUrl={menuPdfUrl} />
       <Suspense fallback={<CarteMenuSkeleton />}>
         <CarteMenuSection />

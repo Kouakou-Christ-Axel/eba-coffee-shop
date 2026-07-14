@@ -1,7 +1,14 @@
 import { ENV } from 'varlock/env';
 import { brandConfig } from '@/config/brand.config';
+import type { MenuCategory } from '@/config/menu';
 
 const siteUrl = ENV.NEXT_PUBLIC_SITE_URL;
+
+/** Chemin relatif (`/uploads/...`) → URL absolue ; une URL déjà absolue
+ * (Cloudinary, http(s)) est renvoyée telle quelle. */
+function absoluteUrl(path: string): string {
+  return path.startsWith('http') ? path : `${siteUrl}${path}`;
+}
 
 export const homeJsonLd = {
   '@context': 'https://schema.org',
@@ -66,3 +73,61 @@ export const homeJsonLd = {
     },
   ],
 };
+
+/**
+ * JSON-LD `Menu` (schema.org) pour `/carte`, rendu depuis le même appel
+ * `getMenu()` que la page (aucune requête supplémentaire) — voir
+ * `components/(public)/carte/carte-menu-section.tsx`. Chaque catégorie
+ * devient une `MenuSection`, chaque produit un `MenuItem` avec son `Offer`
+ * (prix en XOF, francs CFA — entiers, pas de décimales).
+ */
+export function buildMenuJsonLd(menuData: MenuCategory[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Menu',
+    '@id': `${siteUrl}/carte#menu`,
+    name: 'Carte — EBA Coffee Shop',
+    inLanguage: 'fr',
+    hasMenuSection: menuData.map((category) => ({
+      '@type': 'MenuSection',
+      '@id': `${siteUrl}/carte#${category.id}`,
+      name: category.name,
+      hasMenuItem: category.products.map((product) => ({
+        '@type': 'MenuItem',
+        name: product.name,
+        description: product.description || undefined,
+        image: product.image ? absoluteUrl(product.image) : undefined,
+        offers: {
+          '@type': 'Offer',
+          price: product.price,
+          priceCurrency: 'XOF',
+        },
+      })),
+    })),
+  };
+}
+
+export type BreadcrumbItem = {
+  name: string;
+  /** Chemin relatif (`/carte`) ou URL absolue déjà résolue. */
+  path: string;
+};
+
+/** JSON-LD `BreadcrumbList` (schema.org) générique, pour les pages publiques
+ * autres que l'accueil (`/carte`, `/sondages`, `/a-propos`, `/le-lieu`,
+ * `/contact`…). L'accueil (`/`) n'apparaît pas dans la liste elle-même —
+ * c'est l'élément de départ implicite, jamais un des `itemListElement`. */
+export function buildBreadcrumbJsonLd(items: BreadcrumbItem[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [{ name: 'Accueil', path: '/' }, ...items].map(
+      (item, index) => ({
+        '@type': 'ListItem',
+        position: index + 1,
+        name: item.name,
+        item: absoluteUrl(item.path),
+      })
+    ),
+  };
+}
