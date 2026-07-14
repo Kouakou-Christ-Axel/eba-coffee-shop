@@ -202,6 +202,17 @@ export const POLL_VOTER_TOKEN_MAX = 100;
 export const POLL_LIST_PAGE_SIZE = 20;
 
 /**
+ * Liste publique des sondages (`/sondages`) : passée en ISR plutôt qu'en
+ * `force-dynamic` pour un TTFB quasi instantané côté public. Trade-off :
+ * les compteurs de votes affichés peuvent être périmés jusqu'à cette durée
+ * (le détail d'un sondage, lui, reste `force-dynamic` — résultats live).
+ * Les actions admin (`app/(dashboard)/dashboard/sondages/actions.ts`)
+ * appellent `revalidatePath('/sondages')` pour limiter la fenêtre de
+ * péremption après une création/modification/suppression.
+ */
+export const POLLS_REVALIDATE_SECONDS = 60;
+
+/**
  * Fidélité — rattrapage de commandes non enregistrées (paiement cash, oubli
  * de saisie en caisse). Nombre max de commandes manquées ajoutables en une
  * fois par un admin, et longueur max de la note d'audit associée.

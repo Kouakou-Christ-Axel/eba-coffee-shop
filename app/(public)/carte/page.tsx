@@ -1,8 +1,10 @@
 // app/(public)/carte/page.tsx
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { getMenuSettings } from '@/lib/menu-settings-db';
 import CarteHeroSection from '@/components/(public)/carte/carte-hero-section';
 import CarteMenuSection from '@/components/(public)/carte/carte-menu-section';
+import CarteMenuSkeleton from '@/components/(public)/carte/carte-menu-skeleton';
 import CartFloatingButton from '@/components/(public)/carte/cart-floating-button';
 import DownloadMenuPdf from '@/components/(public)/carte/download-menu-pdf';
 
@@ -25,7 +27,9 @@ async function CartePage() {
   return (
     <>
       <CarteHeroSection menuPdfUrl={menuPdfUrl} />
-      <CarteMenuSection />
+      <Suspense fallback={<CarteMenuSkeleton />}>
+        <CarteMenuSection />
+      </Suspense>
       <CartFloatingButton />
       {menuPdfUrl && <DownloadMenuPdf pdfUrl={menuPdfUrl} />}
     </>

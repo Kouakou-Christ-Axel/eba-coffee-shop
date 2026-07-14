@@ -2,7 +2,17 @@ import type { Metadata } from 'next';
 import { listPublicPolls } from '@/lib/polls';
 import PollsListSection from '@/components/(public)/sondages/polls-list-section';
 
-export const dynamic = 'force-dynamic';
+// ISR : TTFB quasi instantané pour une liste peu volatile. Les actions admin
+// (app/(dashboard)/dashboard/sondages/actions.ts) appellent
+// `revalidatePath('/sondages')` sur chaque mutation, donc ce délai n'est
+// qu'un filet de sécurité de fraîcheur.
+//
+// ⚠️ Doit rester une valeur littérale : Next.js exige que `export const
+// revalidate` soit statiquement analysable (une référence importée, même
+// vers une constante numérique simple, fait échouer le build avec « Invalid
+// segment configuration export detected »). Garder cette valeur synchronisée
+// à la main avec `POLLS_REVALIDATE_SECONDS` (config/constants.ts).
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: 'Sondages',
