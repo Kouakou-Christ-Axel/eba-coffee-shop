@@ -4,6 +4,7 @@
 // vivent dans lib/expense-mutations.ts (miroir du couple lib/menu.ts /
 // lib/menu-mutations.ts).
 
+import { cache } from 'react';
 import type { ExpenseNature } from '@/generated/prisma/client';
 import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
@@ -55,13 +56,37 @@ export function countUnnumberedExpenses() {
   return prisma.expense.count({ where: { receiptNo: null } });
 }
 
-/** Catégories triées, avec le nombre de dépenses rattachées. */
-export async function listExpenseCategories() {
-  return prisma.expenseCategory.findMany({
-    where: { deletedAt: null },
-    orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-    include: { _count: { select: { expenses: true } } },
+/**
+ * Catégories triées, avec le nombre de dépenses rattachées. `cache()` :
+ * réutilisée par plusieurs sections Suspense indépendantes de la page
+ * Dépenses (Phase 2 — alertes, historique, récurrentes), sans args, donc
+ * dédupliquée par React à l'échelle de la requête.
+ */
+export const listExpenseCategories = cache(
+  async function listExpenseCategories() {
+    return prisma.expenseCategory.findMany({
+      where: { deletedAt: null },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      include: { _count: { select: { expenses: true } } },
+    });
+  }
+);
+
+/**
+ * Date la plus ancienne d'une dépense correspondant aux filtres (hors
+ * `dateFrom`/`dateTo`, non pertinents ici). Sert de borne basse pour les
+ * agrégats (`getExpenseSummary`, `getExpenseMonthlySeries`) en mode "tout
+ * l'historique" (sans devoir d'abord charger la liste complète des dépenses).
+ */
+export async function getEarliestExpenseDate(
+  filters: Omit<ExpenseFilters, 'dateFrom' | 'dateTo'> = {}
+): Promise<Date | null> {
+  const where = buildExpenseWhere(filters);
+  const result = await prisma.expense.aggregate({
+    where,
+    _min: { date: true },
   });
+  return result._min.date ?? null;
 }
 
 /** Liste des dépenses filtrées + total (somme des montants). */
@@ -227,8 +252,15 @@ export async function getExpenseMonthlySeries(
 
 // ─── Articles : référentiel + fréquence d'achat ───────────────────────────────
 
-/** Articles actifs (autocomplétion / désambiguïsation), triés par nom. */
-export async function listExpenseArticles(search?: string) {
+/**
+ * Articles actifs (autocomplétion / désambiguïsation), triés par nom.
+ * `cache()` : réutilisée par plusieurs sections Suspense indépendantes de la
+ * page Dépenses (Phase 2 — historique, articles), dédupliquée par React par
+ * jeu d'arguments (`search`) à l'échelle de la requête.
+ */
+export const listExpenseArticles = cache(async function listExpenseArticles(
+  search?: string
+) {
   const q = search?.trim();
   return prisma.expenseArticle.findMany({
     where: {
@@ -248,7 +280,7 @@ export async function listExpenseArticles(search?: string) {
       _count: { select: { items: true } },
     },
   });
-}
+});
 
 export type ArticlePurchaseStat = {
   articleId: string;

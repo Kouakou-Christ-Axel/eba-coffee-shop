@@ -4,6 +4,7 @@
 // lib/inventory-mutations.ts. Toutes les quantités Decimal de Prisma sont
 // converties en `number` ici — on ne laisse jamais fuiter de Decimal côté client.
 
+import { cache } from 'react';
 import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 
@@ -100,8 +101,15 @@ function toView(item: {
   };
 }
 
-/** Liste des références (vues planes), filtrées. `lowStockOnly` filtré en JS. */
-export async function listInventoryItems(
+/**
+ * Liste des références (vues planes), filtrées. `lowStockOnly` filtré en JS.
+ * `cache()` : réutilisée par plusieurs sections Suspense indépendantes de la
+ * page Inventaire (Phase 2 — alerte stock bas, onglets référence/comptage/
+ * réappro) ; dédupliquée par React quand appelée sans argument (l'objet par
+ * défaut `{}` n'entre pas dans la clé de cache tant qu'aucun argument
+ * explicite n'est passé).
+ */
+export const listInventoryItems = cache(async function listInventoryItems(
   filters: InventoryFilters = {}
 ): Promise<InventoryItemView[]> {
   const items = await prisma.inventoryItem.findMany({
@@ -110,7 +118,7 @@ export async function listInventoryItems(
   });
   const views = items.map(toView);
   return filters.lowStockOnly ? views.filter((v) => v.isLowStock) : views;
-}
+});
 
 /** Détail d'une référence + derniers achats + dernières lignes de comptage. */
 export async function getInventoryItem(id: string) {

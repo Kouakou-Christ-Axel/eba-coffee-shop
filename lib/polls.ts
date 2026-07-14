@@ -3,6 +3,7 @@
 // Lecture des sondages (moteur générique de vote). Indépendant de la fidélité
 // (lib/loyalty*) — voir décision produit dans lib/poll-mutations.ts.
 
+import { cache } from 'react';
 import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { customerPhoneKey } from '@/lib/phone';
@@ -175,7 +176,10 @@ export async function listPublicPolls({
  * pas seulement caché côté UI, pour ne jamais faire transiter les chiffres
  * bruts vers le client quand ils ne doivent pas être visibles.
  */
-export async function getPublicPoll(id: string) {
+// `cache()` déduplique l'appel entre `generateMetadata` et la page de
+// `/sondages/[pollId]` (React request cache) : sans ce wrapper, ça fait
+// 2 requêtes Prisma identiques par requête.
+export const getPublicPoll = cache(async (id: string) => {
   const poll = await prisma.poll.findUnique({
     where: { id },
     include: {
@@ -188,11 +192,12 @@ export async function getPublicPoll(id: string) {
   });
   if (!poll || poll.status === 'DRAFT') return null;
 
-  const showResults = poll.resultsVisibility === 'LIVE' || poll.status === 'CLOSED';
+  const showResults =
+    poll.resultsVisibility === 'LIVE' || poll.status === 'CLOSED';
   const results = showResults ? await getPollResults(id) : null;
 
   return { poll, results };
-}
+});
 
 /** Bulletin déjà enregistré pour ce votant (téléphone normalisé et/ou token
  * anonyme), pour pré-sélectionner son choix courant sur la page de vote. */

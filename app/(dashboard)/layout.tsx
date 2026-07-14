@@ -1,8 +1,6 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
-import { ROLE_GROUPS } from '@/lib/auth-helpers';
+import { getCurrentSession, ROLE_GROUPS } from '@/lib/auth-helpers';
 import type { UserRole } from '@/generated/prisma/client';
 import {
   SidebarInset,
@@ -18,7 +16,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getCurrentSession();
 
   if (!session) {
     redirect('/login');

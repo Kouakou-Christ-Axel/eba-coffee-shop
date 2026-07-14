@@ -14,10 +14,11 @@ export default async function PollDetailPage({ params }: Params) {
   await requireRoleOrAnalyst(['ADMIN']);
   const { pollId } = await params;
 
-  const data = await getPollAdmin(pollId);
+  const [data, { suggestions }] = await Promise.all([
+    getPollAdmin(pollId),
+    listSuggestionsAdmin({ pollId }),
+  ]);
   if (!data) notFound();
-
-  const { suggestions } = await listSuggestionsAdmin({ pollId });
 
   const options = data.poll.options.map((o) => ({
     id: o.id,

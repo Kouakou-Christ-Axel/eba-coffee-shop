@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { headers } from 'next/headers';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
@@ -86,7 +87,11 @@ export const authorizedSessionSchema = z.object({
   }),
 });
 
-async function getSession(): Promise<AuthorizedSession | null> {
+// `cache()` déduplique les lookups de session au sein d'une même requête
+// serveur (React request cache) : le layout dashboard et le guard `require*`
+// de chaque page appellent tous deux `getSession()` — sans ce wrapper, ça
+// ferait 2 appels `auth.api.getSession()` (donc 2 requêtes DB) par requête.
+const getSession = cache(async (): Promise<AuthorizedSession | null> => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {
     // Aucune session lisible : le cookie de session est absent ou non transmis.
@@ -112,7 +117,7 @@ async function getSession(): Promise<AuthorizedSession | null> {
     return null;
   }
   return parsed.data;
-}
+});
 
 /** Renvoie la session courante (ou null si non connecté). */
 export async function getCurrentSession(): Promise<AuthorizedSession | null> {
