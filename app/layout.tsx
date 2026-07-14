@@ -26,6 +26,8 @@ export const metadata: Metadata = {
   alternates: {
     canonical: '/',
   },
+  // TODO: remplacer par un visuel OG dédié 1200x630 (ce placeholder est une
+  // photo hero existante, réutilisée en attendant un vrai shooting).
   openGraph: {
     title: 'EBA Coffee Shop à Abidjan',
     description:
@@ -33,9 +35,9 @@ export const metadata: Metadata = {
     url: '/',
     images: [
       {
-        url: '/og/home-coffee.jpg',
-        width: 1200,
-        height: 630,
+        url: '/assets/examples/accueil/eba-hero.webp',
+        width: 800,
+        height: 449,
         alt: 'EBA Coffee Shop à Abidjan',
       },
     ],
@@ -45,7 +47,7 @@ export const metadata: Metadata = {
     title: 'EBA Coffee Shop à Abidjan',
     description:
       'Café, brunch, boissons signatures et ambiance cosy chez EBA Coffee Shop.',
-    images: ['/og/home-coffee.jpg'],
+    images: ['/assets/examples/accueil/eba-hero.webp'],
   },
   manifest: '/manifest.json',
   icons: {

@@ -32,6 +32,20 @@ export const metadata: Metadata = {
   alternates: {
     canonical: '/',
   },
+  openGraph: {
+    title: 'EBA Coffee Shop à Abidjan | Café, pâtisseries et brunch à Cocody',
+    description:
+      'EBA Coffee Shop : votre coffee shop à Cocody, Abidjan. Cafés de spécialité, pâtisseries artisanales, brunch et ambiance chaleureuse. Ouvert 7j/7.',
+    url: '/',
+    images: [
+      {
+        url: '/assets/examples/accueil/eba-hero.webp',
+        width: 800,
+        height: 449,
+        alt: 'EBA Coffee Shop à Abidjan',
+      },
+    ],
+  },
 };
 
 export default function HomePage() {

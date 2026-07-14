@@ -14,6 +14,20 @@ export const metadata: Metadata = {
   alternates: {
     canonical: '/a-propos',
   },
+  openGraph: {
+    title: 'À propos — Notre histoire',
+    description:
+      "Découvrez l'histoire d'EBA Coffee Shop à Abidjan : une pâtissière formée en France, des engagements qualité et une vision artisanale à Cocody.",
+    url: '/a-propos',
+    images: [
+      {
+        url: '/assets/examples/accueil/eba-hero.webp',
+        width: 800,
+        height: 449,
+        alt: 'À propos — EBA Coffee Shop',
+      },
+    ],
+  },
 };
 
 function AProposPage() {
