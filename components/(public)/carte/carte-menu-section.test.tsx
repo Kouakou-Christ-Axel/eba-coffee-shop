@@ -14,6 +14,13 @@ vi.mock('@/lib/menu', () => ({
   getMenu: vi.fn(),
 }));
 
+// `carte-menu-section.tsx` rend le JSON-LD `Menu` (lib/json-ld.ts), qui lit
+// `ENV.NEXT_PUBLIC_SITE_URL` (varlock) au niveau module — non initialisé
+// dans cet environnement de test, hors runtime Next.js.
+vi.mock('@/lib/json-ld', () => ({
+  buildMenuJsonLd: vi.fn(() => ({})),
+}));
+
 vi.mock('./carte-menu-section-client', () => ({
   default: ({
     menuData,

@@ -7,6 +7,7 @@
 // conventions (CANCELLED exclues, isPaid, régularisations de recette) restent
 // définies à un seul endroit et s'appliquent symétriquement aux deux périodes.
 
+import { cache } from 'react';
 import { getDailyStats, getRangeStats } from '@/lib/stats';
 import type { DailyStats, RangeStats } from '@/lib/stats';
 import { getExpenseSummary } from '@/lib/expenses';
@@ -101,6 +102,14 @@ export async function compareRanges(
     },
   };
 }
+
+/**
+ * `compareRanges` dédupliqué via `cache()` : la page Statistiques (Phase 2)
+ * l'appelle depuis plusieurs sections Suspense indépendantes (`kpi-section`,
+ * `breakdowns-section`) avec les mêmes `from`/`to` — sans ce wrapper, ça
+ * doublerait la charge DB (2× `getRangeStats` + `getExpenseSummary`).
+ */
+export const compareRangesCached = cache(compareRanges);
 
 export type DayComparison = {
   today: DailyStats;

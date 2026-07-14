@@ -14,6 +14,11 @@ async function requireAdminId(): Promise<string> {
 function revalidate(pollId?: string) {
   revalidatePath('/dashboard/sondages');
   if (pollId) revalidatePath(`/dashboard/sondages/${pollId}`);
+  // Liste publique : passée en ISR (POLLS_REVALIDATE_SECONDS, cf.
+  // app/(public)/sondages/page.tsx) — sans cette invalidation explicite, une
+  // mutation admin (création, statut, suppression…) resterait invisible
+  // jusqu'à expiration du cache.
+  revalidatePath('/sondages');
 }
 
 async function run(
@@ -104,8 +109,5 @@ export async function moderatePollSuggestionAction(
   input: unknown
 ): Promise<ActionResult> {
   const userId = await requireAdminId();
-  return run(
-    () => polls.moderatePollSuggestion(id, input, userId),
-    pollId
-  );
+  return run(() => polls.moderatePollSuggestion(id, input, userId), pollId);
 }

@@ -5,8 +5,7 @@ import { NewOrderView } from './new-order-view';
 export const dynamic = 'force-dynamic';
 
 export default async function NewOrderPage() {
-  await requireCashier();
-  const menu = await getMenu();
+  const [, menu] = await Promise.all([requireCashier(), getMenu()]);
 
   return <NewOrderView menu={menu} />;
 }

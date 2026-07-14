@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { BreadcrumbJsonLd } from '@/components/(public)/breadcrumb-json-ld';
 import ContactHeroSection from '@/components/(public)/contact/contact-hero-section';
 import ContactFormSection from '@/components/(public)/contact/contact-form-section';
 import ContactMapSection from '@/components/(public)/contact/contact-map-section';
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
 export default function ContactPage() {
   return (
     <>
+      <BreadcrumbJsonLd items={[{ name: 'Contact', path: '/contact' }]} />
       <ContactHeroSection />
       <ContactFormSection />
       <ContactMapSection />
