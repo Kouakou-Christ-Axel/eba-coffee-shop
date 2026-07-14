@@ -17,6 +17,20 @@ export const metadata: Metadata = {
   description:
     'Découvrez la carte EBA Coffee Shop : cafés de spécialité, pâtisseries artisanales, brunch et boissons signatures à Cocody, Abidjan.',
   alternates: { canonical: '/carte' },
+  openGraph: {
+    title: 'La carte',
+    description:
+      'Découvrez la carte EBA Coffee Shop : cafés de spécialité, pâtisseries artisanales, brunch et boissons signatures à Cocody, Abidjan.',
+    url: '/carte',
+    images: [
+      {
+        url: '/assets/examples/accueil/eba-hero.webp',
+        width: 800,
+        height: 449,
+        alt: 'La carte EBA Coffee Shop',
+      },
+    ],
+  },
 };
 
 async function CartePage() {

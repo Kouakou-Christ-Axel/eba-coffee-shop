@@ -11,6 +11,20 @@ export const metadata: Metadata = {
   alternates: {
     canonical: '/sondages',
   },
+  openGraph: {
+    title: 'Sondages',
+    description:
+      'Donne ton avis : vote pour la pâtisserie de la semaine et propose tes idées à EBA Coffee Shop.',
+    url: '/sondages',
+    images: [
+      {
+        url: '/assets/examples/accueil/eba-hero.webp',
+        width: 800,
+        height: 449,
+        alt: 'Sondages — EBA Coffee Shop',
+      },
+    ],
+  },
 };
 
 export default async function SondagesPage() {

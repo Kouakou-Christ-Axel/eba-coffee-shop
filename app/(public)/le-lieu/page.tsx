@@ -15,6 +15,20 @@ export const metadata: Metadata = {
   alternates: {
     canonical: '/le-lieu',
   },
+  openGraph: {
+    title: 'Le lieu — Votre coffee shop à Cocody',
+    description:
+      'Visitez EBA Coffee Shop à Cocody, Abidjan : un espace chaleureux et soigné pour savourer café de spécialité, pâtisseries artisanales et brunch. Ouvert 7j/7.',
+    url: '/le-lieu',
+    images: [
+      {
+        url: '/assets/examples/accueil/eba-hero.webp',
+        width: 800,
+        height: 449,
+        alt: 'Le lieu — EBA Coffee Shop',
+      },
+    ],
+  },
 };
 
 function LeLieuPage() {
