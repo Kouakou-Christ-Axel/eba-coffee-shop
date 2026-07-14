@@ -35,11 +35,29 @@ se connecte avec **son propre compte** (OTP email / Google) — pas de secret à
 partager, accès traçable et révocable individuellement.
 
 Le provider OAuth est fourni par le plugin MCP de Better Auth (`lib/auth.ts`).
-Il publie automatiquement la découverte (RFC 8414 / 9728) :
+Les endpoints OAuth (authorize / token / **enregistrement dynamique de client**
+RFC 7591) vivent sous `https://<votre-domaine>/api/auth/mcp/*` ; aucun client
+n'est pré-enregistré, chaque client MCP (claude.ai, Claude Desktop, ChatGPT…)
+s'auto-enregistre via `POST /api/auth/mcp/register` avec son propre
+`redirect_uri`.
 
-- `https://<votre-domaine>/.well-known/oauth-authorization-server`
-- `https://<votre-domaine>/.well-known/oauth-protected-resource`
-- endpoints OAuth sous `https://<votre-domaine>/api/auth/mcp/*`
+La découverte (RFC 8414 / 9728) est servie à **toutes** les URLs que les
+différents clients essaient — GET **et** OPTIONS (préflight CORS ; le SDK MCP
+envoie l'en-tête `MCP-Protocol-Version`, qui déclenche un préflight depuis un
+contexte navigateur) :
+
+| Document                          | URLs                                                                                                                                                                                     |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Serveur d'autorisation (RFC 8414) | `/.well-known/oauth-authorization-server` · `/.well-known/oauth-authorization-server/api/mcp` · `/api/auth/.well-known/oauth-authorization-server`                                       |
+| OIDC Discovery (même métadonnée)  | `/.well-known/openid-configuration` · `/.well-known/openid-configuration/api/mcp`                                                                                                        |
+| Ressource protégée (RFC 9728)     | `/.well-known/oauth-protected-resource` · `/.well-known/oauth-protected-resource/api/mcp` · `/api/auth/.well-known/oauth-protected-resource` (annoncée par le `WWW-Authenticate` du 401) |
+
+> **Reverse proxy** : nginx doit **proxifier `/.well-known/`** vers Next comme
+> le reste du site. Une `location /.well-known/` statique (souvent ajoutée pour
+> certbot) avalerait ces documents → seuls `/.well-known/acme-challenge/`
+> doivent rester statiques, sinon ChatGPT / Claude Desktop ne trouvent pas la
+> découverte alors que claude.ai (qui suit l'URL `/api/auth/…` du header)
+> fonctionne.
 
 ### Pré-requis
 
@@ -534,10 +552,14 @@ lève la pause manuellement avant son terme. Différent de
   après écriture.
 - `lib/auth.ts` — provider OAuth : plugin `mcp({ loginPage: '/login' })` de
   Better Auth + `baseURL` (issuer).
-- `app/.well-known/oauth-authorization-server/route.ts` et
-  `app/.well-known/oauth-protected-resource/route.ts` — découverte OAuth à la
-  racine de l'origine (déléguée au plugin via `oAuthDiscoveryMetadata` /
-  `oAuthProtectedResourceMetadata`).
+- `app/.well-known/{oauth-authorization-server,openid-configuration,oauth-protected-resource}/route.ts`
+  (+ variantes `…/api/mcp/route.ts` avec le chemin de la ressource inséré) —
+  découverte OAuth à la racine de l'origine (déléguée au plugin via
+  `oAuthDiscoveryMetadata` / `oAuthProtectedResourceMetadata`), GET + OPTIONS.
+- `lib/mcp/cors.ts` — CORS partagé (reflet des en-têtes demandés + préflight)
+  entre `/api/mcp`, les documents de découverte et le catch-all
+  `app/api/auth/[...all]/route.ts` (qui l'applique aux chemins
+  `/api/auth/.well-known/*` et `/api/auth/mcp/*`).
 - `app/(public)/login/page.tsx` — sait **reprendre** le flux OAuth après
   connexion (renvoie vers `/api/auth/mcp/authorize` avec les paramètres repris).
 - `lib/mcp/handler.ts` — dispatcher JSON-RPC (`initialize`, `tools/list`,
