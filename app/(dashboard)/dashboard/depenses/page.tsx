@@ -5,6 +5,7 @@ import {
   todayDateString,
   shiftDateString,
 } from '@/lib/timezone';
+import { getExpenseSettings } from '@/lib/expense-settings-db';
 import { DateRangeFilter } from '@/components/(dashboard)/date-range-filter';
 import {
   KpiGridSkeleton,
@@ -13,6 +14,7 @@ import {
 } from '@/components/(dashboard)/skeletons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DepensesTabs } from './depenses-tabs';
+import { ExpenseSettingsButton } from './expense-settings-sheet';
 import { ReceiptBackfillAlertSection } from './_components/receipt-backfill-alert-section';
 import { RecurringAlertSection } from './_components/recurring-alert-section';
 import { ApercuSection } from './_components/apercu-section';
@@ -88,6 +90,7 @@ export default async function DepensesPage({
   const exportItemsHref = `/api/export/expense-items?${exportItemsSp.toString()}`;
 
   const periodLabel = isAll ? 'Tout l’historique' : `Du ${fromStr} au ${toStr}`;
+  const expenseSettings = await getExpenseSettings();
 
   return (
     <div className="space-y-6">
@@ -96,7 +99,10 @@ export default async function DepensesPage({
           <h1 className="text-2xl font-bold">Dépenses</h1>
           <p className="text-sm text-muted-foreground">{periodLabel}</p>
         </div>
-        <DateRangeFilter from={fromStr} to={toStr} isAll={isAll} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ExpenseSettingsButton settings={expenseSettings} />
+          <DateRangeFilter from={fromStr} to={toStr} isAll={isAll} />
+        </div>
       </div>
 
       <Suspense fallback={null}>
