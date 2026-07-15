@@ -20,7 +20,7 @@ Le serveur tente d'abord la clé statique (si `MCP_API_KEY` est fournie en
 identifiant valide reçoit 401** ; un compte sans rôle **ADMIN**, **MANAGER**,
 **COMPTABLE** ou **ANALYSTE** reçoit **403**. `ADMIN`/`MANAGER` ont accès à
 tous les outils ; `COMPTABLE` est restreint aux outils finance (dépenses,
-investissements, régularisations, clôture de caisse, statistiques) ;
+investissements, régularisations, clôture de caisse, inventaire, statistiques) ;
 `ANALYSTE` est restreint aux outils en **lecture seule**, tous domaines
 confondus (aucun droit d'écriture).
 

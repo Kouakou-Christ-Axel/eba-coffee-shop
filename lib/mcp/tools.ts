@@ -2051,6 +2051,7 @@ export const tools: McpTool[] = [
   // — Inventaire (matières premières & consommables) —
   {
     name: 'list_inventory_items',
+    scope: 'finance',
     title: 'Lister les références d’inventaire',
     description:
       'Renvoie les références d’inventaire (matières premières et consommables) ' +
@@ -2065,6 +2066,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_inventory_item',
+    scope: 'finance',
     title: 'Détail d’une référence d’inventaire',
     description:
       'Renvoie une référence d’inventaire avec ses achats récents et les lignes ' +
@@ -2075,6 +2077,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_inventory_summary',
+    scope: 'finance',
     title: 'Synthèse de l’inventaire',
     description:
       'Renvoie les KPIs de l’inventaire : nombre de références actives, références ' +
@@ -2086,6 +2089,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'list_low_stock_items',
+    scope: 'finance',
     title: 'Références sous le seuil',
     description:
       'Renvoie les références d’inventaire dont le stock courant est inférieur ou ' +
@@ -2096,6 +2100,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'list_inventory_purchases',
+    scope: 'finance',
     title: 'Lister les achats d’inventaire',
     description:
       'Renvoie les achats/réapprovisionnements d’inventaire (entrées de stock) ' +
@@ -2119,6 +2124,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'list_inventory_counts',
+    scope: 'finance',
     title: 'Lister les comptages d’inventaire',
     description:
       'Renvoie l’historique des comptages périodiques d’inventaire (inventaires ' +
@@ -2129,6 +2135,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_inventory_count',
+    scope: 'finance',
     title: 'Détail d’un comptage d’inventaire',
     description:
       'Renvoie le rapport d’un comptage périodique pour la période concernée : par ' +
@@ -2140,6 +2147,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_inventory_item',
+    scope: 'finance',
     title: 'Créer une référence d’inventaire',
     description:
       'Crée une référence d’inventaire (matière première ou consommable). Le ' +
@@ -2156,6 +2164,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_inventory_item',
+    scope: 'finance',
     title: 'Modifier une référence d’inventaire',
     description:
       'Met à jour une référence d’inventaire de façon PARTIELLE : ne fournis que ' +
@@ -2172,6 +2181,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'archive_inventory_item',
+    scope: 'finance',
     title: 'Archiver une référence d’inventaire',
     description:
       'Archive une référence d’inventaire (suppression douce : la référence est ' +
@@ -2182,6 +2192,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'record_inventory_purchases',
+    scope: 'finance',
     title: 'Enregistrer un réapprovisionnement',
     description:
       'Enregistre un réapprovisionnement par lot (entrées de stock). `date` au ' +
@@ -2196,6 +2207,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'cancel_restock_batch',
+    scope: 'finance',
     title: 'Annuler un lot de réapprovisionnement',
     description:
       'Annule un lot de réapprovisionnement entier : restaure le stock et le PMP ' +
@@ -2209,6 +2221,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'record_inventory_count',
+    scope: 'finance',
     title: 'Enregistrer un comptage d’inventaire',
     description:
       'Enregistre un comptage périodique (inventaire physique). `date` au format ' +
@@ -2222,6 +2235,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_inventory_settings',
+    scope: 'finance',
     title: 'Lire les réglages d’inventaire',
     description:
       'Renvoie la configuration du module d’inventaire (rappel de comptage ' +
@@ -2232,6 +2246,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_inventory_settings',
+    scope: 'finance',
     title: 'Modifier les réglages d’inventaire',
     description:
       'Met à jour la configuration du module d’inventaire. Renvoie les réglages ' +

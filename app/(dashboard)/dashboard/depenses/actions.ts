@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireFinance } from '@/lib/auth-helpers';
 import * as expenses from '@/lib/expense-mutations';
 import * as recurring from '@/lib/recurring-expense-mutations';
+import { updateExpenseSettings } from '@/lib/expense-settings-db';
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -151,6 +152,15 @@ export async function relinkExpenseItemAction(
 ): Promise<ActionResult> {
   await requireAdminId();
   return run(() => expenses.relinkExpenseItem(itemId, articleId));
+}
+
+// ── Réglages globaux (seuils fréquence/cumul/prix aberrant, TTL brouillon) ──
+
+export async function updateExpenseSettingsAction(
+  input: unknown
+): Promise<ActionResult> {
+  await requireAdminId();
+  return run(() => updateExpenseSettings(input));
 }
 
 // ── Dépenses récurrentes (modèles) ──
