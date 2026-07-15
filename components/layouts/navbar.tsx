@@ -158,6 +158,18 @@ function Navbar() {
               </NavbarMenuItem>
             );
           })}
+          <NavbarMenuItem className="mt-4">
+            <Button
+              as={Link}
+              className="w-full"
+              color="primary"
+              href={hasDashboardAccess ? '/dashboard' : '/login'}
+              variant="flat"
+              onPress={() => setIsMenuOpen(false)}
+            >
+              {hasDashboardAccess ? 'Dashboard' : 'Connexion'}
+            </Button>
+          </NavbarMenuItem>
         </NavbarMenu>
       </NavbarContent>
     </UINavbar>
