@@ -4,38 +4,39 @@ import React from 'react';
 import { Button, Card, CardBody, Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Clock3, MapPin, MessageCircle, Phone } from 'lucide-react';
-import { brandConfig } from '@/config/brand.config';
+import type { ContactSettings } from '@/lib/contact-settings';
+import { buildWhatsAppLink } from '@/lib/contact-links';
 
-const infoRows = [
-  {
-    label: 'Adresse',
-    value: brandConfig.links.contact.address,
-    icon: MapPin,
-  },
-  {
-    label: 'Repere',
-    value: brandConfig.links.contact.landmark,
-    icon: MapPin,
-  },
-  {
-    label: 'Horaires',
-    value: brandConfig.links.contact.hours,
-    icon: Clock3,
-  },
-  {
-    label: 'WhatsApp',
-    value: brandConfig.links.contact.whatsapp.display,
-    icon: MessageCircle,
-  },
-  {
-    label: 'Telephone',
-    value: brandConfig.links.contact.phone.display,
-    icon: Phone,
-  },
-];
-
-function FindUsSection() {
+function FindUsSection({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
+
+  const infoRows = [
+    {
+      label: 'Adresse',
+      value: contact.address,
+      icon: MapPin,
+    },
+    {
+      label: 'Repere',
+      value: contact.landmark,
+      icon: MapPin,
+    },
+    {
+      label: 'Horaires',
+      value: contact.hoursLabel,
+      icon: Clock3,
+    },
+    {
+      label: 'WhatsApp',
+      value: contact.whatsapp,
+      icon: MessageCircle,
+    },
+    {
+      label: 'Telephone',
+      value: contact.phone,
+      icon: Phone,
+    },
+  ];
 
   const fadeUp = reduceMotion
     ? {}
@@ -137,7 +138,7 @@ function FindUsSection() {
             >
               <Button
                 as={Link}
-                href={brandConfig.links.contact.whatsapp.href}
+                href={buildWhatsAppLink(contact.whatsapp) ?? '#'}
                 target="_blank"
                 rel="noopener noreferrer"
                 color="primary"
@@ -150,7 +151,7 @@ function FindUsSection() {
               </Button>
               <Button
                 as={Link}
-                href={brandConfig.links.maps.directions}
+                href={contact.mapsDirectionsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 variant="bordered"
@@ -177,7 +178,7 @@ function FindUsSection() {
                 <div className="relative h-80 w-full md:h-128">
                   <iframe
                     title="Carte Google Maps EBA a Abidjan"
-                    src={brandConfig.links.maps.embed}
+                    src={contact.mapsEmbedUrl}
                     loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"
                     className="h-full w-full border-0"

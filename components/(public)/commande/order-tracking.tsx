@@ -41,7 +41,6 @@ import {
   buildWhatsAppLink,
   buildWhatsAppShareLink,
 } from '@/lib/contact-links';
-import { brandConfig } from '@/config/brand.config';
 import { compressImage } from '@/lib/image-compress';
 import {
   uploadToCloudinary,
@@ -59,6 +58,7 @@ type Props = {
   initialOrder: PublicOrderView;
   pickupAddress: string | null;
   pickupMapsUrl: string | null;
+  whatsapp: string;
 };
 
 // ─── Timeline de statut ───────────────────────────────────────────────────────
@@ -81,6 +81,7 @@ export function OrderTracking({
   initialOrder,
   pickupAddress,
   pickupMapsUrl,
+  whatsapp,
 }: Props) {
   const [order, setOrder] = useState<PublicOrderView>(initialOrder);
   const reduceMotion = useReducedMotion();
@@ -188,7 +189,11 @@ export function OrderTracking({
 
       {/* ── Paiement ── */}
       {!isCancelled && (
-        <PaymentSection order={order} onOrderChange={setOrder} />
+        <PaymentSection
+          order={order}
+          whatsapp={whatsapp}
+          onOrderChange={setOrder}
+        />
       )}
 
       {/* ── Livreur ── */}
@@ -442,9 +447,11 @@ function LoyaltySection({ loyalty }: { loyalty: PublicOrderLoyaltyView }) {
 
 function PaymentSection({
   order,
+  whatsapp,
   onOrderChange,
 }: {
   order: PublicOrderView;
+  whatsapp: string;
   onOrderChange: (o: PublicOrderView) => void;
 }) {
   const [uploading, setUploading] = useState(false);
@@ -452,7 +459,7 @@ function PaymentSection({
   const fileRef = useRef<HTMLInputElement>(null);
   const waveLink = buildWaveLink(order.total);
   const paymentProofWhatsAppLink = buildWhatsAppLink(
-    brandConfig.location.whatsapp,
+    whatsapp,
     buildPaymentProofMessage({
       customerName: order.customerName,
       dailyNumber: order.dailyNumber,

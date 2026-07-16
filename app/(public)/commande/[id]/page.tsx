@@ -9,6 +9,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getPublicOrder } from '@/lib/orders';
 import { getPickupSettings } from '@/lib/pickup-settings-db';
+import { getContactSettings } from '@/lib/contact-settings-db';
 import { OrderTracking } from '@/components/(public)/commande/order-tracking';
 
 export const metadata: Metadata = {
@@ -20,9 +21,10 @@ type Props = { params: Promise<{ id: string }> };
 
 export default async function CommandePage({ params }: Props) {
   const { id } = await params;
-  const [order, settings] = await Promise.all([
+  const [order, settings, contact] = await Promise.all([
     getPublicOrder(id),
     getPickupSettings(),
+    getContactSettings(),
   ]);
 
   if (!order) notFound();
@@ -47,6 +49,7 @@ export default async function CommandePage({ params }: Props) {
         initialOrder={order}
         pickupAddress={settings.pickupAddress ?? null}
         pickupMapsUrl={settings.pickupMapsUrl ?? null}
+        whatsapp={contact.whatsapp}
       />
 
       <div className="mt-8 text-center">

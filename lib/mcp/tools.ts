@@ -178,6 +178,14 @@ import {
   type LoyaltySettings,
 } from '@/lib/loyalty-settings';
 import {
+  getContactSettings,
+  updateContactSettings,
+} from '@/lib/contact-settings-db';
+import {
+  contactSettingsSchema,
+  type ContactSettings,
+} from '@/lib/contact-settings';
+import {
   listInventoryItems,
   getInventoryItem,
   getInventorySummary,
@@ -1703,6 +1711,33 @@ export const tools: McpTool[] = [
     handler: async (args) => {
       await updateLoyaltySettings(args as LoyaltySettings);
       return getLoyaltySettings();
+    },
+  },
+  {
+    name: 'get_contact_settings',
+    title: 'Lire les coordonnées du commerce',
+    description:
+      'Renvoie les coordonnées publiques du commerce : adresse, quartier, ' +
+      'repère, horaires, téléphone, WhatsApp Business, email, liens Maps ' +
+      '(itinéraire + carte embarquée), réseaux sociaux (Instagram, TikTok) ' +
+      'et hashtag.',
+    inputSchema: z.object({}),
+    readOnly: true,
+    handler: () => getContactSettings(),
+  },
+  {
+    name: 'update_contact_settings',
+    title: 'Modifier les coordonnées du commerce',
+    description:
+      'Met à jour les coordonnées publiques du commerce (adresse, téléphone, ' +
+      'WhatsApp Business, email, liens Maps, réseaux sociaux). Le numéro ' +
+      'WhatsApp doit être un numéro ivoirien valide — le lien wa.me est ' +
+      'dérivé automatiquement, ne pas le stocker séparément.',
+    inputSchema: contactSettingsSchema,
+    readOnly: false,
+    handler: async (args) => {
+      await updateContactSettings(args as ContactSettings);
+      return getContactSettings();
     },
   },
 

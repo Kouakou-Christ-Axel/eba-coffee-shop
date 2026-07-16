@@ -2,10 +2,10 @@
 
 import { Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { brandConfig } from '@/config/brand.config';
+import type { ContactSettings } from '@/lib/contact-settings';
 import SocialGallery from './_components/social-gallery';
 
-function SocialSection() {
+function SocialSection({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
 
   return (
@@ -37,22 +37,22 @@ function SocialSection() {
           <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-medium">
             <Link
               isExternal
-              href={brandConfig.links.social.instagram.href}
+              href={contact.instagramUrl}
               className="text-primary hover:opacity-80"
             >
-              {brandConfig.links.social.instagram.handle} on Instagram
+              {contact.instagramHandle} on Instagram
             </Link>
             <Link
               isExternal
-              href={brandConfig.links.social.tiktok.href}
+              href={contact.tiktokUrl}
               className="text-primary hover:opacity-80"
             >
-              {brandConfig.links.social.tiktok.handle} on TikTok
+              {contact.tiktokHandle} on TikTok
             </Link>
           </div>
         </motion.div>
 
-        <SocialGallery reduceMotion={reduceMotion} />
+        <SocialGallery reduceMotion={reduceMotion} contact={contact} />
 
         <motion.p
           className="mt-7 text-center text-sm text-primary md:mt-8"
@@ -67,10 +67,10 @@ function SocialSection() {
         >
           <Link
             isExternal
-            href={brandConfig.links.hashtag.href}
+            href={contact.hashtagUrl}
             className="font-medium hover:opacity-80"
           >
-            Taggez vos moments avec {brandConfig.links.hashtag.label}
+            Taggez vos moments avec {contact.hashtagLabel}
           </Link>
         </motion.p>
       </div>

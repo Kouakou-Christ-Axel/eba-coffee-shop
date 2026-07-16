@@ -4,11 +4,12 @@ import { Button, Card, CardBody } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Send } from 'lucide-react';
 import { useContactForm } from '@/lib/hooks/use-contact-form';
+import type { ContactSettings } from '@/lib/contact-settings';
 import { ContactInfoCard } from './_components/contact-info-card';
 import { ContactFormFields } from './_components/contact-form-fields';
 import { ContactFormStatus } from './_components/contact-form-status';
 
-function ContactFormSection() {
+function ContactFormSection({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
   const { values, errors, isSubmitting, status, setField, submit } =
     useContactForm();
@@ -46,7 +47,7 @@ function ContactFormSection() {
 
       <div className="content-container relative px-6">
         <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-10">
-          <ContactInfoCard />
+          <ContactInfoCard contact={contact} />
 
           <motion.div
             initial={reduceMotion ? undefined : { opacity: 0, y: 18 }}

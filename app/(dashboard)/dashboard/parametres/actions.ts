@@ -12,6 +12,11 @@ import {
   type LoyaltySettings,
 } from '@/lib/loyalty-settings';
 import { updateLoyaltySettings } from '@/lib/loyalty-settings-db';
+import {
+  contactSettingsSchema,
+  type ContactSettings,
+} from '@/lib/contact-settings';
+import { updateContactSettings } from '@/lib/contact-settings-db';
 
 export async function savePickupSettings(
   input: PickupSettings
@@ -43,5 +48,24 @@ export async function saveLoyaltySettings(
   }
   await updateLoyaltySettings(parsed.data);
   revalidatePath('/dashboard/parametres');
+  return { ok: true };
+}
+
+export async function saveContactSettings(
+  input: ContactSettings
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireAdmin();
+  const parsed = contactSettingsSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Données invalides',
+    };
+  }
+  await updateContactSettings(parsed.data);
+  revalidatePath('/dashboard/parametres');
+  revalidatePath('/');
+  revalidatePath('/contact');
+  revalidatePath('/le-lieu');
   return { ok: true };
 }

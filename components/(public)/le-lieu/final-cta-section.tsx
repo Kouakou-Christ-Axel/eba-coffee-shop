@@ -4,9 +4,9 @@ import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Button, Link } from '@heroui/react';
 import { Compass, Clock3 } from 'lucide-react';
-import { brandConfig } from '@/config/brand.config';
+import type { ContactSettings } from '@/lib/contact-settings';
 
-function FinalCtaSection() {
+function FinalCtaSection({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
 
   return (
@@ -41,7 +41,7 @@ function FinalCtaSection() {
             <div className="mt-7 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
               <Button
                 as={Link}
-                href={brandConfig.location.mapsLink}
+                href={contact.mapsDirectionsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 radius="full"

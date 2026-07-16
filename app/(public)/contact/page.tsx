@@ -3,6 +3,7 @@ import { BreadcrumbJsonLd } from '@/components/(public)/breadcrumb-json-ld';
 import ContactHeroSection from '@/components/(public)/contact/contact-hero-section';
 import ContactFormSection from '@/components/(public)/contact/contact-form-section';
 import ContactMapSection from '@/components/(public)/contact/contact-map-section';
+import { getContactSettings } from '@/lib/contact-settings-db';
 
 export const metadata: Metadata = {
   title: 'Contact',
@@ -27,13 +28,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const contact = await getContactSettings();
   return (
     <>
       <BreadcrumbJsonLd items={[{ name: 'Contact', path: '/contact' }]} />
-      <ContactHeroSection />
-      <ContactFormSection />
-      <ContactMapSection />
+      <ContactHeroSection contact={contact} />
+      <ContactFormSection contact={contact} />
+      <ContactMapSection contact={contact} />
     </>
   );
 }

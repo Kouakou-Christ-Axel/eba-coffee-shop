@@ -8,23 +8,27 @@ import { MapPin, MessageCircle, Mail } from 'lucide-react';
 import { IconBrandInstagram, IconBrandTiktok } from '@tabler/icons-react';
 import { brandConfig } from '@/config/brand.config';
 import { authClient } from '@/lib/auth-client';
+import type { ContactSettings } from '@/lib/contact-settings';
+import { buildWhatsAppLink } from '@/lib/contact-links';
 
 // Mêmes rôles staff que la navbar / le FAB dashboard.
 const DASHBOARD_ROLES = ['ADMIN', 'CASHIER', 'KITCHEN'];
 
-const socialItems = [
-  {
-    ...brandConfig.links.social.instagram,
-    icon: IconBrandInstagram,
-  },
-  {
-    ...brandConfig.links.social.tiktok,
-    icon: IconBrandTiktok,
-  },
-] as const;
-
-function SiteFooter() {
+function SiteFooter({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
+  const socialItems = [
+    {
+      label: 'Instagram',
+      href: contact.instagramUrl,
+      icon: IconBrandInstagram,
+    },
+    {
+      label: 'TikTok',
+      href: contact.tiktokUrl,
+      icon: IconBrandTiktok,
+    },
+  ] as const;
+  const whatsappHref = buildWhatsAppLink(contact.whatsapp) ?? '#';
   const { data: session } = authClient.useSession();
   const userRole = (session?.user as { role?: string } | undefined)?.role;
   const hasDashboardAccess = !!userRole && DASHBOARD_ROLES.includes(userRole);
@@ -139,7 +143,7 @@ function SiteFooter() {
                   aria-hidden="true"
                   className="mt-0.5 h-4 w-4 shrink-0 text-primary"
                 />
-                <span>{brandConfig.links.contact.address}</span>
+                <span>{contact.address}</span>
               </li>
               <li className="flex items-center gap-2 text-sm text-white/75">
                 <MessageCircle
@@ -148,10 +152,10 @@ function SiteFooter() {
                 />
                 <Link
                   isExternal
-                  href={brandConfig.links.contact.whatsapp.href}
+                  href={whatsappHref}
                   className="hover:text-primary"
                 >
-                  {brandConfig.links.contact.whatsapp.display}
+                  {contact.whatsapp}
                 </Link>
               </li>
               <li className="flex items-center gap-2 text-sm text-white/75">
@@ -160,10 +164,10 @@ function SiteFooter() {
                   className="h-4 w-4 shrink-0 text-primary"
                 />
                 <Link
-                  href={brandConfig.links.contact.email.href}
+                  href={`mailto:${contact.email}`}
                   className="hover:text-primary"
                 >
-                  {brandConfig.links.contact.email.display}
+                  {contact.email}
                 </Link>
               </li>
             </ul>

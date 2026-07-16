@@ -4,33 +4,34 @@ import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Button, Link } from '@heroui/react';
 import { Clock3, MapPin, MessageCircle } from 'lucide-react';
-import { brandConfig } from '@/config/brand.config';
+import type { ContactSettings } from '@/lib/contact-settings';
+import { buildWhatsAppLink } from '@/lib/contact-links';
 
-const infoRows = [
-  {
-    label: 'Adresse',
-    value: brandConfig.location.address,
-    icon: MapPin,
-  },
-  {
-    label: 'Quartier',
-    value: brandConfig.location.district,
-    icon: MapPin,
-  },
-  {
-    label: 'Horaires',
-    value: brandConfig.location.schedule,
-    icon: Clock3,
-  },
-  {
-    label: 'Telephone / WhatsApp',
-    value: `${brandConfig.location.phone} - ${brandConfig.location.whatsapp}`,
-    icon: MessageCircle,
-  },
-];
-
-function PracticalLocationSection() {
+function PracticalLocationSection({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
+
+  const infoRows = [
+    {
+      label: 'Adresse',
+      value: contact.address,
+      icon: MapPin,
+    },
+    {
+      label: 'Quartier',
+      value: contact.district,
+      icon: MapPin,
+    },
+    {
+      label: 'Horaires',
+      value: contact.hoursLabel,
+      icon: Clock3,
+    },
+    {
+      label: 'Telephone / WhatsApp',
+      value: `${contact.phone} - ${contact.whatsapp}`,
+      icon: MessageCircle,
+    },
+  ];
 
   return (
     <section
@@ -107,7 +108,7 @@ function PracticalLocationSection() {
             <div className="mt-5 flex flex-wrap gap-2.5">
               <Button
                 as={Link}
-                href={brandConfig.location.mapsLink}
+                href={contact.mapsDirectionsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 radius="full"
@@ -118,7 +119,7 @@ function PracticalLocationSection() {
               </Button>
               <Button
                 as={Link}
-                href={brandConfig.location.whatsappLink}
+                href={buildWhatsAppLink(contact.whatsapp) ?? '#'}
                 target="_blank"
                 rel="noopener noreferrer"
                 radius="full"
@@ -149,13 +150,13 @@ function PracticalLocationSection() {
                 Localisation EBA
               </p>
               <p className="mt-0.5 text-xs text-foreground/65">
-                {brandConfig.location.address} - {brandConfig.location.landmark}
+                {contact.address} - {contact.landmark}
               </p>
             </div>
             <div className="relative h-72 w-full sm:h-88 lg:h-124">
               <iframe
                 title="Carte Google Maps EBA a Abidjan"
-                src={brandConfig.location.mapsEmbed}
+                src={contact.mapsEmbedUrl}
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
                 className="h-full w-full border-0"

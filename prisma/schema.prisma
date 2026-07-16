@@ -319,6 +319,33 @@ model LoyaltySettings {
   @@map("loyalty_settings")
 }
 
+// Coordonnées publiques du commerce (adresse, téléphone, WhatsApp, email,
+// liens Maps, réseaux sociaux). Éditables dans /dashboard/parametres —
+// remplace les valeurs codées en dur de config/brand.config.ts.
+model ContactSettings {
+  id                String   @id @default("singleton")
+  address           String
+  district          String
+  landmark          String
+  hoursLabel        String
+  openingTime       String
+  closingTime       String
+  phone             String
+  whatsapp          String
+  email             String
+  mapsDirectionsUrl String
+  mapsEmbedUrl      String
+  instagramHandle   String
+  instagramUrl      String
+  tiktokHandle      String
+  tiktokUrl         String
+  hashtagLabel      String
+  hashtagUrl        String
+  updatedAt         DateTime @updatedAt
+
+  @@map("contact_settings")
+}
+
 // ─── Sondages (moteur générique de vote) ───────────────────────────────────────
 // Permet de sonder les clients sur n'importe quel sujet. Premier cas d'usage :
 // choisir la pâtisserie de la semaine parmi des suggestions de la communauté,

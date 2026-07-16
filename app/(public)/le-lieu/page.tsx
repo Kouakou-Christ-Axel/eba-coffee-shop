@@ -8,6 +8,7 @@ import WhyComeSection from '@/components/(public)/le-lieu/why-come-section';
 import PracticalLocationSection from '@/components/(public)/le-lieu/practical-location-section';
 import FinalCtaSection from '@/components/(public)/le-lieu/final-cta-section';
 import React from 'react';
+import { getContactSettings } from '@/lib/contact-settings-db';
 
 export const metadata: Metadata = {
   title: 'Le lieu — Votre coffee shop à Cocody',
@@ -32,7 +33,8 @@ export const metadata: Metadata = {
   },
 };
 
-function LeLieuPage() {
+async function LeLieuPage() {
+  const contact = await getContactSettings();
   return (
     <>
       <BreadcrumbJsonLd items={[{ name: 'Le lieu', path: '/le-lieu' }]} />
@@ -41,8 +43,8 @@ function LeLieuPage() {
       <ExperienceSection />
       <DetailsSection />
       <WhyComeSection />
-      <PracticalLocationSection />
-      <FinalCtaSection />
+      <PracticalLocationSection contact={contact} />
+      <FinalCtaSection contact={contact} />
     </>
   );
 }

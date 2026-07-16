@@ -9,6 +9,7 @@ import UniversEbaSection from '@/components/(public)/accueil/univers-eba-section
 import PlaceSection from '@/components/(public)/accueil/place-section';
 import SocialSection from '@/components/(public)/accueil/social-section';
 import FindUsSection from '@/components/(public)/accueil/find-us-section';
+import { getContactSettings } from '@/lib/contact-settings-db';
 
 // ISR: regenerate the homepage at most once per hour.
 // Featured products change rarely, and the dashboard menu actions already
@@ -48,18 +49,19 @@ export const metadata: Metadata = {
   },
 };
 
-export default function HomePage() {
+export default async function HomePage() {
+  const contact = await getContactSettings();
   return (
     <>
       <HeroSection />
       <QuickTrustSection />
       <Suspense fallback={<IncontournablesSkeleton />}>
-        <IncontournablesSection />
+        <IncontournablesSection contact={contact} />
       </Suspense>
       <UniversEbaSection />
       <PlaceSection />
-      <FindUsSection />
-      <SocialSection />
+      <FindUsSection contact={contact} />
+      <SocialSection contact={contact} />
     </>
   );
 }

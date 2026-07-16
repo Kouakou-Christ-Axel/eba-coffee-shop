@@ -5,7 +5,7 @@ import React from 'react';
 import { Button, Card, CardBody, CardFooter, Chip, Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 
-import { brandConfig } from '@/config/brand.config';
+import { buildWhatsAppLink } from '@/lib/contact-links';
 
 export type FeaturedProduct = {
   id: string;
@@ -18,6 +18,7 @@ export type FeaturedProduct = {
 
 type Props = {
   items: FeaturedProduct[];
+  whatsapp: string;
 };
 
 const FALLBACK_IMAGE = '/assets/examples/accueil/eba-hero.webp';
@@ -30,14 +31,7 @@ const badgeColorMap: Record<string, 'primary' | 'secondary' | 'success'> = {
 
 const priceFormatter = new Intl.NumberFormat('fr-FR');
 
-function buildWhatsAppOrderLink(itemName: string) {
-  const base = brandConfig.links.contact.whatsapp.href;
-  const message = `Bonjour EBA, je souhaite commander : ${itemName}.`;
-  const separator = base.includes('?') ? '&' : '?';
-  return `${base}${separator}text=${encodeURIComponent(message)}`;
-}
-
-function IncontournablesSectionClient({ items }: Props) {
+function IncontournablesSectionClient({ items, whatsapp }: Props) {
   const reduceMotion = useReducedMotion();
 
   return (
@@ -127,7 +121,12 @@ function IncontournablesSectionClient({ items }: Props) {
                   <CardFooter className="px-5 pb-5 pt-0">
                     <Button
                       as={Link}
-                      href={buildWhatsAppOrderLink(item.name)}
+                      href={
+                        buildWhatsAppLink(
+                          whatsapp,
+                          `Bonjour EBA, je souhaite commander : ${item.name}.`
+                        ) ?? '#'
+                      }
                       isExternal
                       color="primary"
                       variant="solid"
