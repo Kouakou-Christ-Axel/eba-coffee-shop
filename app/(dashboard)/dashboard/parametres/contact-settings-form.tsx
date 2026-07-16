@@ -37,6 +37,10 @@ export function ContactSettingsForm({ initial }: { initial: ContactSettings }) {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Coordonnées du commerce</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Les horaires affichés publiquement reprennent ceux du bloc « Horaires
+          » ci-dessus (retrait) — rien à saisir ici.
+        </p>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -57,24 +61,6 @@ export function ContactSettingsForm({ initial }: { initial: ContactSettings }) {
             label="Repère"
             value={s.landmark}
             onChange={(v) => set('landmark', v)}
-          />
-          <Field
-            id="hoursLabel"
-            label="Horaires (affichage)"
-            value={s.hoursLabel}
-            onChange={(v) => set('hoursLabel', v)}
-          />
-          <Field
-            id="openingTime"
-            label="Heure d'ouverture (HH:MM)"
-            value={s.openingTime}
-            onChange={(v) => set('openingTime', v)}
-          />
-          <Field
-            id="closingTime"
-            label="Heure de fermeture (HH:MM)"
-            value={s.closingTime}
-            onChange={(v) => set('closingTime', v)}
           />
           <Field
             id="phone"

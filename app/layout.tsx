@@ -5,6 +5,7 @@ import Providers from '@/components/providers';
 import { ENV } from 'varlock/env';
 import { buildHomeJsonLd } from '@/lib/json-ld';
 import { getContactSettings } from '@/lib/contact-settings-db';
+import { getPickupSettings } from '@/lib/pickup-settings-db';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -78,14 +79,19 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const contact = await getContactSettings();
+  const [contact, pickup] = await Promise.all([
+    getContactSettings(),
+    getPickupSettings(),
+  ]);
   return (
     <html lang="fr">
       <head>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(buildHomeJsonLd(contact)),
+            __html: JSON.stringify(
+              buildHomeJsonLd(contact, pickup.weeklyHours)
+            ),
           }}
         />
       </head>

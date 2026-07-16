@@ -4,6 +4,8 @@ import ContactHeroSection from '@/components/(public)/contact/contact-hero-secti
 import ContactFormSection from '@/components/(public)/contact/contact-form-section';
 import ContactMapSection from '@/components/(public)/contact/contact-map-section';
 import { getContactSettings } from '@/lib/contact-settings-db';
+import { getPickupSettings } from '@/lib/pickup-settings-db';
+import { summarizeWeeklyHours } from '@/lib/pickup-settings';
 
 export const metadata: Metadata = {
   title: 'Contact',
@@ -29,13 +31,17 @@ export const metadata: Metadata = {
 };
 
 export default async function ContactPage() {
-  const contact = await getContactSettings();
+  const [contact, pickup] = await Promise.all([
+    getContactSettings(),
+    getPickupSettings(),
+  ]);
+  const hoursLabel = summarizeWeeklyHours(pickup.weeklyHours);
   return (
     <>
       <BreadcrumbJsonLd items={[{ name: 'Contact', path: '/contact' }]} />
       <ContactHeroSection contact={contact} />
-      <ContactFormSection contact={contact} />
-      <ContactMapSection contact={contact} />
+      <ContactFormSection contact={contact} hoursLabel={hoursLabel} />
+      <ContactMapSection contact={contact} hoursLabel={hoursLabel} />
     </>
   );
 }

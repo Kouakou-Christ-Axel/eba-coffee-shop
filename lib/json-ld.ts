@@ -2,6 +2,7 @@ import { ENV } from 'varlock/env';
 import { brandConfig } from '@/config/brand.config';
 import type { MenuCategory } from '@/config/menu';
 import type { ContactSettings } from '@/lib/contact-settings';
+import type { WeeklyHours } from '@/lib/pickup-settings';
 
 const siteUrl = ENV.NEXT_PUBLIC_SITE_URL;
 
@@ -11,12 +12,57 @@ function absoluteUrl(path: string): string {
   return path.startsWith('http') ? path : `${siteUrl}${path}`;
 }
 
+const ENGLISH_WEEKDAY: Record<string, string> = {
+  '0': 'Sunday',
+  '1': 'Monday',
+  '2': 'Tuesday',
+  '3': 'Wednesday',
+  '4': 'Thursday',
+  '5': 'Friday',
+  '6': 'Saturday',
+};
+
+/** `weeklyHours` (mêmes réglages que le retrait, `PickupSettings`) → tableau
+ * `OpeningHoursSpecification` schema.org, un groupe par (heure d'ouverture,
+ * heure de fermeture) identique, quels que soient les jours concernés. */
+function buildOpeningHoursSpecification(weeklyHours: WeeklyHours) {
+  const specs: {
+    '@type': 'OpeningHoursSpecification';
+    dayOfWeek: string[];
+    opens: string;
+    closes: string;
+  }[] = [];
+  for (const [day, ranges] of Object.entries(weeklyHours)) {
+    for (const range of ranges) {
+      const existing = specs.find(
+        (s) => s.opens === range.start && s.closes === range.end
+      );
+      if (existing) {
+        existing.dayOfWeek.push(ENGLISH_WEEKDAY[day]);
+      } else {
+        specs.push({
+          '@type': 'OpeningHoursSpecification',
+          dayOfWeek: [ENGLISH_WEEKDAY[day]],
+          opens: range.start,
+          closes: range.end,
+        });
+      }
+    }
+  }
+  return specs;
+}
+
 /** JSON-LD `CafeOrCoffeeShop` (schema.org) pour la page d'accueil, rendu dans
  * le `<head>` racine (`app/layout.tsx`). Le téléphone/email/adresse/réseaux
  * viennent des réglages de contact en base (`lib/contact-settings-db.ts`) —
  * la localité/région/coordonnées GPS restent statiques (le commerce ne
- * déménage pas, contrairement au téléphone/email qui peuvent changer). */
-export function buildHomeJsonLd(contact: ContactSettings) {
+ * déménage pas, contrairement au téléphone/email qui peuvent changer). Les
+ * horaires viennent des réglages de retrait (`lib/pickup-settings-db.ts`) —
+ * pas de second jeu d'horaires dupliqué dans les réglages de contact. */
+export function buildHomeJsonLd(
+  contact: ContactSettings,
+  weeklyHours: WeeklyHours
+) {
   return {
     '@context': 'https://schema.org',
     '@type': 'CafeOrCoffeeShop',
@@ -60,22 +106,7 @@ export function buildHomeJsonLd(contact: ContactSettings) {
       name: brandConfig.founderName,
       jobTitle: 'Pâtissière',
     },
-    openingHoursSpecification: [
-      {
-        '@type': 'OpeningHoursSpecification',
-        dayOfWeek: [
-          'Monday',
-          'Tuesday',
-          'Wednesday',
-          'Thursday',
-          'Friday',
-          'Saturday',
-          'Sunday',
-        ],
-        opens: contact.openingTime,
-        closes: contact.closingTime,
-      },
-    ],
+    openingHoursSpecification: buildOpeningHoursSpecification(weeklyHours),
   };
 }
 
