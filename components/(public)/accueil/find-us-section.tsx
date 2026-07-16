@@ -7,7 +7,13 @@ import { Clock3, MapPin, MessageCircle, Phone } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
 import { buildWhatsAppLink } from '@/lib/contact-links';
 
-function FindUsSection({ contact }: { contact: ContactSettings }) {
+function FindUsSection({
+  contact,
+  hoursLabel,
+}: {
+  contact: ContactSettings;
+  hoursLabel: string;
+}) {
   const reduceMotion = useReducedMotion();
 
   const infoRows = [
@@ -23,7 +29,7 @@ function FindUsSection({ contact }: { contact: ContactSettings }) {
     },
     {
       label: 'Horaires',
-      value: contact.hoursLabel,
+      value: hoursLabel,
       icon: Clock3,
     },
     {

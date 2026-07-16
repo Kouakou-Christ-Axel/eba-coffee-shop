@@ -4,7 +4,13 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { Clock3, MapPin, MessageCircle } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
 
-export function ContactInfoCard({ contact }: { contact: ContactSettings }) {
+export function ContactInfoCard({
+  contact,
+  hoursLabel,
+}: {
+  contact: ContactSettings;
+  hoursLabel: string;
+}) {
   const reduceMotion = useReducedMotion();
 
   const infoItems = [
@@ -15,7 +21,7 @@ export function ContactInfoCard({ contact }: { contact: ContactSettings }) {
     },
     {
       label: 'Horaires',
-      value: contact.hoursLabel,
+      value: hoursLabel,
       icon: Clock3,
     },
     {

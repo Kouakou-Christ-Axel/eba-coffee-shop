@@ -321,15 +321,15 @@ model LoyaltySettings {
 
 // Coordonnées publiques du commerce (adresse, téléphone, WhatsApp, email,
 // liens Maps, réseaux sociaux). Éditables dans /dashboard/parametres —
-// remplace les valeurs codées en dur de config/brand.config.ts.
+// remplace les valeurs codées en dur de config/brand.config.ts. Les
+// horaires ne sont PAS dupliqués ici : ce sont ceux de `PickupSettings`
+// (déjà en base, déjà éditables sur cette même page), résumés à l'affichage
+// via `summarizeWeeklyHours` (lib/pickup-settings.ts).
 model ContactSettings {
   id                String   @id @default("singleton")
   address           String
   district          String
   landmark          String
-  hoursLabel        String
-  openingTime       String
-  closingTime       String
   phone             String
   whatsapp          String
   email             String

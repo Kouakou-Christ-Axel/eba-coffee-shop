@@ -9,6 +9,8 @@ import PracticalLocationSection from '@/components/(public)/le-lieu/practical-lo
 import FinalCtaSection from '@/components/(public)/le-lieu/final-cta-section';
 import React from 'react';
 import { getContactSettings } from '@/lib/contact-settings-db';
+import { getPickupSettings } from '@/lib/pickup-settings-db';
+import { summarizeWeeklyHours } from '@/lib/pickup-settings';
 
 export const metadata: Metadata = {
   title: 'Le lieu — Votre coffee shop à Cocody',
@@ -34,7 +36,11 @@ export const metadata: Metadata = {
 };
 
 async function LeLieuPage() {
-  const contact = await getContactSettings();
+  const [contact, pickup] = await Promise.all([
+    getContactSettings(),
+    getPickupSettings(),
+  ]);
+  const hoursLabel = summarizeWeeklyHours(pickup.weeklyHours);
   return (
     <>
       <BreadcrumbJsonLd items={[{ name: 'Le lieu', path: '/le-lieu' }]} />
@@ -43,7 +49,7 @@ async function LeLieuPage() {
       <ExperienceSection />
       <DetailsSection />
       <WhyComeSection />
-      <PracticalLocationSection contact={contact} />
+      <PracticalLocationSection contact={contact} hoursLabel={hoursLabel} />
       <FinalCtaSection contact={contact} />
     </>
   );

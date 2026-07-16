@@ -7,7 +7,13 @@ import { Clock3, MapPin, MessageCircle } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
 import { buildWhatsAppLink } from '@/lib/contact-links';
 
-function PracticalLocationSection({ contact }: { contact: ContactSettings }) {
+function PracticalLocationSection({
+  contact,
+  hoursLabel,
+}: {
+  contact: ContactSettings;
+  hoursLabel: string;
+}) {
   const reduceMotion = useReducedMotion();
 
   const infoRows = [
@@ -23,7 +29,7 @@ function PracticalLocationSection({ contact }: { contact: ContactSettings }) {
     },
     {
       label: 'Horaires',
-      value: contact.hoursLabel,
+      value: hoursLabel,
       icon: Clock3,
     },
     {

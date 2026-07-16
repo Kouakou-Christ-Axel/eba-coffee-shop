@@ -10,6 +10,8 @@ import PlaceSection from '@/components/(public)/accueil/place-section';
 import SocialSection from '@/components/(public)/accueil/social-section';
 import FindUsSection from '@/components/(public)/accueil/find-us-section';
 import { getContactSettings } from '@/lib/contact-settings-db';
+import { getPickupSettings } from '@/lib/pickup-settings-db';
+import { summarizeWeeklyHours } from '@/lib/pickup-settings';
 
 // ISR: regenerate the homepage at most once per hour.
 // Featured products change rarely, and the dashboard menu actions already
@@ -50,7 +52,11 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const contact = await getContactSettings();
+  const [contact, pickup] = await Promise.all([
+    getContactSettings(),
+    getPickupSettings(),
+  ]);
+  const hoursLabel = summarizeWeeklyHours(pickup.weeklyHours);
   return (
     <>
       <HeroSection />
@@ -60,7 +66,7 @@ export default async function HomePage() {
       </Suspense>
       <UniversEbaSection />
       <PlaceSection />
-      <FindUsSection contact={contact} />
+      <FindUsSection contact={contact} hoursLabel={hoursLabel} />
       <SocialSection contact={contact} />
     </>
   );

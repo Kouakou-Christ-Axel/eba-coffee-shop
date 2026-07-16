@@ -93,3 +93,54 @@ export function getRangesForDay(
   const weekday = String(day.getDay());
   return settings.weeklyHours[weekday] ?? [];
 }
+
+const WEEK_ORDER = ['1', '2', '3', '4', '5', '6', '0'];
+
+function serializeRanges(ranges: TimeRange[]): string {
+  return ranges.map((r) => `${r.start}-${r.end}`).join(',');
+}
+
+/** "07:30" → "7h30" ; "21:00" → "21h" (affichage FR compact). */
+function formatHourLabel(time: string): string {
+  const [h, m] = time.split(':');
+  const hour = String(Number(h));
+  return m === '00' ? `${hour}h` : `${hour}h${m}`;
+}
+
+/**
+ * Résume `weeklyHours` en une phrase lisible (ex. « Lun - Dim : 7h30 - 21h30 »
+ * ou « Lun - Ven : 7h30 - 21h30 · Sam - Dim : 8h - 22h » si les horaires
+ * varient). Affiché publiquement (contact, accueil, le lieu) à partir des
+ * mêmes horaires que ceux configurés pour le retrait — pas de second jeu
+ * d'horaires à maintenir séparément.
+ */
+export function summarizeWeeklyHours(weeklyHours: WeeklyHours): string {
+  const groups: { start: string; end: string; ranges: TimeRange[] }[] = [];
+  for (const day of WEEK_ORDER) {
+    const ranges = weeklyHours[day] ?? [];
+    const last = groups[groups.length - 1];
+    if (last && serializeRanges(last.ranges) === serializeRanges(ranges)) {
+      last.end = day;
+    } else {
+      groups.push({ start: day, end: day, ranges });
+    }
+  }
+
+  return groups
+    .map((g) => {
+      const startLabel = WEEKDAY_LABELS[g.start].slice(0, 3);
+      const endLabel = WEEKDAY_LABELS[g.end].slice(0, 3);
+      const label =
+        g.start === g.end ? startLabel : `${startLabel} - ${endLabel}`;
+      const hours =
+        g.ranges.length === 0
+          ? 'Fermé'
+          : g.ranges
+              .map(
+                (r) => `${formatHourLabel(r.start)} - ${formatHourLabel(r.end)}`
+              )
+              .join(', ');
+      return `${label} : ${hours}`;
+    })
+    .join(' · ');
+}

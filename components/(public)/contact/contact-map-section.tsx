@@ -6,7 +6,13 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { Clock3, MapPin } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
 
-function ContactMapSection({ contact }: { contact: ContactSettings }) {
+function ContactMapSection({
+  contact,
+  hoursLabel,
+}: {
+  contact: ContactSettings;
+  hoursLabel: string;
+}) {
   const reduceMotion = useReducedMotion();
 
   return (
@@ -42,7 +48,7 @@ function ContactMapSection({ contact }: { contact: ContactSettings }) {
                 className="mt-0.5 h-4 w-4 shrink-0 text-primary"
               />
               <p className="text-sm font-medium text-foreground">
-                {contact.hoursLabel}
+                {hoursLabel}
               </p>
             </div>
             <div className="flex items-start gap-2.5">
