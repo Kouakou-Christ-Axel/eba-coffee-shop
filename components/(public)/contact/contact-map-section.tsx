@@ -4,9 +4,9 @@ import React from 'react';
 import { Button, Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Clock3, MapPin } from 'lucide-react';
-import { brandConfig } from '@/config/brand.config';
+import type { ContactSettings } from '@/lib/contact-settings';
 
-function ContactMapSection() {
+function ContactMapSection({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
 
   return (
@@ -18,7 +18,7 @@ function ContactMapSection() {
       <div className="relative h-80 w-full md:h-[28rem]">
         <iframe
           title="Carte Google Maps EBA a Abidjan"
-          src={brandConfig.links.maps.embed}
+          src={contact.mapsEmbedUrl}
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
           className="h-full w-full border-0"
@@ -42,7 +42,7 @@ function ContactMapSection() {
                 className="mt-0.5 h-4 w-4 shrink-0 text-primary"
               />
               <p className="text-sm font-medium text-foreground">
-                {brandConfig.links.contact.hours}
+                {contact.hoursLabel}
               </p>
             </div>
             <div className="flex items-start gap-2.5">
@@ -50,15 +50,13 @@ function ContactMapSection() {
                 aria-hidden="true"
                 className="mt-0.5 h-4 w-4 shrink-0 text-primary"
               />
-              <p className="text-sm text-foreground/75">
-                {brandConfig.links.contact.landmark}
-              </p>
+              <p className="text-sm text-foreground/75">{contact.landmark}</p>
             </div>
           </div>
 
           <Button
             as={Link}
-            href={brandConfig.links.maps.directions}
+            href={contact.mapsDirectionsUrl}
             target="_blank"
             rel="noopener noreferrer"
             variant="bordered"

@@ -3,7 +3,8 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import Providers from '@/components/providers';
 import { ENV } from 'varlock/env';
-import { homeJsonLd } from '@/lib/json-ld';
+import { buildHomeJsonLd } from '@/lib/json-ld';
+import { getContactSettings } from '@/lib/contact-settings-db';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -72,17 +73,20 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const contact = await getContactSettings();
   return (
     <html lang="fr">
       <head>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(homeJsonLd) }}
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(buildHomeJsonLd(contact)),
+          }}
         />
       </head>
       <body

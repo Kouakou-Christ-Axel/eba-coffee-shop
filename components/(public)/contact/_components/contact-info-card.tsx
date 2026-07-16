@@ -2,28 +2,28 @@
 
 import { motion, useReducedMotion } from 'framer-motion';
 import { Clock3, MapPin, MessageCircle } from 'lucide-react';
-import { brandConfig } from '@/config/brand.config';
+import type { ContactSettings } from '@/lib/contact-settings';
 
-const infoItems = [
-  {
-    label: 'Adresse',
-    value: brandConfig.links.contact.address,
-    icon: MapPin,
-  },
-  {
-    label: 'Horaires',
-    value: brandConfig.links.contact.hours,
-    icon: Clock3,
-  },
-  {
-    label: 'WhatsApp',
-    value: brandConfig.links.contact.whatsapp.display,
-    icon: MessageCircle,
-  },
-] as const;
-
-export function ContactInfoCard() {
+export function ContactInfoCard({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
+
+  const infoItems = [
+    {
+      label: 'Adresse',
+      value: contact.address,
+      icon: MapPin,
+    },
+    {
+      label: 'Horaires',
+      value: contact.hoursLabel,
+      icon: Clock3,
+    },
+    {
+      label: 'WhatsApp',
+      value: contact.whatsapp,
+      icon: MessageCircle,
+    },
+  ];
 
   const containerProps = reduceMotion
     ? {}

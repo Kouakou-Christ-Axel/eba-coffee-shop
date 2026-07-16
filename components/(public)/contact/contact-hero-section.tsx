@@ -5,37 +5,38 @@ import React from 'react';
 import { Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { MapPin, MessageCircle, Phone } from 'lucide-react';
-import { brandConfig } from '@/config/brand.config';
+import type { ContactSettings } from '@/lib/contact-settings';
+import { buildTelLink, buildWhatsAppLink } from '@/lib/contact-links';
 
-const contactCards = [
-  {
-    label: 'WhatsApp',
-    value: brandConfig.links.contact.whatsapp.display,
-    icon: MessageCircle,
-    href: brandConfig.links.contact.whatsapp.href,
-    external: true,
-    color: 'bg-primary/10 text-primary',
-  },
-  {
-    label: 'Téléphone',
-    value: brandConfig.links.contact.phone.display,
-    icon: Phone,
-    href: brandConfig.links.contact.phone.href,
-    external: false,
-    color: 'bg-secondary/10 text-secondary',
-  },
-  {
-    label: 'Nous trouver',
-    value: brandConfig.links.contact.landmark,
-    icon: MapPin,
-    href: brandConfig.links.maps.directions,
-    external: true,
-    color: 'bg-primary/10 text-primary',
-  },
-];
-
-function ContactHeroSection() {
+function ContactHeroSection({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
+
+  const contactCards = [
+    {
+      label: 'WhatsApp',
+      value: contact.whatsapp,
+      icon: MessageCircle,
+      href: buildWhatsAppLink(contact.whatsapp) ?? '#',
+      external: true,
+      color: 'bg-primary/10 text-primary',
+    },
+    {
+      label: 'Téléphone',
+      value: contact.phone,
+      icon: Phone,
+      href: buildTelLink(contact.phone) ?? '#',
+      external: false,
+      color: 'bg-secondary/10 text-secondary',
+    },
+    {
+      label: 'Nous trouver',
+      value: contact.landmark,
+      icon: MapPin,
+      href: contact.mapsDirectionsUrl,
+      external: true,
+      color: 'bg-primary/10 text-primary',
+    },
+  ];
 
   const fadeUp = reduceMotion
     ? {}

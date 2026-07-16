@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import type { ContactSettings } from '@/lib/contact-settings';
 import IncontournablesSectionClient, {
   type FeaturedProduct,
 } from './incontournables-section-client';
@@ -24,12 +25,18 @@ async function getFeaturedProducts(): Promise<FeaturedProduct[]> {
   });
 }
 
-async function IncontournablesSection() {
+async function IncontournablesSection({
+  contact,
+}: {
+  contact: ContactSettings;
+}) {
   const items = await getFeaturedProducts();
 
   if (items.length === 0) return null;
 
-  return <IncontournablesSectionClient items={items} />;
+  return (
+    <IncontournablesSectionClient items={items} whatsapp={contact.whatsapp} />
+  );
 }
 
 export default IncontournablesSection;

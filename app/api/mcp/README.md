@@ -209,6 +209,8 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `adjust_loyalty_stamps`          | écriture | Ajuster les tampons d’un client (correction)                      |
 | `get_loyalty_settings`           | lecture  | Lire la config de la carte à tampons                              |
 | `update_loyalty_settings`        | écriture | Modifier la config de la carte à tampons                          |
+| `get_contact_settings`           | lecture  | Lire les coordonnées du commerce (adresse, tél., WhatsApp, email…)|
+| `update_contact_settings`        | écriture | Modifier les coordonnées du commerce                              |
 | `create_category`                | écriture | Créer une catégorie                                               |
 | `update_category`                | écriture | Renommer une catégorie                                            |
 | `delete_category`                | écriture | Supprimer une catégorie (soft delete, cascade produits)           |
