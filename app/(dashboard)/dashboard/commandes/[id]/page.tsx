@@ -1,11 +1,16 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { Gift } from 'lucide-react';
 import { getOrder } from '@/lib/orders';
 import { getMenu } from '@/lib/menu';
 import { getCurrentSession } from '@/lib/auth-helpers';
 import { formatAbidjanDateTime } from '@/lib/timezone';
 import type { CartItem } from '@/lib/cart-store';
-import { getItemGross, getItemNet } from '@/lib/orders/totals';
+import {
+  computeItemsDiscount,
+  getItemGross,
+  getItemNet,
+} from '@/lib/orders/totals';
 import { formatSupplementLabel } from '@/lib/orders/format';
 import type {
   OrderStatus,
@@ -212,6 +217,7 @@ export default async function CommandeDetailPage({
                 dailyNumber={order.dailyNumber}
                 amount={order.total}
                 items={items}
+                loyaltyDiscount={order.loyaltyDiscount}
                 size="sm"
                 className="w-auto"
               />
@@ -301,7 +307,9 @@ export default async function CommandeDetailPage({
               (sum, item) => sum + getItemGross(item),
               0
             );
-            const totalDiscount = grossTotal - order.total;
+            const itemsDiscount = computeItemsDiscount(items);
+            const loyaltyDiscount = order.loyaltyDiscount ?? 0;
+            const totalDiscount = itemsDiscount + loyaltyDiscount;
             return (
               <>
                 {totalDiscount > 0 && (
@@ -312,13 +320,31 @@ export default async function CommandeDetailPage({
                         {new Intl.NumberFormat('fr-FR').format(grossTotal)} FCFA
                       </span>
                     </div>
-                    <div className="mb-1 flex justify-between text-sm font-medium text-green-700 dark:text-green-400">
-                      <span>Remise</span>
-                      <span>
-                        -{new Intl.NumberFormat('fr-FR').format(totalDiscount)}{' '}
-                        FCFA
-                      </span>
-                    </div>
+                    {itemsDiscount > 0 && (
+                      <div className="mb-1 flex justify-between text-sm font-medium text-green-700 dark:text-green-400">
+                        <span>Remise articles</span>
+                        <span>
+                          -
+                          {new Intl.NumberFormat('fr-FR').format(itemsDiscount)}{' '}
+                          FCFA
+                        </span>
+                      </div>
+                    )}
+                    {loyaltyDiscount > 0 && (
+                      <div className="mb-1 flex items-center justify-between text-sm font-medium text-green-700 dark:text-green-400">
+                        <span className="inline-flex items-center gap-1">
+                          <Gift className="h-3.5 w-3.5" aria-hidden="true" />
+                          Récompense fidélité
+                        </span>
+                        <span>
+                          -
+                          {new Intl.NumberFormat('fr-FR').format(
+                            loyaltyDiscount
+                          )}{' '}
+                          FCFA
+                        </span>
+                      </div>
+                    )}
                   </>
                 )}
                 <div className="flex justify-between font-bold">

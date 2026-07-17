@@ -82,8 +82,12 @@ export function buildWaveRequestMessage(params: {
   dailyNumber: number;
   amount: number;
   items: CartItem[];
+  /** Montant de la récompense fidélité déjà déduit de `amount`, si utilisée
+   * sur cette commande — mentionnée explicitement pour que le récap se
+   * réconcilie (somme des articles − récompense = Total). */
+  loyaltyDiscount?: number | null;
 }): string {
-  const { customerName, dailyNumber, amount, items } = params;
+  const { customerName, dailyNumber, amount, items, loyaltyDiscount } = params;
   const greeting = customerName ? `Bonjour ${customerName}` : 'Bonjour';
   const number = String(dailyNumber).padStart(3, '0');
   const itemsBlock = items.map(formatItemLine).join('\n');
@@ -92,18 +96,27 @@ export function buildWaveRequestMessage(params: {
     ? `Paye via Wave en cliquant sur ce lien :\n${waveLink}`
     : 'Paye via Wave : [lien à compléter]';
 
-  return [
+  const lines = [
     `${greeting},`,
     '',
     `Voici le récap de ta commande EBA #${number} :`,
     itemsBlock,
+  ];
+  if (loyaltyDiscount && loyaltyDiscount > 0) {
+    lines.push(
+      `Récompense fidélité 🎁 : -${priceFormatter.format(loyaltyDiscount)} F`
+    );
+  }
+  lines.push(
     '',
     `Total : ${priceFormatter.format(amount)} F`,
     '',
     linkBlock,
     '',
-    'Merci !',
-  ].join('\n');
+    'Merci !'
+  );
+
+  return lines.join('\n');
 }
 
 /**
