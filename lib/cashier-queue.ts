@@ -33,6 +33,10 @@ export type CashierOrder = {
   items: CartItem[];
   note: string | null;
   total: number;
+  /** Montant de la récompense fidélité déjà déduit de `total` (null = aucune). */
+  loyaltyDiscount: number | null;
+  /** `LoyaltyReward.id` utilisée sur cette commande (null = aucune). */
+  loyaltyRewardId: string | null;
   status: OrderStatus;
   isPaid: boolean;
   paymentMode: PaymentMode | null;
@@ -121,6 +125,8 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       items,
       note: o.note,
       total: o.total,
+      loyaltyDiscount: o.loyaltyDiscount,
+      loyaltyRewardId: o.loyaltyRewardId,
       status: o.status,
       isPaid: o.isPaid,
       paymentMode: o.paymentMode,

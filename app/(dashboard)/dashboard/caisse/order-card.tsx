@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   CalendarClock,
   Clock,
+  Gift,
   Phone,
   Receipt,
   PackageCheck,
@@ -304,6 +305,21 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
             );
           })}
         </ul>
+        {/* Récompense fidélité utilisée sur cette commande : mention dédiée,
+            distincte des remises par article, pour que la caisse (et le
+            récap envoyé au client) explique toujours l'origine de la
+            réduction. */}
+        {order.loyaltyDiscount != null && order.loyaltyDiscount > 0 && (
+          <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-green-50 px-2.5 py-1.5 text-xs font-medium text-green-800 ring-1 ring-green-200 dark:bg-green-950/40 dark:text-green-200 dark:ring-green-800">
+            <span className="inline-flex items-center gap-1">
+              <Gift className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              Récompense fidélité appliquée
+            </span>
+            <span className="shrink-0 tabular-nums">
+              -{priceFormatter.format(order.loyaltyDiscount)} F
+            </span>
+          </div>
+        )}
         <p className="mt-2 border-t pt-2 text-right font-semibold tabular-nums">
           {priceFormatter.format(order.total)} F
         </p>

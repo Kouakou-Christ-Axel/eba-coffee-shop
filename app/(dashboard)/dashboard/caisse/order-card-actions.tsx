@@ -77,6 +77,7 @@ export function OrderCardActions({
       dailyNumber: order.dailyNumber,
       amount: order.total,
       items: order.items,
+      loyaltyDiscount: order.loyaltyDiscount,
     })
   );
   // « C'est prêt » one-tap : code de retrait + lien de suivi (localisation
@@ -244,6 +245,7 @@ export function OrderCardActions({
           dailyNumber={order.dailyNumber}
           amount={order.total}
           items={order.items}
+          loyaltyDiscount={order.loyaltyDiscount}
         />
 
         {/* Dismiss signal cuisine (livreur demandé) */}

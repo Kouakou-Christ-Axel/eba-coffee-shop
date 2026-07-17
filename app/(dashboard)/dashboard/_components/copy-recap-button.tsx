@@ -12,6 +12,7 @@ type Props = {
   dailyNumber: number;
   amount: number;
   items: CartItem[];
+  loyaltyDiscount?: number | null;
   className?: string;
   size?: React.ComponentProps<typeof Button>['size'];
   variant?: React.ComponentProps<typeof Button>['variant'];
@@ -28,6 +29,7 @@ export function CopyRecapButton({
   dailyNumber,
   amount,
   items,
+  loyaltyDiscount,
   className,
   size = 'lg',
   variant = 'outline',
@@ -41,6 +43,7 @@ export function CopyRecapButton({
       dailyNumber,
       amount,
       items,
+      loyaltyDiscount,
     });
     try {
       await navigator.clipboard.writeText(message);
