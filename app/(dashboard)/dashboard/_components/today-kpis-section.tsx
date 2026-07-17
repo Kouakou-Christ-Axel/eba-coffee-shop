@@ -11,6 +11,7 @@ import {
   CheckCheck,
   Clock,
   Coffee,
+  MoreHorizontal,
   ShoppingBag,
   Smartphone,
   TrendingUp,
@@ -101,6 +102,12 @@ export async function TodayKpisSection() {
             />
             <BreakdownRow
               Icon={Wallet}
+              label="Orange Money"
+              count={stats.countByPaymentMode.ORANGE_MONEY}
+              revenue={stats.revenueByPaymentMode.ORANGE_MONEY}
+            />
+            <BreakdownRow
+              Icon={MoreHorizontal}
               label="Autre"
               count={stats.countByPaymentMode.OTHER}
               revenue={stats.revenueByPaymentMode.OTHER}

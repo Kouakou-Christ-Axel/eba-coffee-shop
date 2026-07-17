@@ -171,6 +171,7 @@ enum OrderType {
 enum PaymentMode {
   CASH
   WAVE
+  ORANGE_MONEY
   OTHER
 }
 

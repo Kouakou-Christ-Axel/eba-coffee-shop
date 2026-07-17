@@ -7,6 +7,7 @@ import { DonutChart, type DonutSlice } from './donut-chart';
 const config = {
   CASH: { label: 'Espèces', color: 'var(--chart-1)' },
   WAVE: { label: 'Wave', color: 'var(--chart-2)' },
+  ORANGE_MONEY: { label: 'Orange Money', color: 'var(--chart-3)' },
   OTHER: { label: 'Autre', color: 'var(--chart-4)' },
 } satisfies ChartConfig;
 
@@ -21,6 +22,11 @@ export function PaymentModeChart({
   const data: DonutSlice[] = [
     { key: 'CASH', value: revenueByMode.CASH, fill: 'var(--color-CASH)' },
     { key: 'WAVE', value: revenueByMode.WAVE, fill: 'var(--color-WAVE)' },
+    {
+      key: 'ORANGE_MONEY',
+      value: revenueByMode.ORANGE_MONEY,
+      fill: 'var(--color-ORANGE_MONEY)',
+    },
     { key: 'OTHER', value: revenueByMode.OTHER, fill: 'var(--color-OTHER)' },
   ];
   const total = data.reduce((s, d) => s + d.value, 0);

@@ -15,6 +15,7 @@ export type CashFigures = {
   cashSales: number; // ventes encaissées en espèces
   cashExpenses: number; // dépenses payées en espèces
   waveSales: number;
+  orangeMoneySales: number;
   otherSales: number;
   totalRevenue: number; // CA encaissé tous modes
 };
@@ -32,6 +33,7 @@ export async function getCashFigures(date: Date): Promise<CashFigures> {
     cashSales: stats.revenueByPaymentMode.CASH,
     cashExpenses: expAgg._sum.amount ?? 0,
     waveSales: stats.revenueByPaymentMode.WAVE,
+    orangeMoneySales: stats.revenueByPaymentMode.ORANGE_MONEY,
     otherSales: stats.revenueByPaymentMode.OTHER,
     totalRevenue: stats.revenue,
   };

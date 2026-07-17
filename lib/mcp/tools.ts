@@ -1182,7 +1182,7 @@ export const tools: McpTool[] = [
     description:
       'Renvoie les régularisations de recette (ajustements manuels du CA, sans ' +
       'commande) filtrées par plage de dates (`from`/`to`, `YYYY-MM-DD`) et/ou ' +
-      '`paymentMode` (CASH/WAVE/OTHER), avec le total net. Montants signés ' +
+      '`paymentMode` (CASH/WAVE/ORANGE_MONEY/OTHER), avec le total net. Montants signés ' +
       '(positif = recette ajoutée, négatif = retirée). Tous les filtres sont ' +
       'optionnels.',
     inputSchema: revenueAdjustmentFiltersSchema,
@@ -1191,7 +1191,7 @@ export const tools: McpTool[] = [
       const f = args as {
         from?: string;
         to?: string;
-        paymentMode?: 'CASH' | 'WAVE' | 'OTHER';
+        paymentMode?: 'CASH' | 'WAVE' | 'ORANGE_MONEY' | 'OTHER';
       };
       return listRevenueAdjustments({
         dateFrom: parseDateOnlyToUTC(f.from),
@@ -1222,7 +1222,7 @@ export const tools: McpTool[] = [
       'Enregistre un ajustement manuel du CA SANS créer de commande (ventes non ' +
       'saisies en temps réel, anciennes commandes perdues…). `date` au format ' +
       '`YYYY-MM-DD`, `amount` en francs CFA entiers SIGNÉS (positif = ajout au ' +
-      'CA, négatif = retrait), `paymentMode` ∈ CASH/WAVE/OTHER (défaut CASH ; le ' +
+      'CA, négatif = retrait), `paymentMode` ∈ CASH/WAVE/ORANGE_MONEY/OTHER (défaut CASH ; le ' +
       'mode CASH alimente la clôture de caisse). `note` (motif) optionnelle. ' +
       'L’ajustement remonte dans les statistiques et la clôture de caisse.',
     inputSchema: revenueAdjustmentInputSchema,
@@ -1468,7 +1468,7 @@ export const tools: McpTool[] = [
     title: 'Encaisser une commande',
     description:
       'Marque une commande comme payée avec un `paymentMode` ∈ ' +
-      'CASH/WAVE/OTHER. Encaisser une commande encore NEW la pousse aussi en ' +
+      'CASH/WAVE/ORANGE_MONEY/OTHER. Encaisser une commande encore NEW la pousse aussi en ' +
       'cuisine (passe en PREPARING). `id` provient de `list_orders`.',
     inputSchema: z.object({
       id: idSchema,
@@ -1494,7 +1494,7 @@ export const tools: McpTool[] = [
     description:
       'Met à jour de façon PARTIELLE les métadonnées d’une commande existante : ' +
       '`orderType` (DELIVERY/DINE_IN/TAKEAWAY), `pickupTime` (créneau de retrait, ' +
-      'datetime ISO 8601 ou null pour walk-in), `paymentMode` (CASH/WAVE/OTHER, ou ' +
+      'datetime ISO 8601 ou null pour walk-in), `paymentMode` (CASH/WAVE/ORANGE_MONEY/OTHER, ou ' +
       'null si non payée) et `note`. Ne modifie ni le statut ni l’état de paiement ' +
       '(utilise `set_order_status` / `mark_order_paid`). On ne peut pas retirer le ' +
       'mode de paiement d’une commande déjà payée. `id` provient de `list_orders`.',

@@ -37,6 +37,7 @@ const ORDER_TYPE_OPTIONS: { key: OrderType; label: string }[] = [
 const PAYMENT_MODE_OPTIONS: { key: PaymentMode; label: string }[] = [
   { key: 'CASH', label: 'Espèces' },
   { key: 'WAVE', label: 'Wave' },
+  { key: 'ORANGE_MONEY', label: 'Orange Money' },
   { key: 'OTHER', label: 'Autre' },
 ];
 

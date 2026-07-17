@@ -6,6 +6,7 @@ const MODES = [
   { value: '', label: 'Tous les modes' },
   { value: 'CASH', label: 'Espèces' },
   { value: 'WAVE', label: 'Wave' },
+  { value: 'ORANGE_MONEY', label: 'Orange Money' },
   { value: 'OTHER', label: 'Autre' },
 ] as const;
 

@@ -26,6 +26,7 @@ export type RevenueAdjustmentFormValues = {
 const PAYMENT_MODES = [
   { value: 'CASH', label: 'Espèces' },
   { value: 'WAVE', label: 'Wave' },
+  { value: 'ORANGE_MONEY', label: 'Orange Money' },
   { value: 'OTHER', label: 'Autre' },
 ] as const;
 

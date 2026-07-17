@@ -126,6 +126,7 @@ export default async function CloturePage({
               CA encaissé : <b>{fmt.format(figures.totalRevenue)} F</b>
             </span>
             <span>Wave : {fmt.format(figures.waveSales)} F</span>
+            <span>Orange Money : {fmt.format(figures.orangeMoneySales)} F</span>
             <span>Autre : {fmt.format(figures.otherSales)} F</span>
           </div>
           <ClosingForm
