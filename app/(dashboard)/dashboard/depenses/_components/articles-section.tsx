@@ -1,5 +1,6 @@
 import { Download } from 'lucide-react';
 import { getExpenseArticleStats, listExpenseArticles } from '@/lib/expenses';
+import { listInventoryItems } from '@/lib/inventory';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArticlesTable } from '../articles-table';
@@ -21,7 +22,7 @@ export async function ArticlesSection({
   periodLabel: string;
   exportItemsHref: string;
 }) {
-  const [articleStats, articlesFull] = await Promise.all([
+  const [articleStats, articlesFull, inventoryItems] = await Promise.all([
     getExpenseArticleStats({
       from: dateFrom,
       to: dateTo,
@@ -30,6 +31,7 @@ export async function ArticlesSection({
       search,
     }),
     listExpenseArticles(),
+    listInventoryItems(),
   ]);
 
   const articlesMeta = articlesFull.map((a) => ({
@@ -37,6 +39,7 @@ export async function ArticlesSection({
     name: a.name,
     baseUnit: a.baseUnit,
     trackInventory: a.trackInventory,
+    inventoryItemId: a.inventoryItemId,
     location: a.location,
     wholesaleRefPrice: a.wholesaleRefPrice,
     itemsCount: a._count.items,
@@ -59,7 +62,16 @@ export async function ArticlesSection({
         </Button>
       </CardHeader>
       <CardContent>
-        <ArticlesTable stats={articleStats} articlesMeta={articlesMeta} />
+        <ArticlesTable
+          stats={articleStats}
+          articlesMeta={articlesMeta}
+          inventoryItems={inventoryItems.map((i) => ({
+            id: i.id,
+            name: i.name,
+            sku: i.sku,
+            unit: i.unit,
+          }))}
+        />
       </CardContent>
     </Card>
   );
