@@ -128,22 +128,35 @@ export async function archiveExpenseArticle(id: string) {
 /** Réglages d'un article (unité de base, suivi de stock, emplacement…). */
 export async function setExpenseArticleSettings(id: string, input: unknown) {
   const data = expenseArticleSettingsSchema.parse(input);
-  return prisma.expenseArticle.update({
-    where: { id },
-    data: {
-      ...(data.baseUnit !== undefined ? { baseUnit: data.baseUnit } : {}),
-      ...(data.trackInventory !== undefined
-        ? { trackInventory: data.trackInventory }
-        : {}),
-      ...(data.location !== undefined ? { location: data.location } : {}),
-      ...(data.wholesaleRefPrice !== undefined
-        ? { wholesaleRefPrice: data.wholesaleRefPrice }
-        : {}),
-      ...(data.inventoryItemId !== undefined
-        ? { inventoryItemId: data.inventoryItemId }
-        : {}),
-    },
-  });
+  try {
+    return await prisma.expenseArticle.update({
+      where: { id },
+      data: {
+        ...(data.baseUnit !== undefined ? { baseUnit: data.baseUnit } : {}),
+        ...(data.trackInventory !== undefined
+          ? { trackInventory: data.trackInventory }
+          : {}),
+        ...(data.location !== undefined ? { location: data.location } : {}),
+        ...(data.wholesaleRefPrice !== undefined
+          ? { wholesaleRefPrice: data.wholesaleRefPrice }
+          : {}),
+        ...(data.inventoryItemId !== undefined
+          ? { inventoryItemId: data.inventoryItemId }
+          : {}),
+      },
+    });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === 'P2002' &&
+      (err.meta?.target as string[] | undefined)?.includes('inventoryItemId')
+    ) {
+      throw new Error(
+        'Cette référence de stock est déjà liée à un autre article.'
+      );
+    }
+    throw err;
+  }
 }
 
 /**

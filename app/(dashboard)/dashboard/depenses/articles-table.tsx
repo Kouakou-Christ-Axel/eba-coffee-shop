@@ -60,11 +60,20 @@ export type ArticleMeta = {
   name: string;
   baseUnit: string | null;
   trackInventory: boolean;
+  inventoryItemId: string | null;
   location: string | null;
   wholesaleRefPrice: number | null;
   /** Nombre total de lignes de dépense rattachées (toutes périodes) — sert de
    * prévisualisation avant fusion (« N lignes seront rattachées à… »). */
   itemsCount: number;
+};
+
+/** Référence d'inventaire disponible pour le sélecteur de liaison stock. */
+export type InventoryItemOption = {
+  id: string;
+  name: string;
+  sku: string;
+  unit: string;
 };
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
@@ -82,9 +91,11 @@ const selectClass =
 export function ArticlesTable({
   stats,
   articlesMeta,
+  inventoryItems,
 }: {
   stats: ArticleStatRow[];
   articlesMeta: ArticleMeta[];
+  inventoryItems: InventoryItemOption[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -314,6 +325,14 @@ export function ArticlesTable({
       {settingsId && metaById.has(settingsId) && (
         <ArticleSettingsSheet
           article={metaById.get(settingsId)!}
+          inventoryItems={inventoryItems}
+          linkedElsewhere={
+            new Set(
+              articlesMeta
+                .filter((a) => a.id !== settingsId && a.inventoryItemId)
+                .map((a) => a.inventoryItemId!)
+            )
+          }
           onClose={() => setSettingsId(null)}
         />
       )}
@@ -333,20 +352,31 @@ export function ArticlesTable({
  * de référence en gros. */
 function ArticleSettingsSheet({
   article,
+  inventoryItems,
+  linkedElsewhere,
   onClose,
 }: {
   article: ArticleMeta;
+  inventoryItems: InventoryItemOption[];
+  linkedElsewhere: Set<string>;
   onClose: () => void;
 }) {
   const router = useRouter();
   const [baseUnit, setBaseUnit] = useState(article.baseUnit ?? '');
   const [trackInventory, setTrackInventory] = useState(article.trackInventory);
+  const [inventoryItemId, setInventoryItemId] = useState(
+    article.inventoryItemId ?? ''
+  );
   const [location, setLocation] = useState(article.location ?? '');
   const [wholesaleRefPrice, setWholesaleRefPrice] = useState(
     article.wholesaleRefPrice != null ? String(article.wholesaleRefPrice) : ''
   );
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const selectableItems = inventoryItems.filter(
+    (i) => !linkedElsewhere.has(i.id) || i.id === article.inventoryItemId
+  );
 
   function save() {
     setError(null);
@@ -361,6 +391,7 @@ function ArticleSettingsSheet({
       const r = await setExpenseArticleSettingsAction(article.id, {
         baseUnit: baseUnit || null,
         trackInventory,
+        inventoryItemId: trackInventory ? inventoryItemId || null : null,
         location: location.trim() || null,
         wholesaleRefPrice: price,
       });
@@ -412,6 +443,30 @@ function ArticleSettingsSheet({
               aria-label="Suivi de stock"
             />
           </div>
+          {trackInventory && (
+            <div className="space-y-1.5">
+              <Label htmlFor="art-inventory-item">Référence d’inventaire</Label>
+              <select
+                id="art-inventory-item"
+                className={selectClass}
+                value={inventoryItemId}
+                onChange={(e) => setInventoryItemId(e.target.value)}
+              >
+                <option value="">— Aucune —</option>
+                {selectableItems.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.name} ({i.sku}, {i.unit})
+                  </option>
+                ))}
+              </select>
+              {selectableItems.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Aucune référence d’inventaire disponible — crée-la d’abord
+                  dans l’onglet Inventaire.
+                </p>
+              )}
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="art-location">Emplacement (optionnel)</Label>
             <Input
