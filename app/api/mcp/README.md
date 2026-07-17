@@ -139,127 +139,127 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 
 ## Outils exposés
 
-| Outil                            | Type     | Description                                                       |
-| -------------------------------- | -------- | ----------------------------------------------------------------- |
-| `get_menu`                       | lecture  | Menu complet avec identifiants internes (`id`)                    |
-| `get_daily_stats`                | lecture  | Stats agrégées de la journée en cours                             |
-| `get_range_stats`                | lecture  | KPIs sur une plage (`from`/`to`, `YYYY-MM-DD`)                    |
-| `get_daily_series`               | lecture  | Série jour par jour (commandes + CA) sur plage                    |
-| `get_top_products`               | lecture  | Top produits vendus sur une plage (`limit?`)                      |
-| `get_stats_comparison`           | lecture  | KPIs de la plage vs période précédente de même durée              |
-| `get_hourly_stats`               | lecture  | Heures de pointe : commandes + CA par heure (0–23)                |
-| `get_kitchen_performance`        | lecture  | Temps de préparation / d’attente (moyenne, médiane, série)        |
-| `get_customer_stats`             | lecture  | Clients & fidélité : nouveaux, actifs, top clients, tampons       |
-| `list_expense_categories`        | lecture  | Catégories de dépense (+ nombre de dépenses)                      |
-| `create_expense_category`        | écriture | Créer une catégorie de dépense                                    |
-| `update_expense_category`        | écriture | Renommer une catégorie de dépense                                 |
-| `delete_expense_category`        | écriture | Supprimer une catégorie (soft delete, conserve les dépenses)      |
-| `list_expenses`                  | lecture  | Lister les dépenses (filtres date/catégorie)                      |
-| `get_expense_summary`            | lecture  | Total + ventilation des dépenses par catégorie                    |
-| `create_expense`                 | écriture | Enregistrer une dépense (⚠️ déprécié pour les achats fournisseur) |
-| `update_expense`                 | écriture | Modifier une dépense (mise à jour **partielle**)                  |
-| `delete_expense`                 | écriture | Supprimer une dépense                                             |
-| `set_expense_receipt`            | écriture | Joindre un justificatif (base64 ou URL)                           |
-| `prepare_purchase`               | écriture | Préparer un achat détaillé (brouillon + récapitulatif)            |
-| `confirm_purchase`               | écriture | Confirmer un brouillon d’achat → dépense                          |
-| `prepare_other_expense`          | écriture | Préparer une dépense simple (brouillon + récapitulatif)           |
-| `confirm_other_expense`          | écriture | Confirmer un brouillon de dépense simple → dépense                |
-| `search_article`                 | lecture  | Rapprocher un libellé avec le référentiel d’articles              |
-| `detect_article`                 | lecture  | Idem, formaté pour la décision d’une IA (matched/candidates/none) |
-| `get_purchase_frequency`         | lecture  | Fréquence d’achat par article (compte, PU moyen, cadence)         |
-| `list_expense_articles`          | lecture  | Lister les articles de dépense (référentiel)                      |
-| `get_expense_article_history`    | lecture  | Historique détaillé des achats d’un article                       |
-| `get_expense_monthly_series`     | lecture  | Série mensuelle des dépenses (fixes/variables)                    |
-| `get_expense_settings`           | lecture  | Lire la config du module dépenses (fréquence, seuils…)            |
-| `relink_expense_item`            | écriture | Re-lier une ligne au bon article (apprend un alias)               |
-| `merge_articles`                 | écriture | Fusionner deux articles en doublon                                |
-| `rename_expense_article`         | écriture | Renommer un article de dépense                                    |
-| `set_expense_article_settings`   | écriture | Régler un article (unité, stock, emplacement, prix réf.)          |
-| `update_expense_settings`        | écriture | Modifier la config du module dépenses                             |
-| `rematch_expense_items`          | écriture | Entretien : rapprocher les lignes non liées (`dryRun`)            |
-| `backfill_expense_items`         | écriture | Entretien : régénérer le détail lié aux réappros (`dryRun`)       |
-| `list_investment_sources`        | lecture  | Sources de financement (+ nombre d’apports)                       |
-| `create_investment_source`       | écriture | Créer une source de financement                                   |
-| `update_investment_source`       | écriture | Renommer une source de financement                                |
-| `delete_investment_source`       | écriture | Supprimer une source (soft delete, conserve les apports)          |
-| `list_investments`               | lecture  | Lister les apports (filtres date/source/rembt)                    |
-| `get_investment_summary`         | lecture  | Total + ventilation par source + restant dû                       |
-| `create_investment`              | écriture | Enregistrer un apport / financement                               |
-| `update_investment`              | écriture | Modifier un apport (mise à jour **partielle**)                    |
-| `delete_investment`              | écriture | Supprimer un apport                                               |
-| `set_investment_document`        | écriture | Joindre un justificatif (base64 ou URL)                           |
-| `list_revenue_adjustments`       | lecture  | Lister les régularisations de recette (+ total)                   |
-| `get_revenue_adjustment_summary` | lecture  | Total net + ventilation par mode de paiement                      |
-| `create_revenue_adjustment`      | écriture | Ajuster le CA sans commande (montant signé)                       |
-| `update_revenue_adjustment`      | écriture | Modifier une régularisation (partiel)                             |
-| `delete_revenue_adjustment`      | écriture | Supprimer une régularisation                                      |
-| `get_cash_position`              | lecture  | Chiffres espèces d’un jour + clôture éventuelle                   |
-| `get_cash_closing`               | lecture  | Lire la clôture d’un jour                                         |
-| `list_cash_closings`             | lecture  | Historique des clôtures sur une plage                             |
-| `save_cash_closing`              | écriture | Créer / mettre à jour la clôture d’un jour                        |
-| `create_order`                   | écriture | Enregistrer une commande (antidatage possible)                    |
-| `list_orders`                    | lecture  | Lister les commandes (filtres statut/date/texte)                  |
-| `set_order_status`               | écriture | Changer le statut (récupérée, annulée, …)                         |
-| `mark_order_paid`                | écriture | Encaisser une commande (CASH/WAVE/OTHER)                          |
-| `update_order`                   | écriture | Modifier détails (paiement, type, créneau, note)                  |
-| `apply_order_discount`           | écriture | Appliquer une remise de ligne (FCFA)                              |
-| `list_customers`                 | lecture  | Lister / rechercher des clients (+ stats)                         |
-| `get_customer`                   | lecture  | Détail d’un client (par `id` ou `phone`)                          |
-| `get_loyalty_card`               | lecture  | Carte à tampons d’un client + récompenses dispo                   |
-| `adjust_loyalty_stamps`          | écriture | Ajuster les tampons d’un client (correction)                      |
-| `get_loyalty_settings`           | lecture  | Lire la config de la carte à tampons                              |
-| `update_loyalty_settings`        | écriture | Modifier la config de la carte à tampons                          |
-| `get_contact_settings`           | lecture  | Lire les coordonnées du commerce (adresse, tél., WhatsApp, email…)|
-| `update_contact_settings`        | écriture | Modifier les coordonnées du commerce                              |
-| `create_category`                | écriture | Créer une catégorie                                               |
-| `update_category`                | écriture | Renommer une catégorie                                            |
-| `delete_category`                | écriture | Supprimer une catégorie (soft delete, cascade produits)           |
-| `toggle_category_availability`   | écriture | Afficher / masquer une catégorie                                  |
-| `move_category`                  | écriture | Réordonner une catégorie (`up` / `down`)                          |
-| `create_product`                 | écriture | Créer un produit                                                  |
-| `update_product`                 | écriture | Modifier un produit (mise à jour **partielle**)                   |
-| `set_product_image`              | écriture | Téléverser (base64) ou rattacher une image                        |
-| `move_product`                   | écriture | Réordonner un produit (`up` / `down`)                             |
-| `delete_product`                 | écriture | Supprimer un produit (soft delete)                                |
-| `toggle_product_availability`    | écriture | Afficher / masquer un produit                                     |
-| `toggle_product_featured`        | écriture | Mettre en avant / retirer un produit                              |
-| `set_product_stock`              | écriture | Définir (absolu) le stock d’un produit                            |
-| `set_option_stock`               | écriture | Définir (absolu) le stock d’une option                            |
-| `restock_product`                | écriture | Ajouter une fournée (delta) au stock d’un produit                 |
-| `restock_option`                 | écriture | Ajouter une fournée (delta) au stock d’une option                 |
-| `pause_product`                  | écriture | Mettre un produit en pause jusqu’à une date-heure                 |
-| `resume_product`                 | écriture | Lever la pause d’un produit avant son terme                       |
-| `list_inventory_items`           | lecture  | Lister les références (filtres + stock/PMP)                       |
-| `get_inventory_item`             | lecture  | Détail d’une référence (+ achats / comptages)                     |
-| `get_inventory_summary`          | lecture  | KPIs inventaire (sous seuil, valeur stock…)                       |
-| `list_low_stock_items`           | lecture  | Références sous le seuil (à réapprovisionner)                     |
-| `list_inventory_purchases`       | lecture  | Lister les achats/réappro (filtres date/réf.)                     |
-| `list_inventory_counts`          | lecture  | Historique des comptages périodiques                              |
-| `get_inventory_count`            | lecture  | Rapport d’un comptage (entrées/sorties, PMP)                      |
-| `create_inventory_item`          | écriture | Créer une référence (+ stock d’ouverture)                         |
-| `update_inventory_item`          | écriture | Modifier une référence (mise à jour **partielle**)                |
-| `archive_inventory_item`         | écriture | Archiver une référence (suppression douce)                        |
-| `record_inventory_purchases`     | écriture | Réappro par lot (entrées + PMP, dépense liée)                     |
-| `cancel_restock_batch`           | écriture | Annuler un lot (restaure stock + PMP)                             |
-| `record_inventory_count`         | écriture | Enregistrer un comptage (déduit la conso)                         |
-| `get_inventory_settings`         | lecture  | Lire la config du module d’inventaire                             |
-| `update_inventory_settings`      | écriture | Modifier la config du module d’inventaire                         |
-| `list_polls`                     | lecture  | Lister les sondages (options, votes, suggestions en attente)      |
-| `get_poll`                       | lecture  | Détail d’un sondage (options + décompte des votes)                |
-| `get_poll_results`               | lecture  | Décompte des votes par option (nombre + %)                        |
-| `create_poll`                    | écriture | Créer un sondage générique avec ses options                       |
-| `update_poll`                    | écriture | Modifier un sondage (mise à jour **partielle**)                   |
-| `set_poll_status`                | écriture | Ouvrir / clôturer un sondage (DRAFT/OPEN/CLOSED)                  |
-| `delete_poll`                    | écriture | Supprimer un sondage (DRAFT sans vote uniquement)                 |
-| `set_poll_image`                 | écriture | Illustrer un sondage (image de couverture, base64 ou URL)         |
-| `create_poll_option`             | écriture | Ajouter une option de vote à un sondage                           |
-| `update_poll_option`             | écriture | Modifier une option (mise à jour **partielle**)                   |
-| `move_poll_option`               | écriture | Réordonner une option (`up` / `down`)                             |
-| `delete_poll_option`             | écriture | Retirer une option (soft delete, conserve les votes)              |
-| `set_poll_option_image`          | écriture | Illustrer une option (base64 ou URL)                              |
-| `list_poll_suggestions`          | lecture  | Lister les suggestions de la communauté                           |
-| `get_poll_suggestion`            | lecture  | Détail d’une suggestion                                           |
-| `moderate_poll_suggestion`       | écriture | Approuver (→ option) ou rejeter une suggestion                    |
+| Outil                            | Type     | Description                                                        |
+| -------------------------------- | -------- | ------------------------------------------------------------------ |
+| `get_menu`                       | lecture  | Menu complet avec identifiants internes (`id`)                     |
+| `get_daily_stats`                | lecture  | Stats agrégées de la journée en cours                              |
+| `get_range_stats`                | lecture  | KPIs sur une plage (`from`/`to`, `YYYY-MM-DD`)                     |
+| `get_daily_series`               | lecture  | Série jour par jour (commandes + CA) sur plage                     |
+| `get_top_products`               | lecture  | Top produits vendus sur une plage (`limit?`)                       |
+| `get_stats_comparison`           | lecture  | KPIs de la plage vs période précédente de même durée               |
+| `get_hourly_stats`               | lecture  | Heures de pointe : commandes + CA par heure (0–23)                 |
+| `get_kitchen_performance`        | lecture  | Temps de préparation / d’attente (moyenne, médiane, série)         |
+| `get_customer_stats`             | lecture  | Clients & fidélité : nouveaux, actifs, top clients, tampons        |
+| `list_expense_categories`        | lecture  | Catégories de dépense (+ nombre de dépenses)                       |
+| `create_expense_category`        | écriture | Créer une catégorie de dépense                                     |
+| `update_expense_category`        | écriture | Renommer une catégorie de dépense                                  |
+| `delete_expense_category`        | écriture | Supprimer une catégorie (soft delete, conserve les dépenses)       |
+| `list_expenses`                  | lecture  | Lister les dépenses (filtres date/catégorie)                       |
+| `get_expense_summary`            | lecture  | Total + ventilation des dépenses par catégorie                     |
+| `create_expense`                 | écriture | Enregistrer une dépense (⚠️ déprécié pour les achats fournisseur)  |
+| `update_expense`                 | écriture | Modifier une dépense (mise à jour **partielle**)                   |
+| `delete_expense`                 | écriture | Supprimer une dépense                                              |
+| `set_expense_receipt`            | écriture | Joindre un justificatif (base64 ou URL)                            |
+| `prepare_purchase`               | écriture | Préparer un achat détaillé (brouillon + récapitulatif)             |
+| `confirm_purchase`               | écriture | Confirmer un brouillon d’achat → dépense                           |
+| `prepare_other_expense`          | écriture | Préparer une dépense simple (brouillon + récapitulatif)            |
+| `confirm_other_expense`          | écriture | Confirmer un brouillon de dépense simple → dépense                 |
+| `search_article`                 | lecture  | Rapprocher un libellé avec le référentiel d’articles               |
+| `detect_article`                 | lecture  | Idem, formaté pour la décision d’une IA (matched/candidates/none)  |
+| `get_purchase_frequency`         | lecture  | Fréquence d’achat par article (compte, PU moyen, cadence)          |
+| `list_expense_articles`          | lecture  | Lister les articles de dépense (référentiel)                       |
+| `get_expense_article_history`    | lecture  | Historique détaillé des achats d’un article                        |
+| `get_expense_monthly_series`     | lecture  | Série mensuelle des dépenses (fixes/variables)                     |
+| `get_expense_settings`           | lecture  | Lire la config du module dépenses (fréquence, seuils…)             |
+| `relink_expense_item`            | écriture | Re-lier une ligne au bon article (apprend un alias)                |
+| `merge_articles`                 | écriture | Fusionner deux articles en doublon                                 |
+| `rename_expense_article`         | écriture | Renommer un article de dépense                                     |
+| `set_expense_article_settings`   | écriture | Régler un article (unité, stock, emplacement, prix réf.)           |
+| `update_expense_settings`        | écriture | Modifier la config du module dépenses                              |
+| `rematch_expense_items`          | écriture | Entretien : rapprocher les lignes non liées (`dryRun`)             |
+| `backfill_expense_items`         | écriture | Entretien : régénérer le détail lié aux réappros (`dryRun`)        |
+| `list_investment_sources`        | lecture  | Sources de financement (+ nombre d’apports)                        |
+| `create_investment_source`       | écriture | Créer une source de financement                                    |
+| `update_investment_source`       | écriture | Renommer une source de financement                                 |
+| `delete_investment_source`       | écriture | Supprimer une source (soft delete, conserve les apports)           |
+| `list_investments`               | lecture  | Lister les apports (filtres date/source/rembt)                     |
+| `get_investment_summary`         | lecture  | Total + ventilation par source + restant dû                        |
+| `create_investment`              | écriture | Enregistrer un apport / financement                                |
+| `update_investment`              | écriture | Modifier un apport (mise à jour **partielle**)                     |
+| `delete_investment`              | écriture | Supprimer un apport                                                |
+| `set_investment_document`        | écriture | Joindre un justificatif (base64 ou URL)                            |
+| `list_revenue_adjustments`       | lecture  | Lister les régularisations de recette (+ total)                    |
+| `get_revenue_adjustment_summary` | lecture  | Total net + ventilation par mode de paiement                       |
+| `create_revenue_adjustment`      | écriture | Ajuster le CA sans commande (montant signé)                        |
+| `update_revenue_adjustment`      | écriture | Modifier une régularisation (partiel)                              |
+| `delete_revenue_adjustment`      | écriture | Supprimer une régularisation                                       |
+| `get_cash_position`              | lecture  | Chiffres espèces d’un jour + clôture éventuelle                    |
+| `get_cash_closing`               | lecture  | Lire la clôture d’un jour                                          |
+| `list_cash_closings`             | lecture  | Historique des clôtures sur une plage                              |
+| `save_cash_closing`              | écriture | Créer / mettre à jour la clôture d’un jour                         |
+| `create_order`                   | écriture | Enregistrer une commande (antidatage possible)                     |
+| `list_orders`                    | lecture  | Lister les commandes (filtres statut/date/texte)                   |
+| `set_order_status`               | écriture | Changer le statut (récupérée, annulée, …)                          |
+| `mark_order_paid`                | écriture | Encaisser une commande (CASH/WAVE/ORANGE_MONEY/OTHER)              |
+| `update_order`                   | écriture | Modifier détails (paiement, type, créneau, note)                   |
+| `apply_order_discount`           | écriture | Appliquer une remise de ligne (FCFA)                               |
+| `list_customers`                 | lecture  | Lister / rechercher des clients (+ stats)                          |
+| `get_customer`                   | lecture  | Détail d’un client (par `id` ou `phone`)                           |
+| `get_loyalty_card`               | lecture  | Carte à tampons d’un client + récompenses dispo                    |
+| `adjust_loyalty_stamps`          | écriture | Ajuster les tampons d’un client (correction)                       |
+| `get_loyalty_settings`           | lecture  | Lire la config de la carte à tampons                               |
+| `update_loyalty_settings`        | écriture | Modifier la config de la carte à tampons                           |
+| `get_contact_settings`           | lecture  | Lire les coordonnées du commerce (adresse, tél., WhatsApp, email…) |
+| `update_contact_settings`        | écriture | Modifier les coordonnées du commerce                               |
+| `create_category`                | écriture | Créer une catégorie                                                |
+| `update_category`                | écriture | Renommer une catégorie                                             |
+| `delete_category`                | écriture | Supprimer une catégorie (soft delete, cascade produits)            |
+| `toggle_category_availability`   | écriture | Afficher / masquer une catégorie                                   |
+| `move_category`                  | écriture | Réordonner une catégorie (`up` / `down`)                           |
+| `create_product`                 | écriture | Créer un produit                                                   |
+| `update_product`                 | écriture | Modifier un produit (mise à jour **partielle**)                    |
+| `set_product_image`              | écriture | Téléverser (base64) ou rattacher une image                         |
+| `move_product`                   | écriture | Réordonner un produit (`up` / `down`)                              |
+| `delete_product`                 | écriture | Supprimer un produit (soft delete)                                 |
+| `toggle_product_availability`    | écriture | Afficher / masquer un produit                                      |
+| `toggle_product_featured`        | écriture | Mettre en avant / retirer un produit                               |
+| `set_product_stock`              | écriture | Définir (absolu) le stock d’un produit                             |
+| `set_option_stock`               | écriture | Définir (absolu) le stock d’une option                             |
+| `restock_product`                | écriture | Ajouter une fournée (delta) au stock d’un produit                  |
+| `restock_option`                 | écriture | Ajouter une fournée (delta) au stock d’une option                  |
+| `pause_product`                  | écriture | Mettre un produit en pause jusqu’à une date-heure                  |
+| `resume_product`                 | écriture | Lever la pause d’un produit avant son terme                        |
+| `list_inventory_items`           | lecture  | Lister les références (filtres + stock/PMP)                        |
+| `get_inventory_item`             | lecture  | Détail d’une référence (+ achats / comptages)                      |
+| `get_inventory_summary`          | lecture  | KPIs inventaire (sous seuil, valeur stock…)                        |
+| `list_low_stock_items`           | lecture  | Références sous le seuil (à réapprovisionner)                      |
+| `list_inventory_purchases`       | lecture  | Lister les achats/réappro (filtres date/réf.)                      |
+| `list_inventory_counts`          | lecture  | Historique des comptages périodiques                               |
+| `get_inventory_count`            | lecture  | Rapport d’un comptage (entrées/sorties, PMP)                       |
+| `create_inventory_item`          | écriture | Créer une référence (+ stock d’ouverture)                          |
+| `update_inventory_item`          | écriture | Modifier une référence (mise à jour **partielle**)                 |
+| `archive_inventory_item`         | écriture | Archiver une référence (suppression douce)                         |
+| `record_inventory_purchases`     | écriture | Réappro par lot (entrées + PMP, dépense liée)                      |
+| `cancel_restock_batch`           | écriture | Annuler un lot (restaure stock + PMP)                              |
+| `record_inventory_count`         | écriture | Enregistrer un comptage (déduit la conso)                          |
+| `get_inventory_settings`         | lecture  | Lire la config du module d’inventaire                              |
+| `update_inventory_settings`      | écriture | Modifier la config du module d’inventaire                          |
+| `list_polls`                     | lecture  | Lister les sondages (options, votes, suggestions en attente)       |
+| `get_poll`                       | lecture  | Détail d’un sondage (options + décompte des votes)                 |
+| `get_poll_results`               | lecture  | Décompte des votes par option (nombre + %)                         |
+| `create_poll`                    | écriture | Créer un sondage générique avec ses options                        |
+| `update_poll`                    | écriture | Modifier un sondage (mise à jour **partielle**)                    |
+| `set_poll_status`                | écriture | Ouvrir / clôturer un sondage (DRAFT/OPEN/CLOSED)                   |
+| `delete_poll`                    | écriture | Supprimer un sondage (DRAFT sans vote uniquement)                  |
+| `set_poll_image`                 | écriture | Illustrer un sondage (image de couverture, base64 ou URL)          |
+| `create_poll_option`             | écriture | Ajouter une option de vote à un sondage                            |
+| `update_poll_option`             | écriture | Modifier une option (mise à jour **partielle**)                    |
+| `move_poll_option`               | écriture | Réordonner une option (`up` / `down`)                              |
+| `delete_poll_option`             | écriture | Retirer une option (soft delete, conserve les votes)               |
+| `set_poll_option_image`          | écriture | Illustrer une option (base64 ou URL)                               |
+| `list_poll_suggestions`          | lecture  | Lister les suggestions de la communauté                            |
+| `get_poll_suggestion`            | lecture  | Détail d’une suggestion                                            |
+| `moderate_poll_suggestion`       | écriture | Approuver (→ option) ou rejeter une suggestion                     |
 
 Les prix et coûts (`coutMatiere`, `coutEmballage`) sont exprimés en **francs
 CFA** (nombres entiers) et `get_menu` les renvoie. Commence toujours par
@@ -402,8 +402,9 @@ calculé. Le justificatif se joint via `set_investment_document` (base64 ou URL)
 Les outils **régularisation de recette** permettent d'ajuster le CA **sans créer
 de commande** (ventes non saisies en temps réel, anciennes commandes perdues…).
 `amount` est en francs CFA entiers **signés** (positif = recette ajoutée, négatif
-= retirée), `date` au format `YYYY-MM-DD`, `paymentMode` ∈ `CASH`/`WAVE`/`OTHER`
-(défaut CASH). L'ajustement est injecté dans `lib/stats.ts` : il remonte dans les
+= retirée), `date` au format `YYYY-MM-DD`, `paymentMode` ∈
+`CASH`/`WAVE`/`ORANGE_MONEY`/`OTHER` (défaut CASH). L'ajustement est injecté
+dans `lib/stats.ts` : il remonte dans les
 statistiques, la série journalière et — pour le mode espèces — la **clôture de
 caisse** (qui dérive de `getDailyStats`). Il n'affecte ni le nombre de commandes
 ni le panier moyen.
@@ -430,7 +431,7 @@ Le **suivi des commandes** : `list_orders` retrouve les commandes (filtres
 statut / plage de jours / recherche, 20 par page) et renvoie leur `id` ;
 `set_order_status` change le statut (NEW → PREPARING → READY → COMPLETED, ou
 CANCELLED — « récupérée » = `COMPLETED`, transitions invalides refusées) ;
-`mark_order_paid` encaisse (`CASH`/`WAVE`/`OTHER`), et pousse automatiquement en
+`mark_order_paid` encaisse (`CASH`/`WAVE`/`ORANGE_MONEY`/`OTHER`), et pousse automatiquement en
 cuisine une commande encore `NEW`. `update_order` modifie de façon **partielle**
 les métadonnées d'une commande (moyen de paiement, type de commande, créneau de
 retrait `pickupTime`, note) sans toucher au statut ni à l'encaissement — côté

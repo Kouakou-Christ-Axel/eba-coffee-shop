@@ -57,6 +57,7 @@ const ORDER_TYPE_LABELS: Record<OrderType, string> = {
 const PAYMENT_MODE_LABELS: Record<PaymentMode, string> = {
   CASH: 'Espèces',
   WAVE: 'Wave',
+  ORANGE_MONEY: 'Orange Money',
   OTHER: 'Autre',
 };
 

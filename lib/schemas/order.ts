@@ -78,7 +78,12 @@ export const orderStatusSchema = z.enum([
 
 export const orderTypeSchema = z.enum(['DELIVERY', 'DINE_IN', 'TAKEAWAY']);
 
-export const paymentModeSchema = z.enum(['CASH', 'WAVE', 'OTHER']);
+export const paymentModeSchema = z.enum([
+  'CASH',
+  'WAVE',
+  'ORANGE_MONEY',
+  'OTHER',
+]);
 
 export type OrderStatusInput = z.infer<typeof orderStatusSchema>;
 export type OrderTypeInput = z.infer<typeof orderTypeSchema>;

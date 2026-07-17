@@ -8,6 +8,7 @@ const OPTIONS = [
   { key: 'unpaid', label: 'À encaisser' },
   { key: 'CASH', label: 'Espèces' },
   { key: 'WAVE', label: 'Wave' },
+  { key: 'ORANGE_MONEY', label: 'Orange Money' },
   { key: 'OTHER', label: 'Autre' },
 ] as const;
 

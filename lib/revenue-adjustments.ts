@@ -118,7 +118,12 @@ export async function sumAdjustmentsByDay(
 function toModeRecord(
   grouped: { paymentMode: PaymentMode; _sum: { amount: number | null } }[]
 ): Record<PaymentMode, number> {
-  const rec: Record<PaymentMode, number> = { CASH: 0, WAVE: 0, OTHER: 0 };
+  const rec: Record<PaymentMode, number> = {
+    CASH: 0,
+    WAVE: 0,
+    ORANGE_MONEY: 0,
+    OTHER: 0,
+  };
   for (const g of grouped) rec[g.paymentMode] = g._sum.amount ?? 0;
   return rec;
 }

@@ -19,7 +19,7 @@ import {
 } from '@/lib/revenue-adjustments';
 
 // Modes de paiement (pour l'ajout des régularisations de recette au CA).
-const PAYMENT_MODES: PaymentMode[] = ['CASH', 'WAVE', 'OTHER'];
+const PAYMENT_MODES: PaymentMode[] = ['CASH', 'WAVE', 'ORANGE_MONEY', 'OTHER'];
 
 export type DailyStats = {
   date: Date;
@@ -60,8 +60,8 @@ export async function getDailyStats(
     paidOrders: 0,
     revenue: 0,
     countByOrderType: { DELIVERY: 0, DINE_IN: 0, TAKEAWAY: 0 },
-    countByPaymentMode: { CASH: 0, WAVE: 0, OTHER: 0 },
-    revenueByPaymentMode: { CASH: 0, WAVE: 0, OTHER: 0 },
+    countByPaymentMode: { CASH: 0, WAVE: 0, ORANGE_MONEY: 0, OTHER: 0 },
+    revenueByPaymentMode: { CASH: 0, WAVE: 0, ORANGE_MONEY: 0, OTHER: 0 },
   };
 
   for (const o of orders) {
@@ -153,8 +153,8 @@ export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
       CANCELLED: 0,
     },
     countByOrderType: { DELIVERY: 0, DINE_IN: 0, TAKEAWAY: 0 },
-    countByPaymentMode: { CASH: 0, WAVE: 0, OTHER: 0 },
-    revenueByPaymentMode: { CASH: 0, WAVE: 0, OTHER: 0 },
+    countByPaymentMode: { CASH: 0, WAVE: 0, ORANGE_MONEY: 0, OTHER: 0 },
+    revenueByPaymentMode: { CASH: 0, WAVE: 0, ORANGE_MONEY: 0, OTHER: 0 },
   };
 
   for (const o of orders) {

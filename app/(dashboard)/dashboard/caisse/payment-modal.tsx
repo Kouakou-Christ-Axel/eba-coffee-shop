@@ -9,7 +9,7 @@ import {
   ModalFooter,
   Button,
 } from '@heroui/react';
-import { Banknote, Smartphone, Wallet } from 'lucide-react';
+import { Banknote, MoreHorizontal, Smartphone, Wallet } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PaymentMode } from '@/generated/prisma/client';
 
@@ -22,7 +22,8 @@ const MODES: {
 }[] = [
   { value: 'CASH', label: 'Espèces', Icon: Banknote },
   { value: 'WAVE', label: 'Wave', Icon: Smartphone },
-  { value: 'OTHER', label: 'Autre', Icon: Wallet },
+  { value: 'ORANGE_MONEY', label: 'Orange Money', Icon: Wallet },
+  { value: 'OTHER', label: 'Autre', Icon: MoreHorizontal },
 ];
 
 type Props = {
@@ -77,7 +78,7 @@ export function PaymentModal({
           </span>
         </ModalHeader>
         <ModalBody>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {MODES.map(({ value, label, Icon }) => {
               const isActive = selected === value;
               return (

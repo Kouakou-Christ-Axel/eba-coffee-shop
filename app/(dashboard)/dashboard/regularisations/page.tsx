@@ -26,10 +26,11 @@ const priceFmt = new Intl.NumberFormat('fr-FR');
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Espèces',
   WAVE: 'Wave',
+  ORANGE_MONEY: 'Orange Money',
   OTHER: 'Autre',
 };
 
-const MODES = ['CASH', 'WAVE', 'OTHER'] as const;
+const MODES = ['CASH', 'WAVE', 'ORANGE_MONEY', 'OTHER'] as const;
 
 function formatSigned(amount: number): string {
   const sign = amount < 0 ? '−' : '+';

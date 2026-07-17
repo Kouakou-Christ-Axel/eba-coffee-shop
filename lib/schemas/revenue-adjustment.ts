@@ -15,6 +15,7 @@ import {
 export const revenueAdjustmentPaymentModeSchema = z.enum([
   'CASH',
   'WAVE',
+  'ORANGE_MONEY',
   'OTHER',
 ]);
 

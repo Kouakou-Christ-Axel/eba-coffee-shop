@@ -65,6 +65,7 @@ const VALID_PAYMENTS = new Set<PaymentFilter>([
   'unpaid',
   'CASH',
   'WAVE',
+  'ORANGE_MONEY',
   'OTHER',
 ]);
 

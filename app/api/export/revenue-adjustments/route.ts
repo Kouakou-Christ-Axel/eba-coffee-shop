@@ -19,11 +19,12 @@ import {
 export const dynamic = 'force-dynamic';
 
 const DEFAULT_RANGE_DAYS = 30;
-const MODES = ['CASH', 'WAVE', 'OTHER'] as const;
+const MODES = ['CASH', 'WAVE', 'ORANGE_MONEY', 'OTHER'] as const;
 
 const PAYMENT_LABELS: Record<string, string> = {
   CASH: 'Espèces',
   WAVE: 'Wave',
+  ORANGE_MONEY: 'Orange Money',
   OTHER: 'Autre',
 };
 
