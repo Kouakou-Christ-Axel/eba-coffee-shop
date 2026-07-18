@@ -1,3 +1,16 @@
+diff --git a/dist/plugins/mcp/authorize.mjs b/dist/plugins/mcp/authorize.mjs
+index 7191e648f32624d260d912394f0ca9a160b4474c..37c743efa08f5f316070cbf3f892920215eb1236 100644
+--- a/dist/plugins/mcp/authorize.mjs
++++ b/dist/plugins/mcp/authorize.mjs
+@@ -53,7 +53,7 @@ async function authorizeMCPOAuth(ctx, options) {
+ 		if (!res) return null;
+ 		return {
+ 			...res,
+-			redirectUrls: res.redirectUrls.split(","),
++			redirectUrls: (res.redirectUrls ?? "").split(","),
+ 			metadata: res.metadata ? JSON.parse(res.metadata) : {}
+ 		};
+ 	});
 diff --git a/dist/plugins/mcp/index.mjs b/dist/plugins/mcp/index.mjs
 index 4558da93fd5b33f8582ef3704caee3bf7f8742bf..96dc3fe86352c4951afcb96197b87460d149207c 100644
 --- a/dist/plugins/mcp/index.mjs
