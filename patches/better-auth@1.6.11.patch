@@ -1,0 +1,22 @@
+diff --git a/dist/plugins/mcp/index.mjs b/dist/plugins/mcp/index.mjs
+index 4558da93fd5b33f8582ef3704caee3bf7f8742bf..96dc3fe86352c4951afcb96197b87460d149207c 100644
+--- a/dist/plugins/mcp/index.mjs
++++ b/dist/plugins/mcp/index.mjs
+@@ -311,7 +311,7 @@ const mcp = (options) => {
+ 						if (!res) return null;
+ 						return {
+ 							...res,
+-							redirectUrls: res.redirectUrls.split(","),
++							redirectUrls: (res.redirectUrls ?? "").split(","),
+ 							metadata: res.metadata ? JSON.parse(res.metadata) : {}
+ 						};
+ 					});
+@@ -402,7 +402,7 @@ const mcp = (options) => {
+ 					if (!res) return null;
+ 					return {
+ 						...res,
+-						redirectUrls: res.redirectUrls.split(","),
++						redirectUrls: (res.redirectUrls ?? "").split(","),
+ 						metadata: res.metadata ? JSON.parse(res.metadata) : {}
+ 					};
+ 				});
