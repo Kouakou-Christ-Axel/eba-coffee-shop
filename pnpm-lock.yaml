@@ -9,7 +9,7 @@ overrides:
 
 patchedDependencies:
   better-auth@1.6.11:
-    hash: 4dafca5272beb01bbc7e86afa82dcadca92487fd6e497d6cc589a039d0d52487
+    hash: 88c5b5755845666d776a094174b914331f91b203525f4f2bf14d5d99757036ca
     path: patches/better-auth@1.6.11.patch
 
 importers:
@@ -42,7 +42,7 @@ importers:
         version: 1.1.1(next@16.2.3(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(varlock@1.3.0))(varlock@1.3.0)
       better-auth:
         specifier: ^1.6.10
-        version: 1.6.11(patch_hash=4dafca5272beb01bbc7e86afa82dcadca92487fd6e497d6cc589a039d0d52487)(@prisma/client@7.8.0(prisma@7.8.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3))(mysql2@3.15.3)(next@16.2.3(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(varlock@1.3.0))(pg@8.21.0)(prisma@7.8.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(vitest@4.1.7(@types/node@20.19.41)(vite@8.0.14(@types/node@20.19.41)(esbuild@0.28.0)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0)))
+        version: 1.6.11(patch_hash=88c5b5755845666d776a094174b914331f91b203525f4f2bf14d5d99757036ca)(@prisma/client@7.8.0(prisma@7.8.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3))(mysql2@3.15.3)(next@16.2.3(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(varlock@1.3.0))(pg@8.21.0)(prisma@7.8.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(vitest@4.1.7(@types/node@20.19.41)(vite@8.0.14(@types/node@20.19.41)(esbuild@0.28.0)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0)))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -10807,7 +10807,7 @@ snapshots:
 
   baseline-browser-mapping@2.10.32: {}
 
-  better-auth@1.6.11(patch_hash=4dafca5272beb01bbc7e86afa82dcadca92487fd6e497d6cc589a039d0d52487)(@prisma/client@7.8.0(prisma@7.8.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3))(mysql2@3.15.3)(next@16.2.3(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(varlock@1.3.0))(pg@8.21.0)(prisma@7.8.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(vitest@4.1.7(@types/node@20.19.41)(vite@8.0.14(@types/node@20.19.41)(esbuild@0.28.0)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))):
+  better-auth@1.6.11(patch_hash=88c5b5755845666d776a094174b914331f91b203525f4f2bf14d5d99757036ca)(@prisma/client@7.8.0(prisma@7.8.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3))(mysql2@3.15.3)(next@16.2.3(@babel/core@7.28.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(varlock@1.3.0))(pg@8.21.0)(prisma@7.8.0(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(vitest@4.1.7(@types/node@20.19.41)(vite@8.0.14(@types/node@20.19.41)(esbuild@0.28.0)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))):
     dependencies:
       '@better-auth/core': 1.6.11(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.4.3))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0)
       '@better-auth/drizzle-adapter': 1.6.11(@better-auth/core@1.6.11(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@4.4.3))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0))(@better-auth/utils@0.4.0)

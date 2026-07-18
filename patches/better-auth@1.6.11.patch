@@ -1,5 +1,5 @@
 diff --git a/dist/plugins/mcp/index.mjs b/dist/plugins/mcp/index.mjs
-index 4558da93fd5b33f8582ef3704caee3bf7f8742bf..96dc3fe86352c4951afcb96197b87460d149207c 100644
+index 4558da93fd5b33f8582ef3704caee3bf7f8742bf..4b86b63fa4816cb12b13382a6f36cd26f37671a5 100644
 --- a/dist/plugins/mcp/index.mjs
 +++ b/dist/plugins/mcp/index.mjs
 @@ -311,7 +311,7 @@ const mcp = (options) => {
@@ -20,3 +20,40 @@ index 4558da93fd5b33f8582ef3704caee3bf7f8742bf..96dc3fe86352c4951afcb96197b87460
  						metadata: res.metadata ? JSON.parse(res.metadata) : {}
  					};
  				});
+@@ -480,8 +480,8 @@ const mcp = (options) => {
+ 					}, true, ["sign", "verify"])
+ 				};
+ 				const profile = {
+-					given_name: user.name.split(" ")[0],
+-					family_name: user.name.split(" ")[1],
++					given_name: (user.name ?? "").split(" ")[0],
++					family_name: (user.name ?? "").split(" ")[1],
+ 					name: user.name,
+ 					profile: user.image,
+ 					updated_at: Math.floor(new Date(user.updatedAt).getTime() / 1e3)
+diff --git a/dist/plugins/oidc-provider/index.mjs b/dist/plugins/oidc-provider/index.mjs
+index c4d681298e11df64dddb02e5b29a4dfa7db35533..f16b834e2cc83034f9449d7362340367fa1e48d0 100644
+--- a/dist/plugins/oidc-provider/index.mjs
++++ b/dist/plugins/oidc-provider/index.mjs
+@@ -585,8 +585,8 @@ const oidcProvider = (options) => {
+ 					error: "invalid_grant"
+ 				});
+ 				const profile = {
+-					given_name: user.name.split(" ")[0],
+-					family_name: user.name.split(" ")[1],
++					given_name: (user.name ?? "").split(" ")[0],
++					family_name: (user.name ?? "").split(" ")[1],
+ 					name: user.name,
+ 					profile: user.image,
+ 					updated_at: new Date(user.updatedAt).toISOString()
+@@ -758,8 +758,8 @@ const oidcProvider = (options) => {
+ 					email: requestedScopes.includes("email") ? user.email : void 0,
+ 					name: requestedScopes.includes("profile") ? user.name : void 0,
+ 					picture: requestedScopes.includes("profile") ? user.image : void 0,
+-					given_name: requestedScopes.includes("profile") ? user.name.split(" ")[0] : void 0,
+-					family_name: requestedScopes.includes("profile") ? user.name.split(" ")[1] : void 0,
++					given_name: requestedScopes.includes("profile") ? (user.name ?? "").split(" ")[0] : void 0,
++					family_name: requestedScopes.includes("profile") ? (user.name ?? "").split(" ")[1] : void 0,
+ 					email_verified: requestedScopes.includes("email") ? user.emailVerified : void 0
+ 				};
+ 				const userClaims = options.getAdditionalUserInfoClaim ? await options.getAdditionalUserInfoClaim(user, requestedScopes, client) : baseUserClaims;
