@@ -291,6 +291,9 @@ export type ArticlePurchaseStat = {
    * jamais un compteur stocké — recalculé à chaque appel. */
   purchaseCount: number;
   lineCount: number;
+  /** Nombre de lignes sans quantité renseignée (qtyBase null) — sert à mesurer
+   * la fiabilité des stats de quantité (indicateur « qté à renseigner »). */
+  missingQtyLineCount: number;
   totalAmount: number;
   /** Quantité cumulée en `baseUnit` — null si une ligne n'a pas de `qtyBase`. */
   totalQtyBase: number | null;
@@ -339,6 +342,7 @@ function aggregateArticlePurchases(
       };
       expenseIds: Set<string>;
       lineCount: number;
+      missingQtyLineCount: number;
       totalAmount: number;
       totalQtyBase: number;
       hasMissingQty: boolean;
@@ -355,6 +359,7 @@ function aggregateArticlePurchases(
         article: line.article,
         expenseIds: new Set(),
         lineCount: 0,
+        missingQtyLineCount: 0,
         totalAmount: 0,
         totalQtyBase: 0,
         hasMissingQty: false,
@@ -368,6 +373,7 @@ function aggregateArticlePurchases(
     acc.totalAmount += line.amount;
     if (line.qtyBase == null) {
       acc.hasMissingQty = true;
+      acc.missingQtyLineCount++;
     } else if (!acc.hasMissingQty) {
       acc.totalQtyBase += line.qtyBase.toNumber();
     }
@@ -397,6 +403,7 @@ function aggregateArticlePurchases(
         inventoryItemId: acc.article.inventoryItemId,
         purchaseCount,
         lineCount: acc.lineCount,
+        missingQtyLineCount: acc.missingQtyLineCount,
         totalAmount: acc.totalAmount,
         totalQtyBase,
         avgUnitPrice:
@@ -493,6 +500,58 @@ export async function getExpenseArticleStats(filters: {
   return aggregateArticlePurchases(lines, monthsCovered);
 }
 
+export type ExpenseArticleMonthlyPoint = {
+  month: string; // YYYY-MM
+  amount: number;
+};
+
+/**
+ * Série mensuelle du montant total des achats détaillés (lignes `ExpenseItem`
+ * rattachées à un article), en respectant les MÊMES filtres que
+ * `getExpenseArticleStats`. Sert à la vue d'ensemble du tableau des articles
+ * (tendance des achats détaillés). Seuls les mois avec au moins un achat sont
+ * renvoyés, triés chronologiquement.
+ */
+export async function getExpenseArticleMonthlySeries(filters: {
+  from?: Date;
+  to?: Date;
+  categoryId?: string;
+  paymentMethod?: Prisma.ExpenseWhereInput['paymentMethod'];
+  search?: string;
+}): Promise<ExpenseArticleMonthlyPoint[]> {
+  const q = filters.search?.trim();
+  const lines = await prisma.expenseItem.findMany({
+    where: {
+      articleId: { not: null },
+      expense: {
+        ...(filters.from || filters.to
+          ? {
+              date: {
+                ...(filters.from ? { gte: filters.from } : {}),
+                ...(filters.to ? { lte: filters.to } : {}),
+              },
+            }
+          : {}),
+        ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+        ...(filters.paymentMethod
+          ? { paymentMethod: filters.paymentMethod }
+          : {}),
+      },
+      ...(q ? { article: { name: { contains: q, mode: 'insensitive' } } } : {}),
+    },
+    select: { amount: true, expense: { select: { date: true } } },
+  });
+
+  const byMonth = new Map<string, number>();
+  for (const line of lines) {
+    const key = monthKeyOf(line.expense.date);
+    byMonth.set(key, (byMonth.get(key) ?? 0) + line.amount);
+  }
+  return [...byMonth.entries()]
+    .map(([month, amount]) => ({ month, amount }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+}
+
 /**
  * Historique détaillé d'un article (drill-down « farine T45 ») : chaque ligne
  * d'achat avec sa dépense (reçu, date, fournisseur, paiement). Ordre desc.
@@ -509,6 +568,7 @@ export async function getExpenseArticleHistory(
       name: true,
       baseUnit: true,
       inventoryItemId: true,
+      wholesaleRefPrice: true,
       archivedAt: true,
     },
   });
