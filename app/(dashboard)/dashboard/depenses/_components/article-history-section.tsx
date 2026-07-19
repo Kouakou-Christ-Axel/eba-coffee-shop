@@ -1,4 +1,5 @@
 import { getExpenseArticleHistory, listExpenseArticles } from '@/lib/expenses';
+import { todayDateString } from '@/lib/timezone';
 import { ArticleHistorySheet } from '../article-history-sheet';
 
 export async function ArticleHistorySection({
@@ -31,6 +32,9 @@ export async function ArticleHistorySection({
     <ArticleHistorySheet
       articleId={articleHistory.article.id}
       articleName={articleHistory.article.name}
+      baseUnit={articleHistory.article.baseUnit}
+      wholesaleRefPrice={articleHistory.article.wholesaleRefPrice}
+      today={todayDateString()}
       lines={articleHistory.lines}
       articlesMeta={articlesMeta}
     />
