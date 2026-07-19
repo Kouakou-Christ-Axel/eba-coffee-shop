@@ -304,6 +304,10 @@ export type ArticlePurchaseStat = {
   avgIntervalDays: number | null;
   /** Cadence : achats / mois couverts par la plage (1 décimale). */
   monthlyAvgCount: number;
+  /** Quantité moyenne achetée par mois (en `baseUnit`) — null si `totalQtyBase`
+   * l'est (au moins une ligne sans quantité renseignée). Répond à « combien de
+   * kg par mois ? », plus parlant que le seul nombre d'achats. */
+  monthlyAvgQtyBase: number | null;
 };
 
 type ArticlePurchaseLine = {
@@ -411,6 +415,11 @@ function aggregateArticlePurchases(
             : null,
         monthlyAvgCount:
           Math.round((purchaseCount / Math.max(monthsCovered, 1)) * 10) / 10,
+        monthlyAvgQtyBase:
+          totalQtyBase != null
+            ? Math.round((totalQtyBase / Math.max(monthsCovered, 1)) * 1000) /
+              1000
+            : null,
       };
     })
     .sort((a, b) => b.totalAmount - a.totalAmount);

@@ -4,7 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { requireFinance } from '@/lib/auth-helpers';
 import * as expenses from '@/lib/expense-mutations';
 import * as recurring from '@/lib/recurring-expense-mutations';
+import { createInventoryItem } from '@/lib/inventory-mutations';
 import { updateExpenseSettings } from '@/lib/expense-settings-db';
+import type { InventoryUnitInput } from '@/lib/schemas/inventory';
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -152,6 +154,38 @@ export async function relinkExpenseItemAction(
 ): Promise<ActionResult> {
   await requireAdminId();
   return run(() => expenses.relinkExpenseItem(itemId, articleId));
+}
+
+/**
+ * Crée une référence d'inventaire directement depuis les réglages d'un article
+ * (évite l'aller-retour par l'onglet Inventaire pour lier le stock). Renvoie la
+ * référence créée pour que le sélecteur la propose et la sélectionne aussitôt.
+ */
+export async function createInventoryReferenceAction(input: {
+  name: string;
+  unit?: InventoryUnitInput;
+}): Promise<
+  | { ok: true; item: { id: string; name: string; sku: string; unit: string } }
+  | { ok: false; error: string }
+> {
+  const userId = await requireAdminId();
+  try {
+    const item = await createInventoryItem(
+      { name: input.name, unit: input.unit },
+      userId
+    );
+    revalidatePath('/dashboard/inventaire');
+    revalidate();
+    return {
+      ok: true,
+      item: { id: item.id, name: item.name, sku: item.sku, unit: item.unit },
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erreur inattendue',
+    };
+  }
 }
 
 // ── Réglages globaux (seuils fréquence/cumul/prix aberrant, TTL brouillon) ──

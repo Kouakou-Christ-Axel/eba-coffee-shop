@@ -29,6 +29,20 @@ const UNIT_FACTORS: Record<string, UnitFactor> = {
   unite: { family: 'unit', toCanonical: 1 },
 };
 
+/**
+ * Unité de base d'article (`BASE_UNITS`) → unité d'inventaire (`InventoryUnit`).
+ * Miroir de `INVENTORY_UNIT_TO_BASE` (lib/expense-mutations.ts) : sert à
+ * pré-remplir l'unité quand on crée une référence d'inventaire directement
+ * depuis les réglages d'un article. `null`/inconnu retombe sur `UNIT`.
+ */
+export const BASE_UNIT_TO_INVENTORY: Record<BaseUnit, string> = {
+  kg: 'KG',
+  g: 'G',
+  L: 'L',
+  mL: 'ML',
+  unite: 'UNIT',
+};
+
 /** Arrondi à 3 décimales (cohérent avec la colonne `@db.Decimal(12, 3)`). */
 function round3(n: number): number {
   return Math.round(n * 1000) / 1000;
