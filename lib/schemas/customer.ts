@@ -43,3 +43,17 @@ export const customerUpdateSchema = z
   });
 
 export type CustomerUpdateInput = z.infer<typeof customerUpdateSchema>;
+
+// Fusion de deux comptes clients (doublon) : `sourceId` est absorbé par
+// `targetId` (jamais l'inverse) — la source est supprimée après fusion.
+export const customerMergeSchema = z
+  .object({
+    sourceId: z.string().min(1, 'Client source requis'),
+    targetId: z.string().min(1, 'Client cible requis'),
+  })
+  .refine((v) => v.sourceId !== v.targetId, {
+    message: 'Impossible de fusionner un client avec lui-même',
+    path: ['targetId'],
+  });
+
+export type CustomerMergeInput = z.infer<typeof customerMergeSchema>;

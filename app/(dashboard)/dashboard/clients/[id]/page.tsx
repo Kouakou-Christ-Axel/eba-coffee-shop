@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CustomerFormSheet } from '../customer-form';
+import { MergeCustomerSheet } from '../merge-customer-form';
 import { MissedOrderStampsSheet } from '../missed-order-stamps-form';
 import {
   Table,
@@ -77,12 +78,19 @@ export default async function CustomerDetailPage({
               {formatPhoneForDisplay(customer.phone)}
             </p>
           </div>
-          <CustomerFormSheet
-            mode="edit"
-            id={customer.id}
-            name={customer.name}
-            phone={customer.phone}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <MergeCustomerSheet
+              customerId={customer.id}
+              customerName={customer.name}
+              customerPhone={customer.phone}
+            />
+            <CustomerFormSheet
+              mode="edit"
+              id={customer.id}
+              name={customer.name}
+              phone={customer.phone}
+            />
+          </div>
         </div>
       </div>
 
