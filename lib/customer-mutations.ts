@@ -9,8 +9,11 @@ import prisma from '@/lib/prisma';
 import { customerPhoneKey } from '@/lib/phone';
 import {
   customerInputSchema,
+  customerMergeSchema,
   customerUpdateSchema,
 } from '@/lib/schemas/customer';
+import { getLoyaltySettings } from '@/lib/loyalty-settings-db';
+import { computeStampAward } from '@/lib/loyalty-compute';
 
 /**
  * Upsert d'un client à partir du téléphone d'une commande, et renvoie son `id`
@@ -77,6 +80,113 @@ export async function updateCustomer(id: string, input: unknown) {
     }
     throw rethrowDuplicatePhone(err);
   }
+}
+
+export type CustomerMergeResult = {
+  customer: Awaited<ReturnType<typeof prisma.customer.update>>;
+  ordersMoved: number;
+  rewardsMoved: number;
+  ledgerMoved: number;
+  pollVotesMoved: number;
+  stampsMerged: number;
+};
+
+/**
+ * Fusionne `sourceId` dans `targetId` (deux comptes créés par erreur pour le
+ * même client, ex. saisie sur deux numéros différents) : commandes,
+ * récompenses, journal de fidélité et votes de sondage de la source sont
+ * re-rattachés à la cible ; l'avancement de sa carte à tampons est rejoué sur
+ * la cible via `computeStampAward` (mêmes paliers/récompenses qu'un
+ * rattrapage — cf. `awardMissedOrderStamps`) ; la source est ensuite
+ * supprimée. Le numéro de téléphone conservé est celui de `targetId`.
+ */
+export async function mergeCustomers(
+  input: unknown,
+  actorId?: string | null
+): Promise<CustomerMergeResult> {
+  const { sourceId, targetId } = customerMergeSchema.parse(input);
+  const settings = await getLoyaltySettings();
+
+  return prisma.$transaction(async (tx) => {
+    const [source, target] = await Promise.all([
+      tx.customer.findUnique({ where: { id: sourceId } }),
+      tx.customer.findUnique({ where: { id: targetId } }),
+    ]);
+    if (!source) throw new Error('Client source introuvable.');
+    if (!target) throw new Error('Client cible introuvable.');
+
+    const [orders, rewards, ledger, pollVotes] = await Promise.all([
+      tx.order.updateMany({
+        where: { customerId: sourceId },
+        data: { customerId: targetId },
+      }),
+      tx.loyaltyReward.updateMany({
+        where: { customerId: sourceId },
+        data: { customerId: targetId },
+      }),
+      tx.loyaltyLedger.updateMany({
+        where: { customerId: sourceId },
+        data: { customerId: targetId },
+      }),
+      tx.pollVote.updateMany({
+        where: { customerId: sourceId },
+        data: { customerId: targetId },
+      }),
+    ]);
+
+    let stampCount = target.stampCount;
+    for (let i = 0; i < source.stampCount; i++) {
+      const result = computeStampAward(stampCount, settings);
+      stampCount = result.newStampCount;
+      for (const r of result.rewards) {
+        await tx.loyaltyReward.create({
+          data: { customerId: targetId, tier: r.tier, capAmount: r.capAmount },
+        });
+        await tx.loyaltyLedger.create({
+          data: {
+            customerId: targetId,
+            type: 'REWARD_EARNED',
+            actorId: actorId ?? null,
+            note: `Palier ${r.tier} — ${r.capAmount} F (fusion depuis ${source.phone})`,
+          },
+        });
+      }
+    }
+    if (source.stampCount > 0) {
+      await tx.loyaltyLedger.create({
+        data: {
+          customerId: targetId,
+          type: 'ADJUSTMENT',
+          stamps: source.stampCount,
+          actorId: actorId ?? null,
+          note: `Fusion du compte ${source.phone}`,
+        },
+      });
+    }
+
+    const lastStampDate =
+      target.lastStampDate && source.lastStampDate
+        ? target.lastStampDate > source.lastStampDate
+          ? target.lastStampDate
+          : source.lastStampDate
+        : (target.lastStampDate ?? source.lastStampDate);
+
+    const merged = await tx.customer.update({
+      where: { id: targetId },
+      data: { stampCount, lastStampDate, name: target.name ?? source.name },
+    });
+
+    await tx.customer.delete({ where: { id: sourceId } });
+
+    return {
+      customer: merged,
+      ordersMoved: orders.count,
+      rewardsMoved: rewards.count,
+      ledgerMoved: ledger.count,
+      pollVotesMoved: pollVotes.count,
+      stampsMerged: source.stampCount,
+    };
+  });
 }
 
 function rethrowDuplicatePhone(err: unknown): unknown {
