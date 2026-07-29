@@ -15,6 +15,7 @@
 //   2. valider les `arguments` reçus dans `tools/call` avant d'appeler le handler.
 
 import { z } from 'zod';
+import prisma from '@/lib/prisma';
 import { getMenuAdmin } from '@/lib/menu';
 import {
   getDailyStats,
@@ -1480,11 +1481,14 @@ export const tools: McpTool[] = [
         id: string;
         paymentMode: z.infer<typeof paymentModeSchema>;
       };
-      const { startedPreparation } = await setOrderPayment(
-        id,
-        true,
-        paymentMode
-      );
+      const order = await prisma.order.findUnique({
+        where: { id },
+        select: { total: true },
+      });
+      if (!order) throw new Error('Commande introuvable');
+      const { startedPreparation } = await setOrderPayment(id, true, [
+        { mode: paymentMode, amount: order.total },
+      ]);
       return { ok: true, id, paymentMode, startedPreparation };
     },
   },

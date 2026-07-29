@@ -65,3 +65,8 @@ export function canRequestDriver(role: UserRole): boolean {
 export function canDismissDriverRequest(role: UserRole): boolean {
   return CASHIER_PLUS.includes(role);
 }
+
+/** Le rôle peut-il éditer la prise en charge (type, créneau, livreur) ? */
+export function canEditOrderFulfillment(role: UserRole): boolean {
+  return CASHIER_PLUS.includes(role);
+}

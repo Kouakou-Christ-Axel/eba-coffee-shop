@@ -37,6 +37,7 @@ model User {
   createdPolls              Poll[]             @relation("PollCreatedBy")
   moderatedPollSuggestions  PollSuggestion[]   @relation("PollSuggestionModeratedBy")
   purchaseDrafts            PurchaseDraft[]    @relation("PurchaseDraftCreatedBy")
+  orderPaymentsCreated      OrderPayment[]     @relation("OrderPaymentCreatedBy")
 
   @@map("user")
 }
@@ -230,6 +231,12 @@ model Order {
   // Appareils clients abonnés aux changements de statut (page de suivi).
   pushSubscriptions PushSubscription[]
 
+  // Paiement fractionné : 1..N lignes (mode + montant) dont la somme égale
+  // `total` une fois la commande payée. `paymentMode` ci-dessus reste
+  // renseigné pour le cas courant (1 seule ligne) ; null pour un paiement
+  // fractionné (2+ modes distincts) — cf. lib/order-mutations.ts::setOrderPayment.
+  payments OrderPayment[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -238,6 +245,27 @@ model Order {
   @@index([createdAt(sort: Desc)])
   @@index([customerId])
   @@map("order")
+}
+
+// ─── Lignes de paiement (paiement fractionné) ──────────────────────────────────
+// Une commande payée peut être réglée via 1..N lignes de modes différents, à
+// condition que leur somme égale EXACTEMENT `Order.total` (pas de paiement
+// partiel/layaway — cf. `setOrderPayment` dans lib/order-mutations.ts).
+model OrderPayment {
+  id      String      @id @default(cuid())
+  orderId String
+  order   Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  mode    PaymentMode
+  amount  Int // FCFA
+
+  createdById String?
+  createdBy   User?   @relation("OrderPaymentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([mode])
+  @@map("order_payment")
 }
 
 model Customer {

@@ -221,6 +221,7 @@ describe('getOrder', () => {
     expect(result).toEqual(mockOrder);
     expect(mockFindUnique).toHaveBeenCalledWith({
       where: { id: 'clorder123' },
+      include: { payments: true },
     });
   });
 

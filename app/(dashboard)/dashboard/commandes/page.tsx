@@ -241,7 +241,7 @@ export default async function CommandesPage({
                   <TableCell className="hidden md:table-cell">
                     {order.isPaid ? (
                       <Badge variant="default" className="bg-green-600">
-                        {order.paymentMode ?? 'Payée'}
+                        {order.paymentMode ?? 'Fractionné'}
                       </Badge>
                     ) : order.status !== 'CANCELLED' ? (
                       <Badge variant="secondary">À encaisser</Badge>
@@ -272,7 +272,6 @@ export default async function CommandesPage({
                             orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
                             amount={order.total}
                             isPaid={order.isPaid}
-                            currentPaymentMode={order.paymentMode}
                             variant="outline"
                             size="sm"
                           />

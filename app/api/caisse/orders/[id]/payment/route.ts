@@ -1,9 +1,11 @@
 // app/api/caisse/orders/[id]/payment/route.ts
 //
 // PATCH /api/caisse/orders/:id/payment
-// Body : { isPaid: boolean, paymentMode?: 'CASH' | 'WAVE' | 'OTHER' }
+// Body : { isPaid: boolean, payments?: { mode: PaymentMode; amount: number }[] }
 //
-// Règle : si isPaid=true, paymentMode est requis.
+// Règle : si isPaid=true, payments est requis (1..N lignes dont la somme doit
+// égaler EXACTEMENT le total de la commande — paiement fractionné supporté,
+// pas de paiement partiel/layaway).
 // Optimistic concurrency : on update WHERE isPaid=<oldValue> et on rejette si
 // 0 rows affected (double-clic, ou modif concurrente d'un autre caissier).
 
@@ -11,7 +13,7 @@ import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireCashier } from '@/lib/auth-helpers';
-import { paymentModeSchema } from '@/lib/schemas/order';
+import { orderPaymentsSchema } from '@/lib/schemas/order';
 import { setOrderPayment, OrderMutationError } from '@/lib/order-mutations';
 
 // Un paiement réussi peut avoir décrémenté du stock (produit/option) : la carte
@@ -29,18 +31,19 @@ function revalidatePublicMenu() {
 const bodySchema = z
   .object({
     isPaid: z.boolean(),
-    paymentMode: paymentModeSchema.optional(),
+    payments: orderPaymentsSchema.optional(),
   })
-  .refine((data) => !data.isPaid || data.paymentMode !== undefined, {
-    message: 'paymentMode requis quand isPaid=true',
-    path: ['paymentMode'],
+  .refine((data) => !data.isPaid || data.payments !== undefined, {
+    message: 'payments requis quand isPaid=true',
+    path: ['payments'],
   });
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: Request, { params }: Params) {
+  let session;
   try {
-    await requireCashier();
+    session = await requireCashier();
   } catch {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
@@ -65,13 +68,14 @@ export async function PATCH(req: Request, { params }: Params) {
     );
   }
 
-  const { isPaid, paymentMode } = parsed.data;
+  const { isPaid, payments } = parsed.data;
 
   try {
     const { startedPreparation } = await setOrderPayment(
       id,
       isPaid,
-      paymentMode
+      payments,
+      session.user.id
     );
     if (isPaid) revalidatePublicMenu();
     return NextResponse.json({ ok: true, startedPreparation });

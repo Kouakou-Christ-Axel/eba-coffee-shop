@@ -10,6 +10,7 @@ import {
   BellOff,
   ChefHat,
   Pencil,
+  CalendarClock,
   Ban,
   RotateCcw,
   AlertTriangle,
@@ -24,8 +25,9 @@ import {
 import { getPickupCode } from '@/lib/orders/format';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import { priceFormatter, type MenuCategory } from '@/config/menu';
-import type { OrderStatus, PaymentMode } from '@/generated/prisma/client';
-import { PaymentModal } from './payment-modal';
+import type { OrderStatus } from '@/generated/prisma/client';
+import { PaymentModal, type PaymentLine } from './payment-modal';
+import { EditFulfillmentModal } from './edit-fulfillment-modal';
 import { CopyRecapButton } from '../_components/copy-recap-button';
 import { OrderItemsEditor } from '../_components/order-items-editor';
 
@@ -64,6 +66,7 @@ export function OrderCardActions({
   const [isPending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isEditFulfillmentOpen, setIsEditFulfillmentOpen] = useState(false);
 
   const canEditItems =
     order.status !== 'COMPLETED' && order.status !== 'CANCELLED';
@@ -117,13 +120,13 @@ export function OrderCardActions({
     );
   }
 
-  function handlePaymentConfirm(mode: PaymentMode) {
+  function handlePaymentConfirm(payments: PaymentLine[]) {
     setPaymentError(null);
     startTransition(async () => {
       const result = await callApi(
         `/api/caisse/orders/${order.id}/payment`,
         'PATCH',
-        { isPaid: true, paymentMode: mode }
+        { isPaid: true, payments }
       );
       if (!result.ok) {
         setPaymentError(result.error);
@@ -142,7 +145,7 @@ export function OrderCardActions({
       const result = await callApi(
         `/api/caisse/orders/${order.id}/payment`,
         'PATCH',
-        { isPaid: true, paymentMode: 'WAVE' satisfies PaymentMode }
+        { isPaid: true, payments: [{ mode: 'WAVE', amount: order.total }] }
       );
       if (!result.ok) setActionError(result.error);
     });
@@ -379,6 +382,22 @@ export function OrderCardActions({
           </Button>
         )}
 
+        {/* Modifier la prise en charge : type, créneau de retrait / arrivée
+            du livreur, identité du livreur */}
+        {canEditItems && (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="w-full text-muted-foreground"
+            disabled={isPending}
+            onClick={() => setIsEditFulfillmentOpen(true)}
+          >
+            <CalendarClock className="mr-1.5 h-4 w-4" />
+            Modifier la prise en charge
+          </Button>
+        )}
+
         {/* Annuler / Rembourser : rembourser si déjà payée, sinon annuler */}
         {order.status !== 'CANCELLED' && (
           <Button
@@ -439,6 +458,12 @@ export function OrderCardActions({
         isSubmitting={isPending}
         onConfirm={handlePaymentConfirm}
         error={paymentError}
+      />
+
+      <EditFulfillmentModal
+        isOpen={isEditFulfillmentOpen}
+        onClose={() => setIsEditFulfillmentOpen(false)}
+        order={order}
       />
     </>
   );

@@ -16,6 +16,7 @@ import {
 vi.mock('@/lib/prisma', () => ({
   default: {
     order: { findMany: vi.fn() },
+    orderPayment: { groupBy: vi.fn().mockResolvedValue([]) },
     revenueAdjustment: { groupBy: vi.fn(), findMany: vi.fn() },
   },
 }));
@@ -38,13 +39,16 @@ type FindManyArgs = { where: { dailyDate: Date | { gte: Date; lte: Date } } };
 const mockOrderFindMany = prisma.order.findMany as unknown as MockedFunction<
   (args: FindManyArgs) => Promise<unknown>
 >;
+const mockOrderPaymentGroupBy = prisma.orderPayment
+  .groupBy as unknown as MockedFunction<() => Promise<unknown>>;
 const mockAdjGroupBy = prisma.revenueAdjustment
   .groupBy as unknown as MockedFunction<() => Promise<unknown>>;
 const mockExpenseSummary = getExpenseSummary as unknown as MockedFunction<
   (from: Date, to: Date) => Promise<{ total: number; byCategory: [] }>
 >;
 
-const utc = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d));
+const utc = (y: number, m: number, d: number) =>
+  new Date(Date.UTC(y, m - 1, d));
 
 const paidOrder = (total: number) => ({
   status: 'COMPLETED',
@@ -96,6 +100,7 @@ describe('previousRange', () => {
 describe('compareRanges', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockOrderPaymentGroupBy.mockResolvedValue([]);
   });
 
   it('applique les régularisations aux DEUX périodes et calcule les deltas', async () => {
@@ -182,6 +187,7 @@ describe('compareRanges', () => {
 describe('compareDays', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockOrderPaymentGroupBy.mockResolvedValue([]);
   });
 
   it('compare aujourd’hui à hier et au même jour de la semaine dernière', async () => {

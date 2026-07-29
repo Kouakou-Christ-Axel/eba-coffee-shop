@@ -56,13 +56,16 @@ const ORDER_TYPE_META: Record<OrderType, { label: string; Icon: typeof Bike }> =
   };
 
 type PaymentBadge =
-  | { kind: 'paid' }
+  | { kind: 'paid'; split: boolean }
   | { kind: 'unpaid' }
   | { kind: 'pay-after' }
   | { kind: 'pickup-unpaid' };
 
 function getPaymentBadge(order: CashierOrder): PaymentBadge {
-  if (order.isPaid) return { kind: 'paid' };
+  // Payée sans mode unique résolu = paiement fractionné (2+ moyens distincts),
+  // cf. lib/order-mutations.ts::resolvePaymentMode — le détail vit dans
+  // `OrderPayment`, non exposé sur `CashierOrder`.
+  if (order.isPaid) return { kind: 'paid', split: order.paymentMode === null };
   // Récupérée mais toujours pas encaissée : à signaler clairement.
   if (order.status === 'COMPLETED') return { kind: 'pickup-unpaid' };
   if (order.status === 'PREPARING' || order.status === 'READY') {
@@ -361,6 +364,11 @@ function PaymentBadgePill({ payment }: { payment: PaymentBadge }) {
     },
   }[payment.kind];
 
+  const label =
+    payment.kind === 'paid' && payment.split
+      ? 'Payée · fractionné'
+      : config.label;
+
   return (
     <span
       className={cn(
@@ -368,7 +376,7 @@ function PaymentBadgePill({ payment }: { payment: PaymentBadge }) {
         config.className
       )}
     >
-      {config.label}
+      {label}
     </span>
   );
 }

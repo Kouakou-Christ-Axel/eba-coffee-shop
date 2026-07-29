@@ -13,7 +13,12 @@ vi.mock('@/lib/prisma', () => {
     order: {
       findUnique: vi.fn(),
       updateMany: vi.fn(),
+      update: vi.fn(),
       findMany: vi.fn().mockResolvedValue([]),
+    },
+    orderPayment: {
+      createMany: vi.fn(),
+      deleteMany: vi.fn(),
     },
     product: {
       updateMany: vi.fn(),
@@ -25,8 +30,11 @@ vi.mock('@/lib/prisma', () => {
     },
     // Les transactions reçoivent le même client mocké : les assertions sur les
     // mocks de premier niveau couvrent donc aussi les opérations transactionnelles.
-    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
-      fn(client)
+    // `$transaction([...])` (forme tableau, utilisée pour le dépaiement) résout
+    // simplement chaque promesse déjà construite avec ce même client mocké.
+    $transaction: vi.fn(
+      async (arg: ((tx: unknown) => Promise<unknown>) | Promise<unknown>[]) =>
+        Array.isArray(arg) ? Promise.all(arg) : arg(client)
     ),
   };
   return { default: client };
@@ -41,6 +49,8 @@ import prisma from '@/lib/prisma';
 import {
   setOrderPayment,
   payAndComplete,
+  updateOrderFulfillment,
+  OrderMutationError,
   StockShortageError,
 } from './order-mutations';
 import type { CartItem } from '@/lib/cart-store';
@@ -51,6 +61,13 @@ const mockOrderFindUnique = prisma.order.findUnique as MockedFunction<
 const mockOrderUpdateMany = prisma.order.updateMany as MockedFunction<
   typeof prisma.order.updateMany
 >;
+const mockOrderUpdate = prisma.order.update as MockedFunction<
+  typeof prisma.order.update
+>;
+const mockOrderPaymentCreateMany = prisma.orderPayment
+  .createMany as MockedFunction<typeof prisma.orderPayment.createMany>;
+const mockOrderPaymentDeleteMany = prisma.orderPayment
+  .deleteMany as MockedFunction<typeof prisma.orderPayment.deleteMany>;
 const mockProdUpdateMany = prisma.product.updateMany as MockedFunction<
   typeof prisma.product.updateMany
 >;
@@ -62,10 +79,11 @@ const mockOptionUpdateMany = prisma.supplementOption
 
 const orderWithOneItem = (
   item: Partial<CartItem> = {},
-  orderOverrides: { status?: string } = {}
+  orderOverrides: { status?: string; total?: number } = {}
 ) => ({
   isPaid: false,
   status: 'NEW',
+  total: 2500,
   ...orderOverrides,
   items: [
     {
@@ -103,7 +121,7 @@ describe('setOrderPayment — décrément du stock au paiement', () => {
     mockOptionFindFirst.mockResolvedValue({ id: 'opt-active' } as never);
     mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
 
-    await setOrderPayment('order1', true, 'CASH');
+    await setOrderPayment('order1', true, [{ mode: 'CASH', amount: 2500 }]);
 
     expect(mockOptionFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -134,9 +152,9 @@ describe('setOrderPayment — décrément du stock au paiement', () => {
     mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
     mockOptionFindFirst.mockResolvedValue(null);
 
-    await expect(setOrderPayment('order1', true, 'CASH')).rejects.toThrow(
-      StockShortageError
-    );
+    await expect(
+      setOrderPayment('order1', true, [{ mode: 'CASH', amount: 2500 }])
+    ).rejects.toThrow(StockShortageError);
     // Le flip isPaid n'a jamais lieu : rien n'est réservé sur un refus.
     expect(mockOrderUpdateMany).not.toHaveBeenCalled();
   });
@@ -147,9 +165,9 @@ describe('setOrderPayment — décrément du stock au paiement', () => {
     );
     mockProdUpdateMany.mockResolvedValue({ count: 0 } as never);
 
-    await expect(setOrderPayment('order1', true, 'CASH')).rejects.toThrow(
-      StockShortageError
-    );
+    await expect(
+      setOrderPayment('order1', true, [{ mode: 'CASH', amount: 2500 }])
+    ).rejects.toThrow(StockShortageError);
     expect(mockOptionFindFirst).not.toHaveBeenCalled();
     expect(mockOrderUpdateMany).not.toHaveBeenCalled();
   });
@@ -160,9 +178,9 @@ describe('setOrderPayment — décrément du stock au paiement', () => {
     mockOptionFindFirst.mockResolvedValue({ id: 'opt-active' } as never);
     mockOptionUpdateMany.mockResolvedValue({ count: 0 } as never);
 
-    await expect(setOrderPayment('order1', true, 'CASH')).rejects.toThrow(
-      StockShortageError
-    );
+    await expect(
+      setOrderPayment('order1', true, [{ mode: 'CASH', amount: 2500 }])
+    ).rejects.toThrow(StockShortageError);
     expect(mockOrderUpdateMany).not.toHaveBeenCalled();
   });
 
@@ -172,7 +190,7 @@ describe('setOrderPayment — décrément du stock au paiement', () => {
     );
     mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
 
-    await setOrderPayment('order1', true, 'CASH');
+    await setOrderPayment('order1', true, [{ mode: 'CASH', amount: 2500 }]);
 
     expect(mockOptionFindFirst).not.toHaveBeenCalled();
     expect(mockOrderUpdateMany).toHaveBeenCalledWith(
@@ -191,7 +209,7 @@ describe('setOrderPayment — décrément du stock au paiement', () => {
       orderWithOneItem({}, { status: 'COMPLETED' }) as never
     );
 
-    await setOrderPayment('order1', true, 'CASH');
+    await setOrderPayment('order1', true, [{ mode: 'CASH', amount: 2500 }]);
 
     expect(mockProdUpdateMany).not.toHaveBeenCalled();
     expect(mockOptionFindFirst).not.toHaveBeenCalled();
@@ -215,7 +233,11 @@ describe('payAndComplete — même exception pour une commande déjà COMPLETED'
       orderWithOneItem({}, { status: 'COMPLETED' }) as never
     );
 
-    const result = await payAndComplete('order1', 'CASH', 'ADMIN');
+    const result = await payAndComplete(
+      'order1',
+      [{ mode: 'CASH', amount: 2500 }],
+      'ADMIN'
+    );
 
     expect(result).toEqual({ alreadyPaid: false });
     expect(mockProdUpdateMany).not.toHaveBeenCalled();
@@ -223,6 +245,153 @@ describe('payAndComplete — même exception pour une commande déjà COMPLETED'
     expect(mockOrderUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: 'COMPLETED', isPaid: true }),
+      })
+    );
+  });
+});
+
+describe('setOrderPayment — paiement fractionné', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOrderUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-active' } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+  });
+
+  it('refuse (400) si la somme des paiements ne correspond pas au total', async () => {
+    mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
+
+    await expect(
+      setOrderPayment('order1', true, [{ mode: 'CASH', amount: 1000 }])
+    ).rejects.toThrow(OrderMutationError);
+    expect(mockOrderUpdateMany).not.toHaveBeenCalled();
+    expect(mockOrderPaymentCreateMany).not.toHaveBeenCalled();
+  });
+
+  it('2 moyens distincts : crée une ligne OrderPayment par moyen et laisse paymentMode=null', async () => {
+    mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
+
+    await setOrderPayment('order1', true, [
+      { mode: 'CASH', amount: 1000 },
+      { mode: 'WAVE', amount: 1500 },
+    ]);
+
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ isPaid: true, paymentMode: null }),
+      })
+    );
+    expect(mockOrderPaymentCreateMany).toHaveBeenCalledWith({
+      data: [
+        { orderId: 'order1', mode: 'CASH', amount: 1000, createdById: null },
+        { orderId: 'order1', mode: 'WAVE', amount: 1500, createdById: null },
+      ],
+    });
+  });
+
+  it('un seul moyen (même fractionné en 2 lignes du même mode) : paymentMode reste renseigné', async () => {
+    mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
+
+    await setOrderPayment('order1', true, [
+      { mode: 'CASH', amount: 1000 },
+      { mode: 'CASH', amount: 1500 },
+    ]);
+
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ isPaid: true, paymentMode: 'CASH' }),
+      })
+    );
+  });
+});
+
+describe('setOrderPayment — dépaiement', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('supprime les lignes OrderPayment existantes au dépaiement', async () => {
+    mockOrderFindUnique.mockResolvedValue({ isPaid: true } as never);
+    mockOrderUpdateMany.mockResolvedValue({ count: 1 } as never);
+
+    const result = await setOrderPayment('order1', false);
+
+    expect(result).toEqual({ startedPreparation: false });
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'order1', isPaid: true },
+      data: { isPaid: false, paymentMode: null, paidAt: null },
+    });
+    expect(mockOrderPaymentDeleteMany).toHaveBeenCalledWith({
+      where: { orderId: 'order1' },
+    });
+  });
+});
+
+describe('updateOrderFulfillment', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('refuse (409) sur une commande terminée', async () => {
+    mockOrderFindUnique.mockResolvedValue({ status: 'COMPLETED' } as never);
+
+    await expect(
+      updateOrderFulfillment('order1', { orderType: 'DELIVERY' })
+    ).rejects.toThrow(OrderMutationError);
+    expect(mockOrderUpdate).not.toHaveBeenCalled();
+  });
+
+  it('refuse (409) sur une commande annulée', async () => {
+    mockOrderFindUnique.mockResolvedValue({ status: 'CANCELLED' } as never);
+
+    await expect(
+      updateOrderFulfillment('order1', { orderType: 'DELIVERY' })
+    ).rejects.toThrow(OrderMutationError);
+  });
+
+  it('lève (404) si la commande est introuvable', async () => {
+    mockOrderFindUnique.mockResolvedValue(null);
+
+    await expect(
+      updateOrderFulfillment('order1', { orderType: 'DELIVERY' })
+    ).rejects.toThrow(OrderMutationError);
+  });
+
+  it('met à jour orderType/pickupTime/note directement, sans toucher au livreur si absent', async () => {
+    mockOrderFindUnique.mockResolvedValue({ status: 'NEW' } as never);
+    mockOrderUpdate.mockResolvedValue({} as never);
+
+    await updateOrderFulfillment('order1', {
+      orderType: 'DELIVERY',
+      pickupTime: '2026-08-01T10:00:00.000Z',
+      note: 'Sonner deux fois',
+    });
+
+    expect(mockOrderUpdate).toHaveBeenCalledWith({
+      where: { id: 'order1' },
+      data: {
+        orderType: 'DELIVERY',
+        pickupTime: new Date('2026-08-01T10:00:00.000Z'),
+        note: 'Sonner deux fois',
+      },
+    });
+  });
+
+  it('délègue driverName/driverPhone à setOrderDriver sans dupliquer la normalisation', async () => {
+    // Deux findUnique : un pour la garde de `updateOrderFulfillment`, un pour
+    // celle de `setOrderDriver` (délégation, pas de logique dupliquée).
+    mockOrderFindUnique.mockResolvedValue({ status: 'NEW' } as never);
+    mockOrderUpdate.mockResolvedValue({} as never);
+
+    await updateOrderFulfillment('order1', {
+      driverName: 'Ibrahim',
+      driverPhone: '0708090910',
+    });
+
+    expect(mockOrderUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ driverName: 'Ibrahim' }),
       })
     );
   });

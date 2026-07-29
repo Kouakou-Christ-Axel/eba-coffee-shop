@@ -41,6 +41,7 @@ export async function getDailyStats(
     prisma.order.findMany({
       where: { dailyDate: date },
       select: {
+        id: true,
         status: true,
         orderType: true,
         isPaid: true,
@@ -64,6 +65,8 @@ export async function getDailyStats(
     revenueByPaymentMode: { CASH: 0, WAVE: 0, ORANGE_MONEY: 0, OTHER: 0 },
   };
 
+  const paidOrderIds: string[] = [];
+
   for (const o of orders) {
     stats.countByOrderType[o.orderType]++;
 
@@ -74,10 +77,24 @@ export async function getDailyStats(
     if (o.isPaid && o.status !== 'CANCELLED') {
       stats.paidOrders++;
       stats.revenue += o.total;
+      paidOrderIds.push(o.id);
       if (o.paymentMode) {
         stats.countByPaymentMode[o.paymentMode]++;
-        stats.revenueByPaymentMode[o.paymentMode] += o.total;
       }
+    }
+  }
+
+  // CA par mode : sommé depuis les lignes `OrderPayment` (pas `order.total`
+  // attribué en bloc à `order.paymentMode`), pour rester correct sur une
+  // commande réglée en plusieurs moyens (paiement fractionné).
+  if (paidOrderIds.length > 0) {
+    const paymentSums = await prisma.orderPayment.groupBy({
+      by: ['mode'],
+      where: { orderId: { in: paidOrderIds } },
+      _sum: { amount: true },
+    });
+    for (const row of paymentSums) {
+      stats.revenueByPaymentMode[row.mode] += row._sum.amount ?? 0;
     }
   }
 
@@ -126,6 +143,7 @@ export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
     prisma.order.findMany({
       where: { dailyDate: { gte: from, lte: to } },
       select: {
+        id: true,
         status: true,
         orderType: true,
         isPaid: true,
@@ -157,6 +175,8 @@ export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
     revenueByPaymentMode: { CASH: 0, WAVE: 0, ORANGE_MONEY: 0, OTHER: 0 },
   };
 
+  const paidOrderIds: string[] = [];
+
   for (const o of orders) {
     stats.countByStatus[o.status]++;
     stats.countByOrderType[o.orderType]++;
@@ -165,10 +185,23 @@ export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
     if (o.isPaid && o.status !== 'CANCELLED') {
       stats.paidOrders++;
       stats.revenue += o.total;
+      paidOrderIds.push(o.id);
       if (o.paymentMode) {
         stats.countByPaymentMode[o.paymentMode]++;
-        stats.revenueByPaymentMode[o.paymentMode] += o.total;
       }
+    }
+  }
+
+  // CA par mode : sommé depuis les lignes `OrderPayment` (paiement fractionné,
+  // cf. getDailyStats).
+  if (paidOrderIds.length > 0) {
+    const paymentSums = await prisma.orderPayment.groupBy({
+      by: ['mode'],
+      where: { orderId: { in: paidOrderIds } },
+      _sum: { amount: true },
+    });
+    for (const row of paymentSums) {
+      stats.revenueByPaymentMode[row.mode] += row._sum.amount ?? 0;
     }
   }
 
