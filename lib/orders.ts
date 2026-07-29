@@ -156,7 +156,12 @@ export async function createOrder(input: CreateOrderInput) {
 }
 
 export async function getOrder(id: string) {
-  return prisma.order.findUnique({ where: { id } });
+  // `payments` : détail des lignes de paiement fractionné (affiché quand
+  // `paymentMode` est null malgré `isPaid=true` — cf. page de détail admin).
+  return prisma.order.findUnique({
+    where: { id },
+    include: { payments: true },
+  });
 }
 
 // ─── Vue publique (page de suivi /commande/:id) ───────────────────────────────

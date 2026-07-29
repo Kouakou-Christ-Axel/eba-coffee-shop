@@ -8,8 +8,7 @@
 import { useState, useTransition } from 'react';
 import { CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { PaymentMode } from '@/generated/prisma/client';
-import { PaymentModal } from '../caisse/payment-modal';
+import { PaymentModal, type PaymentLine } from '../caisse/payment-modal';
 import { payAndCompleteAction } from './actions';
 
 type Props = {
@@ -18,8 +17,6 @@ type Props = {
   amount: number;
   /** Commande déjà encaissée : pas de modale, finalisation directe. */
   isPaid?: boolean;
-  /** Mode déjà enregistré (réutilisé tel quel quand `isPaid`). */
-  currentPaymentMode?: PaymentMode | null;
   variant?: 'default' | 'outline' | 'ghost';
   size?: 'default' | 'sm' | 'lg';
   className?: string;
@@ -31,7 +28,6 @@ export function ExpressCompleteButton({
   orderRef,
   amount,
   isPaid = false,
-  currentPaymentMode,
   variant = 'default',
   size = 'sm',
   className,
@@ -41,11 +37,11 @@ export function ExpressCompleteButton({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  function complete(mode: PaymentMode) {
+  function complete(payments: PaymentLine[] | undefined) {
     setError(null);
     startTransition(async () => {
       try {
-        const result = await payAndCompleteAction(orderId, mode);
+        const result = await payAndCompleteAction(orderId, payments);
         if (result?.error) {
           setError(result.error);
           return;
@@ -58,9 +54,9 @@ export function ExpressCompleteButton({
   }
 
   function handleClick() {
-    // Déjà payée : le mode est ignoré côté serveur, on finalise directement.
+    // Déjà payée : payments est ignoré côté serveur, on finalise directement.
     if (isPaid) {
-      complete(currentPaymentMode ?? 'CASH');
+      complete(undefined);
       return;
     }
     setIsOpen(true);

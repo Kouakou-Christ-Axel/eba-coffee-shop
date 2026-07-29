@@ -13,6 +13,7 @@ import {
   ORDER_CUSTOMER_NAME_MAX,
   ORDER_CUSTOMER_PHONE_MAX,
   ORDER_DISCOUNT_REASON_MAX,
+  ORDER_NOTE_MAX,
 } from '@/config/constants';
 
 // ─── Sous-schémas : articles du panier ────────────────────────────────────────
@@ -288,3 +289,84 @@ export const setOrderDriverSchema = orderDriverFieldsSchema.refine(
 );
 
 export type SetOrderDriverInput = z.infer<typeof setOrderDriverSchema>;
+
+// ─── updateOrderFulfillmentSchema ─────────────────────────────────────────────
+//
+// Édition « prise en charge » d'une commande depuis LA CAISSE (CASHIER_PLUS,
+// cf. `canEditOrderFulfillment` dans lib/order-permissions.ts) : type de
+// commande, créneau de retrait / heure d'arrivée du livreur, identité du
+// livreur, note. Distinct de `updateOrderDetailsSchema` (réservé ADMIN, qui
+// touche aussi `paymentMode`) : ce schéma ne touche JAMAIS le paiement, pour ne
+// jamais se désynchroniser du paiement fractionné (`setOrderPayment`).
+//
+// Champs livreur optionnels (contrairement à `orderDriverFieldsSchema`, requis
+// tous les deux) car ici on édite une commande existante : soit on ne touche
+// pas au livreur (les deux absents), soit on le renseigne/efface (les deux
+// fournis, tous deux null pour effacer).
+
+export const updateOrderFulfillmentSchema = z
+  .object({
+    orderType: orderTypeSchema.optional(),
+    pickupTime: z
+      .string()
+      .datetime({ message: 'Date de retrait invalide' })
+      .nullable()
+      .optional(),
+    driverName: orderDriverFieldsSchema.shape.driverName.optional(),
+    driverPhone: orderDriverFieldsSchema.shape.driverPhone.optional(),
+    note: z
+      .string()
+      .trim()
+      .max(ORDER_NOTE_MAX, 'Note trop longue')
+      .nullable()
+      .optional(),
+  })
+  .refine(
+    (d) => (d.driverName === undefined) === (d.driverPhone === undefined),
+    {
+      message: 'Nom et téléphone du livreur doivent être fournis ensemble',
+      path: ['driverPhone'],
+    }
+  )
+  .refine(
+    (d) =>
+      d.driverName === undefined ||
+      d.driverPhone === undefined ||
+      (d.driverName === null) === (d.driverPhone === null),
+    {
+      message: 'Nom et téléphone du livreur vont ensemble',
+      path: ['driverPhone'],
+    }
+  )
+  .refine(
+    (d) =>
+      d.orderType !== undefined ||
+      d.pickupTime !== undefined ||
+      d.driverName !== undefined ||
+      d.driverPhone !== undefined ||
+      d.note !== undefined,
+    { message: 'Au moins un champ à mettre à jour est requis' }
+  );
+
+export type UpdateOrderFulfillmentInput = z.infer<
+  typeof updateOrderFulfillmentSchema
+>;
+
+// ─── Paiement fractionné ───────────────────────────────────────────────────────
+//
+// Une commande payée peut être réglée via 1..N lignes de moyens de paiement
+// différents, à condition que leur somme égale EXACTEMENT le total de la
+// commande (pas de paiement partiel/layaway — cf. `setOrderPayment` dans
+// lib/order-mutations.ts, qui revalide cette somme côté serveur contre le
+// total relu en base).
+
+export const orderPaymentLineSchema = z.object({
+  mode: paymentModeSchema,
+  amount: z.number().int().positive('Montant invalide'),
+});
+
+export const orderPaymentsSchema = z
+  .array(orderPaymentLineSchema)
+  .min(1, 'Au moins un moyen de paiement');
+
+export type OrderPaymentLineInput = z.infer<typeof orderPaymentLineSchema>;

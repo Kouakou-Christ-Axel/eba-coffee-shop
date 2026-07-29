@@ -16,6 +16,7 @@ import {
 vi.mock('@/lib/prisma', () => ({
   default: {
     order: { findMany: vi.fn() },
+    orderPayment: { groupBy: vi.fn() },
     revenueAdjustment: { groupBy: vi.fn(), findMany: vi.fn() },
   },
 }));
@@ -26,6 +27,8 @@ import { getRangeStats, getDailySeries, getDailyStats } from './stats';
 const mockOrderFindMany = prisma.order.findMany as unknown as MockedFunction<
   () => Promise<unknown>
 >;
+const mockOrderPaymentGroupBy = prisma.orderPayment
+  .groupBy as unknown as MockedFunction<() => Promise<unknown>>;
 const mockAdjGroupBy = prisma.revenueAdjustment
   .groupBy as unknown as MockedFunction<() => Promise<unknown>>;
 const mockAdjFindMany = prisma.revenueAdjustment
@@ -43,6 +46,7 @@ describe('getRangeStats avec régularisations de recette', () => {
     // 2 commandes payées : 1000 (CASH) + 2000 (WAVE) → CA commandes = 3000.
     mockOrderFindMany.mockResolvedValue([
       {
+        id: 'o1',
         status: 'COMPLETED',
         orderType: 'TAKEAWAY',
         isPaid: true,
@@ -50,12 +54,18 @@ describe('getRangeStats avec régularisations de recette', () => {
         total: 1000,
       },
       {
+        id: 'o2',
         status: 'COMPLETED',
         orderType: 'TAKEAWAY',
         isPaid: true,
         paymentMode: 'WAVE',
         total: 2000,
       },
+    ]);
+    // CA par mode : désormais sommé depuis OrderPayment (paiement fractionné).
+    mockOrderPaymentGroupBy.mockResolvedValue([
+      { mode: 'CASH', _sum: { amount: 1000 } },
+      { mode: 'WAVE', _sum: { amount: 2000 } },
     ]);
     // Régularisation : +80 000 en espèces.
     mockAdjGroupBy.mockResolvedValue([
@@ -75,15 +85,50 @@ describe('getRangeStats avec régularisations de recette', () => {
     expect(stats.avgBasket).toBe(1500);
   });
 
+  it('commande fractionnée (2 lignes, 2 modes) : revenueByPaymentMode somme chaque ligne, sans double compter le total de la commande', async () => {
+    // Une seule commande de 10000, réglée 7000 CASH + 3000 WAVE.
+    // `paymentMode` est null (2+ modes distincts, cf. resolvePaymentMode) : le
+    // CA par mode doit venir des lignes OrderPayment, pas de `order.total`.
+    mockOrderFindMany.mockResolvedValue([
+      {
+        id: 'o1',
+        status: 'COMPLETED',
+        orderType: 'TAKEAWAY',
+        isPaid: true,
+        paymentMode: null,
+        total: 10000,
+      },
+    ]);
+    mockOrderPaymentGroupBy.mockResolvedValue([
+      { mode: 'CASH', _sum: { amount: 7000 } },
+      { mode: 'WAVE', _sum: { amount: 3000 } },
+    ]);
+    mockAdjGroupBy.mockResolvedValue([]);
+
+    const stats = await getRangeStats(from, to);
+
+    expect(stats.revenue).toBe(10000);
+    expect(stats.revenueByPaymentMode.CASH).toBe(7000);
+    expect(stats.revenueByPaymentMode.WAVE).toBe(3000);
+    // Le compteur par mode reste order-based : un paiement fractionné n'a pas
+    // de mode unique, donc ne bascule aucun compteur.
+    expect(stats.countByPaymentMode.CASH).toBe(0);
+    expect(stats.countByPaymentMode.WAVE).toBe(0);
+  });
+
   it('gère une régularisation négative (retrait de CA)', async () => {
     mockOrderFindMany.mockResolvedValue([
       {
+        id: 'o1',
         status: 'COMPLETED',
         orderType: 'TAKEAWAY',
         isPaid: true,
         paymentMode: 'CASH',
         total: 5000,
       },
+    ]);
+    mockOrderPaymentGroupBy.mockResolvedValue([
+      { mode: 'CASH', _sum: { amount: 5000 } },
     ]);
     mockAdjGroupBy.mockResolvedValue([
       { paymentMode: 'CASH', _sum: { amount: -2000 } },
@@ -104,6 +149,7 @@ describe('exclusion des commandes annulées du CA', () => {
   it("getDailyStats n'ajoute pas au CA une commande annulée restée isPaid", async () => {
     mockOrderFindMany.mockResolvedValue([
       {
+        id: 'o1',
         status: 'COMPLETED',
         orderType: 'TAKEAWAY',
         isPaid: true,
@@ -111,12 +157,16 @@ describe('exclusion des commandes annulées du CA', () => {
         total: 1000,
       },
       {
+        id: 'o2',
         status: 'CANCELLED',
         orderType: 'TAKEAWAY',
         isPaid: true,
         paymentMode: 'CASH',
         total: 5000,
       },
+    ]);
+    mockOrderPaymentGroupBy.mockResolvedValue([
+      { mode: 'CASH', _sum: { amount: 1000 } },
     ]);
     mockAdjGroupBy.mockResolvedValue([]);
 

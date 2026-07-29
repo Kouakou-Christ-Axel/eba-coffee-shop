@@ -1,6 +1,12 @@
 // lib/schemas/order.test.ts
 import { describe, it, expect } from 'vitest';
-import { setOrderCustomerSchema, updateOrderDetailsSchema } from './order';
+import {
+  setOrderCustomerSchema,
+  updateOrderDetailsSchema,
+  updateOrderFulfillmentSchema,
+  orderPaymentLineSchema,
+  orderPaymentsSchema,
+} from './order';
 
 describe('setOrderCustomerSchema', () => {
   it('accepte une liaison à un client existant (customerId)', () => {
@@ -98,5 +104,112 @@ describe('updateOrderDetailsSchema', () => {
     expect(
       updateOrderDetailsSchema.safeParse({ note: 'x'.repeat(501) }).success
     ).toBe(false);
+  });
+});
+
+describe('updateOrderFulfillmentSchema', () => {
+  it('accepte une mise à jour partielle (un seul champ)', () => {
+    expect(
+      updateOrderFulfillmentSchema.safeParse({ orderType: 'DELIVERY' }).success
+    ).toBe(true);
+    expect(
+      updateOrderFulfillmentSchema.safeParse({ pickupTime: null }).success
+    ).toBe(true);
+    expect(
+      updateOrderFulfillmentSchema.safeParse({ note: 'Sans sucre' }).success
+    ).toBe(true);
+  });
+
+  it('accepte le livreur : les deux champs fournis (renseignés ou effacés)', () => {
+    expect(
+      updateOrderFulfillmentSchema.safeParse({
+        driverName: 'Ibrahim',
+        driverPhone: '0788123456',
+      }).success
+    ).toBe(true);
+    expect(
+      updateOrderFulfillmentSchema.safeParse({
+        driverName: null,
+        driverPhone: null,
+      }).success
+    ).toBe(true);
+  });
+
+  it('rejette le livreur si un seul des deux champs est fourni', () => {
+    expect(
+      updateOrderFulfillmentSchema.safeParse({ driverName: 'Ibrahim' }).success
+    ).toBe(false);
+    expect(
+      updateOrderFulfillmentSchema.safeParse({ driverPhone: '0788123456' })
+        .success
+    ).toBe(false);
+  });
+
+  it('rejette le livreur si un seul des deux champs est null', () => {
+    expect(
+      updateOrderFulfillmentSchema.safeParse({
+        driverName: 'Ibrahim',
+        driverPhone: null,
+      }).success
+    ).toBe(false);
+  });
+
+  it('ne touche jamais paymentMode : accepté seulement absent du schéma', () => {
+    // paymentMode n'existe pas sur ce schéma (champ inconnu ignoré par Zod).
+    const r = updateOrderFulfillmentSchema.safeParse({
+      orderType: 'DELIVERY',
+      paymentMode: 'CASH',
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data).not.toHaveProperty('paymentMode');
+    }
+  });
+
+  it('rejette un corps vide (aucun champ)', () => {
+    expect(updateOrderFulfillmentSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe('orderPaymentLineSchema / orderPaymentsSchema', () => {
+  it('accepte une ligne valide', () => {
+    expect(
+      orderPaymentLineSchema.safeParse({ mode: 'CASH', amount: 1000 }).success
+    ).toBe(true);
+  });
+
+  it('rejette un montant nul, négatif ou non entier', () => {
+    expect(
+      orderPaymentLineSchema.safeParse({ mode: 'CASH', amount: 0 }).success
+    ).toBe(false);
+    expect(
+      orderPaymentLineSchema.safeParse({ mode: 'CASH', amount: -100 }).success
+    ).toBe(false);
+    expect(
+      orderPaymentLineSchema.safeParse({ mode: 'CASH', amount: 100.5 }).success
+    ).toBe(false);
+  });
+
+  it('rejette un mode invalide', () => {
+    expect(
+      orderPaymentLineSchema.safeParse({ mode: 'BITCOIN', amount: 1000 })
+        .success
+    ).toBe(false);
+  });
+
+  it('accepte un tableau d’une ou plusieurs lignes', () => {
+    expect(
+      orderPaymentsSchema.safeParse([{ mode: 'CASH', amount: 1000 }]).success
+    ).toBe(true);
+    expect(
+      orderPaymentsSchema.safeParse([
+        { mode: 'CASH', amount: 7000 },
+        { mode: 'ORANGE_MONEY', amount: 3000 },
+      ]).success
+    ).toBe(true);
+  });
+
+  it('rejette un tableau vide', () => {
+    expect(orderPaymentsSchema.safeParse([]).success).toBe(false);
   });
 });

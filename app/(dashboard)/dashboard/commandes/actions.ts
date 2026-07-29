@@ -13,13 +13,10 @@ import {
 import type {
   SetOrderCustomerInput,
   UpdateOrderDetailsInput,
+  OrderPaymentLineInput,
 } from '@/lib/schemas/order';
 import type { CartItem } from '@/lib/cart-store';
-import type {
-  OrderStatus,
-  PaymentMode,
-  UserRole,
-} from '@/generated/prisma/client';
+import type { OrderStatus, UserRole } from '@/generated/prisma/client';
 
 /** Revalide la page de détail et la liste après une mutation de commande. */
 function revalidateOrder(id: string): void {
@@ -56,15 +53,19 @@ export async function updateOrderStatus(
   revalidateOrder(id);
 }
 
-/** Encaisse une commande (marque payée) depuis la section Commandes. */
+/**
+ * Encaisse une commande (marque payée) depuis la section Commandes. `payments`
+ * (1..N lignes `{mode, amount}`) doit sommer exactement au total de la
+ * commande — paiement fractionné supporté.
+ */
 export async function markOrderPaidAction(
   id: string,
-  paymentMode: PaymentMode
+  payments: OrderPaymentLineInput[]
 ): Promise<{ error: string } | undefined> {
-  await requireCashier();
+  const session = await requireCashier();
 
   try {
-    await setOrderPayment(id, true, paymentMode);
+    await setOrderPayment(id, true, payments, session.user.id);
   } catch (err) {
     return { error: formatMutationError(err) };
   }
@@ -73,17 +74,18 @@ export async function markOrderPaidAction(
 }
 
 /**
- * Action express : marque la commande payée (si besoin) ET récupérée en un clic.
+ * Action express : marque la commande payée (si besoin) ET récupérée en un
+ * clic. `payments` est ignoré si la commande est déjà payée.
  */
 export async function payAndCompleteAction(
   id: string,
-  paymentMode: PaymentMode
+  payments: OrderPaymentLineInput[] | undefined
 ): Promise<{ error: string } | undefined> {
   const session = await requireCashier();
   const role = session.user.role as UserRole;
 
   try {
-    await payAndComplete(id, paymentMode, role);
+    await payAndComplete(id, payments, role, session.user.id);
   } catch (err) {
     return { error: formatMutationError(err) };
   }

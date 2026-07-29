@@ -118,6 +118,14 @@ export const SCHEDULED_LEAD_IN_MINUTES = 60;
 export const SCHEDULED_ALERT_MINUTES = 15;
 
 /**
+ * Presets rapides (minutes à partir de maintenant) proposés en caisse pour
+ * fixer/modifier le créneau de retrait d'une commande existante (ex. « le
+ * livreur arrive dans 15 min », ou un retrait client plus tardif).
+ * Source : app/(dashboard)/dashboard/caisse/edit-fulfillment-modal.tsx.
+ */
+export const PICKUP_QUICK_PRESETS_MINUTES = [15, 30, 45, 60, 120];
+
+/**
  * Minuteur « prête, en attente de récupération » (écrans cuisine + caisse).
  * Au-delà de ce délai après le passage READY, la commande est signalée en
  * rouge : le client « fait la star » (tarde à venir chercher) — on la relance.

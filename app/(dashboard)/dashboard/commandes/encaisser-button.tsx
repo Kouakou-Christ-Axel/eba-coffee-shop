@@ -7,8 +7,7 @@
 import { useState, useTransition } from 'react';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { PaymentMode } from '@/generated/prisma/client';
-import { PaymentModal } from '../caisse/payment-modal';
+import { PaymentModal, type PaymentLine } from '../caisse/payment-modal';
 import { markOrderPaidAction } from './actions';
 
 type Props = {
@@ -34,11 +33,11 @@ export function EncaisserButton({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  function handleConfirm(mode: PaymentMode) {
+  function handleConfirm(payments: PaymentLine[]) {
     setError(null);
     startTransition(async () => {
       try {
-        const result = await markOrderPaidAction(orderId, mode);
+        const result = await markOrderPaidAction(orderId, payments);
         if (result?.error) {
           setError(result.error);
           return;

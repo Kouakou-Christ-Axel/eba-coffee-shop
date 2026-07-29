@@ -130,7 +130,6 @@ export default async function CommandeDetailPage({
               orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
               amount={order.total}
               isPaid={order.isPaid}
-              currentPaymentMode={order.paymentMode}
             />
           )}
         </div>
@@ -195,9 +194,23 @@ export default async function CommandeDetailPage({
           </div>
           <div className="flex justify-between gap-3">
             <span className="text-muted-foreground">Moyen de paiement</span>
-            <span className="font-medium">
-              {order.paymentMode ? PAYMENT_MODE_LABELS[order.paymentMode] : '—'}
-            </span>
+            {order.paymentMode ? (
+              <span className="font-medium">
+                {PAYMENT_MODE_LABELS[order.paymentMode]}
+              </span>
+            ) : order.isPaid ? (
+              <span className="font-medium">
+                Fractionné —{' '}
+                {order.payments
+                  .map(
+                    (p) =>
+                      `${PAYMENT_MODE_LABELS[p.mode]} ${new Intl.NumberFormat('fr-FR').format(p.amount)} F`
+                  )
+                  .join(' + ')}
+              </span>
+            ) : (
+              <span className="font-medium">—</span>
+            )}
           </div>
           <div className="space-y-1">
             <span className="text-muted-foreground">Note</span>

@@ -41,7 +41,11 @@ import { parseDateOnlyToUTC } from '@/lib/timezone';
 import { getMenuAdmin } from '@/lib/menu';
 import { cartItemSchema, updateOrderDetailsSchema } from '@/lib/schemas/order';
 import type { CartItem } from '@/lib/cart-store';
-import type { CartItemInput, OrderTypeInput } from '@/lib/schemas/order';
+import type {
+  CartItemInput,
+  OrderTypeInput,
+  OrderPaymentLineInput,
+} from '@/lib/schemas/order';
 import { ROLE_GROUPS } from '@/lib/auth-helpers';
 import { notifyOrderCustomer, sendPushToRoles } from '@/lib/push-notify';
 
@@ -286,7 +290,12 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
           }
           const found = await tx.loyaltyReward.findUnique({
             where: { id: input.loyaltyRewardId },
-            select: { id: true, customerId: true, capAmount: true, status: true },
+            select: {
+              id: true,
+              customerId: true,
+              capAmount: true,
+              status: true,
+            },
           });
           if (
             !found ||
@@ -532,9 +541,25 @@ export async function setOrderStatus(
 // ─── Encaissement / paiement ──────────────────────────────────────────────────
 
 /**
- * Bascule l'état de paiement d'une commande. Si `isPaid=true`, `paymentMode` est
- * requis. Encaisser une commande encore `NEW` la pousse aussi en cuisine
- * (`NEW → PREPARING`). Concurrence optimiste sur `isPaid`.
+ * Résout le `paymentMode` « résumé » d'un ensemble de lignes de paiement :
+ * le mode lui-même si les lignes partagent toutes le même mode (cas courant,
+ * 1 seule ligne ou plusieurs lignes du même mode), `null` sinon (paiement
+ * fractionné sur 2+ modes distincts — le détail vit dans `OrderPayment`).
+ */
+function resolvePaymentMode(
+  payments: OrderPaymentLineInput[]
+): PaymentMode | null {
+  const distinctModes = new Set(payments.map((p) => p.mode));
+  return distinctModes.size === 1 ? payments[0].mode : null;
+}
+
+/**
+ * Bascule l'état de paiement d'une commande. Si `isPaid=true`, `payments`
+ * (1..N lignes `{mode, amount}`) est requis et sa somme doit égaler
+ * EXACTEMENT le total de la commande — relu en base, jamais celui fourni par
+ * l'appelant (pas de paiement partiel/layaway). Encaisser une commande encore
+ * `NEW` la pousse aussi en cuisine (`NEW → PREPARING`). Concurrence optimiste
+ * sur `isPaid`.
  *
  * Passage à `isPaid=true` : décrémente le stock (produit + options choisies)
  * de chaque article, DANS LA MÊME transaction, AVANT de flipper `isPaid` (voir
@@ -545,21 +570,27 @@ export async function setOrderStatus(
  * physiquement consommé ; ré-exiger du stock disponible au moment où on
  * enregistre le paiement après coup bloquerait à tort un encaissement
  * légitime pour un stock qui s'est épuisé ENTRE-TEMPS via d'autres commandes.
- * Passage à `isPaid=false` (dépaiement) : comportement inchangé, HORS
- * transaction, SANS jamais ré-incrémenter le stock déjà décrémenté.
+ * Crée une ligne `OrderPayment` par moyen de paiement fourni ; `paymentMode`
+ * (sur `Order`) reste renseigné pour le cas courant (1 seul mode), `null` pour
+ * un paiement fractionné (voir `resolvePaymentMode`).
+ * Passage à `isPaid=false` (dépaiement) : comportement inchangé, PLUS
+ * suppression des lignes `OrderPayment` associées (dans la même transaction),
+ * SANS jamais ré-incrémenter le stock déjà décrémenté.
  *
- * Lève `OrderMutationError` (400 mode manquant, 404 introuvable, 409 conflit,
- * ou `StockShortageError` 409 si le stock ne suffit plus — le client perdant
- * est alors notifié `ITEM_UNAVAILABLE` avant que l'erreur ne remonte).
- * Renvoie `startedPreparation` (vrai si la commande est partie en cuisine).
+ * Lève `OrderMutationError` (400 paiement manquant/somme incorrecte, 404
+ * introuvable, 409 conflit, ou `StockShortageError` 409 si le stock ne suffit
+ * plus — le client perdant est alors notifié `ITEM_UNAVAILABLE` avant que
+ * l'erreur ne remonte). Renvoie `startedPreparation` (vrai si la commande est
+ * partie en cuisine).
  */
 export async function setOrderPayment(
   id: string,
   isPaid: boolean,
-  paymentMode?: PaymentMode | null
+  payments?: OrderPaymentLineInput[],
+  actorId?: string | null
 ): Promise<{ startedPreparation: boolean }> {
-  if (isPaid && !paymentMode) {
-    throw new OrderMutationError('paymentMode requis quand isPaid=true', 400);
+  if (isPaid && (!payments || payments.length === 0)) {
+    throw new OrderMutationError('payments requis quand isPaid=true', 400);
   }
 
   if (!isPaid) {
@@ -574,10 +605,13 @@ export async function setOrderPayment(
       throw new OrderMutationError('État de paiement déjà à jour', 409);
     }
 
-    const result = await prisma.order.updateMany({
-      where: { id, isPaid: true },
-      data: { isPaid: false, paymentMode: null, paidAt: null },
-    });
+    const [result] = await prisma.$transaction([
+      prisma.order.updateMany({
+        where: { id, isPaid: true },
+        data: { isPaid: false, paymentMode: null, paidAt: null },
+      }),
+      prisma.orderPayment.deleteMany({ where: { orderId: id } }),
+    ]);
     if (result.count === 0) {
       throw new OrderMutationError('État modifié entre temps, recharger', 409);
     }
@@ -590,13 +624,22 @@ export async function setOrderPayment(
     txResult = await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id },
-        select: { isPaid: true, status: true, items: true },
+        select: { isPaid: true, status: true, items: true, total: true },
       });
       if (!order) {
         throw new OrderMutationError('Commande introuvable', 404);
       }
       if (order.isPaid) {
         throw new OrderMutationError('État de paiement déjà à jour', 409);
+      }
+
+      const lines = payments as OrderPaymentLineInput[];
+      const sum = lines.reduce((s, p) => s + p.amount, 0);
+      if (sum !== order.total) {
+        throw new OrderMutationError(
+          `Le total des paiements (${sum} F) ne correspond pas au montant de la commande (${order.total} F)`,
+          400
+        );
       }
 
       const startedPreparation = order.status === 'NEW';
@@ -610,7 +653,7 @@ export async function setOrderPayment(
         where: { id, isPaid: false },
         data: {
           isPaid: true,
-          paymentMode: paymentMode ?? null,
+          paymentMode: resolvePaymentMode(lines),
           paidAt: new Date(),
           // Encaisser une commande encore NEW la pousse en cuisine : on amorce
           // alors le chrono « en cuisine depuis X » au même instant.
@@ -626,6 +669,15 @@ export async function setOrderPayment(
           409
         );
       }
+
+      await tx.orderPayment.createMany({
+        data: lines.map((p) => ({
+          orderId: id,
+          mode: p.mode,
+          amount: p.amount,
+          createdById: actorId ?? null,
+        })),
+      });
 
       return { startedPreparation, items };
     });
@@ -719,15 +771,21 @@ export async function updateOrderDetails(id: string, input: unknown) {
  * encaissé après coup) ne décrémente pas non plus — même exception que
  * `setOrderPayment` : l'article a déjà été physiquement servi.
  *
- * Lève `OrderMutationError` (403 rôle, 404 introuvable, 409 conflit/déjà finale,
- * ou `StockShortageError` 409 si le stock ne suffit plus — le client perdant
- * est alors notifié `ITEM_UNAVAILABLE` avant que l'erreur ne remonte).
+ * `payments` (1..N lignes `{mode, amount}`, somme = total relu en base) n'est
+ * requis QUE si la commande n'est pas déjà payée ; ignoré (la commande garde
+ * ses lignes `OrderPayment` existantes) si `alreadyPaid`.
+ *
+ * Lève `OrderMutationError` (400 paiement manquant/somme incorrecte si pas déjà
+ * payée, 403 rôle, 404 introuvable, 409 conflit/déjà finale, ou
+ * `StockShortageError` 409 si le stock ne suffit plus — le client perdant est
+ * alors notifié `ITEM_UNAVAILABLE` avant que l'erreur ne remonte).
  * Renvoie `alreadyPaid` (vrai si la commande était déjà encaissée avant l'appel).
  */
 export async function payAndComplete(
   id: string,
-  paymentMode: PaymentMode,
-  role: UserRole
+  payments: OrderPaymentLineInput[] | undefined,
+  role: UserRole,
+  actorId?: string | null
 ): Promise<{ alreadyPaid: boolean }> {
   if (!canTogglePayment(role)) {
     throw new OrderMutationError('Action réservée à la caisse', 403);
@@ -738,7 +796,7 @@ export async function payAndComplete(
     txResult = await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id },
-        select: { status: true, isPaid: true, items: true },
+        select: { status: true, isPaid: true, items: true, total: true },
       });
       if (!order) {
         throw new OrderMutationError('Commande introuvable', 404);
@@ -753,8 +811,23 @@ export async function payAndComplete(
       const alreadyPaid = order.isPaid;
       const items = order.items as unknown as CartItem[];
 
-      if (!alreadyPaid && order.status !== 'COMPLETED') {
-        await decrementStockForOrderItems(tx, items);
+      if (!alreadyPaid) {
+        if (!payments || payments.length === 0) {
+          throw new OrderMutationError(
+            'payments requis pour encaisser cette commande',
+            400
+          );
+        }
+        const sum = payments.reduce((s, p) => s + p.amount, 0);
+        if (sum !== order.total) {
+          throw new OrderMutationError(
+            `Le total des paiements (${sum} F) ne correspond pas au montant de la commande (${order.total} F)`,
+            400
+          );
+        }
+        if (order.status !== 'COMPLETED') {
+          await decrementStockForOrderItems(tx, items);
+        }
       }
 
       const result = await tx.order.updateMany({
@@ -766,7 +839,13 @@ export async function payAndComplete(
           // Ne pas écraser le mode / l'horodatage d'une commande déjà payée.
           ...(alreadyPaid
             ? {}
-            : { isPaid: true, paymentMode, paidAt: new Date() }),
+            : {
+                isPaid: true,
+                paymentMode: resolvePaymentMode(
+                  payments as OrderPaymentLineInput[]
+                ),
+                paidAt: new Date(),
+              }),
         },
       });
 
@@ -775,6 +854,17 @@ export async function payAndComplete(
           'État modifié entre temps, recharger',
           409
         );
+      }
+
+      if (!alreadyPaid) {
+        await tx.orderPayment.createMany({
+          data: (payments as OrderPaymentLineInput[]).map((p) => ({
+            orderId: id,
+            mode: p.mode,
+            amount: p.amount,
+            createdById: actorId ?? null,
+          })),
+        });
       }
 
       return { alreadyPaid, items };
@@ -1006,6 +1096,73 @@ export async function setOrderDriver(
     where: { id },
     data: { driverName: input.driverName, driverPhone },
   });
+}
+
+// ─── Prise en charge (édition caisse) ──────────────────────────────────────────
+
+export type UpdateOrderFulfillmentInput = {
+  orderType?: OrderTypeInput;
+  pickupTime?: string | null;
+  driverName?: string | null;
+  driverPhone?: string | null;
+  note?: string | null;
+};
+
+/**
+ * Édition « caisse » de la prise en charge d'une commande existante :
+ * orderType / pickupTime / note (écrits directement) + driverName/driverPhone
+ * (délégués à `setOrderDriver`, pas de duplication de la normalisation
+ * téléphone). Accessible à CASHIER_PLUS (`canEditOrderFulfillment`) —
+ * contrairement à `updateOrderDetails` (réservé ADMIN, qui touche aussi
+ * `paymentMode`) : cette fonction ne touche JAMAIS le paiement.
+ *
+ * Refusée une fois la commande terminée ou annulée (même garde que
+ * `setOrderDriver`).
+ */
+export async function updateOrderFulfillment(
+  id: string,
+  input: UpdateOrderFulfillmentInput
+): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+  if (!order) {
+    throw new OrderMutationError('Commande introuvable', 404);
+  }
+  if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
+    throw new OrderMutationError(
+      'Commande terminée ou annulée : prise en charge non modifiable',
+      409
+    );
+  }
+
+  const hasDirectFields =
+    input.orderType !== undefined ||
+    input.pickupTime !== undefined ||
+    input.note !== undefined;
+
+  if (hasDirectFields) {
+    await prisma.order.update({
+      where: { id },
+      data: {
+        ...(input.orderType !== undefined
+          ? { orderType: input.orderType }
+          : {}),
+        ...(input.pickupTime !== undefined
+          ? { pickupTime: input.pickupTime ? new Date(input.pickupTime) : null }
+          : {}),
+        ...(input.note !== undefined ? { note: input.note ?? null } : {}),
+      },
+    });
+  }
+
+  if (input.driverName !== undefined && input.driverPhone !== undefined) {
+    await setOrderDriver(id, {
+      driverName: input.driverName,
+      driverPhone: input.driverPhone,
+    });
+  }
 }
 
 // ─── Preuve de paiement (capture Wave uploadée par le client) ─────────────────
