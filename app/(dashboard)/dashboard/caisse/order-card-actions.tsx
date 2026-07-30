@@ -32,11 +32,11 @@ import { EditFulfillmentModal } from './edit-fulfillment-modal';
 import { CopyRecapButton } from '../_components/copy-recap-button';
 import { OrderItemsEditor } from '../_components/order-items-editor';
 
-async function callApi(
+async function callApi<T = unknown>(
   url: string,
   method: 'PATCH' | 'POST',
   body: unknown
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
   const res = await fetch(url, {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -52,7 +52,8 @@ async function callApi(
     }
     return { ok: false, error: msg };
   }
-  return { ok: true };
+  const data = (await res.json()) as T;
+  return { ok: true, data };
 }
 
 /**
@@ -150,8 +151,11 @@ export function OrderCardActions({
   const orderRef = `#${String(order.dailyNumber).padStart(3, '0')}`;
 
   // Encaissement réussi (modale ou raccourci Wave) : propose un undo 10 s qui
-  // dépaye directement (même route, `isPaid: false`).
-  function pushPaymentUndo() {
+  // dépaye directement (même route, `isPaid: false`). Si l'encaissement a
+  // aussi fait partir la commande en cuisine (NEW → PREPARING automatique),
+  // l'undo la renvoie également à NEW — sinon elle resterait coincée en
+  // cuisine alors qu'elle n'est plus payée.
+  function pushPaymentUndo(startedPreparation: boolean) {
     pushUndo({
       message: `Commande ${orderRef} encaissée`,
       onUndo: async () => {
@@ -161,6 +165,14 @@ export function OrderCardActions({
           { isPaid: false }
         );
         if (!undoResult.ok) throw new Error(undoResult.error);
+        if (startedPreparation) {
+          const statusResult = await callApi(
+            `/api/caisse/orders/${order.id}/status`,
+            'PATCH',
+            { status: 'NEW' }
+          );
+          if (!statusResult.ok) throw new Error(statusResult.error);
+        }
       },
     });
   }
@@ -168,7 +180,7 @@ export function OrderCardActions({
   function handlePaymentConfirm(payments: PaymentLine[]) {
     setPaymentError(null);
     startTransition(async () => {
-      const result = await callApi(
+      const result = await callApi<{ startedPreparation: boolean }>(
         `/api/caisse/orders/${order.id}/payment`,
         'PATCH',
         { isPaid: true, payments }
@@ -178,7 +190,7 @@ export function OrderCardActions({
         return;
       }
       setIsPaymentOpen(false);
-      pushPaymentUndo();
+      pushPaymentUndo(result.data.startedPreparation);
     });
   }
 
@@ -188,7 +200,7 @@ export function OrderCardActions({
     if (!confirmDespiteShortage()) return;
     setActionError(null);
     startTransition(async () => {
-      const result = await callApi(
+      const result = await callApi<{ startedPreparation: boolean }>(
         `/api/caisse/orders/${order.id}/payment`,
         'PATCH',
         { isPaid: true, payments: [{ mode: 'WAVE', amount: order.total }] }
@@ -197,7 +209,7 @@ export function OrderCardActions({
         setActionError(result.error);
         return;
       }
-      pushPaymentUndo();
+      pushPaymentUndo(result.data.startedPreparation);
     });
   }
 

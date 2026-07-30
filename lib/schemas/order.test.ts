@@ -135,23 +135,23 @@ describe('updateOrderFulfillmentSchema', () => {
     ).toBe(true);
   });
 
-  it('rejette le livreur si un seul des deux champs est fourni', () => {
+  it('accepte le livreur si un seul des deux champs est fourni (téléphone jamais obligatoire)', () => {
     expect(
       updateOrderFulfillmentSchema.safeParse({ driverName: 'Ibrahim' }).success
-    ).toBe(false);
+    ).toBe(true);
     expect(
       updateOrderFulfillmentSchema.safeParse({ driverPhone: '0788123456' })
         .success
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it('rejette le livreur si un seul des deux champs est null', () => {
+  it('accepte le nom du livreur seul, sans téléphone', () => {
     expect(
       updateOrderFulfillmentSchema.safeParse({
         driverName: 'Ibrahim',
         driverPhone: null,
       }).success
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('ne touche jamais paymentMode : accepté seulement absent du schéma', () => {

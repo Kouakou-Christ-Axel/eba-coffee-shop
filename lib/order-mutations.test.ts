@@ -395,4 +395,24 @@ describe('updateOrderFulfillment', () => {
       })
     );
   });
+
+  it('nom du livreur seul : préserve le téléphone existant (jamais obligatoire)', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'NEW',
+      driverName: null,
+      driverPhone: null,
+    } as never);
+    mockOrderUpdate.mockResolvedValue({} as never);
+
+    await updateOrderFulfillment('order1', { driverName: 'Ibrahim' });
+
+    expect(mockOrderUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          driverName: 'Ibrahim',
+          driverPhone: null,
+        }),
+      })
+    );
+  });
 });

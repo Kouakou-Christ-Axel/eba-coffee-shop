@@ -1098,6 +1098,10 @@ export type UpdateOrderFulfillmentInput = {
  * contrairement à `updateOrderDetails` (réservé ADMIN, qui touche aussi
  * `paymentMode`) : cette fonction ne touche JAMAIS le paiement.
  *
+ * driverName/driverPhone sont indépendants : fournir l'un sans l'autre
+ * (le téléphone du livreur n'est jamais obligatoire) préserve la valeur
+ * actuelle du champ non fourni plutôt que de l'effacer.
+ *
  * Refusée une fois la commande terminée ou annulée (même garde que
  * `setOrderDriver`).
  */
@@ -1107,7 +1111,7 @@ export async function updateOrderFulfillment(
 ): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id },
-    select: { status: true },
+    select: { status: true, driverName: true, driverPhone: true },
   });
   if (!order) {
     throw new OrderMutationError('Commande introuvable', 404);
@@ -1139,10 +1143,14 @@ export async function updateOrderFulfillment(
     });
   }
 
-  if (input.driverName !== undefined && input.driverPhone !== undefined) {
+  if (input.driverName !== undefined || input.driverPhone !== undefined) {
     await setOrderDriver(id, {
-      driverName: input.driverName,
-      driverPhone: input.driverPhone,
+      driverName:
+        input.driverName !== undefined ? input.driverName : order.driverName,
+      driverPhone:
+        input.driverPhone !== undefined
+          ? input.driverPhone
+          : order.driverPhone,
     });
   }
 }
