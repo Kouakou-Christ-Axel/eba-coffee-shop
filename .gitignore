@@ -41,6 +41,11 @@ yarn-error.log*
 next-env.d.ts
 .idea/
 generated/prisma
+# Types d'env générés par varlock (`varlock typegen`, lancé au postinstall).
+# Non versionné : le contenu dépend de l'environnement (les icônes de la doc
+# sont téléchargées depuis api.iconify.design), donc un build hors du serveur
+# le fait diverger et bloque le `git pull` du déploiement.
+env.d.ts
 
 !.env.schema
 

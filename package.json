@@ -24,7 +24,7 @@
     "@next/env": "npm:@varlock/nextjs-integration"
   },
   "scripts": {
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate && varlock typegen",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
