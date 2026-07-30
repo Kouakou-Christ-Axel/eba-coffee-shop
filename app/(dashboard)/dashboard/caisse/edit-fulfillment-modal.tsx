@@ -182,7 +182,7 @@ export function EditFulfillmentModal({ isOpen, onClose, order }: Props) {
               />
               <Input
                 type="tel"
-                label="Téléphone du livreur"
+                label="Téléphone du livreur (optionnel)"
                 value={driverPhone}
                 onValueChange={setDriverPhone}
                 placeholder="07 88 12 34 56"

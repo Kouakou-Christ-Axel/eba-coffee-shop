@@ -299,10 +299,11 @@ export type SetOrderDriverInput = z.infer<typeof setOrderDriverSchema>;
 // touche aussi `paymentMode`) : ce schéma ne touche JAMAIS le paiement, pour ne
 // jamais se désynchroniser du paiement fractionné (`setOrderPayment`).
 //
-// Champs livreur optionnels (contrairement à `orderDriverFieldsSchema`, requis
-// tous les deux) car ici on édite une commande existante : soit on ne touche
-// pas au livreur (les deux absents), soit on le renseigne/efface (les deux
-// fournis, tous deux null pour effacer).
+// Champs livreur optionnels ET indépendants (contrairement à
+// `orderDriverFieldsSchema`, qui vont ensemble) car ici on édite une commande
+// existante depuis la caisse : le caissier peut ne connaître que le nom du
+// livreur (ou l'inverse), le téléphone n'est jamais obligatoire. Chaque champ
+// absent du corps de requête reste inchangé ; fourni à `null`, il efface.
 
 export const updateOrderFulfillmentSchema = z
   .object({
@@ -321,23 +322,6 @@ export const updateOrderFulfillmentSchema = z
       .nullable()
       .optional(),
   })
-  .refine(
-    (d) => (d.driverName === undefined) === (d.driverPhone === undefined),
-    {
-      message: 'Nom et téléphone du livreur doivent être fournis ensemble',
-      path: ['driverPhone'],
-    }
-  )
-  .refine(
-    (d) =>
-      d.driverName === undefined ||
-      d.driverPhone === undefined ||
-      (d.driverName === null) === (d.driverPhone === null),
-    {
-      message: 'Nom et téléphone du livreur vont ensemble',
-      path: ['driverPhone'],
-    }
-  )
   .refine(
     (d) =>
       d.orderType !== undefined ||
