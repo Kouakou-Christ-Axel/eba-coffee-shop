@@ -7,7 +7,13 @@
 // direct par polling) et la transfère à son livreur — code de retrait,
 // localisation, paiement Wave + preuve, et bloc livreur modifiable.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { MediaImage as Image } from '@/components/ui/media-image';
 import { Button, Chip, Input } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -37,6 +43,7 @@ import { priceFormatter } from '@/config/menu';
 import {
   buildDriverShareMessage,
   buildPaymentProofMessage,
+  buildTrackingShareMessage,
   buildWaveLink,
   buildWhatsAppLink,
   buildWhatsAppShareLink,
@@ -77,6 +84,12 @@ const STATUS_INDEX: Record<string, number> = {
   COMPLETED: 3,
 };
 
+// window.location.href via useSyncExternalStore : l'URL ne change jamais sur
+// cette page (pas de navigation interne), l'abonnement est donc un no-op.
+const subscribeNoop = () => () => {};
+const getLocationHref = () => window.location.href;
+const getEmptyString = () => '';
+
 export function OrderTracking({
   initialOrder,
   pickupAddress,
@@ -85,6 +98,13 @@ export function OrderTracking({
 }: Props) {
   const [order, setOrder] = useState<PublicOrderView>(initialOrder);
   const reduceMotion = useReducedMotion();
+  // URL de suivi, indisponible au rendu serveur (snapshot '') — partagée
+  // entre le partage du lien (code de retrait) et le bloc livreur.
+  const trackingUrl = useSyncExternalStore(
+    subscribeNoop,
+    getLocationHref,
+    getEmptyString
+  );
 
   const isCancelled = order.status === 'CANCELLED';
   const isFinal = order.status === 'COMPLETED' || isCancelled;
@@ -180,6 +200,29 @@ export function OrderTracking({
             ? formatPickupTime(new Date(order.pickupTime))
             : 'dès que prêt'}
         </p>
+        {/* Garder le lien : cette URL n'est montrée qu'ici — l'envoyer sur
+            WhatsApp (à soi-même ou un proche) évite de la perdre en fermant
+            l'onglet. Complémentaire de /mes-commandes (même appareil). */}
+        {!isFinal && trackingUrl && (
+          <Button
+            as="a"
+            href={buildWhatsAppShareLink(
+              buildTrackingShareMessage({
+                pickupCode,
+                customerName: order.customerName,
+                trackingUrl,
+              })
+            )}
+            target="_blank"
+            rel="noopener noreferrer"
+            variant="bordered"
+            size="sm"
+            className="mt-4"
+            startContent={<Share2 className="h-3.5 w-3.5" />}
+          >
+            Partager le lien de suivi
+          </Button>
+        )}
       </div>
 
       {/* ── Fidélité ── */}
@@ -204,6 +247,7 @@ export function OrderTracking({
           pickupAddress={pickupAddress}
           pickupMapsUrl={pickupMapsUrl}
           pickupCode={pickupCode}
+          trackingUrl={trackingUrl}
           onOrderChange={setOrder}
         />
       )}
@@ -631,6 +675,7 @@ function DriverSection({
   pickupAddress,
   pickupMapsUrl,
   pickupCode,
+  trackingUrl,
   onOrderChange,
 }: {
   order: PublicOrderView;
@@ -638,6 +683,7 @@ function DriverSection({
   pickupAddress: string | null;
   pickupMapsUrl: string | null;
   pickupCode: string;
+  trackingUrl: string;
   onOrderChange: (o: PublicOrderView) => void;
 }) {
   const hasDriver = Boolean(order.driverName && order.driverPhone);
@@ -646,12 +692,6 @@ function DriverSection({
   const [phone, setPhone] = useState(order.driverPhone ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // URL de suivi construite côté navigateur (indisponible au rendu serveur).
-  const [trackingUrl, setTrackingUrl] = useState('');
-
-  useEffect(() => {
-    setTrackingUrl(window.location.href);
-  }, []);
 
   const isReady = order.status === 'READY';
   const reduceMotion = useReducedMotion();

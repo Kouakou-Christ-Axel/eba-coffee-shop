@@ -2,6 +2,7 @@
 'use client';
 
 import { Button, Link } from '@heroui/react';
+import { RecentOrdersLink } from '@/components/(public)/commande/recent-orders-link';
 
 type Props = {
   menuPdfUrl: string | null;
@@ -42,6 +43,10 @@ function CarteHeroSection({ menuPdfUrl }: Props) {
               Télécharger la carte (PDF)
             </Button>
           )}
+          {/* Visible seulement si l'appareil a déjà commandé. */}
+          <div className="mt-4">
+            <RecentOrdersLink />
+          </div>
         </div>
       </div>
     </section>

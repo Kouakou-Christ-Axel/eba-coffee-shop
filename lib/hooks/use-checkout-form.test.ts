@@ -259,9 +259,12 @@ describe('submitCheckout', () => {
     expect(second).toContain(`"pickupTime":"${validValues.pickupTime}"`);
   });
 
-  it('retourne { ok: true, orderId } sur succès', async () => {
+  it('retourne { ok: true, orderId, reference } sur succès', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ id: 'clo123' }), { status: 201 })
+      new Response(
+        JSON.stringify({ id: 'clo123', reference: 'EBA-20260730-AB12' }),
+        { status: 201 }
+      )
     );
 
     const out = await submitCheckout({
@@ -270,7 +273,11 @@ describe('submitCheckout', () => {
       total: 3500,
     });
 
-    expect(out).toEqual({ ok: true, orderId: 'clo123' });
+    expect(out).toEqual({
+      ok: true,
+      orderId: 'clo123',
+      reference: 'EBA-20260730-AB12',
+    });
   });
 
   it('retourne { ok: false, error } sur 400', async () => {

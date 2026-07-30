@@ -19,6 +19,11 @@ import {
   ORDER_NOTE_MAX,
 } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
+import {
+  addOrderToHistory,
+  readLastContact,
+  saveLastContact,
+} from '@/lib/order-history';
 import { createOrderSchema } from '@/lib/schemas/order';
 
 // ─── Types publics ───────────────────────────────────────────────────────────
@@ -50,7 +55,7 @@ export type CheckoutFormErrors = Partial<
 >;
 
 export type CheckoutSubmitOutcome =
-  | { ok: true; orderId: string }
+  | { ok: true; orderId: string; reference: string }
   | { ok: false; error: string };
 
 export type UseCheckoutFormResult = {
@@ -212,8 +217,8 @@ export async function submitCheckout({
   }
 
   try {
-    const data = (await response.json()) as { id: string };
-    return { ok: true, orderId: data.id };
+    const data = (await response.json()) as { id: string; reference: string };
+    return { ok: true, orderId: data.id, reference: data.reference };
   } catch {
     return {
       ok: false,
@@ -228,7 +233,19 @@ export function useCheckoutForm({
   items,
   total,
 }: UseCheckoutFormOptions): UseCheckoutFormResult {
-  const [values, setValues] = useState<CheckoutFormValues>(INITIAL_VALUES);
+  // Pré-remplissage « client fidèle » : coordonnées de la dernière commande
+  // passée depuis cet appareil (lib/order-history.ts). Initialiseur paresseux
+  // sûr ici : le checkout n'est monté qu'après hydratation du panier
+  // (checkout-page.tsx rend null côté serveur), donc pas de mismatch SSR.
+  const [values, setValues] = useState<CheckoutFormValues>(() => {
+    const last = readLastContact();
+    if (!last) return INITIAL_VALUES;
+    return {
+      ...INITIAL_VALUES,
+      customerName: last.name,
+      customerPhone: last.phone,
+    };
+  });
   const [errors, setErrors] = useState<CheckoutFormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -268,6 +285,20 @@ export function useCheckoutForm({
     setIsSubmitting(false);
     if (!outcome.ok) {
       setErrors({ submit: outcome.error });
+    } else {
+      // Historique local « mes commandes » + coordonnées pour le prochain
+      // checkout — l'effet « compte » sans compte (best-effort, jamais
+      // bloquant : les helpers avalent un localStorage indisponible).
+      addOrderToHistory({
+        id: outcome.orderId,
+        reference: outcome.reference,
+        total,
+        createdAt: new Date().toISOString(),
+      });
+      saveLastContact({
+        name: values.customerName.trim(),
+        phone: values.customerPhone.trim(),
+      });
     }
     return outcome;
   }, [values, items, total]);
