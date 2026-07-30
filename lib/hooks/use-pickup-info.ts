@@ -8,7 +8,7 @@
 // Partagé entre le choix de mode (adresse pour le livreur) et le sélecteur
 // de créneau — un seul fetch pour le modal.
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { TimeRange } from '@/lib/pickup-settings';
 
 export type PickupDay = {
@@ -29,11 +29,19 @@ export type PickupInfo = {
 
 export type PickupInfoState =
   | { status: 'loading' }
-  | { status: 'error' }
+  | { status: 'error'; retry: () => void }
   | ({ status: 'ready' } & PickupInfo);
 
 export function usePickupInfo(): PickupInfoState {
   const [state, setState] = useState<PickupInfoState>({ status: 'loading' });
+  // Compteur de tentatives : `retry()` relance le fetch sans recharger la
+  // page (un reload viderait le contexte du checkout en cours).
+  const [attempt, setAttempt] = useState(0);
+
+  const retry = useCallback(() => {
+    setState({ status: 'loading' });
+    setAttempt((a) => a + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,12 +67,12 @@ export function usePickupInfo(): PickupInfoState {
         }
       )
       .catch(() => {
-        if (!cancelled) setState({ status: 'error' });
+        if (!cancelled) setState({ status: 'error', retry });
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt, retry]);
 
   return state;
 }

@@ -5,10 +5,10 @@
 // Contenu client de /carte/commande : récapitulatif compact du panier +
 // CheckoutForm, en page plein écran plutôt qu'en modal.
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
-import { useCartStore, getItemTotal } from '@/lib/cart-store';
+import { useCartStore, useCartHydration, getItemTotal } from '@/lib/cart-store';
 import { priceFormatter } from '@/config/menu';
 import { formatSupplementLabel } from '@/lib/orders/format';
 import { useLoyaltyInfo } from '@/lib/hooks/use-loyalty-info';
@@ -16,23 +16,31 @@ import { CheckoutForm } from './checkout-form';
 
 export function CheckoutPage() {
   const router = useRouter();
+  const hydrated = useCartHydration();
   const items = useCartStore((s) => s.items);
   const clearCart = useCartStore((s) => s.clearCart);
   const totalPrice = items.reduce((sum, i) => sum + getItemTotal(i), 0);
   const loyaltyInfo = useLoyaltyInfo();
+  // `clearCart()` au succès vide le panier AVANT la navigation vers le suivi :
+  // ce drapeau empêche la redirection « panier vide » de gagner la course.
+  const submittedRef = useRef(false);
 
-  // Panier vide (accès direct à l'URL, refresh, ou commande déjà envoyée) :
-  // rien à finaliser, on renvoie vers la carte.
+  // Panier vide (accès direct à l'URL ou commande déjà envoyée) : rien à
+  // finaliser, on renvoie vers la carte — mais seulement une fois le panier
+  // réhydraté depuis localStorage, pour qu'un refresh ne vide plus la page.
   useEffect(() => {
-    if (items.length === 0) router.replace('/carte');
-  }, [items.length, router]);
+    if (hydrated && !submittedRef.current && items.length === 0) {
+      router.replace('/carte');
+    }
+  }, [hydrated, items.length, router]);
 
   function handleSuccess(orderId: string) {
+    submittedRef.current = true;
     clearCart();
     router.replace(`/commande/${orderId}`);
   }
 
-  if (items.length === 0) return null;
+  if (!hydrated || items.length === 0) return null;
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-8 pt-28 sm:pb-12 sm:pt-32">

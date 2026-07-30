@@ -97,6 +97,28 @@ export const ORDER_NOTE_MAX = 500;
 export const ORDER_TRACKING_POLL_INTERVAL_MS = 15_000;
 
 /**
+ * Intervalle de polling accéléré sur la page de suivi pendant que la preuve
+ * de paiement est en cours de validation par la caisse (preuve envoyée mais
+ * commande pas encore payée) : le moment « paiement validé » doit se voir
+ * vite. Borné dans le temps par nature — on revient à l'intervalle normal
+ * dès que `isPaid` passe à vrai.
+ */
+export const ORDER_TRACKING_POLL_FAST_INTERVAL_MS = 5_000;
+
+/**
+ * Péremption du panier persisté en localStorage (lib/cart-store.ts) : au-delà
+ * de cet âge depuis la dernière modification, le panier est vidé à la
+ * réhydratation (les prix/disponibilités peuvent avoir dérivé du menu).
+ */
+export const CART_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Historique local « mes commandes » (lib/order-history.ts) : nombre max de
+ * commandes conservées par appareil (localStorage, sans compte).
+ */
+export const ORDER_HISTORY_MAX = 10;
+
+/**
  * Remise caisse : une remise (montant fixe en FCFA) appliquée à une ligne
  * d'article ne peut pas dépasser cette fraction du prix brut de la ligne.
  * Plafond métier validé côté client ET serveur.

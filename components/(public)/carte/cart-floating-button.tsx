@@ -4,7 +4,7 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag } from 'lucide-react';
-import { useCartStore } from '@/lib/cart-store';
+import { useCartStore, useCartHydration } from '@/lib/cart-store';
 import { useHasBottomBanner } from '@/lib/bottom-banner-store';
 import { priceFormatter } from '@/config/menu';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,8 @@ const CartDrawer = dynamic(
 );
 
 function CartFloatingButton() {
+  // Réhydrate le panier persisté : le badge réapparaît après un refresh.
+  useCartHydration();
   const items = useCartStore((s) => s.items);
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
   const totalPrice = items.reduce((sum, i) => {
