@@ -28,6 +28,7 @@ import {
   useUrgencyCounts,
 } from './_components/use-urgency-counts';
 import { SCHEDULED_ALERT_MINUTES } from '@/config/constants';
+import { UndoToastProvider } from '@/lib/hooks/use-undo-toast';
 
 const SSE_URL = '/api/caisse/stream';
 const SOUND_STORAGE_KEY = 'eba.caisse.sound-enabled';
@@ -203,59 +204,61 @@ export function CaisseView({
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col gap-4">
-      <CaisseHeader
-        cashierName={cashierName}
-        connState={connState}
-        soundEnabled={soundEnabled}
-        onToggleSound={toggleSound}
-      />
-
-      {readyFlash && readyFlash.length > 0 && (
-        <div className="flex items-center gap-3 rounded-xl border-2 border-green-300 bg-green-50 px-4 py-3 text-green-900 shadow-sm dark:border-green-800 dark:bg-green-950/40 dark:text-green-100">
-          <PackageCheck className="h-6 w-6 shrink-0" aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold">
-              {readyFlash.length > 1
-                ? `${readyFlash.length} commandes prêtes !`
-                : 'Commande prête !'}
-            </p>
-            <p className="truncate text-xs">
-              {readyFlash
-                .map((n) => `#${String(n).padStart(3, '0')}`)
-                .join(', ')}{' '}
-              — à remettre au client
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setReadyFlash(null)}
-            aria-label="Fermer"
-            className="shrink-0 rounded-full p-1 text-green-700 transition-colors hover:bg-green-100 dark:text-green-300 dark:hover:bg-green-900/40"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      {criticalTotal > 0 && (
-        <AlertBanner
-          counts={counts}
-          activeTab={tab}
-          onSeeClick={handleBannerSeeClick}
+    <UndoToastProvider>
+      <div className="flex min-h-[calc(100vh-4rem)] flex-col gap-4">
+        <CaisseHeader
+          cashierName={cashierName}
+          connState={connState}
+          soundEnabled={soundEnabled}
+          onToggleSound={toggleSound}
         />
-      )}
 
-      <ScheduledSection orders={scheduledOrders} menu={menu} now={now} />
+        {readyFlash && readyFlash.length > 0 && (
+          <div className="flex items-center gap-3 rounded-xl border-2 border-green-300 bg-green-50 px-4 py-3 text-green-900 shadow-sm dark:border-green-800 dark:bg-green-950/40 dark:text-green-100">
+            <PackageCheck className="h-6 w-6 shrink-0" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold">
+                {readyFlash.length > 1
+                  ? `${readyFlash.length} commandes prêtes !`
+                  : 'Commande prête !'}
+              </p>
+              <p className="truncate text-xs">
+                {readyFlash
+                  .map((n) => `#${String(n).padStart(3, '0')}`)
+                  .join(', ')}{' '}
+                — à remettre au client
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReadyFlash(null)}
+              aria-label="Fermer"
+              className="shrink-0 rounded-full p-1 text-green-700 transition-colors hover:bg-green-100 dark:text-green-300 dark:hover:bg-green-900/40"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
-      <UrgencyTabs
-        tab={tab}
-        onTabChange={setTab}
-        counts={counts}
-        visibleOrders={visibleOrders}
-        menu={menu}
-        now={now}
-      />
-    </div>
+        {criticalTotal > 0 && (
+          <AlertBanner
+            counts={counts}
+            activeTab={tab}
+            onSeeClick={handleBannerSeeClick}
+          />
+        )}
+
+        <ScheduledSection orders={scheduledOrders} menu={menu} now={now} />
+
+        <UrgencyTabs
+          tab={tab}
+          onTabChange={setTab}
+          counts={counts}
+          visibleOrders={visibleOrders}
+          menu={menu}
+          now={now}
+        />
+      </div>
+    </UndoToastProvider>
   );
 }

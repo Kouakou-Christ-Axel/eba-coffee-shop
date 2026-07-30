@@ -210,3 +210,26 @@
     animation: none !important;
   }
 }
+
+/* Barre de progression du toast d'annulation (caisse) — durée posée en
+   inline style (`animationDuration`), cf. lib/hooks/use-undo-toast.tsx. */
+@keyframes undo-shrink {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.undo-toast-bar {
+  animation-name: undo-shrink;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .undo-toast-bar {
+    animation: none !important;
+  }
+}

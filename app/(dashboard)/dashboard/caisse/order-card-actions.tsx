@@ -26,6 +26,7 @@ import { getPickupCode } from '@/lib/orders/format';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import { priceFormatter, type MenuCategory } from '@/config/menu';
 import type { OrderStatus } from '@/generated/prisma/client';
+import { useUndoToast } from '@/lib/hooks/use-undo-toast';
 import { PaymentModal, type PaymentLine } from './payment-modal';
 import { EditFulfillmentModal } from './edit-fulfillment-modal';
 import { CopyRecapButton } from '../_components/copy-recap-button';
@@ -54,6 +55,31 @@ async function callApi(
   return { ok: true };
 }
 
+/**
+ * Message français du toast d'annulation (undo, 10 s) pour une transition de
+ * statut. `null` pour NEW : jamais une cible de transition depuis la caisse.
+ */
+function undoableStatusMessage(
+  newStatus: OrderStatus,
+  wasPaid: boolean,
+  orderRef: string
+): string | null {
+  switch (newStatus) {
+    case 'PREPARING':
+      return `Commande ${orderRef} envoyée en cuisine`;
+    case 'READY':
+      return `Commande ${orderRef} marquée prête`;
+    case 'COMPLETED':
+      return `Commande ${orderRef} marquée récupérée`;
+    case 'CANCELLED':
+      return wasPaid
+        ? `Commande ${orderRef} remboursée`
+        : `Commande ${orderRef} annulée`;
+    default:
+      return null;
+  }
+}
+
 export function OrderCardActions({
   order,
   menu,
@@ -67,6 +93,7 @@ export function OrderCardActions({
   const [actionError, setActionError] = useState<string | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isEditFulfillmentOpen, setIsEditFulfillmentOpen] = useState(false);
+  const { pushUndo } = useUndoToast();
 
   const canEditItems =
     order.status !== 'COMPLETED' && order.status !== 'CANCELLED';
@@ -120,6 +147,24 @@ export function OrderCardActions({
     );
   }
 
+  const orderRef = `#${String(order.dailyNumber).padStart(3, '0')}`;
+
+  // Encaissement réussi (modale ou raccourci Wave) : propose un undo 10 s qui
+  // dépaye directement (même route, `isPaid: false`).
+  function pushPaymentUndo() {
+    pushUndo({
+      message: `Commande ${orderRef} encaissée`,
+      onUndo: async () => {
+        const undoResult = await callApi(
+          `/api/caisse/orders/${order.id}/payment`,
+          'PATCH',
+          { isPaid: false }
+        );
+        if (!undoResult.ok) throw new Error(undoResult.error);
+      },
+    });
+  }
+
   function handlePaymentConfirm(payments: PaymentLine[]) {
     setPaymentError(null);
     startTransition(async () => {
@@ -133,6 +178,7 @@ export function OrderCardActions({
         return;
       }
       setIsPaymentOpen(false);
+      pushPaymentUndo();
     });
   }
 
@@ -147,19 +193,47 @@ export function OrderCardActions({
         'PATCH',
         { isPaid: true, payments: [{ mode: 'WAVE', amount: order.total }] }
       );
-      if (!result.ok) setActionError(result.error);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      pushPaymentUndo();
     });
   }
 
-  function handleStatusChange(newStatus: OrderStatus) {
+  // `skipUndo` : évite qu'un undo (qui rappelle cette même fonction pour
+  // revenir au statut précédent) ne génère lui-même un nouveau toast d'undo.
+  function handleStatusChange(
+    newStatus: OrderStatus,
+    opts?: { skipUndo?: boolean }
+  ) {
     setActionError(null);
+    const previousStatus = order.status;
+    const wasPaid = order.isPaid;
     startTransition(async () => {
       const result = await callApi(
         `/api/caisse/orders/${order.id}/status`,
         'PATCH',
         { status: newStatus }
       );
-      if (!result.ok) setActionError(result.error);
+      if (!result.ok) {
+        setActionError(result.error);
+        return;
+      }
+      if (opts?.skipUndo) return;
+      const message = undoableStatusMessage(newStatus, wasPaid, orderRef);
+      if (!message) return;
+      pushUndo({
+        message,
+        onUndo: async () => {
+          const undoResult = await callApi(
+            `/api/caisse/orders/${order.id}/status`,
+            'PATCH',
+            { status: previousStatus }
+          );
+          if (!undoResult.ok) throw new Error(undoResult.error);
+        },
+      });
     });
   }
 
@@ -185,8 +259,6 @@ export function OrderCardActions({
     }
     handleStatusChange('PREPARING');
   }
-
-  const orderRef = `#${String(order.dailyNumber).padStart(3, '0')}`;
 
   // Annuler une commande non payée ; rembourser (= annuler) une commande payée.
   function handleCancelOrRefund() {

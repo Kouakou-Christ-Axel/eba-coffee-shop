@@ -33,9 +33,7 @@ describe('order-permissions — annulation / remboursement', () => {
 
   it('un gérant adjoint (ASSISTANT_MANAGER) a les mêmes droits qu’un gérant', () => {
     expect(canTransition('NEW', 'PREPARING', 'ASSISTANT_MANAGER')).toBe(true);
-    expect(canTransition('READY', 'COMPLETED', 'ASSISTANT_MANAGER')).toBe(
-      true
-    );
+    expect(canTransition('READY', 'COMPLETED', 'ASSISTANT_MANAGER')).toBe(true);
     expect(canTransition('NEW', 'CANCELLED', 'ASSISTANT_MANAGER')).toBe(true);
   });
 
@@ -43,5 +41,44 @@ describe('order-permissions — annulation / remboursement', () => {
     expect(canTransition('NEW', 'PREPARING', 'COMPTABLE')).toBe(false);
     expect(canTransition('READY', 'COMPLETED', 'COMPTABLE')).toBe(false);
     expect(canTransition('NEW', 'CANCELLED', 'COMPTABLE')).toBe(false);
+  });
+});
+
+describe('order-permissions — undo (transitions inverses, 10 s)', () => {
+  it('un caissier peut défaire chaque transition de statut normale', () => {
+    expect(canTransition('PREPARING', 'NEW', 'CASHIER')).toBe(true);
+    expect(canTransition('READY', 'PREPARING', 'CASHIER')).toBe(true);
+    expect(canTransition('COMPLETED', 'READY', 'CASHIER')).toBe(true);
+  });
+
+  it('la cuisine peut défaire les transitions qu’elle peut elle-même faire', () => {
+    expect(canTransition('PREPARING', 'NEW', 'KITCHEN')).toBe(true);
+    expect(canTransition('READY', 'PREPARING', 'KITCHEN')).toBe(true);
+  });
+
+  it('la cuisine ne peut pas défaire une remise (COMPLETED→READY)', () => {
+    expect(canTransition('COMPLETED', 'READY', 'KITCHEN')).toBe(false);
+  });
+
+  it('un caissier peut annuler une annulation, vers n’importe quel statut antérieur', () => {
+    expect(canTransition('CANCELLED', 'NEW', 'CASHIER')).toBe(true);
+    expect(canTransition('CANCELLED', 'PREPARING', 'CASHIER')).toBe(true);
+    expect(canTransition('CANCELLED', 'READY', 'CASHIER')).toBe(true);
+    expect(canTransition('CANCELLED', 'COMPLETED', 'CASHIER')).toBe(true);
+  });
+
+  it('la cuisine ne peut pas annuler une annulation', () => {
+    expect(canTransition('CANCELLED', 'NEW', 'KITCHEN')).toBe(false);
+    expect(canTransition('CANCELLED', 'PREPARING', 'KITCHEN')).toBe(false);
+  });
+
+  it('un comptable ne peut défaire aucune transition', () => {
+    expect(canTransition('PREPARING', 'NEW', 'COMPTABLE')).toBe(false);
+    expect(canTransition('CANCELLED', 'NEW', 'COMPTABLE')).toBe(false);
+  });
+
+  it('n’ajoute aucune nouvelle paire inattendue (ex. saut direct NEW→READY)', () => {
+    expect(canTransition('NEW', 'READY', 'ADMIN')).toBe(false);
+    expect(canTransition('READY', 'NEW', 'ADMIN')).toBe(false);
   });
 });
