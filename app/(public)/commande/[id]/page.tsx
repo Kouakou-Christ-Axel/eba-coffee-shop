@@ -52,12 +52,18 @@ export default async function CommandePage({ params }: Props) {
         whatsapp={contact.whatsapp}
       />
 
-      <div className="mt-8 text-center">
+      <div className="mt-8 flex items-center justify-center gap-6 text-center">
         <Link
           href="/carte"
           className="text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           ← Retour à la carte
+        </Link>
+        <Link
+          href="/mes-commandes"
+          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+        >
+          Mes commandes
         </Link>
       </div>
     </div>

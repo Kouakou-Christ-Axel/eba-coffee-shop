@@ -4,40 +4,67 @@
 //
 // Étape 2 du modal de commande, ordonnée comme le processus terrain :
 //   1. Comment ? — je viens / j'envoie un livreur (+ infos livreur & adresse)
-//   2. Qui ? — prénom + téléphone
+//   2. Qui ? — prénom + téléphone (+ récompense fidélité si le numéro en a une)
 //   3. Quand ? — dès que possible (défaut) ou créneau planifié
 //   4. Note éventuelle
 //
 // Les données retrait (créneaux, horaires d'ouverture, adresse) sont chargées
 // une seule fois via `usePickupInfo` et partagées entre les blocs 1 et 3.
 
+import { useEffect, useState } from 'react';
 import { Button } from '@heroui/react';
 import { ArrowLeft } from 'lucide-react';
 import type { CartItem } from '@/lib/cart-store';
 import { useCheckoutForm } from '@/lib/hooks/use-checkout-form';
 import { usePickupInfo } from '@/lib/hooks/use-pickup-info';
+import { useLoyaltyReward } from '@/lib/hooks/use-loyalty-reward';
 import { ContactFields } from './_components/contact-fields';
+import { LoyaltyRewardBanner } from './_components/loyalty-reward-banner';
 import { PickupModeCards } from './_components/pickup-mode-cards';
 import { NoteField } from './_components/note-field';
 import { SlotPicker } from './_components/slot-picker';
 
 type Props = {
   items: CartItem[];
+  /** Total BRUT du panier (le serveur déduit lui-même la récompense). */
   total: number;
   onBack: () => void;
   onSuccess: (orderId: string) => void;
+  /** Remonte la remise fidélité appliquée pour le récap de la page. */
+  onLoyaltyDiscountChange?: (discount: number) => void;
 };
 
-export function CheckoutForm({ items, total, onBack, onSuccess }: Props) {
+export function CheckoutForm({
+  items,
+  total,
+  onBack,
+  onSuccess,
+  onLoyaltyDiscountChange,
+}: Props) {
+  // Récompense appliquée par défaut (frictionless) ; le client peut la garder
+  // pour une prochaine commande via le Switch du bandeau.
+  const [rewardApplied, setRewardApplied] = useState(true);
+
   const { values, errors, isSubmitting, setField, submit } = useCheckoutForm({
     items,
     total,
   });
   const pickupInfo = usePickupInfo();
+  // Recherche débouncée de la récompense du numéro saisi.
+  const reward = useLoyaltyReward(values.customerPhone);
+
+  const activeReward =
+    reward.status === 'ready' && rewardApplied ? reward : null;
+  const discount = activeReward ? Math.min(activeReward.capAmount, total) : 0;
+
+  // Remonte la remise au récapitulatif de la page (au-dessus du formulaire).
+  useEffect(() => {
+    onLoyaltyDiscountChange?.(discount);
+  }, [discount, onLoyaltyDiscountChange]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const outcome = await submit();
+    const outcome = await submit(activeReward);
     if (outcome.ok) onSuccess(outcome.orderId);
   }
 
@@ -81,6 +108,14 @@ export function CheckoutForm({ items, total, onBack, onSuccess }: Props) {
         onNameChange={(v) => setField('customerName', v)}
         onPhoneChange={(v) => setField('customerPhone', v)}
       />
+
+      {reward.status === 'ready' && (
+        <LoyaltyRewardBanner
+          capAmount={reward.capAmount}
+          applied={rewardApplied}
+          onAppliedChange={setRewardApplied}
+        />
+      )}
 
       <SlotPicker
         timing={values.timing}

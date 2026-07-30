@@ -19,6 +19,84 @@ type AwardArgs = {
 };
 
 /**
+ * Récompense demandée mais inutilisable : introuvable, appartenant à un autre
+ * client, ou déjà consommée. Les appelants (caisse, API publique) traduisent
+ * vers leur format d'erreur (OrderMutationError 400 / réponse HTTP 400).
+ */
+export class LoyaltyRewardUnavailableError extends Error {
+  constructor(message = 'Récompense fidélité indisponible') {
+    super(message);
+    this.name = 'LoyaltyRewardUnavailableError';
+  }
+}
+
+/**
+ * Vérifie qu'une récompense est utilisable par le client résolu de la
+ * commande : elle doit exister, lui appartenir et être `AVAILABLE`. À appeler
+ * DANS la transaction de création (revérifiée à chaque tentative de retry —
+ * une transaction annulée n'a rien écrit). Lève
+ * `LoyaltyRewardUnavailableError` sinon.
+ */
+export async function resolveLoyaltyReward(
+  tx: Prisma.TransactionClient,
+  rewardId: string,
+  customerId: string | null
+): Promise<{ id: string; capAmount: number }> {
+  if (!customerId) {
+    throw new LoyaltyRewardUnavailableError(
+      'Récompense fidélité : aucun client associé à la commande'
+    );
+  }
+  const found = await tx.loyaltyReward.findUnique({
+    where: { id: rewardId },
+    select: { id: true, customerId: true, capAmount: true, status: true },
+  });
+  if (
+    !found ||
+    found.customerId !== customerId ||
+    found.status !== 'AVAILABLE'
+  ) {
+    throw new LoyaltyRewardUnavailableError();
+  }
+  return { id: found.id, capAmount: found.capAmount };
+}
+
+/**
+ * Consomme une récompense pour une commande créée : statut `USED` +
+ * `usedOrderId`/`usedAt`, et trace `REWARD_USED` au ledger. MÊME transaction
+ * que la création — jamais réutilisable deux fois.
+ */
+export async function consumeLoyaltyReward(
+  tx: Prisma.TransactionClient,
+  args: {
+    rewardId: string;
+    customerId: string;
+    orderId: string;
+    capAmount: number;
+    /** Utilisateur caisse à l'origine ; null pour une commande en ligne. */
+    actorId?: string | null;
+  }
+): Promise<void> {
+  await tx.loyaltyReward.update({
+    where: { id: args.rewardId },
+    data: {
+      status: 'USED',
+      usedOrderId: args.orderId,
+      usedAt: new Date(),
+    },
+  });
+  await tx.loyaltyLedger.create({
+    data: {
+      customerId: args.customerId,
+      type: 'REWARD_USED',
+      orderId: args.orderId,
+      actorId: args.actorId ?? null,
+      note: `Récompense ${args.capAmount} F utilisée`,
+    },
+  });
+}
+
+/**
  * Attribue (au plus) 1 tampon pour une commande, et crée les récompenses
  * débloquées. Respecte : programme actif, montant min, et 1 tampon/jour/numéro.
  * No-op silencieux si une condition n'est pas remplie.

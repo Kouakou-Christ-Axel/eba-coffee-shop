@@ -182,6 +182,26 @@ export function buildDriverRequestMessage(params: {
 }
 
 /**
+ * Message que le CLIENT s'envoie / envoie à un proche depuis la page de
+ * suivi pour GARDER le lien (l'URL de suivi n'est montrée qu'une fois après
+ * la commande — WhatsApp sert de « boîte à liens » universelle ici).
+ */
+export function buildTrackingShareMessage(params: {
+  pickupCode: string;
+  customerName: string | null;
+  trackingUrl: string;
+}): string {
+  const { pickupCode, customerName, trackingUrl } = params;
+  const who = customerName ? `la commande de ${customerName}` : 'ma commande';
+  return [
+    `Suivi en direct de ${who} chez EBA Coffee Shop :`,
+    trackingUrl,
+    '',
+    `Code de retrait à annoncer au comptoir : ${pickupCode}`,
+  ].join('\n');
+}
+
+/**
  * Message que le CLIENT transfère à son livreur depuis la page de suivi :
  * code de retrait (identifiant terrain, unique contrairement au n° du jour),
  * adresse + lien Maps (pour estimer la course avant de partir) et lien de

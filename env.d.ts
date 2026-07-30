@@ -7,49 +7,53 @@
 export type CoercedEnvSchema = {
   /**
    * **DATABASE_URL** 🔐 _sensitive_
-   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M24%2021V9h-2v14h8v-2zm-4-6v-4c0-1.103-.897-2-2-2h-6v14h2v-6h1.48l2.335%206h2.145l-2.333-6H18c1.103%200%202-.897%202-2m-6-4h4v4h-4zM8%2023H4c-1.103%200-2-.897-2-2V9h2v12h4V9h2v12c0%201.103-.897%202-2%202%22%2F%3E%3C%2Fsvg%3E)
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
    */
   DATABASE_URL: string;
 
   /**
    * **NEXT_PUBLIC_SITE_URL**
-   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M24%2021V9h-2v14h8v-2zm-4-6v-4c0-1.103-.897-2-2-2h-6v14h2v-6h1.48l2.335%206h2.145l-2.333-6H18c1.103%200%202-.897%202-2m-6-4h4v4h-4zM8%2023H4c-1.103%200-2-.897-2-2V9h2v12h4V9h2v12c0%201.103-.897%202-2%202%22%2F%3E%3C%2Fsvg%3E)
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
    */
   NEXT_PUBLIC_SITE_URL: string;
 
   /**
    * **BETTER_AUTH_SECRET** 🔐 _sensitive_
-   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M29%2022h-5a2.003%202.003%200%200%201-2-2v-6a2%202%200%200%201%202-2h5v2h-5v6h5ZM18%2012h-4V8h-2v14h6a2.003%202.003%200%200%200%202-2v-6a2%202%200%200%200-2-2m-4%208v-6h4v6Zm-6-8H3v2h5v2H4a2%202%200%200%200-2%202v2a2%202%200%200%200%202%202h6v-8a2%202%200%200%200-2-2m0%208H4v-2h4Z%22%2F%3E%3C%2Fsvg%3E)
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
    */
   BETTER_AUTH_SECRET: string;
 
   /**
    * **BETTER_AUTH_URL**
-   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M24%2021V9h-2v14h8v-2zm-4-6v-4c0-1.103-.897-2-2-2h-6v14h2v-6h1.48l2.335%206h2.145l-2.333-6H18c1.103%200%202-.897%202-2m-6-4h4v4h-4zM8%2023H4c-1.103%200-2-.897-2-2V9h2v12h4V9h2v12c0%201.103-.897%202-2%202%22%2F%3E%3C%2Fsvg%3E)
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
    */
   BETTER_AUTH_URL: string;
 
   /**
    * **RESEND_API_KEY** 🔐 _sensitive_
-   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M29%2022h-5a2.003%202.003%200%200%201-2-2v-6a2%202%200%200%201%202-2h5v2h-5v6h5ZM18%2012h-4V8h-2v14h6a2.003%202.003%200%200%200%202-2v-6a2%202%200%200%200-2-2m-4%208v-6h4v6Zm-6-8H3v2h5v2H4a2%202%200%200%200-2%202v2a2%202%200%200%200%202%202h6v-8a2%202%200%200%200-2-2m0%208H4v-2h4Z%22%2F%3E%3C%2Fsvg%3E)
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
    */
   RESEND_API_KEY: string;
 
   /**
    * **RESEND_FROM** 🔐 _sensitive_
-   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M29%2022h-5a2.003%202.003%200%200%201-2-2v-6a2%202%200%200%201%202-2h5v2h-5v6h5ZM18%2012h-4V8h-2v14h6a2.003%202.003%200%200%200%202-2v-6a2%202%200%200%200-2-2m-4%208v-6h4v6Zm-6-8H3v2h5v2H4a2%202%200%200%200-2%202v2a2%202%200%200%200%202%202h6v-8a2%202%200%200%200-2-2m0%208H4v-2h4Z%22%2F%3E%3C%2Fsvg%3E)
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
    */
   RESEND_FROM: string;
 
   /**
-   * **OWNER_EMAIL** 🔐 _sensitive_
-   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M29%2022h-5a2.003%202.003%200%200%201-2-2v-6a2%202%200%200%201%202-2h5v2h-5v6h5ZM18%2012h-4V8h-2v14h6a2.003%202.003%200%200%200%202-2v-6a2%202%200%200%200-2-2m-4%208v-6h4v6Zm-6-8H3v2h5v2H4a2%202%200%200%200-2%202v2a2%202%200%200%200%202%202h6v-8a2%202%200%200%200-2-2m0%208H4v-2h4Z%22%2F%3E%3C%2Fsvg%3E)
+   * **OWNER_EMAIL**
+   * Adresses email (identifiants, pas des secrets) : elles transitent
+   * légitimement dans les réponses d'auth (user.email). On les marque
+   * non sensibles pour éviter le faux positif du scan anti-fuite de varlock
+   * (« DETECTED LEAKED SENSITIVE CONFIG ») qui bloquait la connexion admin.
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
    */
   OWNER_EMAIL: string;
 
   /**
-   * **ADMIN_EMAIL** 🔐 _sensitive_
-   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M29%2022h-5a2.003%202.003%200%200%201-2-2v-6a2%202%200%200%201%202-2h5v2h-5v6h5ZM18%2012h-4V8h-2v14h6a2.003%202.003%200%200%200%202-2v-6a2%202%200%200%200-2-2m-4%208v-6h4v6Zm-6-8H3v2h5v2H4a2%202%200%200%200-2%202v2a2%202%200%200%200%202%202h6v-8a2%202%200%200%200-2-2m0%208H4v-2h4Z%22%2F%3E%3C%2Fsvg%3E)
+   * **ADMIN_EMAIL**
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
    */
   ADMIN_EMAIL: string;
 
@@ -58,27 +62,111 @@ export type CoercedEnvSchema = {
    * Identifiant marchand Wave (ex: M_ci_MTkvxiIpuylE). Utilisé pour construire
    * les liens de paiement `https://pay.wave.com/m/<ID>/c/ci/?amount=<montant>`.
    * Si vide, les messages Wave WhatsApp incluent un placeholder à compléter.
-   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M29%2022h-5a2.003%202.003%200%200%201-2-2v-6a2%202%200%200%201%202-2h5v2h-5v6h5ZM18%2012h-4V8h-2v14h6a2.003%202.003%200%200%200%202-2v-6a2%202%200%200%200-2-2m-4%208v-6h4v6Zm-6-8H3v2h5v2H4a2%202%200%200%200-2%202v2a2%202%200%200%200%202%202h6v-8a2%202%200%200%200-2-2m0%208H4v-2h4Z%22%2F%3E%3C%2Fsvg%3E)
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
    */
   NEXT_PUBLIC_WAVE_MERCHANT_ID: string;
 
   /**
-   * **BLOB_READ_WRITE_TOKEN** 🔐 _sensitive_
-   * ![icon](data:image/svg+xml;utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cpath%20fill%3D%22%23808080%22%20d%3D%22M29%2022h-5a2.003%202.003%200%200%201-2-2v-6a2%202%200%200%201%202-2h5v2h-5v6h5ZM18%2012h-4V8h-2v14h6a2.003%202.003%200%200%200%202-2v-6a2%202%200%200%200-2-2m-4%208v-6h4v6Zm-6-8H3v2h5v2H4a2%202%200%200%200-2%202v2a2%202%200%200%200%202%202h6v-8a2%202%200%200%200-2-2m0%208H4v-2h4Z%22%2F%3E%3C%2Fsvg%3E)
+   * **MCP_API_KEY** 🔐 _sensitive_
+   * Jeton d'accès « machine » au serveur MCP (/api/mcp), passé en
+   * `Authorization: Bearer <token>`. Secret (sensible par défaut). OPTIONNEL :
+   * pour les clients qui gèrent leurs en-têtes (Claude Code CLI, curl). Les
+   * clients Claude web/mobile passent par OAuth (rôle ADMIN) — voir
+   * `app/api/mcp/README.md`. Si non configurée, seul OAuth est actif. Générer une
+   * valeur aléatoire forte, ex. `openssl rand -hex 32`.
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
    */
-  BLOB_READ_WRITE_TOKEN: string;
+  MCP_API_KEY?: string;
+
+  /**
+   * **CRON_SECRET** 🔐 _sensitive_
+   * Secret bearer OPTIONNEL pour déclencher le rappel d'inventaire depuis un cron
+   * externe : `POST /api/inventory/reminder-check` avec l'en-tête
+   * `Authorization: Bearer <CRON_SECRET>`. Si non configurée, la route est inerte
+   * (404). Générer une valeur aléatoire forte, ex. `openssl rand -hex 32`.
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
+   */
+  CRON_SECRET?: string;
+
+  /**
+   * **NEXT_PUBLIC_VAPID_PUBLIC_KEY**
+   * Clé publique VAPID (notifications push backoffice). Avec VAPID_PRIVATE_KEY,
+   * active l'abonnement push depuis le dashboard (nouvelle commande, commande
+   * prête). Si absente, la fonctionnalité reste inerte. Générer la paire avec
+   * `pnpm exec web-push generate-vapid-keys`.
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
+   */
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY?: string;
+
+  /**
+   * **VAPID_PRIVATE_KEY** 🔐 _sensitive_
+   * Clé privée VAPID associée à NEXT_PUBLIC_VAPID_PUBLIC_KEY. Secret (sensible par
+   * défaut) : ne jamais exposer côté client.
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
+   */
+  VAPID_PRIVATE_KEY?: string;
+
+  /**
+   * **VAPID_SUBJECT**
+   * Identifiant de contact VAPID (obligatoire par la spec Web Push), ex.
+   * `mailto:contact@ebacoffeeshop.com`.
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
+   */
+  VAPID_SUBJECT?: string;
+
+  /**
+   * **NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME**
+   * Nom du cloud Cloudinary. Non sensible : nécessaire côté navigateur pour
+   * poster directement vers https://api.cloudinary.com/v1_1/<cloud>/... (upload
+   * signé, sans passer par notre serveur). Dashboard Cloudinary > cloud name.
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
+   */
+  NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: string;
+
+  /**
+   * **NEXT_PUBLIC_CLOUDINARY_API_KEY**
+   * Clé API Cloudinary. Non secrète en soi (seul CLOUDINARY_API_SECRET l'est) :
+   * nécessaire côté navigateur pour construire le POST d'upload signé.
+   * Dashboard Cloudinary > Settings > API Keys.
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
+   */
+  NEXT_PUBLIC_CLOUDINARY_API_KEY: string;
+
+  /**
+   * **CLOUDINARY_API_SECRET** 🔐 _sensitive_
+   * Secret API Cloudinary, sert à SIGNER les paramètres d'upload côté serveur
+   * (dossier, transformation, formats autorisés). Ne jamais exposer côté
+   * client. Dashboard Cloudinary > Settings > API Keys.
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
+   */
+  CLOUDINARY_API_SECRET: string;
+
+  /**
+   * **CLOUDINARY_FOLDER_PREFIX**
+   * Préfixe de dossier Cloudinary, isole dev/staging/prod dans le même compte
+   * (ex. "eba-coffee-shop"). Défaut si absent : "eba-coffee-shop-dev".
+   * ![icon](data:image/svg+xml;utf-8,Host%20not%20in%20allowlist%3A%20api.iconify.design.%20Add%20this%20host%20to%20your%20network%20egress%20settings%20to%20allow%20access.)
+   */
+  CLOUDINARY_FOLDER_PREFIX?: string;
 };
 
-type _CoercedEnvSchema_3be500c3 = CoercedEnvSchema;
+type _CoercedEnvSchema_cb99056c = CoercedEnvSchema;
 
 declare module 'varlock/env' {
-  export interface TypedEnvSchema extends Readonly<_CoercedEnvSchema_3be500c3> {}
+  export interface TypedEnvSchema extends Readonly<_CoercedEnvSchema_cb99056c> {}
   export interface PublicTypedEnvSchema extends Readonly<
     Pick<
-      _CoercedEnvSchema_3be500c3,
+      _CoercedEnvSchema_cb99056c,
       | 'NEXT_PUBLIC_SITE_URL'
       | 'BETTER_AUTH_URL'
+      | 'OWNER_EMAIL'
+      | 'ADMIN_EMAIL'
       | 'NEXT_PUBLIC_WAVE_MERCHANT_ID'
+      | 'NEXT_PUBLIC_VAPID_PUBLIC_KEY'
+      | 'VAPID_SUBJECT'
+      | 'NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME'
+      | 'NEXT_PUBLIC_CLOUDINARY_API_KEY'
+      | 'CLOUDINARY_FOLDER_PREFIX'
     >
   > {}
 }
@@ -91,16 +179,16 @@ export type EnvSchemaAsStrings = {
       : string;
 };
 
-type _EnvSchemaAsStrings_3be500c3 = EnvSchemaAsStrings;
+type _EnvSchemaAsStrings_cb99056c = EnvSchemaAsStrings;
 declare global {
   // add types for global import.meta.env
-  interface ImportMetaEnv extends _EnvSchemaAsStrings_3be500c3 {}
+  interface ImportMetaEnv extends _EnvSchemaAsStrings_cb99056c {}
   interface ImportMeta {
     readonly env: ImportMetaEnv;
   }
 
   // add types for global process.env
   namespace NodeJS {
-    interface ProcessEnv extends _EnvSchemaAsStrings_3be500c3 {}
+    interface ProcessEnv extends _EnvSchemaAsStrings_cb99056c {}
   }
 }

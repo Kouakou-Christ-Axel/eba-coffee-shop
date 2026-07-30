@@ -19,6 +19,11 @@ import {
   ORDER_NOTE_MAX,
 } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
+import {
+  addOrderToHistory,
+  readLastContact,
+  saveLastContact,
+} from '@/lib/order-history';
 import { createOrderSchema } from '@/lib/schemas/order';
 
 // ─── Types publics ───────────────────────────────────────────────────────────
@@ -50,8 +55,20 @@ export type CheckoutFormErrors = Partial<
 >;
 
 export type CheckoutSubmitOutcome =
-  | { ok: true; orderId: string }
+  | { ok: true; orderId: string; reference: string }
   | { ok: false; error: string };
+
+/**
+ * Récompense fidélité appliquée à la soumission. Passée à `submit()` (et non
+ * à la construction du hook) car elle dépend du téléphone saisi, lui-même
+ * détenu par ce hook.
+ */
+export type CheckoutLoyaltyReward = {
+  id: string;
+  /** Plafond de la récompense — sert au total mémorisé dans l'historique
+   * local ; le montant réellement déduit est recalculé côté serveur. */
+  capAmount: number;
+};
 
 export type UseCheckoutFormResult = {
   values: CheckoutFormValues;
@@ -61,11 +78,14 @@ export type UseCheckoutFormResult = {
     key: K,
     value: CheckoutFormValues[K]
   ) => void;
-  submit: () => Promise<CheckoutSubmitOutcome>;
+  submit: (
+    loyaltyReward?: CheckoutLoyaltyReward | null
+  ) => Promise<CheckoutSubmitOutcome>;
 };
 
 export type UseCheckoutFormOptions = {
   items: CartItem[];
+  /** Total BRUT du panier ; le serveur déduit lui-même la récompense. */
   total: number;
 };
 
@@ -166,12 +186,14 @@ type SubmitArgs = {
   values: CheckoutFormValues;
   items: CartItem[];
   total: number;
+  loyaltyRewardId?: string | null;
 };
 
 export async function submitCheckout({
   values,
   items,
   total,
+  loyaltyRewardId,
 }: SubmitArgs): Promise<CheckoutSubmitOutcome> {
   let response: Response;
   try {
@@ -195,6 +217,9 @@ export async function submitCheckout({
               driverPhone: values.driverPhone.trim(),
             }
           : {}),
+        // Le serveur revalide la récompense (appartenance au client résolu du
+        // téléphone, statut AVAILABLE) et déduit lui-même la remise du total.
+        ...(loyaltyRewardId ? { loyaltyRewardId } : {}),
       }),
     });
   } catch {
@@ -205,6 +230,23 @@ export async function submitCheckout({
   }
 
   if (!response.ok) {
+    // Récompense fidélité consommée entre-temps (ex. au comptoir) : message
+    // actionnable plutôt qu'une erreur générique.
+    if (response.status === 400) {
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: unknown;
+      };
+      if (
+        typeof data.error === 'string' &&
+        data.error.includes('Récompense fidélité')
+      ) {
+        return {
+          ok: false,
+          error:
+            'Récompense fidélité indisponible — réessaie sans la récompense.',
+        };
+      }
+    }
     return {
       ok: false,
       error: 'Une erreur est survenue. Veuillez réessayer.',
@@ -212,8 +254,8 @@ export async function submitCheckout({
   }
 
   try {
-    const data = (await response.json()) as { id: string };
-    return { ok: true, orderId: data.id };
+    const data = (await response.json()) as { id: string; reference: string };
+    return { ok: true, orderId: data.id, reference: data.reference };
   } catch {
     return {
       ok: false,
@@ -228,7 +270,19 @@ export function useCheckoutForm({
   items,
   total,
 }: UseCheckoutFormOptions): UseCheckoutFormResult {
-  const [values, setValues] = useState<CheckoutFormValues>(INITIAL_VALUES);
+  // Pré-remplissage « client fidèle » : coordonnées de la dernière commande
+  // passée depuis cet appareil (lib/order-history.ts). Initialiseur paresseux
+  // sûr ici : le checkout n'est monté qu'après hydratation du panier
+  // (checkout-page.tsx rend null côté serveur), donc pas de mismatch SSR.
+  const [values, setValues] = useState<CheckoutFormValues>(() => {
+    const last = readLastContact();
+    if (!last) return INITIAL_VALUES;
+    return {
+      ...INITIAL_VALUES,
+      customerName: last.name,
+      customerPhone: last.phone,
+    };
+  });
   const [errors, setErrors] = useState<CheckoutFormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -247,30 +301,53 @@ export function useCheckoutForm({
     []
   );
 
-  const submit = useCallback(async (): Promise<CheckoutSubmitOutcome> => {
-    const validation = validateCheckoutForm(values, items, total);
-    if (Object.keys(validation).length > 0) {
-      setErrors(validation);
-      const first =
-        validation.customerName ??
-        validation.customerPhone ??
-        validation.pickupTime ??
-        validation.note ??
-        validation.driverName ??
-        validation.driverPhone ??
-        'Veuillez corriger les champs invalides.';
-      return { ok: false, error: first };
-    }
+  const submit = useCallback<UseCheckoutFormResult['submit']>(
+    async (loyaltyReward) => {
+      const validation = validateCheckoutForm(values, items, total);
+      if (Object.keys(validation).length > 0) {
+        setErrors(validation);
+        const first =
+          validation.customerName ??
+          validation.customerPhone ??
+          validation.pickupTime ??
+          validation.note ??
+          validation.driverName ??
+          validation.driverPhone ??
+          'Veuillez corriger les champs invalides.';
+        return { ok: false, error: first };
+      }
 
-    setIsSubmitting(true);
-    setErrors({});
-    const outcome = await submitCheckout({ values, items, total });
-    setIsSubmitting(false);
-    if (!outcome.ok) {
-      setErrors({ submit: outcome.error });
-    }
-    return outcome;
-  }, [values, items, total]);
+      setIsSubmitting(true);
+      setErrors({});
+      const outcome = await submitCheckout({
+        values,
+        items,
+        total,
+        loyaltyRewardId: loyaltyReward?.id ?? null,
+      });
+      setIsSubmitting(false);
+      if (!outcome.ok) {
+        setErrors({ submit: outcome.error });
+      } else {
+        // Historique local « mes commandes » + coordonnées pour le prochain
+        // checkout — l'effet « compte » sans compte (best-effort, jamais
+        // bloquant : les helpers avalent un localStorage indisponible).
+        addOrderToHistory({
+          id: outcome.orderId,
+          reference: outcome.reference,
+          // Total réellement dû (le serveur a déduit la récompense).
+          total: total - Math.min(loyaltyReward?.capAmount ?? 0, total),
+          createdAt: new Date().toISOString(),
+        });
+        saveLastContact({
+          name: values.customerName.trim(),
+          phone: values.customerPhone.trim(),
+        });
+      }
+      return outcome;
+    },
+    [values, items, total]
+  );
 
   return { values, errors, isSubmitting, setField, submit };
 }

@@ -15,8 +15,8 @@
 // Les données viennent de `usePickupInfo` (fetch unique pour tout le modal).
 
 import { useEffect, useMemo, useState } from 'react';
-import { Select, SelectItem, SelectSection } from '@heroui/react';
-import { CalendarClock, Clock, Zap } from 'lucide-react';
+import { Button, Select, SelectItem, SelectSection } from '@heroui/react';
+import { CalendarClock, Clock, RefreshCw, Zap } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   ABIDJAN_TZ,
@@ -25,10 +25,7 @@ import {
   todayDateString,
 } from '@/lib/timezone';
 import type { TimeRange } from '@/lib/pickup-settings';
-import type {
-  PickupInfoState,
-  PickupDay,
-} from '@/lib/hooks/use-pickup-info';
+import type { PickupInfoState, PickupDay } from '@/lib/hooks/use-pickup-info';
 import type { PickupTiming } from '@/lib/hooks/use-checkout-form';
 import { cn } from '@/lib/utils';
 
@@ -165,9 +162,19 @@ export function SlotPicker({
           Chargement des horaires…
         </p>
       ) : info.status === 'error' ? (
-        <p className="rounded-md border border-foreground/15 px-3 py-4 text-center text-xs text-foreground/50">
-          Impossible de charger les horaires. Rechargez la page.
-        </p>
+        <div className="flex flex-col items-center gap-2 rounded-md border border-foreground/15 px-3 py-4">
+          <p className="text-center text-xs text-foreground/50">
+            Impossible de charger les horaires.
+          </p>
+          <Button
+            size="sm"
+            variant="bordered"
+            startContent={<RefreshCw className="h-3.5 w-3.5" />}
+            onPress={info.retry}
+          >
+            Réessayer
+          </Button>
+        </div>
       ) : (
         <>
           {/* Dès que possible / Planifier */}
@@ -333,7 +340,9 @@ function DaySlots({
           <SelectSection key={period} title={PERIOD_LABELS[period]}>
             {inPeriod.map((slot) => {
               const iso = slot.toISOString();
-              return <SelectItem key={iso}>{formatAbidjanTime(slot)}</SelectItem>;
+              return (
+                <SelectItem key={iso}>{formatAbidjanTime(slot)}</SelectItem>
+              );
             })}
           </SelectSection>
         ))}

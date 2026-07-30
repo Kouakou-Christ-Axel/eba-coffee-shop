@@ -259,9 +259,12 @@ describe('submitCheckout', () => {
     expect(second).toContain(`"pickupTime":"${validValues.pickupTime}"`);
   });
 
-  it('retourne { ok: true, orderId } sur succès', async () => {
+  it('retourne { ok: true, orderId, reference } sur succès', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ id: 'clo123' }), { status: 201 })
+      new Response(
+        JSON.stringify({ id: 'clo123', reference: 'EBA-20260730-AB12' }),
+        { status: 201 }
+      )
     );
 
     const out = await submitCheckout({
@@ -270,7 +273,64 @@ describe('submitCheckout', () => {
       total: 3500,
     });
 
-    expect(out).toEqual({ ok: true, orderId: 'clo123' });
+    expect(out).toEqual({
+      ok: true,
+      orderId: 'clo123',
+      reference: 'EBA-20260730-AB12',
+    });
+  });
+
+  it('inclut loyaltyRewardId quand une récompense est appliquée, l’omet sinon', async () => {
+    const spy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ id: 'clo123', reference: 'EBA-1' }), {
+        status: 201,
+      })
+    );
+
+    await submitCheckout({
+      values: validValues,
+      items: mockItems,
+      total: 3500,
+      loyaltyRewardId: 'reward-1',
+    });
+    await submitCheckout({
+      values: validValues,
+      items: mockItems,
+      total: 3500,
+      loyaltyRewardId: null,
+    });
+
+    const first = String(
+      (spy.mock.calls[0]?.[1] as RequestInit | undefined)?.body ?? ''
+    );
+    const second = String(
+      (spy.mock.calls[1]?.[1] as RequestInit | undefined)?.body ?? ''
+    );
+    expect(first).toContain('"loyaltyRewardId":"reward-1"');
+    // Le total envoyé reste le total BRUT : le serveur déduit la remise.
+    expect(first).toContain('"total":3500');
+    expect(second).not.toContain('"loyaltyRewardId"');
+  });
+
+  it('mappe le 400 « récompense indisponible » sur un message actionnable', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: 'Récompense fidélité indisponible' }),
+        {
+          status: 400,
+        }
+      )
+    );
+
+    const out = await submitCheckout({
+      values: validValues,
+      items: mockItems,
+      total: 3500,
+      loyaltyRewardId: 'reward-1',
+    });
+
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error).toMatch(/sans la récompense/i);
   });
 
   it('retourne { ok: false, error } sur 400', async () => {
