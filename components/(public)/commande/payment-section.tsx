@@ -3,14 +3,15 @@
 // components/(public)/commande/payment-section.tsx
 //
 // Bloc « Paiement » de la page publique de suivi (/commande/:id), extrait de
-// order-tracking.tsx. Trois états explicites pour guider le client (le flux
+// order-tracking.tsx. Quatre états explicites pour guider le client (le flux
 // Wave reste un simple deep link + preuve par capture — pas d'API) :
 //
 //   - `awaiting`      : checklist numérotée « 1. Payer avec Wave » puis
 //                       « 2. Envoyer ta capture » (ou payer au comptoir) ;
 //   - `proof_pending` : preuve reçue, la caisse valide — le bouton Wave
 //                       disparaît (fini le doute « dois-je repayer ? ») ;
-//   - `validated`     : paiement confirmé, la commande part en préparation.
+//   - `validated`     : paiement confirmé, la commande part en préparation ;
+//   - `nothing_due`   : récompense fidélité couvrant tout le total.
 
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { MediaImage as Image } from '@/components/ui/media-image';
@@ -20,6 +21,7 @@ import {
   Camera,
   Check,
   CheckCircle2,
+  Gift,
   Loader2,
   MessageCircle,
   Wallet,
@@ -39,10 +41,17 @@ import {
 import { PAYMENT_PROOF_MAX_SIZE_BYTES } from '@/config/constants';
 import { cn } from '@/lib/utils';
 
-type PaymentUiState = 'awaiting' | 'proof_pending' | 'validated';
+type PaymentUiState =
+  | 'awaiting'
+  | 'proof_pending'
+  | 'validated'
+  | 'nothing_due';
 
 function getPaymentUiState(order: PublicOrderView): PaymentUiState {
   if (order.isPaid) return 'validated';
+  // Récompense fidélité couvrant tout le total : rien à régler (proposer
+  // « Payer 0 F » n'aurait aucun sens). Le comptoir clôturera au retrait.
+  if (order.total <= 0) return 'nothing_due';
   if (order.paymentProofUrl) return 'proof_pending';
   return 'awaiting';
 }
@@ -155,6 +164,10 @@ export function PaymentSection({
           <Chip color="success" variant="flat" size="sm">
             Paiement validé
           </Chip>
+        ) : uiState === 'nothing_due' ? (
+          <Chip color="success" variant="flat" size="sm">
+            Rien à payer
+          </Chip>
         ) : uiState === 'proof_pending' ? (
           <Chip color="warning" variant="flat" size="sm">
             En cours de validation
@@ -190,6 +203,19 @@ export function PaymentSection({
             <CheckCircle2 className="h-6 w-6 shrink-0 text-success-700 dark:text-success" />
             <p className="text-sm font-medium text-success-700 dark:text-success">
               Paiement validé 🎉 — ta commande part en préparation.
+            </p>
+          </motion.div>
+        ) : uiState === 'nothing_due' ? (
+          <motion.div
+            key="nothing-due"
+            initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="mt-4 flex items-center gap-3 rounded-lg bg-success/15 px-3 py-3"
+          >
+            <Gift className="h-6 w-6 shrink-0 text-success-700 dark:text-success" />
+            <p className="text-sm font-medium text-success-700 dark:text-success">
+              Rien à payer 🎉 — ta récompense fidélité couvre toute la commande.
             </p>
           </motion.div>
         ) : uiState === 'proof_pending' ? (

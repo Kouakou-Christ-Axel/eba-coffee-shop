@@ -117,6 +117,11 @@ export function OrderTracking({
   // que le moment « validé » (qui débloque la préparation) se voie vite.
   const awaitingProofValidation = !order.isPaid && !!order.paymentProofUrl;
 
+  // Le paiement bloque la préparation → on remonte le bloc au-dessus du code
+  // de retrait. Total nul (récompense couvrant tout) : rien ne bloque.
+  const paymentBlocking =
+    !order.isPaid && order.status === 'NEW' && order.total > 0;
+
   useEffect(() => {
     if (isFinal) return;
     const timer = setInterval(
@@ -172,7 +177,7 @@ export function OrderTracking({
       )}
 
       {/* ── Paiement (prioritaire tant qu'il bloque la préparation) ── */}
-      {!isCancelled && !order.isPaid && order.status === 'NEW' && (
+      {!isCancelled && paymentBlocking && (
         <PaymentSection
           order={order}
           whatsapp={whatsapp}
@@ -232,7 +237,7 @@ export function OrderTracking({
       )}
 
       {/* ── Paiement (position normale une fois qu'il ne bloque plus) ── */}
-      {!isCancelled && !(!order.isPaid && order.status === 'NEW') && (
+      {!isCancelled && !paymentBlocking && (
         <PaymentSection
           order={order}
           whatsapp={whatsapp}
