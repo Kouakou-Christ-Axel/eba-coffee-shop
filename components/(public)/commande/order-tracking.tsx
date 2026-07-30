@@ -14,50 +14,39 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { MediaImage as Image } from '@/components/ui/media-image';
 import { Button, Chip, Input } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   Bike,
-  Camera,
   Check,
   CheckCircle2,
   ChefHat,
   Gift,
-  Loader2,
   MapPin,
-  MessageCircle,
   Pencil,
   Receipt,
   Share2,
   ShoppingBag,
-  Wallet,
   XCircle,
 } from 'lucide-react';
 import type { PublicOrderLoyaltyView, PublicOrderView } from '@/lib/orders';
 import { OrderNotifications } from '@/components/(public)/commande/order-notifications';
+import { PaymentSection } from '@/components/(public)/commande/payment-section';
 import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
 import { getItemGross } from '@/lib/orders/totals';
 import { formatPickupTime } from '@/lib/format-order';
 import { priceFormatter } from '@/config/menu';
 import {
   buildDriverShareMessage,
-  buildPaymentProofMessage,
   buildTrackingShareMessage,
-  buildWaveLink,
   buildWhatsAppLink,
   buildWhatsAppShareLink,
 } from '@/lib/contact-links';
-import { compressImage } from '@/lib/image-compress';
-import {
-  uploadToCloudinary,
-  confirmCloudinaryUrl,
-} from '@/lib/cloudinary-client';
 import {
   ORDER_CUSTOMER_NAME_MAX,
   ORDER_CUSTOMER_PHONE_MAX,
+  ORDER_TRACKING_POLL_FAST_INTERVAL_MS,
   ORDER_TRACKING_POLL_INTERVAL_MS,
-  PAYMENT_PROOF_MAX_SIZE_BYTES,
 } from '@/config/constants';
 import { cn } from '@/lib/utils';
 
@@ -130,15 +119,24 @@ export function OrderTracking({
     }
   }, [initialOrder.id]);
 
+  // Preuve envoyée mais paiement pas encore validé : polling accéléré pour
+  // que le moment « validé » (qui débloque la préparation) se voie vite.
+  const awaitingProofValidation = !order.isPaid && !!order.paymentProofUrl;
+
   useEffect(() => {
     if (isFinal) return;
-    const timer = setInterval(refresh, ORDER_TRACKING_POLL_INTERVAL_MS);
+    const timer = setInterval(
+      refresh,
+      awaitingProofValidation
+        ? ORDER_TRACKING_POLL_FAST_INTERVAL_MS
+        : ORDER_TRACKING_POLL_INTERVAL_MS
+    );
     document.addEventListener('visibilitychange', refresh);
     return () => {
       clearInterval(timer);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, [refresh, isFinal]);
+  }, [refresh, isFinal, awaitingProofValidation]);
 
   const currentStep = STATUS_INDEX[order.status] ?? 0;
 
@@ -177,6 +175,15 @@ export function OrderTracking({
             </p>
           </div>
         </div>
+      )}
+
+      {/* ── Paiement (prioritaire tant qu'il bloque la préparation) ── */}
+      {!isCancelled && !order.isPaid && order.status === 'NEW' && (
+        <PaymentSection
+          order={order}
+          whatsapp={whatsapp}
+          onOrderChange={setOrder}
+        />
       )}
 
       {/* ── Code de retrait ── */}
@@ -230,8 +237,8 @@ export function OrderTracking({
         <LoyaltySection loyalty={order.loyalty} />
       )}
 
-      {/* ── Paiement ── */}
-      {!isCancelled && (
+      {/* ── Paiement (position normale une fois qu'il ne bloque plus) ── */}
+      {!isCancelled && !(!order.isPaid && order.status === 'NEW') && (
         <PaymentSection
           order={order}
           whatsapp={whatsapp}
@@ -482,186 +489,6 @@ function LoyaltySection({ loyalty }: { loyalty: PublicOrderLoyaltyView }) {
           Plus que {remaining} commande{remaining > 1 ? 's' : ''} pour ta
           réduction (jusqu’à {priceFormatter.format(nextCap)} FCFA)&nbsp;!
         </p>
-      )}
-    </div>
-  );
-}
-
-// ─── Paiement (Wave + preuve) ─────────────────────────────────────────────────
-
-function PaymentSection({
-  order,
-  whatsapp,
-  onOrderChange,
-}: {
-  order: PublicOrderView;
-  whatsapp: string;
-  onOrderChange: (o: PublicOrderView) => void;
-}) {
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const waveLink = buildWaveLink(order.total);
-  const paymentProofWhatsAppLink = buildWhatsAppLink(
-    whatsapp,
-    buildPaymentProofMessage({
-      customerName: order.customerName,
-      dailyNumber: order.dailyNumber,
-      amount: order.total,
-    })
-  );
-
-  async function onPickFile(file: File) {
-    setError(null);
-    setUploading(true);
-    try {
-      // Compression navigateur (capture Wave 1-4 Mo → ~100-300 Ko) ; repli sur
-      // le fichier original si le navigateur ne sait pas le décoder.
-      const compressed = await compressImage(file);
-      const toSend = compressed ?? file;
-      if (toSend.size > PAYMENT_PROOF_MAX_SIZE_BYTES) {
-        throw new Error(
-          'Image trop lourde (max 1 Mo) — réessaie avec une capture d’écran'
-        );
-      }
-
-      const url = await uploadToCloudinary(
-        toSend,
-        `/api/commandes/${order.id}/preuve-paiement/sign`
-      );
-      await confirmCloudinaryUrl(
-        `/api/commandes/${order.id}/preuve-paiement`,
-        url
-      );
-      onOrderChange({ ...order, paymentProofUrl: url });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Échec de l’envoi');
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  return (
-    <div className="rounded-xl border border-foreground/10 bg-default-50 p-5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-foreground/40">
-          <Wallet className="h-4 w-4" />
-          Paiement
-        </p>
-        {order.isPaid ? (
-          <Chip color="success" variant="flat" size="sm">
-            Paiement validé
-          </Chip>
-        ) : order.paymentProofUrl ? (
-          <Chip color="warning" variant="flat" size="sm">
-            Preuve envoyée · en cours de validation
-          </Chip>
-        ) : (
-          <Chip color="default" variant="flat" size="sm">
-            En attente
-          </Chip>
-        )}
-      </div>
-
-      {!order.isPaid && (
-        <div className="mt-4 flex flex-col gap-3">
-          <p className="rounded-lg bg-warning/15 px-3 py-2 text-sm font-medium text-warning-700 dark:text-warning">
-            Ta commande part en préparation dès que le paiement est confirmé —
-            paye maintenant pour ne pas perdre de temps.
-          </p>
-
-          {waveLink && (
-            <Button
-              as="a"
-              href={waveLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              color="primary"
-              size="lg"
-              className="w-full"
-            >
-              Payer {priceFormatter.format(order.total)}&nbsp;F avec Wave
-            </Button>
-          )}
-
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onPickFile(f);
-              e.target.value = '';
-            }}
-          />
-
-          {order.paymentProofUrl ? (
-            <div className="flex items-center gap-3">
-              <Image
-                src={order.paymentProofUrl}
-                alt="Preuve de paiement"
-                width={48}
-                height={48}
-                className="size-12 rounded-md object-cover"
-              />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">Preuve de paiement reçue</p>
-                <p className="text-xs text-foreground/60">
-                  La caisse valide et ta commande part en préparation.
-                </p>
-              </div>
-              <Button
-                variant="light"
-                size="sm"
-                isDisabled={uploading}
-                onPress={() => fileRef.current?.click()}
-              >
-                Remplacer
-              </Button>
-            </div>
-          ) : (
-            <Button
-              variant="bordered"
-              size="lg"
-              className="w-full"
-              isDisabled={uploading}
-              onPress={() => fileRef.current?.click()}
-              startContent={
-                uploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Camera className="h-4 w-4" />
-                )
-              }
-            >
-              Envoyer ma capture de paiement
-            </Button>
-          )}
-
-          {paymentProofWhatsAppLink && !order.paymentProofUrl && (
-            <Button
-              as="a"
-              href={paymentProofWhatsAppLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              variant="bordered"
-              size="lg"
-              className="w-full"
-              startContent={<MessageCircle className="h-4 w-4" />}
-            >
-              Envoyer ma preuve sur WhatsApp
-            </Button>
-          )}
-
-          <p className="text-xs text-foreground/50">
-            Après ton paiement Wave, envoie la capture ici ou sur WhatsApp
-            (joins la capture au message). Tu peux aussi payer sur place
-            (espèces ou mobile money).
-          </p>
-
-          {error && <p className="text-xs text-danger">{error}</p>}
-        </div>
       )}
     </div>
   );
