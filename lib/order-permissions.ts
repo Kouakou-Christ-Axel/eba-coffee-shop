@@ -31,6 +31,16 @@ const TRANSITIONS: readonly Transition[] = [
   { from: 'PREPARING', to: 'CANCELLED', roles: CASHIER_PLUS },
   { from: 'READY', to: 'CANCELLED', roles: CASHIER_PLUS },
   { from: 'COMPLETED', to: 'CANCELLED', roles: CASHIER_PLUS },
+
+  // Annulations inverses (undo caisse, 10 s — cf. useUndoToast) : mêmes
+  // rôles que la transition qu'elles défont.
+  { from: 'PREPARING', to: 'NEW', roles: KITCHEN_PLUS },
+  { from: 'READY', to: 'PREPARING', roles: KITCHEN_PLUS },
+  { from: 'COMPLETED', to: 'READY', roles: CASHIER_PLUS },
+  { from: 'CANCELLED', to: 'NEW', roles: CASHIER_PLUS },
+  { from: 'CANCELLED', to: 'PREPARING', roles: CASHIER_PLUS },
+  { from: 'CANCELLED', to: 'READY', roles: CASHIER_PLUS },
+  { from: 'CANCELLED', to: 'COMPLETED', roles: CASHIER_PLUS },
 ];
 
 /** Vérifie si un rôle peut faire passer une commande d'un statut à un autre. */
