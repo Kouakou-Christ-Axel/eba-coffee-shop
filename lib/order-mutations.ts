@@ -32,7 +32,12 @@ import {
 } from '@/lib/daily-numbering';
 import { generateOrderReference } from '@/lib/orders';
 import { upsertCustomerForOrder } from '@/lib/customer-mutations';
-import { awardLoyaltyForOrder } from '@/lib/loyalty-mutations';
+import {
+  awardLoyaltyForOrder,
+  consumeLoyaltyReward,
+  LoyaltyRewardUnavailableError,
+  resolveLoyaltyReward,
+} from '@/lib/loyalty-mutations';
 import { canTransition, canTogglePayment } from '@/lib/order-permissions';
 import { normalizeIvorianPhone } from '@/lib/phone';
 import { computeItemsTotal, getMaxItemDiscount } from '@/lib/orders/totals';
@@ -280,34 +285,21 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
 
         // Récompense fidélité : vérifiée à nouveau à CHAQUE tentative (une
         // transaction annulée par un conflit de numéro n'a rien écrit).
+        // Logique partagée avec le flux online (lib/loyalty-mutations.ts).
         let reward: { id: string; capAmount: number } | null = null;
         if (input.loyaltyRewardId) {
-          if (!customerId) {
-            throw new OrderMutationError(
-              'Récompense fidélité : aucun client associé à la commande',
-              400
+          try {
+            reward = await resolveLoyaltyReward(
+              tx,
+              input.loyaltyRewardId,
+              customerId
             );
+          } catch (err) {
+            if (err instanceof LoyaltyRewardUnavailableError) {
+              throw new OrderMutationError(err.message, 400);
+            }
+            throw err;
           }
-          const found = await tx.loyaltyReward.findUnique({
-            where: { id: input.loyaltyRewardId },
-            select: {
-              id: true,
-              customerId: true,
-              capAmount: true,
-              status: true,
-            },
-          });
-          if (
-            !found ||
-            found.customerId !== customerId ||
-            found.status !== 'AVAILABLE'
-          ) {
-            throw new OrderMutationError(
-              'Récompense fidélité indisponible',
-              400
-            );
-          }
-          reward = { id: found.id, capAmount: found.capAmount };
         }
 
         const discount = reward ? Math.min(reward.capAmount, grossTotal) : 0;
@@ -336,22 +328,12 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
         });
 
         if (reward) {
-          await tx.loyaltyReward.update({
-            where: { id: reward.id },
-            data: {
-              status: 'USED',
-              usedOrderId: created.id,
-              usedAt: new Date(),
-            },
-          });
-          await tx.loyaltyLedger.create({
-            data: {
-              customerId: customerId as string,
-              type: 'REWARD_USED',
-              orderId: created.id,
-              actorId: input.createdById ?? null,
-              note: `Récompense ${reward.capAmount} F utilisée`,
-            },
+          await consumeLoyaltyReward(tx, {
+            rewardId: reward.id,
+            customerId: customerId as string,
+            orderId: created.id,
+            capAmount: reward.capAmount,
+            actorId: input.createdById ?? null,
           });
         }
 

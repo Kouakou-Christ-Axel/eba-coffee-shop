@@ -5,7 +5,7 @@
 // Contenu client de /carte/commande : récapitulatif compact du panier +
 // CheckoutForm, en page plein écran plutôt qu'en modal.
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
 import { useCartStore, useCartHydration, getItemTotal } from '@/lib/cart-store';
@@ -24,6 +24,13 @@ export function CheckoutPage() {
   // `clearCart()` au succès vide le panier AVANT la navigation vers le suivi :
   // ce drapeau empêche la redirection « panier vide » de gagner la course.
   const submittedRef = useRef(false);
+  // Remise fidélité remontée par le formulaire (le téléphone y est saisi).
+  const [loyaltyDiscount, setLoyaltyDiscount] = useState(0);
+  const handleLoyaltyDiscountChange = useCallback(
+    (discount: number) => setLoyaltyDiscount(discount),
+    []
+  );
+  const netTotal = Math.max(0, totalPrice - loyaltyDiscount);
 
   // Panier vide (accès direct à l'URL ou commande déjà envoyée) : rien à
   // finaliser, on renvoie vers la carte — mais seulement une fois le panier
@@ -69,21 +76,31 @@ export function CheckoutPage() {
             </div>
           ))}
         </div>
+        {loyaltyDiscount > 0 && (
+          <div className="mt-3 flex justify-between border-t border-foreground/10 pt-3 text-sm">
+            <span className="text-foreground/60">Récompense fidélité 🎁</span>
+            <span className="font-medium text-primary">
+              −{priceFormatter.format(Math.min(loyaltyDiscount, totalPrice))}
+              &nbsp;F
+            </span>
+          </div>
+        )}
         <div className="mt-3 flex justify-between border-t border-foreground/10 pt-3 text-sm font-semibold">
           <span>Total</span>
           <span className="text-primary">
-            {priceFormatter.format(totalPrice)}&nbsp;F
+            {priceFormatter.format(netTotal)}&nbsp;F
           </span>
         </div>
       </div>
 
+      {/* Le tampon se gagne sur le montant réellement encaissé (total net). */}
       {loyaltyInfo.status === 'ready' &&
         loyaltyInfo.enabled &&
-        totalPrice > 0 && (
+        netTotal > 0 && (
           <p className="mt-3 flex items-center gap-2 text-xs font-medium text-primary">
             <Sparkles className="h-3.5 w-3.5 shrink-0" />
-            {totalPrice < loyaltyInfo.minOrderAmount
-              ? `Plus que ${priceFormatter.format(loyaltyInfo.minOrderAmount - totalPrice)} FCFA pour gagner ton point de fidélité !`
+            {netTotal < loyaltyInfo.minOrderAmount
+              ? `Plus que ${priceFormatter.format(loyaltyInfo.minOrderAmount - netTotal)} FCFA pour gagner ton point de fidélité !`
               : 'Cette commande te fait gagner un tampon fidélité 🎉'}
           </p>
         )}
@@ -94,6 +111,7 @@ export function CheckoutPage() {
           total={totalPrice}
           onBack={() => router.push('/carte')}
           onSuccess={handleSuccess}
+          onLoyaltyDiscountChange={handleLoyaltyDiscountChange}
         />
       </div>
     </div>

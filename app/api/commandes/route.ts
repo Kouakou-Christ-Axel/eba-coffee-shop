@@ -1,6 +1,7 @@
 // app/api/commandes/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createOrder, createOrderSchema } from '@/lib/orders';
+import { LoyaltyRewardUnavailableError } from '@/lib/loyalty-mutations';
 import { sendNewOrderEmail } from '@/lib/email';
 import type { CartItem } from '@/lib/cart-store';
 
@@ -36,6 +37,14 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
+    // Récompense consommée entre l'affichage du checkout et la soumission
+    // (ex. utilisée au comptoir) : erreur métier, pas une erreur serveur.
+    if (err instanceof LoyaltyRewardUnavailableError) {
+      return NextResponse.json(
+        { error: 'Récompense fidélité indisponible' },
+        { status: 400 }
+      );
+    }
     console.error('[POST /api/commandes]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }

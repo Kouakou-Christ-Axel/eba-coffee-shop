@@ -7,13 +7,7 @@
 // direct par polling) et la transfère à son livreur — code de retrait,
 // localisation, paiement Wave + preuve, et bloc livreur modifiable.
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Button, Chip, Input } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
@@ -299,6 +293,16 @@ export function OrderTracking({
           })}
         </div>
 
+        {/* Somme des articles − récompense = Total (réconciliation visible). */}
+        {order.loyaltyDiscount != null && order.loyaltyDiscount > 0 && (
+          <div className="mt-4 flex justify-between border-t border-foreground/10 pt-4 text-sm">
+            <span className="text-foreground/60">Récompense fidélité 🎁</span>
+            <span className="font-medium text-primary">
+              −{priceFormatter.format(order.loyaltyDiscount)}&nbsp;FCFA
+            </span>
+          </div>
+        )}
+
         <div className="mt-4 flex justify-between border-t border-foreground/10 pt-4 font-semibold">
           <span>Total</span>
           <span className="text-primary">
@@ -474,8 +478,9 @@ function LoyaltySection({ loyalty }: { loyalty: PublicOrderLoyaltyView }) {
         <p className="mt-3 text-sm font-medium text-primary">
           🎁 Tu as {availableRewardsCount} réduction
           {availableRewardsCount > 1 ? 's' : ''} prête
-          {availableRewardsCount > 1 ? 's' : ''} à utiliser — montre cette page
-          au comptoir&nbsp;!
+          {availableRewardsCount > 1 ? 's' : ''} à utiliser — elle s’applique
+          toute seule à ta prochaine commande en ligne (ou montre cette page au
+          comptoir).
         </p>
       ) : isFirstOrder ? (
         <p className="mt-3 text-sm text-foreground/70">

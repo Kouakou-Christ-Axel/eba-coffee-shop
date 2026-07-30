@@ -37,3 +37,23 @@ export async function getLoyaltyCardByPhone(rawPhone: string) {
   });
   return customer ? getLoyaltyCard(customer.id) : null;
 }
+
+/**
+ * Récompense utilisable pour un téléphone (checkout en ligne, sans compte) :
+ * la plus ancienne `AVAILABLE` du client résolu par téléphone, ou `null`
+ * (programme désactivé, client inconnu, rien à utiliser).
+ *
+ * Exposition volontairement MINIMALE (id + plafond) : ni nom, ni compteur de
+ * tampons — moins que ce que la page de suivi montre déjà à quiconque détient
+ * l'URL. La consommation reste validée côté serveur dans la transaction de
+ * commande (`resolveLoyaltyReward`), contre le client résolu du MÊME téléphone
+ * que la commande.
+ */
+export async function getAvailableRewardForPhone(
+  rawPhone: string
+): Promise<{ id: string; capAmount: number } | null> {
+  const card = await getLoyaltyCardByPhone(rawPhone);
+  if (!card || !card.settings.enabled) return null;
+  const reward = card.availableRewards[0];
+  return reward ? { id: reward.id, capAmount: reward.capAmount } : null;
+}

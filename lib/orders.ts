@@ -9,7 +9,11 @@ import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { getNextDailyNumber, todayDailyDate } from '@/lib/daily-numbering';
 import { upsertCustomerForOrder } from '@/lib/customer-mutations';
-import { awardLoyaltyForOrder } from '@/lib/loyalty-mutations';
+import {
+  awardLoyaltyForOrder,
+  consumeLoyaltyReward,
+  resolveLoyaltyReward,
+} from '@/lib/loyalty-mutations';
 import { getLoyaltyCard, getLoyaltyCardByPhone } from '@/lib/loyalty';
 import {
   createOrderSchema as baseCreateOrderSchema,
@@ -92,6 +96,25 @@ export async function createOrder(input: CreateOrderInput) {
           ? (normalizeIvorianPhone(input.driverPhone) ?? input.driverPhone)
           : null;
 
+        // Récompense fidélité (carte à tampons) auto-appliquée au checkout :
+        // mêmes règles que la caisse (lib/order-mutations.ts) — vérifiée
+        // contre le client résolu du MÊME téléphone que la commande, remise
+        // plafonnée (jamais plus que le total), consommée dans la MÊME
+        // transaction, tampon calculé sur le total NET. Revérifiée à chaque
+        // tentative de retry (une transaction annulée n'a rien écrit).
+        // `input.total` est le total BRUT envoyé par le client ; lève
+        // LoyaltyRewardUnavailableError (→ 400) si la récompense a été
+        // consommée entre-temps (ex. au comptoir).
+        let reward: { id: string; capAmount: number } | null = null;
+        if (input.loyaltyRewardId) {
+          reward = await resolveLoyaltyReward(
+            tx,
+            input.loyaltyRewardId,
+            customerId
+          );
+        }
+        const discount = reward ? Math.min(reward.capAmount, input.total) : 0;
+
         const order = await tx.order.create({
           data: {
             reference,
@@ -103,12 +126,24 @@ export async function createOrder(input: CreateOrderInput) {
             pickupTime: input.pickupTime ? new Date(input.pickupTime) : null,
             orderType: (input.orderType ?? 'TAKEAWAY') satisfies OrderType,
             items: input.items,
-            total: input.total,
+            total: input.total - discount,
             note: input.note ?? null,
             driverName: input.driverName ?? null,
             driverPhone,
+            loyaltyRewardId: reward?.id ?? null,
+            loyaltyDiscount: discount || null,
           },
         });
+
+        if (reward) {
+          await consumeLoyaltyReward(tx, {
+            rewardId: reward.id,
+            customerId: customerId as string,
+            orderId: order.id,
+            capAmount: reward.capAmount,
+            actorId: null,
+          });
+        }
 
         if (customerId) {
           await awardLoyaltyForOrder(tx, {
@@ -202,6 +237,9 @@ export type PublicOrderView = {
    * `available` par article. Toujours vrai une fois la commande payée (stock
    * déjà réservé pour ce client au paiement). */
   fulfillable: boolean;
+  /** Montant de la récompense fidélité déjà déduit de `total` (F CFA), null
+   * si aucune récompense n'a été appliquée à cette commande. */
+  loyaltyDiscount: number | null;
   total: number;
   note: string | null;
   driverName: string | null;
@@ -260,6 +298,7 @@ export async function getPublicOrder(
     pickupTime: order.pickupTime?.toISOString() ?? null,
     items: itemsView,
     fulfillable,
+    loyaltyDiscount: order.loyaltyDiscount,
     total: order.total,
     note: order.note,
     driverName: order.driverName,
