@@ -27,6 +27,10 @@ jobs:
             set -e
             source "$HOME/.nvm/nvm.sh"
             cd /var/www/eba-coffee
+            # env.d.ts est généré (varlock typegen, au postinstall) et n'est
+            # plus versionné : on le supprime avant le pull pour que d'anciennes
+            # modifications locales ne bloquent jamais le merge.
+            rm -f env.d.ts
             git pull origin master
             pnpm install --frozen-lockfile
             pnpm db:push
