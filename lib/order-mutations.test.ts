@@ -128,7 +128,10 @@ describe('setOrderPayment — décrément du stock au paiement', () => {
         where: expect.objectContaining({
           name: 'Cacahuète vanille',
           available: true,
-          group: { productId: 'p1', name: 'Choisissez vos goûts' },
+          group: {
+            name: 'Choisissez vos goûts',
+            OR: [{ productId: 'p1' }, { isGlobal: true }],
+          },
         }),
       })
     );

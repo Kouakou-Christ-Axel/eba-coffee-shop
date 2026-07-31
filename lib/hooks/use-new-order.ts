@@ -59,9 +59,13 @@ export function useNewOrder() {
   const [step, setStep] = useState<NewOrderStep>('catalog');
   const [items, setItems] = useState<CartItem[]>([]);
 
-  // Supplément en cours de sélection (modale)
+  // Supplément en cours de sélection (modale). `pickerCartId` non nul = on
+  // pré-remplit depuis une ligne existante pour AJOUTER un nouvel exemplaire
+  // avec des suppléments possiblement différents (« Dupliquer »), plutôt que
+  // partir de zéro comme depuis le catalogue — voir `duplicateLineWithOptions`.
   const [pickerProduct, setPickerProduct] = useState<Product | null>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [pickerCartId, setPickerCartId] = useState<string | null>(null);
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -174,13 +178,29 @@ export function useNewOrder() {
       addToCart(product, []);
       return;
     }
+    setPickerCartId(null);
     setPickerProduct(product);
     setIsPickerOpen(true);
   }
 
+  // Ouvre le sélecteur pré-rempli avec les suppléments de `item`, pour ajouter
+  // UN exemplaire de plus (pas modifier la ligne existante) — ex. 2 crêpes
+  // dont une seule avec chantilly, ce que le simple stepper +/- ne permet pas
+  // puisqu'il applique les mêmes suppléments à toute la ligne.
+  function duplicateLineWithOptions(product: Product, cartId: string) {
+    setPickerCartId(cartId);
+    setPickerProduct(product);
+    setIsPickerOpen(true);
+  }
+
+  const pickerInitialSupplements = pickerCartId
+    ? (items.find((i) => i.cartId === pickerCartId)?.supplements ?? [])
+    : [];
+
   function closePicker() {
     setIsPickerOpen(false);
     setPickerProduct(null);
+    setPickerCartId(null);
   }
 
   function handleQuantityChange(cartId: string, quantity: number) {
@@ -274,6 +294,8 @@ export function useNewOrder() {
     setLoyaltyRewardId,
     pickerProduct,
     isPickerOpen,
+    pickerCartId,
+    pickerInitialSupplements,
     customerName,
     customerPhone,
     orderType,
@@ -294,6 +316,7 @@ export function useNewOrder() {
     // actions panier
     addToCart,
     handleProductTap,
+    duplicateLineWithOptions,
     handleQuantityChange,
     handleRemove,
     handleDiscountChange,

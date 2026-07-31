@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react';
 import {
   ArrowLeft,
   Check,
+  Copy,
   Minus,
   Plus,
   SlidersHorizontal,
@@ -36,7 +37,8 @@ type Props = {
 
 type PickerState =
   | { mode: 'add'; product: Product }
-  | { mode: 'edit'; product: Product; cartId: string };
+  | { mode: 'edit'; product: Product; cartId: string }
+  | { mode: 'duplicate'; product: Product; cartId: string };
 
 function makeCartId(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -157,6 +159,19 @@ export function OrderItemsEditor({
     setPicker({ mode: 'edit', product, cartId: item.cartId });
   }
 
+  // Ajoute UN exemplaire de plus de ce produit, avec des suppléments qu'on
+  // peut choisir différents de la ligne d'origine (ex. 2 crêpes dont une
+  // seule avec chantilly) — au contraire de `changeQty` qui applique
+  // toujours les MÊMES suppléments à toute la ligne. Le sélecteur est
+  // pré-rempli avec les suppléments actuels de la ligne, éditables ; `addLine`
+  // fusionne ensuite automatiquement avec une ligne existante si le résultat
+  // est identique, ou crée une ligne séparée sinon.
+  function duplicateLineWithOptions(item: CartItem) {
+    const product = productById.get(item.productId);
+    if (!product) return;
+    setPicker({ mode: 'duplicate', product, cartId: item.cartId });
+  }
+
   function handlePickerConfirm(
     product: Product,
     supplements: CartItemSupplement[]
@@ -168,7 +183,7 @@ export function OrderItemsEditor({
       );
     } else {
       addLine(product, supplements);
-      setView('list');
+      if (picker?.mode === 'add') setView('list');
     }
     setPicker(null);
   }
@@ -191,8 +206,11 @@ export function OrderItemsEditor({
 
   const total = computeItemsTotal(items);
 
-  const editingItem =
-    picker?.mode === 'edit'
+  // 'edit' ET 'duplicate' pré-remplissent depuis la même ligne source (l'un la
+  // modifie sur place, l'autre s'en sert de point de départ pour un NOUVEL
+  // exemplaire) — seul 'add' (depuis le catalogue) part de zéro.
+  const sourceItem =
+    picker?.mode === 'edit' || picker?.mode === 'duplicate'
       ? items.find((i) => i.cartId === picker.cartId)
       : undefined;
 
@@ -204,8 +222,8 @@ export function OrderItemsEditor({
       onAdd={({ product, supplements }) =>
         handlePickerConfirm(product, supplements)
       }
-      initialSupplements={editingItem?.supplements ?? []}
-      editToken={picker?.mode === 'edit' ? picker.cartId : undefined}
+      initialSupplements={sourceItem?.supplements ?? []}
+      editToken={picker?.mode !== 'add' ? picker?.cartId : undefined}
       confirmVerb={picker?.mode === 'edit' ? 'Mettre à jour' : 'Ajouter'}
       onRestocked={(groupName, optionName, stock) => {
         if (!picker) return;
@@ -307,6 +325,17 @@ export function OrderItemsEditor({
                     className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
                   >
                     <SlidersHorizontal className="size-3.5" /> Options
+                  </button>
+                )}
+                {hasOptions && (
+                  <button
+                    type="button"
+                    onClick={() => duplicateLineWithOptions(item)}
+                    disabled={isPending}
+                    title="Ajouter un exemplaire avec des suppléments différents"
+                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                  >
+                    <Copy className="size-3.5" /> Dupliquer
                   </button>
                 )}
               </div>

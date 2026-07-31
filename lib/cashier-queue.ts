@@ -105,12 +105,24 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       const availability = computeOrderItemsAvailability(items, stock);
       stockShortage = !availability.fulfillable;
       if (stockShortage) {
-        const unavailableCartIds = new Set(
-          availability.items.filter((a) => !a.available).map((a) => a.cartId)
+        const detailByCartId = new Map(
+          availability.items
+            .filter((a) => !a.available)
+            .map((a) => [a.cartId, a])
         );
+        // Précise le(s) goût(s) en cause quand c'est une option (et non le
+        // produit lui-même) qui manque — ex. « Sponge cake (Vanille) » plutôt
+        // que seulement « Sponge cake », qui ne dit pas LEQUEL des goûts
+        // commandés est épuisé.
         unavailableItemNames = items
-          .filter((item) => unavailableCartIds.has(item.cartId))
-          .map((item) => item.productName);
+          .filter((item) => detailByCartId.has(item.cartId))
+          .map((item) => {
+            const detail = detailByCartId.get(item.cartId);
+            if (!detail?.missingProduct && detail?.missingOptionNames.length) {
+              return `${item.productName} (${detail.missingOptionNames.join(', ')})`;
+            }
+            return item.productName;
+          });
       }
     }
 

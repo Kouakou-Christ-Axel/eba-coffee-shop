@@ -20,6 +20,10 @@ export type SupplementGroup = {
   minSelect?: number | null;
   maxSelect?: number | null;
   options: SupplementOption[];
+  // Groupe « Extras » global (configuré une fois, proposé sur tous les
+  // produits) plutôt que propre à ce produit. Purement informatif côté
+  // affichage (ex. section « Extras » séparée dans le sélecteur).
+  isGlobal?: boolean;
 };
 
 export type Product = {

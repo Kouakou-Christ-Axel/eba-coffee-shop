@@ -31,6 +31,14 @@ export default async function MenuPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Menu — Catégories</h1>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/menu/stock-supplements">Stock par goût</Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/menu/extras-globaux">Extras globaux</Link>
+          </Button>
+        </div>
       </div>
 
       <MenuPdfField initialUrl={menuSettings.menuPdfUrl} />

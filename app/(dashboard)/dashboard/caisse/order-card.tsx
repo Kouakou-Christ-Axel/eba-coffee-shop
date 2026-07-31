@@ -271,11 +271,11 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
             return (
               <li key={item.cartId} className="flex justify-between gap-3">
                 <div className="min-w-0">
-                  <span className="flex flex-wrap items-center gap-x-1.5 text-foreground">
-                    <span className="font-medium tabular-nums">
+                  <span className="flex flex-wrap items-center gap-x-2 text-foreground">
+                    <span className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-md bg-primary/15 px-1.5 text-sm font-bold tabular-nums text-primary">
                       {item.quantity}×
                     </span>
-                    <span>{item.productName}</span>
+                    <span className="font-medium">{item.productName}</span>
                     {item.addedLater && (
                       <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
                         Ajout
@@ -283,12 +283,19 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
                     )}
                   </span>
                   {item.supplements.length > 0 && (
-                    <span className="block pl-5 text-xs text-muted-foreground">
-                      {item.supplements.map(formatSupplementLabel).join(' · ')}
-                    </span>
+                    <div className="pl-8">
+                      {item.supplements.map((s) => (
+                        <span
+                          key={`${s.groupName}:${s.optionName}`}
+                          className="block text-xs text-muted-foreground"
+                        >
+                          + {formatSupplementLabel(s)}
+                        </span>
+                      ))}
+                    </div>
                   )}
                   {discounted && (
-                    <span className="block pl-5 text-xs font-medium text-green-700 dark:text-green-400">
+                    <span className="block pl-8 text-xs font-medium text-green-700 dark:text-green-400">
                       Remise -{priceFormatter.format(gross - net)} F
                       {item.discountReason ? ` (${item.discountReason})` : ''}
                     </span>

@@ -19,7 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ProductRowActions } from './product-row-actions';
-import { LOW_STOCK_THRESHOLD } from '@/config/constants';
+import { StockBadge } from '@/components/(dashboard)/stock-badge';
 import { isPausedNow } from '@/lib/supplements';
 import { formatAbidjanDateTime } from '@/lib/timezone';
 
@@ -35,6 +35,8 @@ export type ProductRow = {
   featuredBadge: string | null;
   stockQuantity: number | null;
   unavailableUntil: Date | null;
+  /** Quantité déjà demandée par des commandes NON payées (lecture seule). */
+  pending?: number;
 };
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
@@ -170,7 +172,17 @@ export function ProductsTable({
                   )}
                 </TableCell>
                 <TableCell>
-                  <StockBadge stockQuantity={p.stockQuantity} />
+                  <div className="flex items-center gap-1.5">
+                    <StockBadge stockQuantity={p.stockQuantity} />
+                    {!!p.pending && (
+                      <span
+                        className="text-xs text-amber-700 dark:text-amber-400"
+                        title="Quantité déjà demandée par des commandes non payées"
+                      >
+                        (dont {p.pending} en attente)
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -228,26 +240,5 @@ export function ProductsTable({
         </TableBody>
       </Table>
     </div>
-  );
-}
-
-function StockBadge({ stockQuantity }: { stockQuantity: number | null }) {
-  if (stockQuantity === null) {
-    return <Badge variant="outline">Illimité</Badge>;
-  }
-  if (stockQuantity === 0) {
-    return <Badge variant="destructive">Épuisé</Badge>;
-  }
-  return (
-    <Badge
-      variant="outline"
-      className={
-        stockQuantity <= LOW_STOCK_THRESHOLD
-          ? 'border-amber-400 text-amber-700 dark:text-amber-400'
-          : undefined
-      }
-    >
-      {stockQuantity}
-    </Badge>
   );
 }

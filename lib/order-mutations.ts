@@ -147,7 +147,12 @@ async function decrementStockForOrderItems(
         where: {
           name: supplement.optionName,
           available: true,
-          group: { productId: item.productId, name: supplement.groupName },
+          // Le groupe peut être propre au produit OU global (« Extras »,
+          // `isGlobal: true`, sans `productId`) — voir prisma/schema.prisma.
+          group: {
+            name: supplement.groupName,
+            OR: [{ productId: item.productId }, { isGlobal: true }],
+          },
         },
         orderBy: { id: 'asc' },
         select: { id: true },
@@ -1148,9 +1153,7 @@ export async function updateOrderFulfillment(
       driverName:
         input.driverName !== undefined ? input.driverName : order.driverName,
       driverPhone:
-        input.driverPhone !== undefined
-          ? input.driverPhone
-          : order.driverPhone,
+        input.driverPhone !== undefined ? input.driverPhone : order.driverPhone,
     });
   }
 }

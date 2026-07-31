@@ -13,6 +13,9 @@ vi.mock('@/lib/prisma', () => ({
     menuCategory: {
       findMany: vi.fn(),
     },
+    supplementGroup: {
+      findMany: vi.fn(),
+    },
   },
 }));
 
@@ -22,6 +25,10 @@ import { getMenu } from './menu';
 const mockFindMany = prisma.menuCategory.findMany as MockedFunction<
   typeof prisma.menuCategory.findMany
 >;
+// Groupes « Extras » globaux (voir lib/menu.ts) : aucun dans ces tests, qui
+// portent sur le mapping produit/catégorie existant.
+const mockGlobalGroupsFindMany = prisma.supplementGroup
+  .findMany as MockedFunction<typeof prisma.supplementGroup.findMany>;
 
 const mockDbData = [
   {
@@ -66,6 +73,7 @@ const mockDbData = [
 describe('getMenu', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockGlobalGroupsFindMany.mockResolvedValue([]);
   });
 
   it('retourne les catégories avec leurs produits et suppléments', async () => {
