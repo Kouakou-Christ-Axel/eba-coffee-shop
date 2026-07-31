@@ -74,6 +74,59 @@ export const supplementGroupSchema = z
 export type SupplementOptionInput = z.infer<typeof supplementOptionSchema>;
 export type SupplementGroupInput = z.infer<typeof supplementGroupSchema>;
 
+// ─── Extras globaux ─────────────────────────────────────────────────────────
+//
+// Un groupe global (« Extras », ex. chantilly) n'est pas remplacé en bloc avec
+// ses options comme `supplementGroupSchema` (pattern produit) : il est géré
+// par CRUD unitaire (groupe puis options ajoutées une à une), donc pas de
+// contrainte `options.min(1)` à la création du groupe. Réutilise
+// `supplementOptionSchema` telle quelle pour les options.
+
+export const globalExtraGroupInputSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(1, 'Nom requis')
+      .max(80, 'Nom trop long (max 80 caractères)'),
+    type: z.enum(['single', 'multiple', 'quantity']),
+    required: z.boolean().optional().default(false),
+    available: z.boolean().optional().default(true),
+    minSelect: z.number().int().nonnegative().nullable().optional(),
+    maxSelect: z.number().int().positive().nullable().optional(),
+  })
+  .refine(
+    (g) =>
+      g.minSelect == null || g.maxSelect == null || g.minSelect <= g.maxSelect,
+    {
+      message: 'Le minimum ne peut pas dépasser le maximum',
+      path: ['minSelect'],
+    }
+  );
+
+export const globalExtraGroupUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  required: z.boolean().optional(),
+  available: z.boolean().optional(),
+  minSelect: z.number().int().nonnegative().nullable().optional(),
+  maxSelect: z.number().int().positive().nullable().optional(),
+});
+
+export const globalExtraOptionUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  price: z.number().int().nonnegative().optional(),
+  available: z.boolean().optional(),
+  stockQuantity: z.number().int().nonnegative().nullable().optional(),
+});
+
+export type GlobalExtraGroupInput = z.infer<typeof globalExtraGroupInputSchema>;
+export type GlobalExtraGroupUpdate = z.infer<
+  typeof globalExtraGroupUpdateSchema
+>;
+export type GlobalExtraOptionUpdate = z.infer<
+  typeof globalExtraOptionUpdateSchema
+>;
+
 // ─── Produits ─────────────────────────────────────────────────────────────────
 
 export const menuItemSchema = z.object({

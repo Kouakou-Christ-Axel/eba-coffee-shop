@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { Button } from '@/components/ui/button';
 import { ProductsTable } from './products-table';
 import { BackButton } from '@/components/(dashboard)/back-button';
+import { getPendingDemand } from '@/lib/orders/pending-demand';
 
 export default async function CategoryProductsPage({
   params,
@@ -12,30 +13,38 @@ export default async function CategoryProductsPage({
 }) {
   const { categoryId } = await params;
 
-  const category = await prisma.menuCategory.findUnique({
-    where: { id: categoryId },
-    include: {
-      products: {
-        where: { deletedAt: null },
-        orderBy: { sortOrder: 'asc' },
-        select: {
-          id: true,
-          name: true,
-          price: true,
-          coutMatiere: true,
-          coutEmballage: true,
-          imageUrl: true,
-          available: true,
-          featured: true,
-          featuredBadge: true,
-          stockQuantity: true,
-          unavailableUntil: true,
+  const [category, pendingDemand] = await Promise.all([
+    prisma.menuCategory.findUnique({
+      where: { id: categoryId },
+      include: {
+        products: {
+          where: { deletedAt: null },
+          orderBy: { sortOrder: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            coutMatiere: true,
+            coutEmballage: true,
+            imageUrl: true,
+            available: true,
+            featured: true,
+            featuredBadge: true,
+            stockQuantity: true,
+            unavailableUntil: true,
+          },
         },
       },
-    },
-  });
+    }),
+    getPendingDemand(),
+  ]);
 
   if (!category || category.deletedAt) notFound();
+
+  const products = category.products.map((p) => ({
+    ...p,
+    pending: pendingDemand.products.get(p.id) ?? 0,
+  }));
 
   return (
     <div className="space-y-6">
@@ -55,7 +64,7 @@ export default async function CategoryProductsPage({
         </div>
       </div>
 
-      <ProductsTable categoryId={categoryId} products={category.products} />
+      <ProductsTable categoryId={categoryId} products={products} />
     </div>
   );
 }

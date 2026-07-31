@@ -7,6 +7,7 @@ import {
   type SupplementGroupInput,
 } from '@/lib/schemas/menu';
 import { imageUrlSchema } from '@/lib/schemas/upload';
+import { syncSupplementGroups } from '@/lib/supplement-groups-sync';
 
 // ─── Slugify ──────────────────────────────────────────────────────────────────
 
@@ -249,117 +250,18 @@ export async function updateProduct(id: string, input: ProductUpdate) {
   return updateSupplementGroups(id, scalar, data.supplementGroups);
 }
 
-// Synchronise les groupes/options de suppléments d'un produit par UPSERT
-// (apparié par `name`) plutôt que par delete+recreate : les groupes/options
-// dont le nom est conservé gardent leur `id` — important maintenant qu'il y a
-// des données de production (pas de FK depuis les commandes, mais on évite un
-// churn d'identifiants inutile à chaque sauvegarde admin). Un groupe/option
-// renommé est traité comme supprimé + recréé (limitation acceptée : pas de
-// contrainte d'unicité sur `name` pour permettre un vrai suivi par id).
+// Synchronise les groupes/options de suppléments d'un produit (voir
+// `syncSupplementGroups`, partagée avec `updateGlobalExtraGroups` pour les
+// extras globaux). Un groupe/option renommé est traité comme supprimé + recréé
+// (limitation acceptée : pas de contrainte d'unicité sur `name` pour permettre
+// un vrai suivi par id).
 async function updateSupplementGroups(
   productId: string,
   scalar: Prisma.ProductUpdateInput,
   groups: SupplementGroupInput[]
 ) {
   return prisma.$transaction(async (tx) => {
-    const currentGroups = await tx.supplementGroup.findMany({
-      where: { productId },
-      include: { options: true },
-    });
-    const currentGroupByName = new Map(currentGroups.map((g) => [g.name, g]));
-    const keepGroupNames = new Set(groups.map((g) => g.name));
-
-    const removedGroupIds = currentGroups
-      .filter((g) => !keepGroupNames.has(g.name))
-      .map((g) => g.id);
-    if (removedGroupIds.length > 0) {
-      await tx.supplementGroup.deleteMany({
-        where: { id: { in: removedGroupIds } },
-      });
-    }
-
-    for (const [gi, g] of groups.entries()) {
-      const groupData = {
-        name: g.name,
-        type: g.type,
-        required: g.required,
-        available: g.available,
-        minSelect: g.minSelect ?? null,
-        maxSelect: g.maxSelect ?? null,
-        sortOrder: gi,
-      };
-      const match = currentGroupByName.get(g.name);
-
-      if (!match) {
-        await tx.supplementGroup.create({
-          data: {
-            ...groupData,
-            productId,
-            options: {
-              create: g.options.map((o) => ({
-                name: o.name,
-                price: o.price,
-                available: o.available,
-                stockQuantity: o.stockQuantity ?? null,
-              })),
-            },
-          },
-        });
-        continue;
-      }
-
-      await tx.supplementGroup.update({
-        where: { id: match.id },
-        data: groupData,
-      });
-
-      // Appariement par nom, mais via une FILE par nom (pas une valeur
-      // unique) : si le nom est dupliqué en base (données historiques —
-      // c'est arrivé) ou soumis plusieurs fois, chaque option soumise ne
-      // consomme qu'UNE ligne existante correspondante ; les lignes
-      // restantes (nom disparu, ou surplus d'un doublon) sont supprimées
-      // après coup. Une simple Map à valeur unique collapsait silencieusement
-      // les doublons et rendait leur suppression impossible — un « goût »
-      // désactivé dupliqué ne pouvait jamais être retiré, y compris en le
-      // supprimant du formulaire et en sauvegardant (cf. le bug qui a bloqué
-      // des paiements par ambiguïté de décrément, lib/order-mutations.ts).
-      const currentOptionsByName = new Map<string, typeof match.options>();
-      for (const o of match.options) {
-        const queue = currentOptionsByName.get(o.name) ?? [];
-        queue.push(o);
-        currentOptionsByName.set(o.name, queue);
-      }
-
-      for (const o of g.options) {
-        const optionMatch = currentOptionsByName.get(o.name)?.shift();
-        const optionData = {
-          name: o.name,
-          price: o.price,
-          available: o.available,
-          stockQuantity: o.stockQuantity ?? null,
-        };
-        if (optionMatch) {
-          await tx.supplementOption.update({
-            where: { id: optionMatch.id },
-            data: optionData,
-          });
-        } else {
-          await tx.supplementOption.create({
-            data: { ...optionData, groupId: match.id },
-          });
-        }
-      }
-
-      const removedOptionIds = [...currentOptionsByName.values()]
-        .flat()
-        .map((o) => o.id);
-      if (removedOptionIds.length > 0) {
-        await tx.supplementOption.deleteMany({
-          where: { id: { in: removedOptionIds } },
-        });
-      }
-    }
-
+    await syncSupplementGroups(tx, { productId }, groups);
     return tx.product.update({ where: { id: productId }, data: scalar });
   });
 }
@@ -503,7 +405,12 @@ export async function setOptionStockByRef(input: {
   const option = await prisma.supplementOption.findFirst({
     where: {
       name: input.optionName,
-      group: { productId: input.productId, name: input.groupName },
+      // Groupe propre au produit OU global (« Extras »), même résolution que
+      // `decrementStockForOrderItems` (lib/order-mutations.ts).
+      group: {
+        name: input.groupName,
+        OR: [{ productId: input.productId }, { isGlobal: true }],
+      },
     },
     orderBy: { id: 'asc' },
     select: { id: true },

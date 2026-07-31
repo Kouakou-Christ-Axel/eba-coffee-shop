@@ -7,6 +7,8 @@ import * as menu from '@/lib/menu-mutations';
 import type { ProductInput, ProductUpdate } from '@/lib/menu-mutations';
 import { menuSettingsSchema } from '@/lib/menu-settings';
 import { updateMenuSettings } from '@/lib/menu-settings-db';
+import { updateGlobalExtraGroups } from '@/lib/global-extras-mutations';
+import type { SupplementGroupInput } from '@/lib/schemas/menu';
 
 // Next.js redacte en production le message de toute erreur qui *traverse*
 // une Server Action (générique « An error occurred in the Server
@@ -132,6 +134,32 @@ export async function pauseProductAction(id: string, until: string) {
 export async function resumeProductAction(id: string) {
   await requireManager();
   await menu.resumeProduct(id);
+  revalidateMenu();
+}
+
+export async function setOptionStockAction(
+  id: string,
+  quantity: number | null
+) {
+  await requireManager();
+  if (quantity !== null && (!Number.isInteger(quantity) || quantity < 0)) {
+    throw new Error('Quantité invalide');
+  }
+  await menu.setOptionStock(id, quantity);
+  revalidateMenu();
+}
+
+// ── Extras globaux ──
+
+export async function saveGlobalExtrasAction(
+  groups: SupplementGroupInput[]
+): Promise<{ error: string } | undefined> {
+  await requireManager();
+  try {
+    await updateGlobalExtraGroups(groups);
+  } catch (err) {
+    return { error: formatMutationError(err) };
+  }
   revalidateMenu();
 }
 

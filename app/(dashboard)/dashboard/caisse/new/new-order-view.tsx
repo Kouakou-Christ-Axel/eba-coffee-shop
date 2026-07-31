@@ -1,8 +1,10 @@
 'use client';
 
+import { useMemo } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { MenuCategory } from '@/config/menu';
+import type { CartItem } from '@/lib/cart-store';
 import { useNewOrder } from '@/lib/hooks/use-new-order';
 import { useLiveMenu } from '@/lib/hooks/use-live-menu';
 import { ProductCatalog } from './product-catalog';
@@ -16,6 +18,25 @@ export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
   // Menu « live » : reflète en direct une réappro (goût recrédité) faite ici ou
   // ailleurs, sans recharger la page.
   const { menu, applyRestock } = useLiveMenu(initialMenu);
+
+  // Produits ayant des groupes de suppléments configurés : sert à
+  // n'afficher « Dupliquer avec des suppléments différents » (CartSummary)
+  // que là où ça a un sens.
+  const productsWithOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const cat of menu)
+      for (const p of cat.products)
+        if ((p.supplements?.length ?? 0) > 0) set.add(p.id);
+    return set;
+  }, [menu]);
+
+  function handleDuplicate(item: CartItem) {
+    const product = menu
+      .flatMap((cat) => cat.products)
+      .find((p) => p.id === item.productId);
+    if (!product) return;
+    o.duplicateLineWithOptions(product, item.cartId);
+  }
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] min-w-0 flex-col gap-4 pb-24">
@@ -37,6 +58,8 @@ export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
             onQuantityChange={o.handleQuantityChange}
             onRemove={o.handleRemove}
             onDiscountChange={o.handleDiscountChange}
+            onDuplicate={handleDuplicate}
+            productsWithOptions={productsWithOptions}
             loyaltyCard={o.loyaltyCard}
             loyaltyRewardId={o.loyaltyRewardId}
             onLoyaltyRewardChange={o.setLoyaltyRewardId}
@@ -74,6 +97,8 @@ export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
         isOpen={o.isPickerOpen}
         onClose={o.closePicker}
         onAdd={({ product, supplements }) => o.addToCart(product, supplements)}
+        initialSupplements={o.pickerInitialSupplements}
+        editToken={o.pickerCartId ?? undefined}
         onRestocked={(groupName, optionName, stock) => {
           if (!o.pickerProduct) return;
           applyRestock(

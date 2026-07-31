@@ -1,6 +1,6 @@
 'use client';
 
-import { Gift, Minus, Plus, Trash2 } from 'lucide-react';
+import { Copy, Gift, Minus, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { priceFormatter } from '@/config/menu';
 import { getItemTotal, type CartItem } from '@/lib/cart-store';
@@ -22,6 +22,14 @@ type Props = {
     discount: number,
     reason: string | null
   ) => void;
+  /** Ouvre le sélecteur pour ajouter un exemplaire de plus de cette ligne,
+   * avec des suppléments possiblement différents (ex. 2 crêpes dont une
+   * seule avec chantilly) — le simple stepper +/- applique toujours les
+   * mêmes suppléments à toute la ligne. */
+  onDuplicate: (item: CartItem) => void;
+  /** Produits ayant des groupes de suppléments configurés : n'affiche
+   * « Dupliquer » que pour ceux-là. */
+  productsWithOptions: Set<string>;
   loyaltyCard: LoyaltyCard | null;
   loyaltyRewardId: string | null;
   onLoyaltyRewardChange: (rewardId: string | null) => void;
@@ -32,6 +40,8 @@ export function CartSummary({
   onQuantityChange,
   onRemove,
   onDiscountChange,
+  onDuplicate,
+  productsWithOptions,
   loyaltyCard,
   loyaltyRewardId,
   onLoyaltyRewardChange,
@@ -81,13 +91,23 @@ export function CartSummary({
                       {item.supplements.map(formatSupplementLabel).join(' · ')}
                     </p>
                   )}
-                  <div className="mt-1">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                     <LineDiscountControl
                       maxDiscount={getMaxItemDiscount(item)}
                       discount={item.discount ?? 0}
                       reason={item.discountReason ?? null}
                       onChange={(d, r) => onDiscountChange(item.cartId, d, r)}
                     />
+                    {productsWithOptions.has(item.productId) && (
+                      <button
+                        type="button"
+                        onClick={() => onDuplicate(item)}
+                        title="Ajouter un exemplaire avec des suppléments différents"
+                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
+                      >
+                        <Copy className="size-3.5" /> Dupliquer
+                      </button>
+                    )}
                   </div>
                   {item.discountReason && (
                     <p className="mt-0.5 text-[11px] italic text-muted-foreground">

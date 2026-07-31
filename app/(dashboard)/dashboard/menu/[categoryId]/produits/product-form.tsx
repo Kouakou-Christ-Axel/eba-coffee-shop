@@ -18,7 +18,7 @@ import { BadgesField } from './_components/badges-field';
 import {
   SupplementsEditor,
   type SupplementGroup,
-} from './_components/supplements-editor';
+} from '@/components/(dashboard)/supplements-editor';
 import {
   abidjanDatetimeLocalToISO,
   formatAbidjanDateTime,
@@ -294,8 +294,7 @@ export function ProductForm({
               <span className="ml-2 text-muted-foreground">
                 (
                 {Math.round(
-                  ((priceNum - coutMatiereNum - coutEmballageNum) /
-                    priceNum) *
+                  ((priceNum - coutMatiereNum - coutEmballageNum) / priceNum) *
                     100
                 )}{' '}
                 %)

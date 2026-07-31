@@ -591,10 +591,16 @@ model SupplementGroup {
   // `required`).
   minSelect Int?
   maxSelect Int?
-  productId String
-  product   Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // `null` = groupe global (« Extras »), proposé sur TOUS les produits sans
+  // être configuré individuellement sur chacun. Sinon, groupe propre à un
+  // produit précis. Voir `isGlobal` (booléen explicite, ne pas déduire la
+  // nullabilité seule — plus lisible dans les requêtes/le code).
+  productId String?
+  product   Product?           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  isGlobal  Boolean            @default(false)
   options   SupplementOption[]
 
+  @@index([isGlobal])
   @@map("supplement_group")
 }
 
