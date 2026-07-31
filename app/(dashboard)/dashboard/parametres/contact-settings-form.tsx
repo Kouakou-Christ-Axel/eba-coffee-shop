@@ -99,6 +99,27 @@ export function ContactSettingsForm({ initial }: { initial: ContactSettings }) {
 
         <div className="grid grid-cols-1 gap-3 border-t pt-4 sm:grid-cols-2">
           <Field
+            id="yangoLandmark"
+            label="Repère Yango (point de RDV livreur)"
+            value={s.yangoLandmark}
+            onChange={(v) => set('yangoLandmark', v)}
+          />
+          <Field
+            id="wavePaymentNumber"
+            label="Numéro Wave (paiement)"
+            value={s.wavePaymentNumber}
+            onChange={(v) => set('wavePaymentNumber', v)}
+          />
+          <Field
+            id="orangeMoneyPaymentNumber"
+            label="Numéro Orange Money (paiement)"
+            value={s.orangeMoneyPaymentNumber}
+            onChange={(v) => set('orangeMoneyPaymentNumber', v)}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 border-t pt-4 sm:grid-cols-2">
+          <Field
             id="instagramHandle"
             label="Instagram (pseudo)"
             value={s.instagramHandle}

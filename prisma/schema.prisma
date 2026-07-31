@@ -355,22 +355,25 @@ model LoyaltySettings {
 // (déjà en base, déjà éditables sur cette même page), résumés à l'affichage
 // via `summarizeWeeklyHours` (lib/pickup-settings.ts).
 model ContactSettings {
-  id                String   @id @default("singleton")
-  address           String
-  district          String
-  landmark          String
-  phone             String
-  whatsapp          String
-  email             String
-  mapsDirectionsUrl String
-  mapsEmbedUrl      String
-  instagramHandle   String
-  instagramUrl      String
-  tiktokHandle      String
-  tiktokUrl         String
-  hashtagLabel      String
-  hashtagUrl        String
-  updatedAt         DateTime @updatedAt
+  id                       String   @id @default("singleton")
+  address                  String
+  district                 String
+  landmark                 String
+  phone                    String
+  whatsapp                 String
+  email                    String
+  mapsDirectionsUrl        String
+  mapsEmbedUrl             String
+  yangoLandmark            String   @default("Odyssée du vin")
+  wavePaymentNumber        String   @default("+225 07 00 00 00 00")
+  orangeMoneyPaymentNumber String   @default("+225 07 00 00 00 00")
+  instagramHandle          String
+  instagramUrl             String
+  tiktokHandle             String
+  tiktokUrl                String
+  hashtagLabel             String
+  hashtagUrl               String
+  updatedAt                DateTime @updatedAt
 
   @@map("contact_settings")
 }

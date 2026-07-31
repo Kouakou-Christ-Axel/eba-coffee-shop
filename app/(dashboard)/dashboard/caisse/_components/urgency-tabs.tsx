@@ -5,6 +5,7 @@ import { CountBadge } from './count-badge';
 import { CaisseOrderList } from './caisse-order-list';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
+import type { ContactSettings } from '@/lib/contact-settings';
 import type { TabKey } from '../urgency';
 
 type Counts = Record<TabKey, { total: number; critical: number }>;
@@ -15,6 +16,13 @@ type Props = {
   counts: Counts;
   visibleOrders: CashierOrder[];
   menu: MenuCategory[];
+  contactSettings: Pick<
+    ContactSettings,
+    | 'yangoLandmark'
+    | 'mapsDirectionsUrl'
+    | 'wavePaymentNumber'
+    | 'orangeMoneyPaymentNumber'
+  >;
   now: Date;
 };
 
@@ -26,6 +34,7 @@ export function UrgencyTabs({
   counts,
   visibleOrders,
   menu,
+  contactSettings,
   now,
 }: Props) {
   return (
@@ -66,6 +75,7 @@ export function UrgencyTabs({
             orders={visibleOrders}
             tab={t}
             menu={menu}
+            contactSettings={contactSettings}
             now={now}
           />
         </TabsContent>

@@ -74,8 +74,10 @@ function formatItemLine(item: CartItem): string {
 
 /**
  * Message WhatsApp pour demander un paiement Wave. Inclut le détail des
- * articles, le total, et le lien Wave avec le montant déjà pré-rempli.
- * Si le merchant ID n'est pas configuré, un placeholder remplace le lien.
+ * articles, le total, le lien Wave (montant pré-rempli) + les numéros Wave et
+ * Orange Money en repli, l'itinéraire, et un rappel de ne pas commander de
+ * Yango avant confirmation. Si le merchant ID n'est pas configuré, un
+ * placeholder remplace le lien Wave.
  */
 export function buildWaveRequestMessage(params: {
   customerName: string | null;
@@ -86,8 +88,27 @@ export function buildWaveRequestMessage(params: {
    * sur cette commande — mentionnée explicitement pour que le récap se
    * réconcilie (somme des articles − récompense = Total). */
   loyaltyDiscount?: number | null;
+  /** Numéro Wave pour un paiement manuel (hors lien pay.wave.com), depuis les
+   * coordonnées du commerce (`lib/contact-settings.ts`). */
+  wavePaymentNumber: string;
+  /** Numéro Orange Money pour un paiement manuel, idem. */
+  orangeMoneyPaymentNumber: string;
+  /** Repère à indiquer comme destination dans l'appli Yango, idem. */
+  yangoLandmark: string;
+  /** Lien Google Maps (itinéraire) à joindre pour estimer la course. */
+  mapsDirectionsUrl: string;
 }): string {
-  const { customerName, dailyNumber, amount, items, loyaltyDiscount } = params;
+  const {
+    customerName,
+    dailyNumber,
+    amount,
+    items,
+    loyaltyDiscount,
+    wavePaymentNumber,
+    orangeMoneyPaymentNumber,
+    yangoLandmark,
+    mapsDirectionsUrl,
+  } = params;
   const greeting = customerName ? `Bonjour ${customerName}` : 'Bonjour';
   const number = String(dailyNumber).padStart(3, '0');
   const itemsBlock = items.map(formatItemLine).join('\n');
@@ -112,6 +133,11 @@ export function buildWaveRequestMessage(params: {
     `Total : ${priceFormatter.format(amount)} F`,
     '',
     linkBlock,
+    `Ou directement au numéro Wave ${wavePaymentNumber} / Orange Money ${orangeMoneyPaymentNumber}`,
+    '',
+    "⚠️ Ne commande pas encore ton Yango : attends qu'on te dise que c'est prêt.",
+    `Quand ce sera bon, indique « ${yangoLandmark} » comme point de repère sur Yango.`,
+    `Itinéraire : ${mapsDirectionsUrl}`,
     '',
     'Merci !'
   );

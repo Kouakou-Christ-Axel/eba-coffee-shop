@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Gift } from 'lucide-react';
 import { getOrder } from '@/lib/orders';
 import { getMenu } from '@/lib/menu';
+import { getContactSettings } from '@/lib/contact-settings-db';
 import { getCurrentSession } from '@/lib/auth-helpers';
 import { formatAbidjanDateTime } from '@/lib/timezone';
 import type { CartItem } from '@/lib/cart-store';
@@ -75,9 +76,10 @@ export default async function CommandeDetailPage({
   const { id } = await params;
   // Les 3 lectures sont indépendantes (menu et session ne dépendent pas de
   // `order`) : parallélisées pour éviter une waterfall à 3 allers-retours DB.
-  const [order, menu, session] = await Promise.all([
+  const [order, menu, contactSettings, session] = await Promise.all([
     getOrder(id),
     getMenu(),
+    getContactSettings(),
     // Édition des métadonnées (paiement, type, créneau, note) réservée à l'ADMIN.
     getCurrentSession(),
   ]);
@@ -232,6 +234,7 @@ export default async function CommandeDetailPage({
                 amount={order.total}
                 items={items}
                 loyaltyDiscount={order.loyaltyDiscount}
+                contactSettings={contactSettings}
                 size="sm"
                 className="w-auto"
               />
