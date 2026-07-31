@@ -8,10 +8,18 @@ import { OrderCardActions } from '../order-card-actions';
 import { formatPickup, getUrgencyLevel } from '../urgency';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
+import type { ContactSettings } from '@/lib/contact-settings';
 
 type Props = {
   orders: CashierOrder[];
   menu: MenuCategory[];
+  contactSettings: Pick<
+    ContactSettings,
+    | 'yangoLandmark'
+    | 'mapsDirectionsUrl'
+    | 'wavePaymentNumber'
+    | 'orangeMoneyPaymentNumber'
+  >;
   now: Date;
 };
 
@@ -19,7 +27,12 @@ type Props = {
  * Section repliable des commandes programmées encore en avance (retrait à plus d'1 h).
  * Repliée par défaut : elle signale leur présence sans encombrer le flux de travail actif.
  */
-export function ScheduledSection({ orders, menu, now }: Props) {
+export function ScheduledSection({
+  orders,
+  menu,
+  contactSettings,
+  now,
+}: Props) {
   const [open, setOpen] = useState(false);
 
   if (orders.length === 0) return null;
@@ -63,7 +76,13 @@ export function ScheduledSection({ orders, menu, now }: Props) {
               order={o}
               urgency={getUrgencyLevel(o, 'in-progress', now)}
               now={now}
-              actions={<OrderCardActions order={o} menu={menu} />}
+              actions={
+                <OrderCardActions
+                  order={o}
+                  menu={menu}
+                  contactSettings={contactSettings}
+                />
+              }
             />
           ))}
         </div>

@@ -24,6 +24,7 @@ import {
 } from '@/lib/contact-links';
 import { getPickupCode } from '@/lib/orders/format';
 import type { CashierOrder } from '@/lib/cashier-queue';
+import type { ContactSettings } from '@/lib/contact-settings';
 import { priceFormatter, type MenuCategory } from '@/config/menu';
 import type { OrderStatus } from '@/generated/prisma/client';
 import { useUndoToast } from '@/lib/hooks/use-undo-toast';
@@ -84,9 +85,17 @@ function undoableStatusMessage(
 export function OrderCardActions({
   order,
   menu,
+  contactSettings,
 }: {
   order: CashierOrder;
   menu: MenuCategory[];
+  contactSettings: Pick<
+    ContactSettings,
+    | 'yangoLandmark'
+    | 'mapsDirectionsUrl'
+    | 'wavePaymentNumber'
+    | 'orangeMoneyPaymentNumber'
+  >;
 }) {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -109,6 +118,7 @@ export function OrderCardActions({
       amount: order.total,
       items: order.items,
       loyaltyDiscount: order.loyaltyDiscount,
+      ...contactSettings,
     })
   );
   // « C'est prêt » one-tap : code de retrait + lien de suivi (localisation
@@ -333,6 +343,7 @@ export function OrderCardActions({
           amount={order.total}
           items={order.items}
           loyaltyDiscount={order.loyaltyDiscount}
+          contactSettings={contactSettings}
         />
 
         {/* Dismiss signal cuisine (livreur demandé) */}

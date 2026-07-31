@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { PackageCheck, X } from 'lucide-react';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
+import type { ContactSettings } from '@/lib/contact-settings';
 import type { OrderStatus } from '@/generated/prisma/client';
 import {
   playNewOrderChime,
@@ -51,10 +52,18 @@ function normalize(raw: unknown): CashierOrder {
 export function CaisseView({
   initialQueue,
   menu,
+  contactSettings,
   cashierName,
 }: {
   initialQueue: CashierOrder[];
   menu: MenuCategory[];
+  contactSettings: Pick<
+    ContactSettings,
+    | 'yangoLandmark'
+    | 'mapsDirectionsUrl'
+    | 'wavePaymentNumber'
+    | 'orangeMoneyPaymentNumber'
+  >;
   cashierName: string;
 }) {
   const [tab, setTab] = useState<TabKey>('to-pay');
@@ -248,7 +257,12 @@ export function CaisseView({
           />
         )}
 
-        <ScheduledSection orders={scheduledOrders} menu={menu} now={now} />
+        <ScheduledSection
+          orders={scheduledOrders}
+          menu={menu}
+          contactSettings={contactSettings}
+          now={now}
+        />
 
         <UrgencyTabs
           tab={tab}
@@ -256,6 +270,7 @@ export function CaisseView({
           counts={counts}
           visibleOrders={visibleOrders}
           menu={menu}
+          contactSettings={contactSettings}
           now={now}
         />
       </div>

@@ -5,16 +5,30 @@ import { OrderCard } from '../order-card';
 import { OrderCardActions } from '../order-card-actions';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
+import type { ContactSettings } from '@/lib/contact-settings';
 import { getUrgencyLevel, type TabKey } from '../urgency';
 
 type Props = {
   orders: CashierOrder[];
   tab: TabKey;
   menu: MenuCategory[];
+  contactSettings: Pick<
+    ContactSettings,
+    | 'yangoLandmark'
+    | 'mapsDirectionsUrl'
+    | 'wavePaymentNumber'
+    | 'orangeMoneyPaymentNumber'
+  >;
   now: Date;
 };
 
-export function CaisseOrderList({ orders, tab, menu, now }: Props) {
+export function CaisseOrderList({
+  orders,
+  tab,
+  menu,
+  contactSettings,
+  now,
+}: Props) {
   if (orders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 rounded-xl border bg-card p-8 text-center text-muted-foreground">
@@ -36,7 +50,13 @@ export function CaisseOrderList({ orders, tab, menu, now }: Props) {
           order={o}
           urgency={getUrgencyLevel(o, tab, now)}
           now={now}
-          actions={<OrderCardActions order={o} menu={menu} />}
+          actions={
+            <OrderCardActions
+              order={o}
+              menu={menu}
+              contactSettings={contactSettings}
+            />
+          }
         />
       ))}
     </div>

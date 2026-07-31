@@ -5,6 +5,7 @@ import { Check, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { buildWaveRequestMessage } from '@/lib/contact-links';
 import type { CartItem } from '@/lib/cart-store';
+import type { ContactSettings } from '@/lib/contact-settings';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -13,6 +14,13 @@ type Props = {
   amount: number;
   items: CartItem[];
   loyaltyDiscount?: number | null;
+  contactSettings: Pick<
+    ContactSettings,
+    | 'yangoLandmark'
+    | 'mapsDirectionsUrl'
+    | 'wavePaymentNumber'
+    | 'orangeMoneyPaymentNumber'
+  >;
   className?: string;
   size?: React.ComponentProps<typeof Button>['size'];
   variant?: React.ComponentProps<typeof Button>['variant'];
@@ -30,6 +38,7 @@ export function CopyRecapButton({
   amount,
   items,
   loyaltyDiscount,
+  contactSettings,
   className,
   size = 'lg',
   variant = 'outline',
@@ -44,6 +53,7 @@ export function CopyRecapButton({
       amount,
       items,
       loyaltyDiscount,
+      ...contactSettings,
     });
     try {
       await navigator.clipboard.writeText(message);

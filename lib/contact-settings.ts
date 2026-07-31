@@ -23,6 +23,11 @@ export const contactSettingsSchema = z.object({
   email: z.string().trim().email('Email invalide'),
   mapsDirectionsUrl: z.string().trim().url('URL invalide').max(500),
   mapsEmbedUrl: z.string().trim().url('URL invalide').max(2000),
+  /** Repère donné au client pour le champ destination de l'appli Yango (distinct
+   * de `landmark`, qui est la description publique du lieu sur le site). */
+  yangoLandmark: z.string().trim().min(1).max(150),
+  wavePaymentNumber: phoneNumber,
+  orangeMoneyPaymentNumber: phoneNumber,
   instagramHandle: z.string().trim().min(1).max(50),
   instagramUrl: z.string().trim().url('URL invalide').max(300),
   tiktokHandle: z.string().trim().min(1).max(50),
@@ -47,6 +52,9 @@ export const DEFAULT_CONTACT_SETTINGS: ContactSettings = {
     'https://maps.google.com/?q=Boulevard+Latrille+Cocody+Abidjan',
   mapsEmbedUrl:
     'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3775.551175252953!2d-3.9601476!3d5.4037600999999995!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xfc193623ac5095f%3A0x7f92b7dfdde03a30!2sEba%20coffee%20shop!5e1!3m2!1sfr!2sci!4v1780742729469!5m2!1sfr!2sci',
+  yangoLandmark: 'Odyssée du vin',
+  wavePaymentNumber: '+225 07 00 00 00 00',
+  orangeMoneyPaymentNumber: '+225 07 00 00 00 00',
   instagramHandle: '@eba.coffeeshop',
   instagramUrl: 'https://www.instagram.com/eba.coffeeshop/',
   tiktokHandle: '@eba.coffeeshop',
