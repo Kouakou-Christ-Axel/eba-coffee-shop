@@ -129,7 +129,13 @@ function SupplementModal({
     getSupplementsPrice(getSelectedSupplements(product, selections, false));
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} placement="center" size="md">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      placement="center"
+      size="md"
+      scrollBehavior="inside"
+    >
       <ModalContent>
         <ModalHeader className="flex-col items-start gap-1">
           <span className="text-lg font-semibold">{product.name}</span>
