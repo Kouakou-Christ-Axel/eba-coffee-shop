@@ -26,6 +26,7 @@ export type CashierOrder = {
   id: string;
   reference: string;
   dailyNumber: number;
+  customerId: string | null;
   customerName: string | null;
   customerPhone: string | null;
   pickupTime: Date | null;
@@ -130,6 +131,7 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       id: o.id,
       reference: o.reference,
       dailyNumber: o.dailyNumber,
+      customerId: o.customerId,
       customerName: o.customerName,
       customerPhone: o.customerPhone,
       pickupTime: o.pickupTime,
