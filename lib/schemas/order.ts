@@ -268,6 +268,9 @@ export type SetOrderCustomerInput = z.infer<typeof setOrderCustomerSchema>;
 
 export const setOrderLoyaltyRewardSchema = z.object({
   loyaltyRewardId: z.string().min(1).nullable(),
+  // Retire la récompense en cadeau (produit/geste offert), sans en déduire le
+  // plafond du total — ignoré si `loyaltyRewardId` est null (rien à retirer).
+  redeemAsGift: z.boolean().optional(),
 });
 
 export type SetOrderLoyaltyRewardInput = z.infer<

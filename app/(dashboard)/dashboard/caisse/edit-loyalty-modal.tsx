@@ -15,6 +15,7 @@ import {
   ModalBody,
   ModalFooter,
   Button,
+  Switch,
 } from '@heroui/react';
 import { Gift, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -34,6 +35,9 @@ export function EditLoyaltyModal({ isOpen, onClose, order }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Cadeau (produit/geste offert au comptoir) au lieu d'une réduction en
+  // numéraire — cf. `setOrderLoyaltyReward` (lib/order-mutations.ts).
+  const [redeemAsGift, setRedeemAsGift] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !order.customerPhone) return;
@@ -61,17 +65,18 @@ export function EditLoyaltyModal({ isOpen, onClose, order }: Props) {
   function handleClose() {
     if (isPending) return;
     setError(null);
+    setRedeemAsGift(false);
     onClose();
   }
 
-  function submit(loyaltyRewardId: string | null) {
+  function submit(loyaltyRewardId: string | null, asGift?: boolean) {
     setError(null);
     startTransition(async () => {
       try {
         const res = await fetch(`/api/caisse/orders/${order.id}/loyalty`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ loyaltyRewardId }),
+          body: JSON.stringify({ loyaltyRewardId, redeemAsGift: asGift }),
         });
         if (!res.ok) {
           let msg = `Erreur ${res.status}`;
@@ -84,6 +89,7 @@ export function EditLoyaltyModal({ isOpen, onClose, order }: Props) {
           setError(msg);
           return;
         }
+        setRedeemAsGift(false);
         onClose();
       } catch {
         setError('Erreur réseau');
@@ -92,6 +98,9 @@ export function EditLoyaltyModal({ isOpen, onClose, order }: Props) {
   }
 
   const isApplied = order.loyaltyRewardId !== null;
+  // Un plafond nul en pratique n'existe pas (`capAmount` toujours positif) :
+  // une remise à 0 sur une récompense appliquée signale donc un cadeau.
+  const isGiftApplied = isApplied && !order.loyaltyDiscount;
   const availableRewards = loyaltyCard?.availableRewards ?? [];
 
   return (
@@ -130,8 +139,9 @@ export function EditLoyaltyModal({ isOpen, onClose, order }: Props) {
             <div className="flex items-center justify-between rounded-medium border border-amber-300 bg-amber-50 px-3 py-2 dark:bg-amber-950/30">
               <span className="flex items-center gap-1.5 text-sm font-medium text-amber-900 dark:text-amber-100">
                 <Gift className="h-4 w-4" />
-                Récompense appliquée · -
-                {priceFormatter.format(order.loyaltyDiscount ?? 0)} F
+                {isGiftApplied
+                  ? 'Récompense offerte en cadeau (sans réduction)'
+                  : `Récompense appliquée · -${priceFormatter.format(order.loyaltyDiscount ?? 0)} F`}
               </span>
               <Button
                 type="button"
@@ -158,21 +168,36 @@ export function EditLoyaltyModal({ isOpen, onClose, order }: Props) {
                 </p>
               )}
               {availableRewards.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {availableRewards.map((r) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      disabled={isPending}
-                      onClick={() => submit(r.id)}
-                      className={cn(
-                        'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
-                        'border-amber-300 bg-white text-amber-900 hover:bg-amber-100 disabled:opacity-50 dark:bg-transparent dark:text-amber-100'
-                      )}
-                    >
-                      -{priceFormatter.format(r.capAmount)} F
-                    </button>
-                  ))}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-default-600">
+                      Offrir en cadeau (sans réduction)
+                    </span>
+                    <Switch
+                      size="sm"
+                      isSelected={redeemAsGift}
+                      onValueChange={setRedeemAsGift}
+                      aria-label="Offrir en cadeau, sans réduction"
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableRewards.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => submit(r.id, redeemAsGift)}
+                        className={cn(
+                          'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                          'border-amber-300 bg-white text-amber-900 hover:bg-amber-100 disabled:opacity-50 dark:bg-transparent dark:text-amber-100'
+                        )}
+                      >
+                        {redeemAsGift
+                          ? `Cadeau · ${priceFormatter.format(r.capAmount)} F`
+                          : `-${priceFormatter.format(r.capAmount)} F`}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </>

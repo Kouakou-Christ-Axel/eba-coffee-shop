@@ -7,6 +7,10 @@
 // jamais un blocage : toute erreur retombe silencieusement sur `none`.
 // La validation finale (appartenance, statut) reste côté serveur dans la
 // transaction de commande.
+//
+// Pour le message incitatif fidélité du récapitulatif (dépend du total NET,
+// donc de cette récompense elle-même), voir `use-loyalty-teaser.ts` — un hook
+// séparé, pour éviter une dépendance circulaire reward → discount → total.
 
 import { useEffect, useState } from 'react';
 import { ORDER_CUSTOMER_PHONE_MAX } from '@/config/constants';

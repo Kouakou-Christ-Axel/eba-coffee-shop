@@ -13,11 +13,12 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@heroui/react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import type { CartItem } from '@/lib/cart-store';
 import { useCheckoutForm } from '@/lib/hooks/use-checkout-form';
 import { usePickupInfo } from '@/lib/hooks/use-pickup-info';
 import { useLoyaltyReward } from '@/lib/hooks/use-loyalty-reward';
+import { useLoyaltyTeaser } from '@/lib/hooks/use-loyalty-teaser';
 import { ContactFields } from './_components/contact-fields';
 import { LoyaltyRewardBanner } from './_components/loyalty-reward-banner';
 import { PickupModeCards } from './_components/pickup-mode-cards';
@@ -56,6 +57,14 @@ export function CheckoutForm({
   const activeReward =
     reward.status === 'ready' && rewardApplied ? reward : null;
   const discount = activeReward ? Math.min(activeReward.capAmount, total) : 0;
+  // Total net (après remise éventuelle) : c'est ce montant qui détermine si un
+  // tampon sera crédité (`awardLoyaltyForOrder` teste le total NET). Le
+  // message incitatif du récapitulatif se calcule donc dessus, dans un second
+  // appel débouncé distinct de la recherche de récompense ci-dessus (celle-ci
+  // ne dépend pas du total, la boucler dessus créerait une dépendance
+  // circulaire reward → discount → netTotal → reward).
+  const netTotal = Math.max(0, total - discount);
+  const loyaltyMessage = useLoyaltyTeaser(values.customerPhone, netTotal);
 
   // Remonte la remise au récapitulatif de la page (au-dessus du formulaire).
   useEffect(() => {
@@ -115,6 +124,13 @@ export function CheckoutForm({
           applied={rewardApplied}
           onAppliedChange={setRewardApplied}
         />
+      )}
+
+      {loyaltyMessage && (
+        <p className="flex items-center gap-2 text-xs font-medium text-primary">
+          <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {loyaltyMessage}
+        </p>
       )}
 
       <SlotPicker

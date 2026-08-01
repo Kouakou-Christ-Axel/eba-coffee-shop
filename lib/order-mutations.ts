@@ -38,6 +38,9 @@ import {
   LoyaltyRewardUnavailableError,
   resolveLoyaltyReward,
 } from '@/lib/loyalty-mutations';
+import { getOrderLoyaltyOutcome } from '@/lib/loyalty';
+import { getLoyaltySettings } from '@/lib/loyalty-settings-db';
+import { computePickupMessage } from '@/lib/loyalty-messaging';
 import { canTransition, canTogglePayment } from '@/lib/order-permissions';
 import { normalizeIvorianPhone } from '@/lib/phone';
 import { computeItemsTotal, getMaxItemDiscount } from '@/lib/orders/totals';
@@ -477,7 +480,7 @@ export async function setOrderStatus(
 ): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id },
-    select: { status: true, dailyNumber: true },
+    select: { status: true, dailyNumber: true, customerId: true },
   });
   if (!order) {
     throw new OrderMutationError('Commande introuvable', 404);
@@ -488,6 +491,21 @@ export async function setOrderStatus(
       `Transition non autorisée : ${order.status} → ${newStatus}`,
       403
     );
+  }
+
+  // Reconnaissance fidélité combinée à la confirmation « commande prête » :
+  // calculée AVANT le `updateMany` (le tampon a déjà été attribué à la
+  // création, cf. `awardLoyaltyForOrder` — on ne fait ici que relire ce qui a
+  // été tracé au ledger, jamais de nouvelle attribution).
+  let readyBodyOverride: string | undefined;
+  if (newStatus === 'READY' && order.customerId) {
+    const [settings, outcome] = await Promise.all([
+      getLoyaltySettings(),
+      getOrderLoyaltyOutcome(order.customerId, id),
+    ]);
+    if (outcome) {
+      readyBodyOverride = computePickupMessage({ settings, ...outcome });
+    }
   }
 
   const result = await prisma.order.updateMany({
@@ -521,7 +539,7 @@ export async function setOrderStatus(
   // Client abonné depuis la page de suivi : chaque étape le concerne
   // (préparation, prête, récupérée, annulée). NEW n'est jamais une cible ici.
   if (newStatus !== 'NEW') {
-    notifyOrderCustomer(id, newStatus);
+    notifyOrderCustomer(id, newStatus, readyBodyOverride);
   }
 }
 
@@ -1071,12 +1089,16 @@ export async function updateOrderItems(
  * puis applique la nouvelle (vérifiée : appartient au client de la commande,
  * statut `AVAILABLE`).
  *
+ * `redeemAsGift: true` : la récompense est marquée utilisée (elle ne resservira
+ * plus) mais SANS déduire `capAmount` du total — pour les clients à qui on
+ * offre un geste/produit au comptoir plutôt qu'une réduction en numéraire.
+ *
  * Lève `OrderMutationError` (404 commande, 400 récompense indisponible / pas
  * de client associé, 409 commande terminée/annulée).
  */
 export async function setOrderLoyaltyReward(
   orderId: string,
-  input: { loyaltyRewardId: string | null },
+  input: { loyaltyRewardId: string | null; redeemAsGift?: boolean },
   actorId?: string | null
 ): Promise<{ total: number; loyaltyDiscount: number | null }> {
   return prisma.$transaction(async (tx) => {
@@ -1106,7 +1128,12 @@ export async function setOrderLoyaltyReward(
     if (order.loyaltyRewardId) {
       await tx.loyaltyReward.update({
         where: { id: order.loyaltyRewardId },
-        data: { status: 'AVAILABLE', usedOrderId: null, usedAt: null },
+        data: {
+          status: 'AVAILABLE',
+          usedOrderId: null,
+          usedAt: null,
+          redeemedAsGift: false,
+        },
       });
       await tx.loyaltyLedger.create({
         data: {
@@ -1137,7 +1164,9 @@ export async function setOrderLoyaltyReward(
       }
     }
 
-    const discount = reward ? Math.min(reward.capAmount, grossTotal) : 0;
+    const redeemAsGift = Boolean(reward && input.redeemAsGift);
+    const discount =
+      reward && !redeemAsGift ? Math.min(reward.capAmount, grossTotal) : 0;
     const total = grossTotal - discount;
 
     await tx.order.update({
@@ -1156,6 +1185,7 @@ export async function setOrderLoyaltyReward(
         orderId,
         capAmount: reward.capAmount,
         actorId: actorId ?? null,
+        redeemedAsGift: redeemAsGift,
       });
     }
 

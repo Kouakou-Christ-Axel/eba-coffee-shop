@@ -19,25 +19,25 @@ model User {
   name  String?
   role  UserRole @default(USER)
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  emailVerified Boolean   @default(false)
-  image         String?
-  sessions        Session[]
-  accounts        Account[]
-  createdOrders      Order[]        @relation("OrderCreatedBy")
-  createdExpenses    Expense[]      @relation("ExpenseCreatedBy")
-  createdInvestments Investment[]   @relation("InvestmentCreatedBy")
-  revenueAdjustments RevenueAdjustment[] @relation("RevenueAdjustmentCreatedBy")
-  cashClosings       CashClosing[]  @relation("CashClosingClosedBy")
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
+  emailVerified             Boolean                 @default(false)
+  image                     String?
+  sessions                  Session[]
+  accounts                  Account[]
+  createdOrders             Order[]                 @relation("OrderCreatedBy")
+  createdExpenses           Expense[]               @relation("ExpenseCreatedBy")
+  createdInvestments        Investment[]            @relation("InvestmentCreatedBy")
+  revenueAdjustments        RevenueAdjustment[]     @relation("RevenueAdjustmentCreatedBy")
+  cashClosings              CashClosing[]           @relation("CashClosingClosedBy")
   inventoryPurchasesCreated InventoryPurchase[]     @relation("InventoryPurchaseCreatedBy")
   inventoryCountsCreated    InventoryCount[]        @relation("InventoryCountCreatedBy")
   restockBatchesCreated     InventoryRestockBatch[] @relation("RestockBatchCreatedBy")
   pushSubscriptions         PushSubscription[]
-  createdPolls              Poll[]             @relation("PollCreatedBy")
-  moderatedPollSuggestions  PollSuggestion[]   @relation("PollSuggestionModeratedBy")
-  purchaseDrafts            PurchaseDraft[]    @relation("PurchaseDraftCreatedBy")
-  orderPaymentsCreated      OrderPayment[]     @relation("OrderPaymentCreatedBy")
+  createdPolls              Poll[]                  @relation("PollCreatedBy")
+  moderatedPollSuggestions  PollSuggestion[]        @relation("PollSuggestionModeratedBy")
+  purchaseDrafts            PurchaseDraft[]         @relation("PurchaseDraftCreatedBy")
+  orderPaymentsCreated      OrderPayment[]          @relation("OrderPaymentCreatedBy")
 
   @@map("user")
 }
@@ -177,22 +177,22 @@ enum PaymentMode {
 }
 
 model Order {
-  id            String       @id @default(cuid())
-  reference     String       @unique
-  dailyDate     DateTime     @db.Date
+  id            String      @id @default(cuid())
+  reference     String      @unique
+  dailyDate     DateTime    @db.Date
   dailyNumber   Int
   customerName  String?
   customerPhone String?
   pickupTime    DateTime?
-  orderType     OrderType    @default(TAKEAWAY)
+  orderType     OrderType   @default(TAKEAWAY)
   items         Json
   total         Int
-  status        OrderStatus  @default(NEW)
+  status        OrderStatus @default(NEW)
   note          String?
 
-  isPaid            Boolean      @default(false)
-  paymentMode       PaymentMode?
-  paidAt            DateTime?
+  isPaid      Boolean      @default(false)
+  paymentMode PaymentMode?
+  paidAt      DateTime?
 
   // Horodatages du cycle cuisine, servant les minuteurs des écrans staff
   // (cuisine + caisse). `preparingStartedAt` : entrée en cuisine (NEW →
@@ -271,9 +271,9 @@ model OrderPayment {
 model Customer {
   // Identité client (CRM). Clé = téléphone normalisé (forme canonique E.164
   // quand reconnu, sinon chiffres). Pas de compte/login : on identifie au numéro.
-  id        String   @id @default(cuid())
-  phone     String   @unique
-  name      String?
+  id    String  @id @default(cuid())
+  phone String  @unique
+  name  String?
 
   // Fidélité (carte à tampons). `stampCount` = avancement de la carte en cours.
   // `lastStampDate` sert à la règle « 1 tampon / jour / numéro ».
@@ -284,8 +284,8 @@ model Customer {
   rewards   LoyaltyReward[]
   ledger    LoyaltyLedger[]
   pollVotes PollVote[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 
   @@map("customer")
 }
@@ -307,6 +307,12 @@ model LoyaltyReward {
   usedOrderId   String?
   earnedAt      DateTime  @default(now())
   usedAt        DateTime?
+
+  // Vrai si la récompense a été retirée sous forme de cadeau (produit/geste
+  // offert au comptoir) plutôt que déduite en numéraire du total de la
+  // commande — l'usage reste tracé (statut USED) mais `Order.loyaltyDiscount`
+  // n'est jamais impacté dans ce mode (cf. `setOrderLoyaltyReward`).
+  redeemedAsGift Boolean @default(false)
 
   @@index([customerId, status])
   @@map("loyalty_reward")
@@ -335,14 +341,14 @@ model LoyaltyLedger {
 }
 
 model LoyaltySettings {
-  id             String  @id @default("singleton")
-  enabled        Boolean @default(true)
-  minOrderAmount Int     @default(1000) // montant min (FCFA) pour gagner 1 tampon
-  stampsPerCard  Int     @default(10) // taille de la carte (palier final)
-  tier1Stamps    Int     @default(5) // palier intermédiaire
-  tier1RewardCap Int     @default(1000) // plafond récompense palier intermédiaire
-  tier2RewardCap Int     @default(2500) // plafond récompense palier final
-  oneStampPerDay Boolean @default(true)
+  id             String   @id @default("singleton")
+  enabled        Boolean  @default(true)
+  minOrderAmount Int      @default(1000) // montant min (FCFA) pour gagner 1 tampon
+  stampsPerCard  Int      @default(10) // taille de la carte (palier final)
+  tier1Stamps    Int      @default(5) // palier intermédiaire
+  tier1RewardCap Int      @default(1000) // plafond récompense palier intermédiaire
+  tier2RewardCap Int      @default(2500) // plafond récompense palier final
+  oneStampPerDay Boolean  @default(true)
   updatedAt      DateTime @updatedAt
 
   @@map("loyalty_settings")
@@ -405,11 +411,11 @@ enum PollSuggestionStatus {
 }
 
 model Poll {
-  id          String     @id @default(cuid())
-  title       String
-  description String?
-  imageUrl    String?
-  status      PollStatus @default(DRAFT)
+  id                String                @id @default(cuid())
+  title             String
+  description       String?
+  imageUrl          String?
+  status            PollStatus            @default(DRAFT)
   // Si vrai, la page publique du sondage propose « proposer une pâtisserie »
   // (ou tout autre type d'option) — indépendant du statut : on peut collecter
   // des suggestions pendant que le sondage est encore en préparation (DRAFT).
@@ -418,8 +424,8 @@ model Poll {
   // Fenêtre indicative (pas de tâche planifiée dans ce repo pour clôturer
   // automatiquement) : à vérifier côté lecture/vote (`closesAt < now()`), le
   // passage réel en CLOSED reste une action explicite (dashboard/MCP).
-  opensAt  DateTime?
-  closesAt DateTime?
+  opensAt           DateTime?
+  closesAt          DateTime?
 
   createdById String?
   createdBy   User?   @relation("PollCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -436,16 +442,16 @@ model Poll {
 }
 
 model PollOption {
-  id          String  @id @default(cuid())
+  id          String    @id @default(cuid())
   pollId      String
-  poll        Poll    @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  poll        Poll      @relation(fields: [pollId], references: [id], onDelete: Cascade)
   label       String
   description String?
   imageUrl    String?
-  sortOrder   Int     @default(0)
+  sortOrder   Int       @default(0)
   // Soft delete : les votes déjà enregistrés référencent l'option, on ne peut
   // pas la supprimer physiquement une fois le sondage ouvert.
-  deletedAt DateTime?
+  deletedAt   DateTime?
 
   // Traçabilité : option créée par promotion d'une suggestion approuvée.
   sourceSuggestionId String?         @unique
@@ -608,17 +614,17 @@ model SupplementGroup {
 }
 
 model SupplementOption {
-  id      String          @id @default(cuid())
-  name    String
-  price   Int
+  id            String          @id @default(cuid())
+  name          String
+  price         Int
   // Disponibilité d'un « goût » : désactivé = conservé mais non sélectionnable.
-  available Boolean       @default(true)
+  available     Boolean         @default(true)
   // Stock vendable courant de cette option. `null` = illimité ; entier = suivi ;
   // `0` = épuisé (grisé côté public, mais l'option reste listée). Même sémantique
   // que `Product.stockQuantity`.
   stockQuantity Int?
-  groupId String
-  group   SupplementGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId       String
+  group         SupplementGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@map("supplement_option")
 }
@@ -680,9 +686,9 @@ model ExpenseSettings {
 }
 
 model ExpenseCategory {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  sortOrder Int       @default(0)
+  id        String             @id @default(cuid())
+  name      String             @unique
+  sortOrder Int                @default(0)
   // Soft delete : `deletedAt` non nul = catégorie « supprimée » (retirée des
   // listes/sélecteurs) mais conservée — les dépenses rattachées gardent leur
   // libellé. Recréer une catégorie du même nom « ressuscite » la version
@@ -694,8 +700,8 @@ model ExpenseCategory {
   nature    ExpenseNature      @default(VARIABLE)
   expenses  Expense[]
   recurring RecurringExpense[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
   @@index([deletedAt])
   @@map("expense_category")
@@ -776,18 +782,18 @@ model Expense {
 // possible (mergedIntoId) pour dédoublonner deux libellés du même article.
 
 model ExpenseArticle {
-  id                String    @id @default(cuid())
+  id                String           @id @default(cuid())
   name              String
-  normalizedName    String    @unique
+  normalizedName    String           @unique
   baseUnit          String?
   // Suivi de stock : article rattaché à une référence d'inventaire.
-  trackInventory    Boolean   @default(false)
-  inventoryItemId   String?   @unique
-  inventoryItem     InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  trackInventory    Boolean          @default(false)
+  inventoryItemId   String?          @unique
+  inventoryItem     InventoryItem?   @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
   location          String?
   // Achat en gros (ex. carton de gobelets) : indicatif, pas de logique métier
   // conditionnée dessus dans ce step.
-  bulkPurchase      Boolean   @default(false)
+  bulkPurchase      Boolean          @default(false)
   bulkPurchaseAt    DateTime?
   wholesaleRefPrice Int?
   // Soft delete : voir ExpenseCategory. Retiré des sélecteurs mais conservé ;
@@ -800,8 +806,8 @@ model ExpenseArticle {
   mergedFrom        ExpenseArticle[] @relation("ArticleMerge")
   aliases           ArticleAlias[]
   items             ExpenseItem[]
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   @@index([archivedAt])
   @@index([bulkPurchase])
@@ -813,12 +819,12 @@ model ExpenseArticle {
 // saisie. `supplierKey` optionnel : un même alias peut désigner un article
 // différent selon le fournisseur.
 model ArticleAlias {
-  id          String   @id @default(cuid())
+  id          String         @id @default(cuid())
   alias       String
   supplierKey String?
   articleId   String
   article     ExpenseArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
+  createdAt   DateTime       @default(now())
 
   @@unique([alias, supplierKey])
   @@index([articleId])
@@ -832,22 +838,22 @@ model ArticleAlias {
 // (ex. 2 cartons de 24) avant conversion. `pendingQuantity` = montant connu
 // mais quantité pas encore renseignée (à compléter plus tard).
 model ExpenseItem {
-  id              String   @id @default(cuid())
+  id              String          @id @default(cuid())
   expenseId       String
-  expense         Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  expense         Expense         @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   articleId       String?
   article         ExpenseArticle? @relation(fields: [articleId], references: [id], onDelete: SetNull)
   rawLabel        String
   label           String?
-  qtyBase         Decimal? @db.Decimal(12, 3)
-  formatQty       Decimal? @db.Decimal(12, 3)
-  formatSize      Decimal? @db.Decimal(12, 3)
+  qtyBase         Decimal?        @db.Decimal(12, 3)
+  formatQty       Decimal?        @db.Decimal(12, 3)
+  formatSize      Decimal?        @db.Decimal(12, 3)
   unit            String?
   unitPrice       Int?
   amount          Int
-  pendingQuantity Boolean  @default(false)
-  sortOrder       Int      @default(0)
-  createdAt       DateTime @default(now())
+  pendingQuantity Boolean         @default(false)
+  sortOrder       Int             @default(0)
+  createdAt       DateTime        @default(now())
 
   @@index([expenseId])
   @@index([articleId])
@@ -879,11 +885,11 @@ model PurchaseDraft {
 }
 
 model CashClosing {
-  id          String   @id @default(cuid())
+  id           String   @id @default(cuid())
   // Un jour civil = une clôture (cohérent avec Order.dailyDate / Expense.date).
-  date        DateTime @unique @db.Date
-  openingFloat Int     @default(0) // fond de caisse (FCFA)
-  countedCash  Int     @default(0) // espèces comptées en fin de journée
+  date         DateTime @unique @db.Date
+  openingFloat Int      @default(0) // fond de caisse (FCFA)
+  countedCash  Int      @default(0) // espèces comptées en fin de journée
 
   // Instantané calculé au moment de la clôture (les commandes/dépenses peuvent
   // évoluer ensuite — on fige ce que le système indiquait).
