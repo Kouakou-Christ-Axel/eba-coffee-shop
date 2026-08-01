@@ -261,6 +261,19 @@ export const setOrderCustomerSchema = z
 
 export type SetOrderCustomerInput = z.infer<typeof setOrderCustomerSchema>;
 
+// ─── Récompense fidélité sur une commande déjà créée ───────────────────────────
+//
+// `null` = retirer la récompense appliquée. Chaîne non vide = appliquer cette
+// récompense (vérifiée côté serveur : appartient au client, `AVAILABLE`).
+
+export const setOrderLoyaltyRewardSchema = z.object({
+  loyaltyRewardId: z.string().min(1).nullable(),
+});
+
+export type SetOrderLoyaltyRewardInput = z.infer<
+  typeof setOrderLoyaltyRewardSchema
+>;
+
 // ─── Livreur du client ────────────────────────────────────────────────────────
 //
 // Le livreur est envoyé PAR le client (le coffee shop ne livre pas) : il peut

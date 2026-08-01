@@ -1016,7 +1016,7 @@ export async function updateOrderItems(
 
   const order = await prisma.order.findUnique({
     where: { id },
-    select: { status: true },
+    select: { status: true, loyaltyDiscount: true },
   });
   if (!order) {
     throw new OrderMutationError('Commande introuvable', 404);
@@ -1038,8 +1038,15 @@ export async function updateOrderItems(
     }
   }
 
-  // Total net recalculé côté serveur (après remises).
-  const total = computeItemsTotal(items);
+  // Total net recalculé côté serveur (après remises), en conservant la
+  // récompense fidélité déjà appliquée à la commande (sinon un simple ajout /
+  // retrait d'article efface silencieusement sa déduction du total, alors que
+  // `loyaltyDiscount`/`loyaltyRewardId` restent inchangés sur la ligne — cf.
+  // `createCashierOrder` pour le même calcul à la création).
+  const total = Math.max(
+    0,
+    computeItemsTotal(items) - (order.loyaltyDiscount ?? 0)
+  );
 
   await prisma.order.update({
     where: { id },
@@ -1047,6 +1054,113 @@ export async function updateOrderItems(
   });
 
   return { total };
+}
+
+// ─── Récompense fidélité sur une commande déjà créée ───────────────────────────
+
+/**
+ * Applique (ou retire) une récompense fidélité sur une commande existante —
+ * contrairement à `createCashierOrder`, où la récompense ne peut être choisie
+ * qu'à la création. Recalcule le total à partir des articles courants (même
+ * formule que `updateOrderItems`) et consomme/restitue la récompense en
+ * conséquence.
+ *
+ * `{ loyaltyRewardId: null }` retire la récompense déjà appliquée (si il y en
+ * a une) : elle redevient `AVAILABLE`, la remise est retirée du total.
+ * `{ loyaltyRewardId: "<id>" }` retire d'abord la précédente s'il y en a une,
+ * puis applique la nouvelle (vérifiée : appartient au client de la commande,
+ * statut `AVAILABLE`).
+ *
+ * Lève `OrderMutationError` (404 commande, 400 récompense indisponible / pas
+ * de client associé, 409 commande terminée/annulée).
+ */
+export async function setOrderLoyaltyReward(
+  orderId: string,
+  input: { loyaltyRewardId: string | null },
+  actorId?: string | null
+): Promise<{ total: number; loyaltyDiscount: number | null }> {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        status: true,
+        items: true,
+        customerId: true,
+        loyaltyRewardId: true,
+      },
+    });
+    if (!order) {
+      throw new OrderMutationError('Commande introuvable', 404);
+    }
+    if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
+      throw new OrderMutationError(
+        'Impossible de modifier une commande terminée ou annulée',
+        409
+      );
+    }
+
+    // Retire d'abord la récompense déjà appliquée, s'il y en a une : elle
+    // redevient disponible pour le client (réappliquer sur cette même
+    // commande, ou une autre plus tard).
+    if (order.loyaltyRewardId) {
+      await tx.loyaltyReward.update({
+        where: { id: order.loyaltyRewardId },
+        data: { status: 'AVAILABLE', usedOrderId: null, usedAt: null },
+      });
+      await tx.loyaltyLedger.create({
+        data: {
+          customerId: order.customerId as string,
+          type: 'ADJUSTMENT',
+          orderId,
+          actorId: actorId ?? null,
+          note: 'Récompense retirée de la commande',
+        },
+      });
+    }
+
+    const grossTotal = computeItemsTotal(order.items as CartItem[]);
+
+    let reward: { id: string; capAmount: number } | null = null;
+    if (input.loyaltyRewardId) {
+      try {
+        reward = await resolveLoyaltyReward(
+          tx,
+          input.loyaltyRewardId,
+          order.customerId
+        );
+      } catch (err) {
+        if (err instanceof LoyaltyRewardUnavailableError) {
+          throw new OrderMutationError(err.message, 400);
+        }
+        throw err;
+      }
+    }
+
+    const discount = reward ? Math.min(reward.capAmount, grossTotal) : 0;
+    const total = grossTotal - discount;
+
+    await tx.order.update({
+      where: { id: orderId },
+      data: {
+        total,
+        loyaltyRewardId: reward?.id ?? null,
+        loyaltyDiscount: discount || null,
+      },
+    });
+
+    if (reward) {
+      await consumeLoyaltyReward(tx, {
+        rewardId: reward.id,
+        customerId: order.customerId as string,
+        orderId,
+        capAmount: reward.capAmount,
+        actorId: actorId ?? null,
+      });
+    }
+
+    return { total, loyaltyDiscount: discount || null };
+  });
 }
 
 // ─── Livreur du client (page publique de suivi) ───────────────────────────────

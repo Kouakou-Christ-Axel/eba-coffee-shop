@@ -15,6 +15,7 @@ import {
   RotateCcw,
   AlertTriangle,
   UserCog,
+  Gift,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,6 +33,7 @@ import { useUndoToast } from '@/lib/hooks/use-undo-toast';
 import { PaymentModal, type PaymentLine } from './payment-modal';
 import { EditFulfillmentModal } from './edit-fulfillment-modal';
 import { EditCustomerModal } from './edit-customer-modal';
+import { EditLoyaltyModal } from './edit-loyalty-modal';
 import { CopyRecapButton } from '../_components/copy-recap-button';
 import { OrderItemsEditor } from '../_components/order-items-editor';
 
@@ -106,6 +108,7 @@ export function OrderCardActions({
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isEditFulfillmentOpen, setIsEditFulfillmentOpen] = useState(false);
   const [isEditCustomerOpen, setIsEditCustomerOpen] = useState(false);
+  const [isEditLoyaltyOpen, setIsEditLoyaltyOpen] = useState(false);
   const { pushUndo } = useUndoToast();
 
   const canEditItems =
@@ -510,6 +513,22 @@ export function OrderCardActions({
           Modifier le client
         </Button>
 
+        {/* Appliquer / retirer une récompense fidélité, y compris après
+            création (pas seulement au moment de la commande) */}
+        {canEditItems && (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="w-full text-muted-foreground"
+            disabled={isPending}
+            onClick={() => setIsEditLoyaltyOpen(true)}
+          >
+            <Gift className="mr-1.5 h-4 w-4" />
+            Récompense fidélité
+          </Button>
+        )}
+
         {/* Annuler / Rembourser : rembourser si déjà payée, sinon annuler */}
         {order.status !== 'CANCELLED' && (
           <Button
@@ -581,6 +600,12 @@ export function OrderCardActions({
       <EditCustomerModal
         isOpen={isEditCustomerOpen}
         onClose={() => setIsEditCustomerOpen(false)}
+        order={order}
+      />
+
+      <EditLoyaltyModal
+        isOpen={isEditLoyaltyOpen}
+        onClose={() => setIsEditLoyaltyOpen(false)}
         order={order}
       />
     </>
