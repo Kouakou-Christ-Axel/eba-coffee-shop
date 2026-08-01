@@ -69,7 +69,7 @@ export function useNewOrder() {
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [orderType, setOrderType] = useState<OrderType>('TAKEAWAY');
+  const [orderType, setOrderType] = useState<OrderType>('DELIVERY');
   const [note, setNote] = useState('');
   const [pickupTime, setPickupTime] = useState<string | null>(null);
   // Antidatage : YYYY-MM-DD pour une commande ancienne. null = jour en cours.
@@ -105,13 +105,19 @@ export function useNewOrder() {
         .then((res) => (res.ok ? res.json() : { card: null }))
         .then((data: { card: LoyaltyCard | null }) => {
           setLoyaltyCard(data.card);
-          // La récompense sélectionnée n'a plus cours (client différent /
-          // récompense entre-temps utilisée ailleurs) : on la désélectionne.
-          setLoyaltyRewardId((prev) =>
-            prev && data.card?.availableRewards.some((r) => r.id === prev)
-              ? prev
-              : null
-          );
+          setLoyaltyRewardId((prev) => {
+            // La récompense sélectionnée n'a plus cours (client différent /
+            // récompense entre-temps utilisée ailleurs) : on la désélectionne.
+            if (
+              prev &&
+              data.card?.availableRewards.some((r) => r.id === prev)
+            ) {
+              return prev;
+            }
+            // Sinon, application automatique de la récompense disponible la
+            // plus ancienne (le caissier reste libre de la désélectionner).
+            return data.card?.availableRewards[0]?.id ?? null;
+          });
         })
         .catch(() => {
           // Requête annulée ou erreur réseau : pas de carte affichée.
