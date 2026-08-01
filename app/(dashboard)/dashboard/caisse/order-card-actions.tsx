@@ -14,6 +14,7 @@ import {
   Ban,
   RotateCcw,
   AlertTriangle,
+  UserCog,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,6 +31,7 @@ import type { OrderStatus } from '@/generated/prisma/client';
 import { useUndoToast } from '@/lib/hooks/use-undo-toast';
 import { PaymentModal, type PaymentLine } from './payment-modal';
 import { EditFulfillmentModal } from './edit-fulfillment-modal';
+import { EditCustomerModal } from './edit-customer-modal';
 import { CopyRecapButton } from '../_components/copy-recap-button';
 import { OrderItemsEditor } from '../_components/order-items-editor';
 
@@ -103,6 +105,7 @@ export function OrderCardActions({
   const [actionError, setActionError] = useState<string | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isEditFulfillmentOpen, setIsEditFulfillmentOpen] = useState(false);
+  const [isEditCustomerOpen, setIsEditCustomerOpen] = useState(false);
   const { pushUndo } = useUndoToast();
 
   const canEditItems =
@@ -493,6 +496,20 @@ export function OrderCardActions({
           </Button>
         )}
 
+        {/* Modifier les infos client : nom, téléphone, lien vers une fiche
+            CRM existante, ou détacher */}
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          className="w-full text-muted-foreground"
+          disabled={isPending}
+          onClick={() => setIsEditCustomerOpen(true)}
+        >
+          <UserCog className="mr-1.5 h-4 w-4" />
+          Modifier le client
+        </Button>
+
         {/* Annuler / Rembourser : rembourser si déjà payée, sinon annuler */}
         {order.status !== 'CANCELLED' && (
           <Button
@@ -558,6 +575,12 @@ export function OrderCardActions({
       <EditFulfillmentModal
         isOpen={isEditFulfillmentOpen}
         onClose={() => setIsEditFulfillmentOpen(false)}
+        order={order}
+      />
+
+      <EditCustomerModal
+        isOpen={isEditCustomerOpen}
+        onClose={() => setIsEditCustomerOpen(false)}
         order={order}
       />
     </>
