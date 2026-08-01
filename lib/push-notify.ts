@@ -179,16 +179,22 @@ const LAST_KINDS: ReadonlySet<CustomerNotificationKind> = new Set([
  * Notifie les appareils clients abonnés à la commande `orderId` d'un événement
  * de son cycle de vie. Fire-and-forget : à appeler sans `await` depuis les
  * mutations (l'erreur est logguée ici).
+ *
+ * `bodyOverride` remplace le corps par défaut de `kind` — sert à `READY` pour
+ * y combiner la reconnaissance fidélité (calculée par l'appelant, qui a accès
+ * à la transaction DB ; cette fonction reste agnostique de ce calcul).
  */
 export function notifyOrderCustomer(
   orderId: string,
-  kind: CustomerNotificationKind
+  kind: CustomerNotificationKind,
+  bodyOverride?: string
 ): void {
   const message = CUSTOMER_MESSAGES[kind];
   sendPushToOrder(
     orderId,
     {
       ...message,
+      body: bodyOverride ?? message.body,
       url: `/commande/${orderId}`,
       // Un seul fil de notifications par commande : la plus récente remplace.
       tag: `order-status-${orderId}`,

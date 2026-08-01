@@ -65,6 +65,12 @@ export async function resolveLoyaltyReward(
  * Consomme une récompense pour une commande créée : statut `USED` +
  * `usedOrderId`/`usedAt`, et trace `REWARD_USED` au ledger. MÊME transaction
  * que la création — jamais réutilisable deux fois.
+ *
+ * `redeemedAsGift` : la récompense part en cadeau (produit/geste offert au
+ * comptoir) plutôt qu'en réduction numéraire — le statut passe quand même à
+ * `USED` (elle ne peut plus resservir), mais c'est à l'appelant de NE PAS
+ * déduire `capAmount` du total de la commande dans ce mode (cf.
+ * `setOrderLoyaltyReward` / `createCashierOrder`).
  */
 export async function consumeLoyaltyReward(
   tx: Prisma.TransactionClient,
@@ -75,6 +81,7 @@ export async function consumeLoyaltyReward(
     capAmount: number;
     /** Utilisateur caisse à l'origine ; null pour une commande en ligne. */
     actorId?: string | null;
+    redeemedAsGift?: boolean;
   }
 ): Promise<void> {
   await tx.loyaltyReward.update({
@@ -83,6 +90,7 @@ export async function consumeLoyaltyReward(
       status: 'USED',
       usedOrderId: args.orderId,
       usedAt: new Date(),
+      redeemedAsGift: args.redeemedAsGift ?? false,
     },
   });
   await tx.loyaltyLedger.create({
@@ -91,7 +99,9 @@ export async function consumeLoyaltyReward(
       type: 'REWARD_USED',
       orderId: args.orderId,
       actorId: args.actorId ?? null,
-      note: `Récompense ${args.capAmount} F utilisée`,
+      note: args.redeemedAsGift
+        ? `Récompense ${args.capAmount} F offerte en cadeau (sans réduction)`
+        : `Récompense ${args.capAmount} F utilisée`,
     },
   });
 }

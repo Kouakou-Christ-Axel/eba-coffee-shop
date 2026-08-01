@@ -49,6 +49,48 @@ export async function getLoyaltyCardByPhone(rawPhone: string) {
  * commande (`resolveLoyaltyReward`), contre le client résolu du MÊME téléphone
  * que la commande.
  */
+/**
+ * Issue fidélité d'une commande DÉJÀ traitée (paiement/statut passés) : cette
+ * commande a-t-elle crédité un tampon, était-ce le tout premier du client, et
+ * quel est son compteur de tampons APRÈS cet ajout. Sert la messagerie
+ * « commande prête » (confirmation), distincte de la messagerie
+ * pré-paiement (`computeCheckoutLoyaltyMessage`, incitative).
+ *
+ * Le tampon (s'il y en a eu un) a été attribué à la création de la commande
+ * (`awardLoyaltyForOrder`, MÊME transaction) — cette fonction ne fait que
+ * relire ce qui a déjà été tracé au ledger, jamais de nouvelle attribution.
+ */
+export async function getOrderLoyaltyOutcome(
+  customerId: string,
+  orderId: string
+): Promise<{
+  stampCount: number;
+  stampEarned: boolean;
+  isFirstStampEver: boolean;
+} | null> {
+  const [customer, stampLedgerForOrder, totalStampEntries] = await Promise.all([
+    prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { stampCount: true },
+    }),
+    prisma.loyaltyLedger.findFirst({
+      where: { customerId, orderId, type: 'STAMP_EARNED' },
+      select: { id: true },
+    }),
+    prisma.loyaltyLedger.count({
+      where: { customerId, type: 'STAMP_EARNED' },
+    }),
+  ]);
+  if (!customer) return null;
+
+  const stampEarned = stampLedgerForOrder !== null;
+  return {
+    stampCount: customer.stampCount,
+    stampEarned,
+    isFirstStampEver: stampEarned && totalStampEntries === 1,
+  };
+}
+
 export async function getAvailableRewardForPhone(
   rawPhone: string
 ): Promise<{ id: string; capAmount: number } | null> {

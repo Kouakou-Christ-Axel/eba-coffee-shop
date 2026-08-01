@@ -9,7 +9,13 @@
 import { normalizeIvorianPhone, toWhatsAppNumber } from '@/lib/phone';
 import type { CartItem } from '@/lib/cart-store';
 import { getItemGross, getItemNet } from '@/lib/orders/totals';
-import { formatSupplementLabel } from '@/lib/orders/format';
+import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
+import {
+  computeCheckoutLoyaltyMessage,
+  computePickupMessage,
+  PICKUP_GENERIC_MESSAGE,
+} from '@/lib/loyalty-messaging';
+import type { LoyaltySettings } from '@/lib/loyalty-settings';
 
 const priceFormatter = new Intl.NumberFormat('fr-FR');
 
@@ -74,14 +80,17 @@ function formatItemLine(item: CartItem): string {
 
 /**
  * Message WhatsApp pour demander un paiement Wave. Inclut le détail des
- * articles, le total, le lien Wave (montant pré-rempli) + les numéros Wave et
- * Orange Money en repli, l'itinéraire, et un rappel de ne pas commander de
- * Yango avant confirmation. Si le merchant ID n'est pas configuré, un
- * placeholder remplace le lien Wave.
+ * articles, le total, le code de retrait, le lien de suivi, le lien Wave
+ * (montant pré-rempli) + les numéros Wave et Orange Money en repli,
+ * l'itinéraire, un rappel de ne pas commander de Yango avant confirmation, et
+ * — si un client est identifié — le message fidélité incitatif (avant
+ * paiement : jamais d'affirmation d'un gain acquis, cf. `lib/loyalty-messaging.ts`).
+ * Si le merchant ID n'est pas configuré, un placeholder remplace le lien Wave.
  */
 export function buildWaveRequestMessage(params: {
   customerName: string | null;
   dailyNumber: number;
+  reference: string;
   amount: number;
   items: CartItem[];
   /** Montant de la récompense fidélité déjà déduit de `amount`, si utilisée
@@ -97,10 +106,17 @@ export function buildWaveRequestMessage(params: {
   yangoLandmark: string;
   /** Lien Google Maps (itinéraire) à joindre pour estimer la course. */
   mapsDirectionsUrl: string;
+  /** URL publique de suivi (/commande/:id), si disponible (contexte serveur
+   * sans `window`, ou fonctionnalité de suivi désactivée). */
+  trackingUrl?: string;
+  /** Client identifié (compteur de tampons) : déclenche le message incitatif
+   * fidélité en bas du récap. `null` = commande anonyme, aucun message. */
+  loyaltyTeaser?: { settings: LoyaltySettings; stampCount: number } | null;
 }): string {
   const {
     customerName,
     dailyNumber,
+    reference,
     amount,
     items,
     loyaltyDiscount,
@@ -108,6 +124,8 @@ export function buildWaveRequestMessage(params: {
     orangeMoneyPaymentNumber,
     yangoLandmark,
     mapsDirectionsUrl,
+    trackingUrl,
+    loyaltyTeaser,
   } = params;
   const greeting = customerName ? `Bonjour ${customerName}` : 'Bonjour';
   const number = String(dailyNumber).padStart(3, '0');
@@ -128,19 +146,29 @@ export function buildWaveRequestMessage(params: {
       `Récompense fidélité 🎁 : -${priceFormatter.format(loyaltyDiscount)} F`
     );
   }
+  lines.push('', `Total : ${priceFormatter.format(amount)} F`, '');
+  lines.push(`Code de retrait à annoncer : ${getPickupCode(reference)}`);
+  if (trackingUrl) lines.push(`Suivi de ta commande : ${trackingUrl}`);
   lines.push(
-    '',
-    `Total : ${priceFormatter.format(amount)} F`,
     '',
     linkBlock,
     `Ou directement au numéro Wave ${wavePaymentNumber} / Orange Money ${orangeMoneyPaymentNumber}`,
     '',
     "⚠️ Ne commande pas encore ton Yango : attends qu'on te dise que c'est prêt.",
     `Quand ce sera bon, indique « ${yangoLandmark} » comme point de repère sur Yango.`,
-    `Itinéraire : ${mapsDirectionsUrl}`,
-    '',
-    'Merci !'
+    `Itinéraire : ${mapsDirectionsUrl}`
   );
+  if (loyaltyTeaser?.settings.enabled) {
+    lines.push(
+      '',
+      computeCheckoutLoyaltyMessage({
+        cartTotal: amount,
+        stampCount: loyaltyTeaser.stampCount,
+        settings: loyaltyTeaser.settings,
+      })
+    );
+  }
+  lines.push('', 'Merci !');
 
   return lines.join('\n');
 }
@@ -166,24 +194,55 @@ export function buildPaymentProofMessage(params: {
   ].join('\n');
 }
 
-/** Message "ta commande est prête" via WhatsApp. */
+/**
+ * Message "ta commande est prête" via WhatsApp. Ouvre sur la confirmation de
+ * retrait — combinée à la reconnaissance fidélité si cette commande a
+ * effectivement crédité un tampon (`loyalty`, cf. `lib/loyalty-messaging.ts` :
+ * CONFIRMATION, contrairement au message de récap qui est INCITATIF) — puis le
+ * code de retrait, le repère Yango + l'itinéraire pour commander la course
+ * maintenant, et le lien de suivi.
+ */
 export function buildPickupReadyMessage(params: {
-  customerName: string | null;
   dailyNumber: number;
-  /** Code de retrait (suffixe de la référence) à annoncer au comptoir. */
-  pickupCode?: string;
+  reference: string;
+  /** Repère à indiquer comme destination dans l'appli Yango. */
+  yangoLandmark: string;
+  /** Lien Google Maps (itinéraire) à joindre pour estimer la course. */
+  mapsDirectionsUrl: string;
   /** URL publique de suivi (/commande/:id) à joindre au message. */
   trackingUrl?: string;
+  /** Issue fidélité de CETTE commande (tampon crédité ou non, etc.). `null` =
+   * commande anonyme / fidélité désactivée → confirmation générique. */
+  loyalty?: {
+    settings: LoyaltySettings;
+    stampEarned: boolean;
+    isFirstStampEver: boolean;
+    stampCount: number;
+  } | null;
 }): string {
-  const { customerName, dailyNumber, pickupCode, trackingUrl } = params;
-  const greeting = customerName ? `Bonjour ${customerName}` : 'Bonjour';
+  const {
+    dailyNumber,
+    reference,
+    yangoLandmark,
+    mapsDirectionsUrl,
+    trackingUrl,
+    loyalty,
+  } = params;
   const number = String(dailyNumber).padStart(3, '0');
+  const confirmation =
+    loyalty && loyalty.settings.enabled
+      ? computePickupMessage(loyalty)
+      : PICKUP_GENERIC_MESSAGE;
+
   const lines = [
-    `${greeting}, ta commande EBA #${number} est prête. Tu peux venir ou envoyer ton livreur.`,
+    confirmation,
+    '',
+    `Commande EBA #${number} · Code de retrait à annoncer : ${getPickupCode(reference)}`,
+    `Tu peux venir directement, ou commander ton Yango maintenant : indique « ${yangoLandmark} » comme point de repère.`,
+    `Itinéraire : ${mapsDirectionsUrl}`,
   ];
-  if (pickupCode) lines.push(`Code de retrait à annoncer : ${pickupCode}`);
-  if (trackingUrl) lines.push(`Infos et localisation : ${trackingUrl}`);
-  lines.push('À tout de suite !');
+  if (trackingUrl) lines.push('', `Suivi de ta commande : ${trackingUrl}`);
+  lines.push('', 'À tout de suite !');
   return lines.join('\n');
 }
 

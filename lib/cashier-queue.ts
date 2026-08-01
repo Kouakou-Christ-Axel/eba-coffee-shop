@@ -16,6 +16,8 @@ import {
   fetchStockSnapshot,
   computeOrderItemsAvailability,
 } from '@/lib/orders/availability';
+import { getLoyaltySettings } from '@/lib/loyalty-settings-db';
+import type { LoyaltySettings } from '@/lib/loyalty-settings';
 import type {
   OrderStatus,
   OrderType,
@@ -56,6 +58,19 @@ export type CashierOrder = {
   stockShortage: boolean;
   /** Noms des articles en cause quand `stockShortage`, pour l'affichage. */
   unavailableItemNames: string[];
+  /** Réglages fidélité (mêmes pour toute la file — dupliqué par commande pour
+   * éviter le prop-drilling à travers la chaîne caisse-view → …→ actions). */
+  loyaltySettings: LoyaltySettings;
+  /** Compteur de tampons du client lié (fidélité), pour le message incitatif
+   * du récap. `null` = commande anonyme (`customerId` absent). */
+  loyaltyStampCount: number | null;
+  /** Cette commande a-t-elle crédité un tampon (et était-ce le tout premier
+   * du client) — calculé UNIQUEMENT pour les commandes `READY` (seul statut
+   * où le bouton "c'est prêt" s'affiche) ; `null` sinon ou commande anonyme. */
+  loyaltyPickupOutcome: {
+    stampEarned: boolean;
+    isFirstStampEver: boolean;
+  } | null;
 };
 
 export async function fetchCashierQueue(): Promise<CashierOrder[]> {
@@ -97,6 +112,60 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
     .map((o) => o.items as CartItem[]);
   const stock = await fetchStockSnapshot(unpaidItemsList);
 
+  // Fidélité : réglages une seule fois pour toute la file, compteur de
+  // tampons batché pour tous les clients liés (récap), et issue précise
+  // (tampon crédité / premier jamais gagné) batchée UNIQUEMENT pour les
+  // commandes READY (seul contexte où le bouton "c'est prêt" en a besoin).
+  const customerIds = [
+    ...new Set(
+      orders.map((o) => o.customerId).filter((id): id is string => id !== null)
+    ),
+  ];
+  const readyOrderIds = orders
+    .filter((o) => o.status === 'READY' && o.customerId !== null)
+    .map((o) => o.id);
+
+  const [loyaltySettings, customers, stampLedgerForReadyOrders] =
+    await Promise.all([
+      getLoyaltySettings(),
+      customerIds.length > 0
+        ? prisma.customer.findMany({
+            where: { id: { in: customerIds } },
+            select: { id: true, stampCount: true },
+          })
+        : Promise.resolve([]),
+      readyOrderIds.length > 0
+        ? prisma.loyaltyLedger.findMany({
+            where: { type: 'STAMP_EARNED', orderId: { in: readyOrderIds } },
+            select: { orderId: true, customerId: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+  const stampCountByCustomerId = new Map(
+    customers.map((c) => [c.id, c.stampCount])
+  );
+  const stampEarnedOrderIds = new Set(
+    stampLedgerForReadyOrders.map((l) => l.orderId)
+  );
+  // "Premier tampon jamais gagné" : le client dont CETTE commande a crédité
+  // le tampon n'a qu'UNE seule entrée STAMP_EARNED au ledger, tous temps
+  // confondus. Un seul groupBy batché pour tous les clients concernés.
+  const readyCustomerIds = [
+    ...new Set(stampLedgerForReadyOrders.map((l) => l.customerId)),
+  ];
+  const stampCountsByCustomer =
+    readyCustomerIds.length > 0
+      ? await prisma.loyaltyLedger.groupBy({
+          by: ['customerId'],
+          where: { type: 'STAMP_EARNED', customerId: { in: readyCustomerIds } },
+          _count: { _all: true },
+        })
+      : [];
+  const totalStampEntriesByCustomerId = new Map(
+    stampCountsByCustomer.map((g) => [g.customerId, g._count._all])
+  );
+
   return orders.map((o) => {
     const items = o.items as CartItem[];
 
@@ -127,6 +196,19 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       }
     }
 
+    const loyaltyStampCount = o.customerId
+      ? (stampCountByCustomerId.get(o.customerId) ?? null)
+      : null;
+    const loyaltyPickupOutcome =
+      o.status === 'READY' && o.customerId
+        ? {
+            stampEarned: stampEarnedOrderIds.has(o.id),
+            isFirstStampEver:
+              stampEarnedOrderIds.has(o.id) &&
+              totalStampEntriesByCustomerId.get(o.customerId) === 1,
+          }
+        : null;
+
     return {
       id: o.id,
       reference: o.reference,
@@ -153,6 +235,9 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       readyAt: o.readyAt,
       stockShortage,
       unavailableItemNames,
+      loyaltySettings,
+      loyaltyStampCount,
+      loyaltyPickupOutcome,
     };
   });
 }

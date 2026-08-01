@@ -24,7 +24,6 @@ import {
   buildWaveRequestMessage,
   buildWhatsAppLink,
 } from '@/lib/contact-links';
-import { getPickupCode } from '@/lib/orders/format';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { ContactSettings } from '@/lib/contact-settings';
 import { priceFormatter, type MenuCategory } from '@/config/menu';
@@ -116,29 +115,52 @@ export function OrderCardActions({
 
   const phone = order.customerPhone;
   const telLink = buildTelLink(phone);
+  const trackingUrl =
+    typeof window === 'undefined'
+      ? undefined
+      : `${window.location.origin}/commande/${order.id}`;
+  // Message incitatif fidélité (récap, avant paiement) : uniquement pour une
+  // commande liée à un client identifié, et si le programme est actif.
+  const loyaltyTeaser =
+    order.customerId && order.loyaltyStampCount !== null
+      ? { settings: order.loyaltySettings, stampCount: order.loyaltyStampCount }
+      : null;
   const whatsappLink = buildWhatsAppLink(
     phone,
     buildWaveRequestMessage({
       customerName: order.customerName,
       dailyNumber: order.dailyNumber,
+      reference: order.reference,
       amount: order.total,
       items: order.items,
       loyaltyDiscount: order.loyaltyDiscount,
+      trackingUrl,
+      loyaltyTeaser,
       ...contactSettings,
     })
   );
-  // « C'est prêt » one-tap : code de retrait + lien de suivi (localisation
-  // incluse sur la page) — remplace le message manuel répétitif.
+  // « C'est prêt » one-tap : confirmation (+ fidélité si un tampon a été
+  // crédité) + code de retrait + repère Yango/itinéraire + lien de suivi —
+  // remplace le message manuel répétitif.
   const readyLink = buildWhatsAppLink(
     phone,
     buildPickupReadyMessage({
-      customerName: order.customerName,
       dailyNumber: order.dailyNumber,
-      pickupCode: getPickupCode(order.reference),
-      trackingUrl:
-        typeof window === 'undefined'
-          ? undefined
-          : `${window.location.origin}/commande/${order.id}`,
+      reference: order.reference,
+      yangoLandmark: contactSettings.yangoLandmark,
+      mapsDirectionsUrl: contactSettings.mapsDirectionsUrl,
+      trackingUrl,
+      loyalty:
+        order.customerId &&
+        order.loyaltyStampCount !== null &&
+        order.loyaltyPickupOutcome
+          ? {
+              settings: order.loyaltySettings,
+              stampEarned: order.loyaltyPickupOutcome.stampEarned,
+              isFirstStampEver: order.loyaltyPickupOutcome.isFirstStampEver,
+              stampCount: order.loyaltyStampCount,
+            }
+          : null,
     })
   );
 
@@ -346,10 +368,13 @@ export function OrderCardActions({
         <CopyRecapButton
           customerName={order.customerName}
           dailyNumber={order.dailyNumber}
+          reference={order.reference}
           amount={order.total}
           items={order.items}
           loyaltyDiscount={order.loyaltyDiscount}
           contactSettings={contactSettings}
+          trackingUrl={trackingUrl}
+          loyaltyTeaser={loyaltyTeaser}
         />
 
         {/* Dismiss signal cuisine (livreur demandé) */}

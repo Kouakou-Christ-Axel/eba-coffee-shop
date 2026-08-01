@@ -5,6 +5,7 @@ import { getOrder } from '@/lib/orders';
 import { getMenu } from '@/lib/menu';
 import { getContactSettings } from '@/lib/contact-settings-db';
 import { getCurrentSession } from '@/lib/auth-helpers';
+import { getLoyaltyCard } from '@/lib/loyalty';
 import { formatAbidjanDateTime } from '@/lib/timezone';
 import type { CartItem } from '@/lib/cart-store';
 import {
@@ -90,6 +91,16 @@ export default async function CommandeDetailPage({
 
   const items = order.items as CartItem[];
   const isAdmin = session?.user.role === 'ADMIN';
+  // Message incitatif fidélité (récap) : uniquement si un client est associé.
+  const loyaltyCard = order.customerId
+    ? await getLoyaltyCard(order.customerId)
+    : null;
+  const loyaltyTeaser = loyaltyCard
+    ? { settings: loyaltyCard.settings, stampCount: loyaltyCard.stampCount }
+    : null;
+  const trackingUrl = process.env.NEXT_PUBLIC_SITE_URL
+    ? `${process.env.NEXT_PUBLIC_SITE_URL}/commande/${order.id}`
+    : undefined;
 
   return (
     <div className="space-y-6">
@@ -231,10 +242,13 @@ export default async function CommandeDetailPage({
               <CopyRecapButton
                 customerName={order.customerName}
                 dailyNumber={order.dailyNumber}
+                reference={order.reference}
                 amount={order.total}
                 items={items}
                 loyaltyDiscount={order.loyaltyDiscount}
                 contactSettings={contactSettings}
+                trackingUrl={trackingUrl}
+                loyaltyTeaser={loyaltyTeaser}
                 size="sm"
                 className="w-auto"
               />
