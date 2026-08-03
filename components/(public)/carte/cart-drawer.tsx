@@ -17,6 +17,10 @@ import { formatSupplementLabel } from '@/lib/orders/format';
 import SupplementModal from './supplement-modal';
 import { ProductMedia } from './_components/product-media';
 import { CartUpsell, selectUpsellProducts } from './_components/cart-upsell';
+import {
+  BOTTOM_SHEET_PLACEMENT,
+  bottomSheetClassNames,
+} from './_components/bottom-sheet';
 
 type CartDrawerProps = {
   isOpen: boolean;
@@ -84,9 +88,12 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
       <Modal
         isOpen={isOpen}
         onClose={onClose}
-        placement="center"
+        // Bottom sheet plein écran sur mobile, dialogue centré sur desktop
+        // (voir _components/bottom-sheet.ts).
+        placement={BOTTOM_SHEET_PLACEMENT}
         size="lg"
         scrollBehavior="inside"
+        classNames={bottomSheetClassNames()}
       >
         <ModalContent>
           <ModalHeader>

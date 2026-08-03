@@ -38,6 +38,11 @@ import {
   ProductMedia,
   productBadgeLabel,
 } from './_components/product-media';
+import {
+  BOTTOM_SHEET_PLACEMENT,
+  SHEET_OVERLAY_TOP,
+  bottomSheetClassNames,
+} from './_components/bottom-sheet';
 
 type SupplementModalProps = {
   product: Product;
@@ -196,19 +201,23 @@ function SupplementModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      placement="center"
+      // Bottom sheet plein écran sur mobile, dialogue centré sur desktop
+      // (voir _components/bottom-sheet.ts).
+      placement={BOTTOM_SHEET_PLACEMENT}
       size="md"
       scrollBehavior="inside"
       // La photo est collée aux bords : pas de padding d'en-tête, et le bouton
       // de fermeture par défaut passerait dessous — on le remplace par le
       // nôtre, posé en overlay sur l'image.
       hideCloseButton
-      classNames={{ body: 'px-0 py-0' }}
+      classNames={bottomSheetClassNames({ body: 'px-0 py-0' })}
     >
       <ModalContent>
         <ModalBody className="gap-0">
-          {/* Le client configure un produit : il doit le VOIR. */}
-          <div className="relative h-48 w-full shrink-0 overflow-hidden sm:h-56">
+          {/* Le client configure un produit : il doit le VOIR. La feuille
+              occupant tout l'écran sur mobile, la photo peut y être plus
+              généreuse que dans le dialogue de bureau. */}
+          <div className="relative h-64 w-full shrink-0 overflow-hidden sm:h-56">
             <ProductMedia
               product={product}
               sizes="(max-width: 640px) 100vw, 448px"
@@ -219,7 +228,10 @@ function SupplementModal({
               className="absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(0,0,0,0.35)_0%,transparent_100%)]"
             />
             {badge && (
-              <ProductBadge label={badge} className="absolute left-3 top-3" />
+              <ProductBadge
+                label={badge}
+                className={cn('absolute left-3', SHEET_OVERLAY_TOP)}
+              />
             )}
             <Button
               isIconOnly
@@ -227,7 +239,10 @@ function SupplementModal({
               radius="full"
               aria-label="Fermer"
               onPress={onClose}
-              className="absolute right-3 top-3 min-h-9 min-w-9 bg-white/90 text-foreground shadow-md"
+              className={cn(
+                'absolute right-3 min-h-9 min-w-9 bg-white/90 text-foreground shadow-md',
+                SHEET_OVERLAY_TOP
+              )}
             >
               <X className="h-4 w-4" />
             </Button>
