@@ -14,6 +14,13 @@ vi.mock('@/lib/menu', () => ({
   getMenu: vi.fn(),
 }));
 
+// La preuve sociale est agrégée depuis les commandes (Prisma) : hors DB dans ce
+// test, on la neutralise en repli identité — c'est exactement le comportement
+// de dégradation de `getMenuWithPopularity` en cas d'échec.
+vi.mock('@/lib/menu-popularity', () => ({
+  getMenuWithPopularity: vi.fn(async (menu: unknown) => menu),
+}));
+
 // `carte-menu-section.tsx` rend le JSON-LD `Menu` (lib/json-ld.ts), qui lit
 // `ENV.NEXT_PUBLIC_SITE_URL` (varlock) au niveau module — non initialisé
 // dans cet environnement de test, hors runtime Next.js.

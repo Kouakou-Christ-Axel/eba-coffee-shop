@@ -38,6 +38,15 @@ export type Product = {
   featured?: boolean;
   featuredOrder?: number;
   featuredBadge?: string;
+  // Preuve sociale (« #1 le plus commandé ») : rang au classement des ventes
+  // sur la fenêtre glissante `POPULARITY_WINDOW_DAYS`, 1 = le plus vendu.
+  // Calculé à part de `getMenu()` (voir `lib/menu-popularity.ts`) et fusionné
+  // côté page carte — absent partout ailleurs (ex. `/api/menu`).
+  //
+  // Le RANG seul est publié, jamais le volume de ventes : un « 6 commandés »
+  // dessert le produit qu'il est censé vendre, et nos volumes n'ont pas à
+  // sortir du back-office.
+  popularRank?: number;
   // Stock vendable courant (absent/`null` = illimité) et champs dérivés
   // (voir `SupplementOption` ci-dessus pour la même sémantique).
   stockQuantity?: number | null;
