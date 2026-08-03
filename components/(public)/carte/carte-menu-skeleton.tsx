@@ -1,7 +1,7 @@
 // Skeleton isomorphe de CarteMenuSection : nav catégories (pills) + ancres de
 // catégories avec grilles de cartes produit (mêmes dimensions que
 // carte-menu-section-client.tsx : sm:grid-cols-2 lg:grid-cols-3, cartes
-// ~24 (h-20/h-24 côté image)).
+// ~h-34 côté ligne, image h-28/h-32).
 
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -30,7 +30,7 @@ export default function CarteMenuSkeleton() {
             <Skeleton className="h-7 w-40" />
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: CARDS_PER_CATEGORY }).map((_, i) => (
-                <Skeleton key={i} className="h-24 rounded-xl" />
+                <Skeleton key={i} className="h-34 rounded-2xl sm:h-38" />
               ))}
             </div>
           </div>

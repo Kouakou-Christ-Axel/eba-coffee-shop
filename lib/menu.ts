@@ -77,6 +77,12 @@ export async function getMenu(): Promise<MenuCategory[]> {
       coutMatiere: p.coutMatiere,
       coutEmballage: p.coutEmballage,
       image: p.imageUrl ?? undefined,
+      // Mise en avant éditoriale : reprise telle quelle côté public pour la
+      // vitrine « Les plus commandés » (carte) et la vente additionnelle du
+      // panier, en plus de la section « incontournables » de l'accueil.
+      featured: p.featured,
+      featuredOrder: p.featuredOrder,
+      featuredBadge: p.featuredBadge ?? undefined,
       stockQuantity: p.stockQuantity,
       remaining: p.stockQuantity,
       soldOut: p.stockQuantity === 0,

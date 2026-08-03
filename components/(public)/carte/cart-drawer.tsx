@@ -15,6 +15,8 @@ import { useCartStore, getItemTotal, type CartItem } from '@/lib/cart-store';
 import { priceFormatter, type MenuCategory, type Product } from '@/config/menu';
 import { formatSupplementLabel } from '@/lib/orders/format';
 import SupplementModal from './supplement-modal';
+import { ProductMedia } from './_components/product-media';
+import { CartUpsell, selectUpsellProducts } from './_components/cart-upsell';
 
 type CartDrawerProps = {
   isOpen: boolean;
@@ -52,12 +54,25 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
         .find((p) => p.id === duplicateItem.productId) ?? null)
     : null;
 
-  function hasOptions(productId: string): boolean {
+  function findProduct(productId: string): Product | null {
     return (
-      (menu?.flatMap((cat) => cat.products).find((p) => p.id === productId)
-        ?.supplements?.length ?? 0) > 0
+      menu?.flatMap((cat) => cat.products).find((p) => p.id === productId) ??
+      null
     );
   }
+
+  function hasOptions(productId: string): boolean {
+    return (findProduct(productId)?.supplements?.length ?? 0) > 0;
+  }
+
+  // Suggestions calculées sur le menu déjà chargé pour les suppléments : la
+  // vente additionnelle ne coûte aucune requête supplémentaire.
+  const upsellProducts = menu
+    ? selectUpsellProducts(
+        menu,
+        items.map((i) => i.productId)
+      )
+    : [];
 
   function goToCheckout() {
     onClose();
@@ -85,81 +100,114 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
               </p>
             ) : (
               <div className="divide-y divide-foreground/5">
-                {items.map((item) => (
-                  <div
-                    key={item.cartId}
-                    className="flex items-start gap-3 py-4 first:pt-0"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-foreground">
-                        {item.productName}
-                      </p>
-                      {item.supplements.length > 0 && (
-                        <p className="mt-0.5 text-xs text-foreground/45">
-                          {item.supplements
-                            .map(formatSupplementLabel)
-                            .join(', ')}
-                        </p>
+                {items.map((item) => {
+                  const product = findProduct(item.productId);
+                  return (
+                    <div
+                      key={item.cartId}
+                      className="flex items-start gap-3 py-4 first:pt-0"
+                    >
+                      {/* Vignette : rappel visuel de ce qu'on s'apprête à payer.
+                        Le produit peut être absent tant que /api/menu n'a pas
+                        répondu — la ligne reste alors purement textuelle. */}
+                      {product && (
+                        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl">
+                          <ProductMedia
+                            product={product}
+                            sizes="64px"
+                            monogramClassName="text-2xl"
+                          />
+                        </div>
                       )}
-                      <p className="mt-1 text-sm font-medium text-primary">
-                        {priceFormatter.format(getItemTotal(item))}&nbsp;F
-                      </p>
-                      {hasOptions(item.productId) && (
-                        <button
-                          type="button"
-                          onClick={() => setDuplicateItem(item)}
-                          className="mt-1 inline-flex items-center gap-1 text-xs text-foreground/50 transition-colors hover:text-foreground"
-                        >
-                          <Copy className="h-3 w-3" />
-                          Ajouter un autre avec des suppléments différents
-                        </button>
-                      )}
-                    </div>
 
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="flat"
-                        radius="full"
-                        aria-label="Retirer un"
-                        onPress={() =>
-                          updateQuantity(item.cartId, item.quantity - 1)
-                        }
-                      >
-                        <Minus className="h-3.5 w-3.5" />
-                      </Button>
-                      <span className="w-6 text-center text-sm font-medium">
-                        {item.quantity}
-                      </span>
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="flat"
-                        radius="full"
-                        aria-label="Ajouter un"
-                        onPress={() =>
-                          updateQuantity(item.cartId, item.quantity + 1)
-                        }
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        isIconOnly
-                        size="sm"
-                        variant="light"
-                        radius="full"
-                        color="danger"
-                        aria-label="Supprimer"
-                        onPress={() => removeItem(item.cartId)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {/* Nom, prix et commandes empilés dans UNE colonne : sur
+                          un écran de 390 px, mettre le sélecteur de quantité
+                          en troisième colonne ne laissait plus assez de place
+                          au reste (le lien « autres options » se cassait sur
+                          trois lignes). */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-foreground">
+                              {item.productName}
+                            </p>
+                            {item.supplements.length > 0 && (
+                              <p className="mt-0.5 text-xs text-foreground/45">
+                                {item.supplements
+                                  .map(formatSupplementLabel)
+                                  .join(', ')}
+                              </p>
+                            )}
+                            <p className="mt-1 text-sm font-medium text-primary">
+                              {priceFormatter.format(getItemTotal(item))}
+                              &nbsp;F
+                            </p>
+                          </div>
+
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="light"
+                            radius="full"
+                            color="danger"
+                            aria-label={`Supprimer ${item.productName}`}
+                            onPress={() => removeItem(item.cartId)}
+                            className="shrink-0"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="flat"
+                              radius="full"
+                              aria-label={`Retirer un ${item.productName}`}
+                              onPress={() =>
+                                updateQuantity(item.cartId, item.quantity - 1)
+                              }
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </Button>
+                            <span className="w-6 text-center text-sm font-medium">
+                              {item.quantity}
+                            </span>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="flat"
+                              radius="full"
+                              aria-label={`Ajouter un ${item.productName}`}
+                              onPress={() =>
+                                updateQuantity(item.cartId, item.quantity + 1)
+                              }
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+
+                          {hasOptions(item.productId) && (
+                            <button
+                              type="button"
+                              onClick={() => setDuplicateItem(item)}
+                              className="inline-flex min-w-0 cursor-pointer items-center gap-1 text-xs text-foreground/50 transition-colors hover:text-foreground"
+                            >
+                              <Copy className="h-3 w-3 shrink-0" />
+                              <span className="truncate">Autres options</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
+
+            {items.length > 0 && <CartUpsell products={upsellProducts} />}
           </ModalBody>
 
           {items.length > 0 && (

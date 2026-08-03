@@ -119,6 +119,14 @@ export const CART_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 export const ORDER_HISTORY_MAX = 10;
 
 /**
+ * Plafond du sélecteur de quantité de la modale produit (site public). Simple
+ * garde-fou d'interface contre la saisie accidentelle : la vérité reste le
+ * stock, appliqué par `useCartStore.addItem` puis au PAIEMENT
+ * (lib/order-mutations.ts). Un produit à stock suivi est plafonné plus bas.
+ */
+export const CART_ITEM_QUANTITY_MAX = 20;
+
+/**
  * Remise caisse : une remise (montant fixe en FCFA) appliquée à une ligne
  * d'article ne peut pas dépasser cette fraction du prix brut de la ligne.
  * Plafond métier validé côté client ET serveur.
@@ -250,3 +258,24 @@ export const POLLS_REVALIDATE_SECONDS = 60;
  */
 export const MISSED_ORDER_STAMPS_MAX = 20;
 export const MISSED_ORDER_STAMPS_NOTE_MAX = 200;
+
+/**
+ * Preuve sociale de la carte publique (« le plus commandé », « 128 commandés
+ * ce mois-ci »). Fenêtre glissante d'agrégation des ventes, nombre de ventes
+ * minimum pour afficher un compteur (en dessous, un petit chiffre dessert plus
+ * qu'il ne vend), et nombre de produits recevant un badge de rang « #N ».
+ * Source : `lib/menu-popularity.ts`.
+ */
+export const POPULARITY_WINDOW_DAYS = 30;
+export const POPULARITY_MIN_ORDERS = 5;
+export const POPULARITY_RANKED_COUNT = 3;
+
+/**
+ * Vitrine « Les plus commandés » en tête de carte et bloc de vente
+ * additionnelle du panier : nombre max de produits proposés, et minimum en
+ * dessous duquel la vitrine est masquée (une sélection de deux produits
+ * ressemble à un bug d'affichage plutôt qu'à un choix).
+ */
+export const SHOWCASE_MAX_PRODUCTS = 8;
+export const SHOWCASE_MIN_PRODUCTS = 3;
+export const UPSELL_MAX_PRODUCTS = 6;

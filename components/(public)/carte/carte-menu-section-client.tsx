@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import type { MenuCategory } from '@/config/menu';
 import ProductCard from '@/components/(public)/carte/product-card';
+import FeaturedShowcase from '@/components/(public)/carte/featured-showcase';
 
 type Props = {
   menuData: MenuCategory[];
@@ -97,7 +98,9 @@ function CarteMenuSectionClient({ menuData }: Props) {
         </div>
       </div>
 
-      <div className="content-container mt-6 space-y-10 md:mt-8 md:space-y-14">
+      <FeaturedShowcase menuData={menuData} />
+
+      <div className="content-container mt-8 space-y-10 md:mt-10 md:space-y-14">
         {menuData.map((category) => (
           <div
             key={category.id}
@@ -112,14 +115,21 @@ function CarteMenuSectionClient({ menuData }: Props) {
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {category.products.map((product, i) => (
+                // `initial`/`whileInView` sont volontairement IDENTIQUES en
+                // reduced-motion : `useReducedMotion()` vaut `false` côté
+                // serveur, donc conditionner ces props dessus produisait un
+                // markup différent du client. React abandonnait l'hydratation
+                // et les cartes restaient bloquées à `opacity: 0` — carte
+                // entièrement blanche pour qui a coupé les animations. Seule
+                // la DURÉE varie : le rendu est instantané au lieu d'animé.
                 <motion.div
                   key={product.id}
-                  initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
-                  whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.15 }}
                   transition={
                     reduceMotion
-                      ? undefined
+                      ? { duration: 0 }
                       : { duration: 0.4, delay: i * 0.05, ease: 'easeOut' }
                   }
                 >
