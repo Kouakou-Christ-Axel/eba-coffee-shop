@@ -11,6 +11,7 @@ import {
   CalendarClock,
   Clock,
   Gift,
+  Handshake,
   Phone,
   Receipt,
   PackageCheck,
@@ -58,6 +59,7 @@ const ORDER_TYPE_META: Record<OrderType, { label: string; Icon: typeof Bike }> =
 type PaymentBadge =
   | { kind: 'paid'; split: boolean }
   | { kind: 'unpaid' }
+  | { kind: 'on-account' }
   | { kind: 'pay-after' }
   | { kind: 'pickup-unpaid' };
 
@@ -66,6 +68,11 @@ function getPaymentBadge(order: CashierOrder): PaymentBadge {
   // cf. lib/order-mutations.ts::resolvePaymentMode — le détail vit dans
   // `OrderPayment`, non exposé sur `CashierOrder`.
   if (order.isPaid) return { kind: 'paid', split: order.paymentMode === null };
+  // Ardoise : partie en cuisine sans encaissement, en toute connaissance de
+  // cause. Prioritaire sur les badges d'alerte ci-dessous (« Récupérée · à
+  // encaisser » en rouge) — ce n'est pas une anomalie, c'est le processus.
+  // L'argent reste dû : il est suivi dans /dashboard/ardoise.
+  if (order.isOnAccount) return { kind: 'on-account' };
   // Récupérée mais toujours pas encaissée : à signaler clairement.
   if (order.status === 'COMPLETED') return { kind: 'pickup-unpaid' };
   if (order.status === 'PREPARING' || order.status === 'READY') {
@@ -146,6 +153,17 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
               <span className="min-w-0 truncate">
                 {order.customerName ?? 'Client anonyme'}
               </span>
+              {/* Client de confiance : le caissier voit tout de suite POURQUOI
+                  cette commande est partie en cuisine sans être payée. */}
+              {order.customerTrusted && (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-blue-100 px-1.5 py-0.5 text-[11px] font-medium text-blue-900 dark:bg-blue-950 dark:text-blue-100"
+                  title="Client de confiance — ardoise autorisée"
+                >
+                  <Handshake className="h-3 w-3" aria-hidden="true" />
+                  Confiance
+                </span>
+              )}
             </p>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs">
               {order.customerPhone && (
@@ -358,6 +376,11 @@ function PaymentBadgePill({ payment }: { payment: PaymentBadge }) {
       label: 'Non payé',
       className:
         'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-100',
+    },
+    'on-account': {
+      label: 'Ardoise',
+      className:
+        'bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-100',
     },
     'pay-after': {
       label: 'À encaisser après',

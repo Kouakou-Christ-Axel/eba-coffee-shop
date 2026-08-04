@@ -10,6 +10,7 @@
 
 import { endOfDay, startOfDay } from 'date-fns';
 import prisma from '@/lib/prisma';
+import { compareKitchenFifo } from '@/lib/orders/queue-order';
 import type { CartItem } from '@/lib/cart-store';
 import type { OrderType } from '@/generated/prisma/client';
 
@@ -42,7 +43,14 @@ export type PreparationOrder = {
 /**
  * Renvoie les commandes du jour visibles en cuisine : en préparation
  * (status=PREPARING) et prêtes en attente de récupération (status=READY),
- * triées en FIFO strict par createdAt asc.
+ * triées en FIFO par ENTRÉE EN CUISINE (`preparingStartedAt`, repli
+ * `createdAt` — cf. `compareKitchenFifo`).
+ *
+ * Trier par `createdAt` seul serait faux : une commande créée à 10:00 mais
+ * encaissée à 10:10 entre en cuisine APRÈS une commande créée à 10:05 et
+ * encaissée à 10:06. Prisma ne sait pas exprimer un `COALESCE` dans `orderBy`,
+ * donc le `orderBy` SQL ne sert que d'entrée stable et le tri final se fait en
+ * mémoire.
  *
  * Une commande arrive en cuisine soit :
  *   - automatiquement quand le caissier la marque payée (NEW → PREPARING)
@@ -65,7 +73,7 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     orderBy: { createdAt: 'asc' },
   });
 
-  return orders.map((o) => ({
+  const mapped = orders.map((o) => ({
     id: o.id,
     reference: o.reference,
     dailyNumber: o.dailyNumber,
@@ -85,4 +93,6 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     preparingStartedAt: o.preparingStartedAt,
     readyAt: o.readyAt,
   }));
+
+  return mapped.sort(compareKitchenFifo);
 }

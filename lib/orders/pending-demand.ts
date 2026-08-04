@@ -1,12 +1,19 @@
 // lib/orders/pending-demand.ts
 //
-// Visibilité PURE LECTURE de la quantité déjà « voulue » par des commandes NON
-// payées (statut différent de CANCELLED), par produit et par option. N'écrit
-// rien et n'interagit pas avec `decrementStockForOrderItems`
-// (lib/order-mutations.ts) : le stock réel reste décrémenté au PAIEMENT,
-// comportement intentionnel inchangé (« une commande NEW ne réserve rien »).
+// Visibilité PURE LECTURE de la quantité déjà « voulue » par des commandes dont
+// le stock n'est PAS encore réservé (`stockReservedAt: null`, statut différent
+// de CANCELLED), par produit et par option. N'écrit rien et n'interagit pas
+// avec `reserveStockOnce` (lib/order-mutations.ts) : le stock réel est
+// décrémenté à l'ENTRÉE EN CUISINE, une seule fois, sous verrou
+// `Order.stockReservedAt`.
+//
+// Le critère est donc bien `stockReservedAt` et non `isPaid` : une commande
+// impayée déjà partie en cuisine (ardoise) a son stock DÉJÀ déduit de
+// `stockQuantity` — la compter ici la ferait apparaître deux fois (une fois
+// dans le stock restant, une fois dans la demande en attente).
+//
 // Sert uniquement à afficher, à côté du stock restant, ce qui est déjà
-// potentiellement engagé par des commandes en attente de paiement.
+// potentiellement engagé par des commandes pas encore parties en cuisine.
 
 import prisma from '@/lib/prisma';
 import type { CartItem } from '@/lib/cart-store';
@@ -21,7 +28,7 @@ export type PendingDemand = {
 export async function getPendingDemand(): Promise<PendingDemand> {
   const [orders, options] = await Promise.all([
     prisma.order.findMany({
-      where: { isPaid: false, status: { not: 'CANCELLED' } },
+      where: { stockReservedAt: null, status: { not: 'CANCELLED' } },
       select: { items: true },
     }),
     prisma.supplementOption.findMany({

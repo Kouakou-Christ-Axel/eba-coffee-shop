@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import {
+  CUSTOMER_TRUSTED_NOTE_MAX,
   ORDER_CUSTOMER_NAME_MAX,
   ORDER_CUSTOMER_PHONE_MAX,
 } from '@/config/constants';
@@ -57,3 +58,21 @@ export const customerMergeSchema = z
   });
 
 export type CustomerMergeInput = z.infer<typeof customerMergeSchema>;
+
+// « Client de confiance » : ses commandes saisies en caisse partent en cuisine
+// SANS encaissement préalable (ardoise, cf. `Order.isOnAccount`). Surface
+// dédiée et non un champ de `customerUpdateSchema` : c'est une décision
+// financière, réservée à MANAGER_PLUS, pas une simple correction de fiche.
+// `note` = motif ou plafond convenu (facultatif, ignoré quand on retire la
+// confiance — cf. `setCustomerTrusted`).
+export const setCustomerTrustedSchema = z.object({
+  isTrusted: z.boolean(),
+  note: z
+    .string()
+    .trim()
+    .max(CUSTOMER_TRUSTED_NOTE_MAX, 'Motif trop long')
+    .nullable()
+    .optional(),
+});
+
+export type SetCustomerTrustedInput = z.infer<typeof setCustomerTrustedSchema>;

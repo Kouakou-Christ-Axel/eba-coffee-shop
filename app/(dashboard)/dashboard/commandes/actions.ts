@@ -22,6 +22,10 @@ import type { OrderStatus, UserRole } from '@/generated/prisma/client';
 function revalidateOrder(id: string): void {
   revalidatePath(`/dashboard/commandes/${id}`);
   revalidatePath('/dashboard/commandes');
+  // L'ardoise (/dashboard/ardoise) liste les impayés tous jours confondus :
+  // encaisser, dépayer ou annuler une commande la fait entrer ou sortir de la
+  // liste. Elle appelle d'ailleurs `markOrderPaidAction` directement.
+  revalidatePath('/dashboard/ardoise');
 }
 
 // Next.js redacte en production le message de toute erreur qui *traverse*

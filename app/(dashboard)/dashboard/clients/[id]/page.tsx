@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
+import { Handshake } from 'lucide-react';
+import { requireRoleOrAnalyst, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { BackButton } from '@/components/(dashboard)/back-button';
 import { getCustomer } from '@/lib/customers';
 import { getLoyaltyCard } from '@/lib/loyalty';
@@ -12,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { CustomerFormSheet } from '../customer-form';
 import { MergeCustomerSheet } from '../merge-customer-form';
 import { MissedOrderStampsSheet } from '../missed-order-stamps-form';
+import { TrustedCustomerCard } from '../trusted-customer-card';
 import {
   Table,
   TableBody,
@@ -56,7 +58,11 @@ export default async function CustomerDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRoleOrAnalyst(['ADMIN']);
+  const session = await requireRoleOrAnalyst(['ADMIN']);
+  // Le statut « client de confiance » est réservé à MANAGER_PLUS (l'action
+  // serveur refuserait de toute façon) : on masque le contrôle aux rôles en
+  // lecture seule plutôt que de leur offrir un bouton qui échoue.
+  const canSetTrusted = ROLE_GROUPS.MANAGER_PLUS.includes(session.user.role);
   const { id } = await params;
 
   const [data, card] = await Promise.all([getCustomer(id), getLoyaltyCard(id)]);
@@ -73,10 +79,25 @@ export default async function CustomerDetailPage({
         />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">{customer.name ?? 'Client'}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold">
+                {customer.name ?? 'Client'}
+              </h1>
+              {customer.isTrusted && (
+                <Badge className="bg-blue-600">
+                  <Handshake className="h-3 w-3" aria-hidden="true" />
+                  Confiance
+                </Badge>
+              )}
+            </div>
             <p className="font-mono text-sm text-muted-foreground">
               {formatPhoneForDisplay(customer.phone)}
             </p>
+            {customer.isTrusted && customer.trustedNote && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {customer.trustedNote}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <MergeCustomerSheet
@@ -105,6 +126,15 @@ export default async function CustomerDetailPage({
           value={stats.lastOrderAt ? dateFmt.format(stats.lastOrderAt) : '—'}
         />
       </div>
+
+      {canSetTrusted && (
+        <TrustedCustomerCard
+          customerId={customer.id}
+          isTrusted={customer.isTrusted}
+          trustedSince={customer.trustedSince}
+          trustedNote={customer.trustedNote}
+        />
+      )}
 
       {card && card.settings.enabled && (
         <Card>

@@ -205,6 +205,7 @@ claude mcp add --transport http eba-menu https://<votre-domaine>/api/mcp \
 | `apply_order_discount`           | écriture | Appliquer une remise de ligne (FCFA)                               |
 | `list_customers`                 | lecture  | Lister / rechercher des clients (+ stats)                          |
 | `get_customer`                   | lecture  | Détail d’un client (par `id` ou `phone`)                           |
+| `get_ardoise`                    | lecture  | Impayés (« ardoise ») regroupés par client, tous jours confondus   |
 | `get_loyalty_card`               | lecture  | Carte à tampons d’un client + récompenses dispo                    |
 | `adjust_loyalty_stamps`          | écriture | Ajuster les tampons d’un client (correction)                       |
 | `get_loyalty_settings`           | lecture  | Lire la config de la carte à tampons                               |
@@ -445,6 +446,15 @@ Les outils **clients** (CRM, lecture seule) exposent les clients identifiés par
 **téléphone** (clé normalisée) avec leurs stats (nb de commandes, total dépensé,
 dernière commande). `get_customer` accepte un `phone` saisi librement (normalisé
 automatiquement) ou un `id`.
+
+`get_ardoise` répond à « qui me doit de l’argent ? » : toutes les commandes non
+payées et non annulées, regroupées par client, triées par dette la plus
+ancienne (total dû, nb de commandes, ancienneté, détail). **Tous jours
+confondus** — contrairement à la file caisse, bornée à la journée. Les
+commandes du jour en cours sont exclues par défaut (elles relèvent de la
+caisse) ; `includeToday` les réintègre, `onlyOnAccount` restreint à l’ardoise
+consentie (`Order.isOnAccount`). Lecture seule : le règlement passe par
+`mark_order_paid`.
 
 Les outils **fidélité** (carte à tampons) : `get_loyalty_card` (avancement +
 récompenses dispo), `adjust_loyalty_stamps` (correction tracée),

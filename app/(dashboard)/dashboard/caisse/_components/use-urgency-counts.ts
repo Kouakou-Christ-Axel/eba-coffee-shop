@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import type { CashierOrder } from '@/lib/cashier-queue';
+import { compareKitchenFifo } from '@/lib/orders/queue-order';
 import {
   getUrgencyLevel,
   isScheduledAhead,
@@ -96,9 +97,11 @@ export function filterByTab(
       return orders.filter((o) => !o.isPaid && o.status !== 'CANCELLED');
     case 'in-progress':
       // Les programmées en avance restent dans « Programmées », pas ici.
-      return orders.filter(
-        (o) => o.status === 'PREPARING' && !isScheduledAhead(o, now)
-      );
+      // Même ordre FIFO que la cuisine (entrée en cuisine, pas création) :
+      // caisse et KDS doivent afficher la file dans le même ordre.
+      return orders
+        .filter((o) => o.status === 'PREPARING' && !isScheduledAhead(o, now))
+        .sort(compareKitchenFifo);
     case 'ready':
       return orders.filter((o) => o.status === 'READY');
   }

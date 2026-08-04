@@ -5,6 +5,7 @@ import { requireManager } from '@/lib/auth-helpers';
 import {
   createCustomer,
   mergeCustomers,
+  setCustomerTrusted,
   updateCustomer,
 } from '@/lib/customer-mutations';
 import { awardMissedOrderStamps } from '@/lib/loyalty-mutations';
@@ -64,6 +65,35 @@ export async function updateCustomerAction(
   try {
     const customer = await updateCustomer(id, input);
     revalidate(customer.id);
+    return { ok: true, id: customer.id };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erreur inattendue',
+    };
+  }
+}
+
+/**
+ * Accorde / retire le statut « client de confiance » (ardoise) — action DÉDIÉE,
+ * distincte de `updateCustomerAction` : accorder la confiance autorise les
+ * commandes de ce client à partir en cuisine sans encaissement. `requireManager`
+ * (MANAGER_PLUS) et non la garde CRM générique.
+ *
+ * Revalide aussi la caisse et l'ardoise : le badge « Confiance » y est lu
+ * depuis la fiche client (cf. `lib/cashier-queue.ts`).
+ */
+export async function setCustomerTrustedAction(
+  id: string,
+  isTrusted: boolean,
+  note?: string | null
+): Promise<ActionResult> {
+  await requireAdminId();
+  try {
+    const customer = await setCustomerTrusted(id, isTrusted, note);
+    revalidate(customer.id);
+    revalidatePath('/dashboard/caisse');
+    revalidatePath('/dashboard/ardoise');
     return { ok: true, id: customer.id };
   } catch (err) {
     return {

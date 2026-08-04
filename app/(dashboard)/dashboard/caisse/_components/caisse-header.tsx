@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Bell, BellOff, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConnectionBadge } from '@/lib/hooks/connection-badge';
+import { CancelledSheet } from './cancelled-sheet';
 import type { ConnState } from '@/lib/hooks/use-orders-stream';
 
 type Props = {
@@ -47,6 +48,7 @@ export function CaisseHeader({
             <BellOff className="h-4 w-4" />
           )}
         </button>
+        <CancelledSheet />
         <Link
           href="/dashboard/caisse/new"
           aria-label="Nouvelle commande"

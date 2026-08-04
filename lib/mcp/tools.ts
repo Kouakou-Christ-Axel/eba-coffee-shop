@@ -15,6 +15,7 @@
 //   2. valider les `arguments` reçus dans `tools/call` avant d'appeler le handler.
 
 import { z } from 'zod';
+import { endOfDay } from 'date-fns';
 import prisma from '@/lib/prisma';
 import { getMenuAdmin, getGlobalExtras } from '@/lib/menu';
 import { getPendingDemand } from '@/lib/orders/pending-demand';
@@ -170,6 +171,7 @@ import {
   getCustomer,
   getCustomerByPhone,
 } from '@/lib/customers';
+import { fetchArdoise } from '@/lib/ardoise';
 import { getLoyaltyCard, getLoyaltyCardByPhone } from '@/lib/loyalty';
 import { listOrders, getOrder } from '@/lib/orders';
 import {
@@ -1649,6 +1651,36 @@ export const tools: McpTool[] = [
       if (id) return getCustomer(id);
       const found = await getCustomerByPhone(phone!);
       return found ? getCustomer(found.id) : null;
+    },
+  },
+
+  {
+    name: 'get_ardoise',
+    title: 'Ardoise (impayés par client)',
+    description:
+      'Renvoie tout ce qui est dû au commerce, regroupé par client et trié ' +
+      'par dette la plus ancienne : total dû, nombre de commandes, ancienneté, ' +
+      'et le détail des commandes. Tous jours confondus (PAS cadré sur la ' +
+      'journée). Par défaut, les commandes du jour en cours sont exclues (elles ' +
+      'relèvent de la caisse) — `includeToday` les réintègre. `onlyOnAccount` ' +
+      'restreint à l’ardoise consentie (`isOnAccount`), par opposition aux ' +
+      'impayés oubliés. Lecture seule : rien n’est encaissé ici.',
+    inputSchema: z.object({
+      onlyOnAccount: z.boolean().optional(),
+      includeToday: z.boolean().optional(),
+    }),
+    readOnly: true,
+    handler: (args) => {
+      const { onlyOnAccount, includeToday } = args as {
+        onlyOnAccount?: boolean;
+        includeToday?: boolean;
+      };
+      return fetchArdoise({
+        onlyOnAccount,
+        // `fetchArdoise` borne par défaut à minuit du jour en cours ; on ne
+        // repousse la borne que sur demande explicite.
+        ...(includeToday ? { before: endOfDay(new Date()) } : {}),
+      });
     },
   },
 

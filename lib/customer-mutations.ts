@@ -11,6 +11,7 @@ import {
   customerInputSchema,
   customerMergeSchema,
   customerUpdateSchema,
+  setCustomerTrustedSchema,
 } from '@/lib/schemas/customer';
 import { getLoyaltySettings } from '@/lib/loyalty-settings-db';
 import { computeStampAward } from '@/lib/loyalty-compute';
@@ -79,6 +80,63 @@ export async function updateCustomer(id: string, input: unknown) {
       throw new Error('Client introuvable.');
     }
     throw rethrowDuplicatePhone(err);
+  }
+}
+
+// ─── Client de confiance (ardoise) ────────────────────────────────────────────
+
+/**
+ * Accorde ou retire le statut « client de confiance ». Surface DÉDIÉE, et non
+ * un champ de plus dans `updateCustomer` : accorder la confiance autorise ses
+ * futures commandes à partir en cuisine sans encaissement (ardoise, cf.
+ * `Order.isOnAccount` et `createCashierOrder`). C'est une décision financière —
+ * ses appelants exigent MANAGER_PLUS, là où l'édition CRM ordinaire reste
+ * ouverte plus largement.
+ *
+ * Octroi : `trustedSince` est horodaté (l'ancienneté du statut se lit ensuite
+ * sur la fiche), `trustedNote` reçoit le motif / plafond convenu s'il est
+ * fourni. La date n'est PAS réécrite si le client est déjà de confiance : le
+ * même formulaire sert à corriger le motif, et ce serait rajeunir un statut
+ * ancien à chaque retouche. Retrait : `trustedSince` ET `trustedNote` sont
+ * remis à null — un « depuis le 3 mars » affiché à côté d'un statut retiré
+ * serait mensonger, et un motif orphelin laisserait croire que la confiance
+ * tient toujours. Un ré-octroi repart donc d'une date propre.
+ */
+export async function setCustomerTrusted(
+  id: string,
+  isTrusted: boolean,
+  note?: string | null
+) {
+  const data = setCustomerTrustedSchema.parse({ isTrusted, note });
+
+  try {
+    const current = await prisma.customer.findUnique({
+      where: { id },
+      select: { isTrusted: true, trustedSince: true },
+    });
+    if (!current) throw new Error('Client introuvable.');
+
+    return await prisma.customer.update({
+      where: { id },
+      data: data.isTrusted
+        ? {
+            isTrusted: true,
+            trustedSince:
+              current.isTrusted && current.trustedSince
+                ? current.trustedSince
+                : new Date(),
+            trustedNote: data.note?.trim() || null,
+          }
+        : { isTrusted: false, trustedSince: null, trustedNote: null },
+    });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === 'P2025'
+    ) {
+      throw new Error('Client introuvable.');
+    }
+    throw err;
   }
 }
 

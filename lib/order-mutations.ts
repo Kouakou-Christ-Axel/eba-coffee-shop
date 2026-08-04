@@ -17,6 +17,12 @@
 // Statut (`setOrderStatus`) et paiement (`setOrderPayment`) : transitions
 // validées (rôle / `canTransition`), concurrence optimiste, et auto-passage en
 // cuisine (NEW → PREPARING) lors de l'encaissement d'une commande encore NEW.
+//
+// RÉSERVATION DE STOCK : elle a lieu à l'ENTRÉE EN CUISINE (et non plus à
+// l'encaissement), car c'est là que la marchandise est réellement consommée —
+// et parce qu'une commande peut partir en cuisine sans paiement (« ardoise »).
+// Point d'entrée unique : `sendOrderToKitchen`. Le verrou d'idempotence est la
+// colonne `Order.stockReservedAt` (cf. `reserveStockOnce`).
 
 import { Prisma } from '@/generated/prisma/client';
 import type {
@@ -56,6 +62,7 @@ import type {
 } from '@/lib/schemas/order';
 import { ROLE_GROUPS } from '@/lib/auth-helpers';
 import { notifyOrderCustomer, sendPushToRoles } from '@/lib/push-notify';
+import { getPickupCode } from '@/lib/orders/format';
 
 /**
  * Notifications push (best-effort) : une notification manquée ne doit jamais
@@ -67,6 +74,39 @@ function notifyPush(
 ): void {
   sendPushToRoles(roles, payload).catch((err) => {
     console.error('[order-mutations] notification push échouée :', err);
+  });
+}
+
+/**
+ * Push « la cuisine a du travail ». Jusqu'ici SEULE la caisse recevait des
+ * notifications : la cuisine n'avait que le carillon de sa page, donc écran
+ * verrouillé ou onglet en arrière-plan = commande ratée.
+ *
+ * Cible `KITCHEN_STAFF` (= KITCHEN_PLUS sans CASHIER, cf. lib/auth-helpers.ts)
+ * pour ne pas re-notifier le caissier, qui a déjà reçu « nouvelle commande » et
+ * qui est généralement celui qui déclenche l'envoi.
+ *
+ * `tag` par commande : une ré-entrée en cuisine après un undo REMPLACE la
+ * notification précédente sur l'appareil au lieu de s'empiler.
+ */
+function notifyKitchen(order: {
+  id: string;
+  dailyNumber: number;
+  reference: string;
+  items: CartItem[];
+}): void {
+  // Nombre d'articles réellement à produire (somme des quantités), pas le
+  // nombre de lignes du panier : c'est la charge de travail qui parle à la
+  // cuisine.
+  const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  notifyPush(ROLE_GROUPS.KITCHEN_STAFF, {
+    title: 'Nouvelle commande en cuisine',
+    body:
+      `#${String(order.dailyNumber).padStart(3, '0')}` +
+      ` · ${getPickupCode(order.reference)}` +
+      ` · ${itemCount} article${itemCount > 1 ? 's' : ''}`,
+    url: '/dashboard/preparation',
+    tag: `order-kitchen-${order.id}`,
   });
 }
 
@@ -98,16 +138,20 @@ export class StockShortageError extends OrderMutationError {
   }
 }
 
-// ─── Décrément du stock au paiement (le cœur anti-survente) ───────────────────
+// ─── Décrément du stock (le cœur anti-survente) ───────────────────────────────
 //
-// Appelé UNIQUEMENT quand une commande passe de non-payée à payée (jamais à la
-// création : une commande NEW ne réserve rien). Décrémente le stock produit ET
-// options AVANT que l'appelant flippe `isPaid`, DANS LA MÊME transaction : la
-// garde conditionnelle (`updateMany` avec `stockQuantity: { gte: besoin }` OU
-// `null`) sérialise la concurrence sur la dernière unité — un seul paiement
-// gagne, l'autre voit `count !== 1` et lève `StockShortageError`, qui fait
-// échouer (rollback) toute la transaction : paiement refusé, RIEN décrémenté,
-// `isPaid` reste `false`.
+// N'A QU'UN SEUL APPELANT : `reserveStockOnce` (juste en dessous), qui garantit
+// que le décrément a lieu AU PLUS UNE FOIS par commande. Ne jamais l'appeler
+// directement — sans le verrou `Order.stockReservedAt`, deux chemins menant en
+// cuisine (encaissement d'une commande NEW, envoi manuel, ardoise, undo puis
+// renvoi) décrémenteraient deux fois le même panier.
+//
+// Décrémente le stock produit ET options DANS LA MÊME transaction que
+// l'écriture appelante : la garde conditionnelle (`updateMany` avec
+// `stockQuantity: { gte: besoin }` OU `null`) sérialise la concurrence sur la
+// dernière unité — un seul appelant gagne, l'autre voit `count !== 1` et lève
+// `StockShortageError`, qui fait échouer (rollback) toute la transaction :
+// opération refusée, RIEN décrémenté, aucun statut/paiement écrit.
 //
 // `stockQuantity === null` = illimité : le `OR` laisse passer ce cas sans
 // jamais bloquer, et l'arithmétique SQL (`NULL - n = NULL`) laisse la colonne
@@ -181,19 +225,63 @@ async function decrementStockForOrderItems(
   }
 }
 
+/**
+ * Réserve (décrémente) le stock d'une commande AU PLUS UNE FOIS, quel que soit
+ * le nombre de chemins qui y mènent. Renvoie `true` si CET appel a réellement
+ * décrémenté, `false` si la réservation avait déjà eu lieu.
+ *
+ * Le statut ne peut pas servir de témoin : plusieurs chemins mènent en cuisine,
+ * plusieurs transitions sont réversibles (undo `PREPARING → NEW`, reprise
+ * `CANCELLED → NEW` puis renvoi en cuisine) et `payAndComplete` fait
+ * NEW → COMPLETED sans jamais passer par PREPARING. D'où la colonne dédiée
+ * `Order.stockReservedAt`.
+ *
+ * ORDRE IMPÉRATIF — on REVENDIQUE le verrou AVANT de décrémenter, via un
+ * `UPDATE ... WHERE stockReservedAt IS NULL` conditionnel, et JAMAIS via un
+ * `findUnique` suivi d'un test en mémoire : sous READ COMMITTED, deux
+ * transactions concurrentes qui émettent le même `updateMany` conditionnel se
+ * sérialisent sur le verrou de ligne, et la seconde ré-évalue le prédicat
+ * après le commit de la première — elle obtient donc `count = 0`. Un
+ * lire-puis-tester laisserait au contraire passer les deux (les deux lectures
+ * voient `null` avant toute écriture). C'est exactement la technique déjà
+ * employée par `decrementStockForOrderItems` (garde `stockQuantity >= besoin`)
+ * et par la garde optimiste de `setOrderStatus`.
+ *
+ * Une pénurie lève `StockShortageError` APRÈS la revendication : le rollback
+ * de la transaction annule aussi la pose du verrou, donc rien n'est perdu.
+ */
+async function reserveStockOnce(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  items: CartItem[]
+): Promise<boolean> {
+  const claim = await tx.order.updateMany({
+    where: { id: orderId, stockReservedAt: null },
+    data: { stockReservedAt: new Date() },
+  });
+  if (claim.count === 0) return false;
+
+  await decrementStockForOrderItems(tx, items);
+  return true;
+}
+
 // ─── Fan-out best-effort : commandes en attente affectées ─────────────────────
 //
-// APRÈS commit seulement (jamais dans la transaction de paiement) : si le
-// paiement qui vient de réussir a fait tomber un produit/option à 0, les
-// autres commandes NEW/non payées qui en dépendent encore ne pourront plus
-// être honorées telles quelles — on les avertit sans attendre le prochain
-// polling/SSE. Fire-and-forget : un échec ici ne doit jamais remonter (le
-// paiement, lui, a déjà réussi).
+// APRÈS commit seulement (jamais dans la transaction qui réserve) : si la
+// réservation qui vient de réussir a fait tomber un produit/option à 0, les
+// autres commandes dont le stock n'est PAS encore réservé et qui en dépendent
+// ne pourront plus être honorées telles quelles — on les avertit sans attendre
+// le prochain polling/SSE. Fire-and-forget : un échec ici ne doit jamais
+// remonter (la réservation, elle, a déjà réussi).
+//
+// Candidates = `stockReservedAt: null` (et non `isPaid: false`) : une commande
+// impayée déjà partie en cuisine a son stock réservé, elle n'est donc pas en
+// danger et ne doit surtout pas recevoir un « article indisponible ».
 async function notifyPendingOrdersOfShortage(
-  paidOrderId: string,
-  paidItems: CartItem[]
+  reservedOrderId: string,
+  reservedItems: CartItem[]
 ): Promise<void> {
-  const snapshot = await fetchStockSnapshot([paidItems]);
+  const snapshot = await fetchStockSnapshot([reservedItems]);
 
   const zeroedProductIds = new Set(
     [...snapshot.products.entries()]
@@ -209,8 +297,8 @@ async function notifyPendingOrdersOfShortage(
 
   const candidates = await prisma.order.findMany({
     where: {
-      id: { not: paidOrderId },
-      isPaid: false,
+      id: { not: reservedOrderId },
+      stockReservedAt: null,
       status: { notIn: ['CANCELLED', 'COMPLETED'] },
     },
     select: { id: true, items: true },
@@ -246,6 +334,12 @@ export type CreateCashierOrderInput = {
   createdById?: string | null;
   /** Récompense fidélité (carte à tampons) à appliquer à cette commande. */
   loyaltyRewardId?: string | null;
+  /**
+   * Force l'« ardoise » (envoi direct en cuisine sans encaissement) même si le
+   * client n'est pas marqué de confiance — dérogation du caissier pour un
+   * walk-in qu'il connaît. Absent = on suit `Customer.isTrusted`.
+   */
+  onAccount?: boolean;
 };
 
 /**
@@ -261,6 +355,19 @@ export type CreateCashierOrderInput = {
  * montant réellement encaissé). La récompense est vérifiée (appartient au
  * client résolu, statut `AVAILABLE`) et marquée `USED` dans la MÊME
  * transaction que la création — jamais réutilisable deux fois.
+ *
+ * ARDOISE À LA CRÉATION : si le client résolu est de confiance
+ * (`Customer.isTrusted`) — ou si le caissier force via `input.onAccount` — la
+ * commande est créée DIRECTEMENT en `PREPARING`, marquée `isOnAccount`, et son
+ * stock est réservé dans la MÊME transaction. Elle reste `isPaid: false` : ce
+ * n'est PAS un paiement, seulement un non-blocage (cf. `Order.isOnAccount`).
+ * Une pénurie lève alors `StockShortageError` (409) et annule toute la
+ * création — la commande n'existe pas, rien n'a été décrémenté.
+ *
+ * L'ANTIDATAGE SUPPRIME CE COMPORTEMENT, exactement comme il supprime le push
+ * « nouvelle commande » : une saisie de rattrapage n'est pas un événement en
+ * direct, elle ne doit ni réveiller la cuisine ni décrémenter le stock
+ * d'aujourd'hui pour un plat servi la semaine dernière.
  */
 export async function createCashierOrder(input: CreateCashierOrderInput) {
   // Normalisation téléphone : saisie libre acceptée, stockée en E.164 si
@@ -290,6 +397,20 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
           normalizedPhone,
           input.customerName
         );
+
+        // Client de confiance : sa commande n'attend pas l'encaissement pour
+        // partir en cuisine. `input.onAccount` (dérogation explicite du
+        // caissier) prime sur la fiche — il permet l'ardoise pour un walk-in
+        // non fiché, et permet aussi de la refuser (`false`) à un client fiché.
+        const trusted = customerId
+          ? ((
+              await tx.customer.findUnique({
+                where: { id: customerId },
+                select: { isTrusted: true },
+              })
+            )?.isTrusted ?? false)
+          : false;
+        const goToKitchen = (input.onAccount ?? trusted) && !isBackdated;
 
         // Récompense fidélité : vérifiée à nouveau à CHAQUE tentative (une
         // transaction annulée par un conflit de numéro n'a rien écrit).
@@ -329,11 +450,30 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
             createdById: input.createdById ?? null,
             loyaltyRewardId: reward?.id ?? null,
             loyaltyDiscount: discount || null,
+            // Ardoise : la commande naît en cuisine, non payée. `isPaid` reste
+            // false — le CA n'est jamais gonflé par une commande non réglée
+            // (cf. lib/stats.ts, qui filtre sur `isPaid`).
+            ...(goToKitchen
+              ? {
+                  status: 'PREPARING' as const,
+                  preparingStartedAt: new Date(),
+                  isOnAccount: true,
+                }
+              : {}),
             // Antidatage : aligner createdAt sur le jour civil ciblé pour que le
             // tri chronologique (createdAt desc) reflète la date réelle.
             ...(isBackdated ? { createdAt: dailyDate } : {}),
           },
         });
+
+        // Réservation du stock DANS la transaction de création : la marchandise
+        // part en cuisine, elle doit être décomptée au même instant. Une
+        // pénurie lève `StockShortageError` et annule la création entière.
+        // Point d'entrée normal (`sendOrderToKitchen`) inapplicable ici : il
+        // relit une commande qui n'existe pas encore.
+        if (goToKitchen) {
+          await reserveStockOnce(tx, created.id, input.items as CartItem[]);
+        }
 
         if (reward) {
           await consumeLoyaltyReward(tx, {
@@ -366,6 +506,18 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
           url: '/dashboard/caisse',
           tag: `order-${created.id}`,
         });
+
+        // Ardoise : la commande est née en cuisine, il faut aussi réveiller la
+        // cuisine — le push « nouvelle commande » ci-dessus va à la caisse et
+        // ne suffit pas (mêmes destinataires que `sendOrderToKitchen`).
+        if (created.status === 'PREPARING') {
+          notifyKitchen({
+            id: created.id,
+            dailyNumber: created.dailyNumber,
+            reference: created.reference,
+            items: created.items as unknown as CartItem[],
+          });
+        }
       }
 
       return created;
@@ -463,6 +615,112 @@ export async function buildOrderItemsFromMenu(
   return items;
 }
 
+// ─── Entrée en cuisine (point d'entrée UNIQUE de la réservation de stock) ─────
+
+/**
+ * Envoie une commande en cuisine (→ `PREPARING`) et RÉSERVE son stock, une
+ * seule fois. C'est le seul endroit du code où une commande entre en cuisine :
+ * `setOrderStatus(id, 'PREPARING', role)` y délègue, `setOrderPayment` en
+ * reprend la mécanique quand l'encaissement pousse une commande NEW en
+ * cuisine, et l'écran cuisine passe par `setOrderStatus`.
+ *
+ * `opts.onAccount` : envoi « ardoise », c'est-à-dire SANS encaissement (client
+ * de confiance ou dérogation caissier). Ce n'est pas un paiement : `isPaid`
+ * reste `false`, seul `isOnAccount` est posé.
+ *
+ * POURQUOI l'annulation NE LIBÈRE PAS la réservation (aucune ré-incrémentation,
+ * ici comme dans `setOrderStatus` / le dépaiement) :
+ *   1. cela préserve l'invariant « décrémenté au plus une fois, jamais
+ *      ré-incrémenté », qui rend TOUS les chemins d'undo sûrs par construction
+ *      (undo `PREPARING → NEW` puis renvoi en cuisine, reprise d'une commande
+ *      annulée, encaissement après coup…) ;
+ *   2. un plat annulé en cours de préparation est de toute façon perdu ;
+ *   3. libérer ferait échouer `CANCELLED → PREPARING` avec un 409 sur ce que
+ *      l'interface présente comme un simple undo.
+ * Le réapprovisionnement explicite existe déjà par ailleurs
+ * (`/api/caisse/restock`).
+ *
+ * Lève `OrderMutationError` (404 introuvable, 403 transition refusée, 409
+ * conflit de concurrence) ou `StockShortageError` (409 — le client est alors
+ * notifié `ITEM_UNAVAILABLE` avant que l'erreur ne remonte).
+ */
+export async function sendOrderToKitchen(
+  id: string,
+  role: UserRole,
+  opts?: { onAccount?: boolean }
+): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: {
+      status: true,
+      items: true,
+      dailyNumber: true,
+      reference: true,
+    },
+  });
+  if (!order) {
+    throw new OrderMutationError('Commande introuvable', 404);
+  }
+
+  if (!canTransition(order.status, 'PREPARING', role)) {
+    throw new OrderMutationError(
+      `Transition non autorisée : ${order.status} → PREPARING`,
+      403
+    );
+  }
+
+  const items = order.items as unknown as CartItem[];
+
+  let reserved: boolean;
+  try {
+    reserved = await prisma.$transaction(async (tx) => {
+      // Réservation AVANT l'écriture du statut : une pénurie fait échouer la
+      // transaction entière, la commande reste donc là où elle était.
+      const claimed = await reserveStockOnce(tx, id, items);
+
+      const result = await tx.order.updateMany({
+        where: { id, status: order.status },
+        data: {
+          status: 'PREPARING',
+          preparingStartedAt: new Date(),
+          ...(opts?.onAccount ? { isOnAccount: true } : {}),
+        },
+      });
+      if (result.count === 0) {
+        throw new OrderMutationError(
+          'État déjà modifié par un autre caissier',
+          409
+        );
+      }
+
+      return claimed;
+    });
+  } catch (err) {
+    if (err instanceof StockShortageError) {
+      // Client perdant (stock insuffisant) : notifié AVANT que la 409 ne
+      // remonte à l'appelant — best-effort, jamais bloquant.
+      notifyOrderCustomer(id, 'ITEM_UNAVAILABLE');
+    }
+    throw err;
+  }
+
+  notifyOrderCustomer(id, 'PREPARING');
+  notifyKitchen({
+    id,
+    dailyNumber: order.dailyNumber,
+    reference: order.reference,
+    items,
+  });
+
+  // Fan-out uniquement si CET appel a réellement décrémenté : une ré-entrée en
+  // cuisine (après undo) ne change rien au stock, donc rien à annoncer.
+  if (reserved) {
+    notifyPendingOrdersOfShortage(id, items).catch((err) => {
+      console.error('[order-mutations] fan-out stock épuisé échoué :', err);
+    });
+  }
+}
+
 // ─── Changement de statut ─────────────────────────────────────────────────────
 
 /**
@@ -470,8 +728,13 @@ export async function buildOrderItemsFromMenu(
  * (`canTransition` selon le rôle) et applique une concurrence optimiste : la
  * mise à jour n'a lieu que si le statut courant n'a pas changé entre temps.
  *
+ * Cible `PREPARING` : délègue intégralement à `sendOrderToKitchen`, qui réserve
+ * le stock. Aucune autre cible ne touche au stock (une annulation ne libère
+ * JAMAIS la réservation — voir `sendOrderToKitchen` pour le pourquoi).
+ *
  * Lève `OrderMutationError` (404 introuvable, 403 transition refusée, 409
- * conflit) — à mapper en réponse HTTP par les routes.
+ * conflit) ou `StockShortageError` (409, uniquement vers `PREPARING`) — à
+ * mapper en réponse HTTP par les routes.
  */
 export async function setOrderStatus(
   id: string,
@@ -480,7 +743,12 @@ export async function setOrderStatus(
 ): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id },
-    select: { status: true, dailyNumber: true, customerId: true },
+    select: {
+      status: true,
+      dailyNumber: true,
+      customerId: true,
+      isPaid: true,
+    },
   });
   if (!order) {
     throw new OrderMutationError('Commande introuvable', 404);
@@ -490,6 +758,26 @@ export async function setOrderStatus(
     throw new OrderMutationError(
       `Transition non autorisée : ${order.status} → ${newStatus}`,
       403
+    );
+  }
+
+  // Entrée en cuisine : un seul point d'entrée, qui réserve le stock (voir
+  // `sendOrderToKitchen`). La validation de rôle vient d'avoir lieu ci-dessus,
+  // `sendOrderToKitchen` la refait — c'est volontairement redondant : elle
+  // reste ainsi correcte quand elle est appelée directement (ardoise).
+  if (newStatus === 'PREPARING') {
+    return sendOrderToKitchen(id, role);
+  }
+
+  // Remettre une commande ANNULÉE « à encaisser » n'a de sens que si elle n'a
+  // jamais été encaissée : une annulation après paiement vaut remboursement,
+  // et la replacer en NEW réclamerait un second encaissement du même montant.
+  // Seule la cible NEW est bloquée : CANCELLED → READY/COMPLETED reste
+  // disponible pour défaire un remboursement déclenché par erreur.
+  if (order.status === 'CANCELLED' && newStatus === 'NEW' && order.isPaid) {
+    throw new OrderMutationError(
+      'Commande remboursée : impossible de la remettre à encaisser',
+      409
     );
   }
 
@@ -512,10 +800,19 @@ export async function setOrderStatus(
     where: { id, status: order.status },
     data: {
       status: newStatus,
-      // Horodatages des minuteurs staff : l'entrée en cuisine amorce le chrono
-      // « en cuisine depuis X », le passage prête amorce « prête depuis X ».
-      ...(newStatus === 'PREPARING' ? { preparingStartedAt: new Date() } : {}),
+      // Horodatage du minuteur « prête depuis X ». L'amorce du chrono « en
+      // cuisine depuis X » (`preparingStartedAt`) vit dans
+      // `sendOrderToKitchen`, seul chemin vers PREPARING (voir le court-circuit
+      // ci-dessus).
       ...(newStatus === 'READY' ? { readyAt: new Date() } : {}),
+      // Retour en NEW (undo d'une mise en cuisine, ou reprise d'une commande
+      // annulée) : on remet les minuteurs à zéro. Sinon la commande revient
+      // avec un « en cuisine depuis 3 h » périmé et, pire, pollue la clé de tri
+      // FIFO cuisine (`preparingStartedAt`, cf. lib/orders/queue-order.ts) dès
+      // sa prochaine entrée en cuisine.
+      ...(newStatus === 'NEW'
+        ? { preparingStartedAt: null, readyAt: null }
+        : {}),
     },
   });
 
@@ -566,21 +863,21 @@ function resolvePaymentMode(
  * `NEW` la pousse aussi en cuisine (`NEW → PREPARING`). Concurrence optimiste
  * sur `isPaid`.
  *
- * Passage à `isPaid=true` : décrémente le stock (produit + options choisies)
- * de chaque article, DANS LA MÊME transaction, AVANT de flipper `isPaid` (voir
- * `decrementStockForOrderItems`) — une commande non payée ne réserve rien ; le
- * décrément au paiement, atomique, tranche « premier payé = premier servi ».
- * EXCEPTION : une commande déjà `COMPLETED` (déjà récupérée/servie avant cet
- * encaissement) ne décrémente PAS le stock — l'article a déjà été
- * physiquement consommé ; ré-exiger du stock disponible au moment où on
- * enregistre le paiement après coup bloquerait à tort un encaissement
- * légitime pour un stock qui s'est épuisé ENTRE-TEMPS via d'autres commandes.
+ * STOCK : l'encaissement en tant que tel ne réserve plus rien. Seul le cas où
+ * il pousse une commande encore `NEW` en cuisine réserve le stock, via
+ * `reserveStockOnce` et DANS LA MÊME transaction, AVANT le flip `isPaid` — la
+ * réservation suit la marchandise, pas l'argent. Encaisser une commande déjà
+ * partie en cuisine (ou déjà `READY`/`COMPLETED`) est donc PUREMENT financier :
+ * aucun appel stock. L'ancienne exception « ne pas décrémenter si `COMPLETED` »
+ * n'a plus lieu d'être ; `stockReservedAt` la subsume et couvre en plus une
+ * commande `COMPLETED` qui n'a jamais été encaissée.
  * Crée une ligne `OrderPayment` par moyen de paiement fourni ; `paymentMode`
  * (sur `Order`) reste renseigné pour le cas courant (1 seul mode), `null` pour
  * un paiement fractionné (voir `resolvePaymentMode`).
  * Passage à `isPaid=false` (dépaiement) : comportement inchangé, PLUS
  * suppression des lignes `OrderPayment` associées (dans la même transaction),
- * SANS jamais ré-incrémenter le stock déjà décrémenté.
+ * SANS jamais ré-incrémenter le stock déjà réservé (ni remettre
+ * `stockReservedAt` à null — verrou à sens unique, cf. `sendOrderToKitchen`).
  *
  * Lève `OrderMutationError` (400 paiement manquant/somme incorrecte, 404
  * introuvable, 409 conflit, ou `StockShortageError` 409 si le stock ne suffit
@@ -624,12 +921,25 @@ export async function setOrderPayment(
     return { startedPreparation: false };
   }
 
-  let txResult: { startedPreparation: boolean; items: CartItem[] };
+  let txResult: {
+    startedPreparation: boolean;
+    reserved: boolean;
+    items: CartItem[];
+    dailyNumber: number;
+    reference: string;
+  };
   try {
     txResult = await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id },
-        select: { isPaid: true, status: true, items: true, total: true },
+        select: {
+          isPaid: true,
+          status: true,
+          items: true,
+          total: true,
+          dailyNumber: true,
+          reference: true,
+        },
       });
       if (!order) {
         throw new OrderMutationError('Commande introuvable', 404);
@@ -650,9 +960,13 @@ export async function setOrderPayment(
       const startedPreparation = order.status === 'NEW';
       const items = order.items as unknown as CartItem[];
 
-      if (order.status !== 'COMPLETED') {
-        await decrementStockForOrderItems(tx, items);
-      }
+      // Le stock suit l'ENTRÉE EN CUISINE, pas l'argent : on ne réserve que
+      // lorsque cet encaissement pousse effectivement la commande en cuisine.
+      // Sinon (déjà en cuisine, prête, récupérée), l'encaissement est purement
+      // financier — la réservation a déjà eu lieu, ou aura lieu à l'entrée.
+      const reserved = startedPreparation
+        ? await reserveStockOnce(tx, id, items)
+        : false;
 
       const result = await tx.order.updateMany({
         where: { id, isPaid: false },
@@ -684,7 +998,13 @@ export async function setOrderPayment(
         })),
       });
 
-      return { startedPreparation, items };
+      return {
+        startedPreparation,
+        reserved,
+        items,
+        dailyNumber: order.dailyNumber,
+        reference: order.reference,
+      };
     });
   } catch (err) {
     if (err instanceof StockShortageError) {
@@ -702,12 +1022,25 @@ export async function setOrderPayment(
     txResult.startedPreparation ? 'PAYMENT_PREPARING' : 'PAYMENT'
   );
 
-  // Fan-out best-effort : si ce paiement vient d'épuiser un produit/option,
-  // avertir tout de suite les autres clients dont la commande en attente en
-  // dépend (cf. notifyPendingOrdersOfShortage).
-  notifyPendingOrdersOfShortage(id, txResult.items).catch((err) => {
-    console.error('[order-mutations] fan-out stock épuisé échoué :', err);
-  });
+  // La commande vient d'entrer en cuisine : prévenir la cuisine, comme le fait
+  // `sendOrderToKitchen` pour l'envoi manuel.
+  if (txResult.startedPreparation) {
+    notifyKitchen({
+      id,
+      dailyNumber: txResult.dailyNumber,
+      reference: txResult.reference,
+      items: txResult.items,
+    });
+  }
+
+  // Fan-out best-effort : si CET appel a réellement réservé du stock et qu'il
+  // vient d'épuiser un produit/option, avertir tout de suite les autres clients
+  // dont la commande en attente en dépend (cf. notifyPendingOrdersOfShortage).
+  if (txResult.reserved) {
+    notifyPendingOrdersOfShortage(id, txResult.items).catch((err) => {
+      console.error('[order-mutations] fan-out stock épuisé échoué :', err);
+    });
+  }
 
   return { startedPreparation: txResult.startedPreparation };
 }
@@ -768,13 +1101,14 @@ export async function updateOrderDetails(id: string, input: unknown) {
  * donc directement le rôle (`canTogglePayment`) et on écrit dans une transaction
  * atomique avec garde de concurrence sur `status` ET `isPaid`.
  *
- * Passage non-payée → payée : décrémente le stock (mêmes garanties atomiques
- * que `setOrderPayment`, via `decrementStockForOrderItems`) AVANT de flipper
- * `isPaid`, dans la même transaction. Une commande déjà payée qui se fait
- * juste finaliser (`COMPLETED`) ne touche pas au stock (déjà décrémenté). Une
- * commande DÉJÀ `COMPLETED` avant cet appel (récupérée séparément, paiement
- * encaissé après coup) ne décrémente pas non plus — même exception que
- * `setOrderPayment` : l'article a déjà été physiquement servi.
+ * STOCK : réservation INCONDITIONNELLE via `reserveStockOnce`, dans la même
+ * transaction. NEW → COMPLETED ne passe jamais par `PREPARING`, mais la
+ * marchandise est bel et bien servie : elle doit donc être décomptée. Aucune
+ * garde sur `alreadyPaid` ni sur `status !== 'COMPLETED'` — le verrou
+ * `stockReservedAt` les rend inutiles ET strictement plus correctes : une
+ * commande déjà passée en cuisine ne sera pas décomptée deux fois, tandis
+ * qu'une commande `COMPLETED` qui n'a jamais rien réservé (cas que les
+ * anciennes gardes laissaient filer) l'est enfin.
  *
  * `payments` (1..N lignes `{mode, amount}`, somme = total relu en base) n'est
  * requis QUE si la commande n'est pas déjà payée ; ignoré (la commande garde
@@ -796,7 +1130,7 @@ export async function payAndComplete(
     throw new OrderMutationError('Action réservée à la caisse', 403);
   }
 
-  let txResult: { alreadyPaid: boolean; items: CartItem[] };
+  let txResult: { alreadyPaid: boolean; reserved: boolean; items: CartItem[] };
   try {
     txResult = await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
@@ -830,10 +1164,12 @@ export async function payAndComplete(
             400
           );
         }
-        if (order.status !== 'COMPLETED') {
-          await decrementStockForOrderItems(tx, items);
-        }
       }
+
+      // Inconditionnel : NEW → COMPLETED court-circuite PREPARING, mais la
+      // marchandise part quand même. Le verrou d'idempotence garantit qu'une
+      // commande déjà passée en cuisine n'est pas décomptée une seconde fois.
+      const reserved = await reserveStockOnce(tx, id, items);
 
       const result = await tx.order.updateMany({
         // Garde optimiste sur les deux champs lus : un autre caissier peut avoir
@@ -872,7 +1208,7 @@ export async function payAndComplete(
         });
       }
 
-      return { alreadyPaid, items };
+      return { alreadyPaid, reserved, items };
     });
   } catch (err) {
     if (err instanceof StockShortageError) {
@@ -885,10 +1221,10 @@ export async function payAndComplete(
   // récupérée en un geste → dernière notification client, puis désabonnement.
   notifyOrderCustomer(id, 'COMPLETED');
 
-  // Fan-out best-effort (uniquement si CE paiement a décrémenté du stock) :
+  // Fan-out best-effort (uniquement si CET appel a décrémenté du stock) :
   // avertir tout de suite les autres clients dont la commande en attente
   // dépend d'un produit/option qui vient de tomber à 0.
-  if (!txResult.alreadyPaid) {
+  if (txResult.reserved) {
     notifyPendingOrdersOfShortage(id, txResult.items).catch((err) => {
       console.error('[order-mutations] fan-out stock épuisé échoué :', err);
     });

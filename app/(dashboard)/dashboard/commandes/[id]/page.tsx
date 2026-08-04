@@ -408,6 +408,7 @@ export default async function CommandeDetailPage({
       <StatusButtons
         orderId={order.id}
         currentStatus={order.status as OrderStatus}
+        isPaid={order.isPaid}
       />
     </div>
   );

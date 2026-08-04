@@ -63,6 +63,7 @@ export function isPickupOverdue(order: CashierOrder, now: Date): boolean {
  *     l'âge) : elle reste « normal » tant que le retrait est lointain, puis monte à
  *     l'approche. Évite qu'une programmée créée il y a des heures soit faussement critique.
  *   - commande SANS pickupTime (walk-in) → niveau dérivé de l'âge depuis createdAt
+ *   - ARDOISE, onglet « à encaisser » UNIQUEMENT → jamais d'escalade sur l'âge
  */
 export function getUrgencyLevel(
   order: CashierOrder,
@@ -76,6 +77,17 @@ export function getUrgencyLevel(
     if (untilPickup <= 5) return 'critical';
     if (untilPickup <= 10) return 'alert';
     if (untilPickup <= SCHEDULED_ALERT_MINUTES) return 'attention';
+    return 'normal';
+  }
+
+  // Ardoise (client de confiance, ou envoi en cuisine sans encaissement) : le
+  // NON-PAIEMENT est assumé, il ne doit plus escalader ni faire sonner le
+  // carillon. Strictement borné à l'onglet « à encaisser » : la même commande
+  // qui traîne 20 min en cuisine ou 20 min prête reste urgente (autres
+  // onglets), et un créneau de retrait dépassé le reste aussi — d'où la
+  // position APRÈS les deux gardes `pickupTime` ci-dessus, qui ne parlent pas
+  // d'argent. Seule l'attente d'encaissement est neutralisée.
+  if (tab === 'to-pay' && (order.isOnAccount || order.customerTrusted)) {
     return 'normal';
   }
 

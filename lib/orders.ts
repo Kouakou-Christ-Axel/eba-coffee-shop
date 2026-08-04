@@ -23,11 +23,12 @@ import { normalizeIvorianPhone } from '@/lib/phone';
 import { ROLE_GROUPS } from '@/lib/auth-helpers';
 import { sendPushToRoles } from '@/lib/push-notify';
 import { getPickupCode } from '@/lib/orders/format';
+import { parseOrderSearchTerm } from '@/lib/orders/search';
 import {
   fetchStockSnapshot,
   computeOrderItemsAvailability,
 } from '@/lib/orders/availability';
-import { ORDERS_PAGE_SIZE } from '@/config/constants';
+import { ORDERS_PAGE_SIZE, PHONE_SEARCH_MIN_DIGITS } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
 
 // ─── Schéma Zod : online (strict, customer obligatoire) ──────────────────────
@@ -78,6 +79,14 @@ export function generateOrderReference(date: Date = new Date()): string {
 
 const MAX_DAILY_NUMBER_RETRIES = 3;
 
+// ASYMÉTRIE VOULUE — ne pas « corriger » :
+// `createCashierOrder` (lib/order-mutations.ts) envoie DIRECTEMENT en cuisine,
+// sans encaissement, la commande d'un client de confiance
+// (`Customer.isTrusted` → ardoise). `createOrder` ne le fait PAS et ne doit
+// jamais le faire : ici, n'importe qui peut saisir le numéro d'un client de
+// confiance au checkout. Auto-envoyer de la nourriture non payée en cuisine
+// sans humain dans la boucle offrirait des repas gratuits à quiconque connaît
+// un numéro. L'ardoise reste donc un geste STAFF, décidé devant le client.
 export async function createOrder(input: CreateOrderInput) {
   const dailyDate = todayDailyDate();
 
@@ -252,11 +261,13 @@ export type PublicOrderView = {
 };
 
 /**
- * `available`/`fulfillable` : uniquement pertinents pour une commande NON
- * PAYÉE — comparaison au stock ACTUEL (produit + options choisies) pour
- * signaler, avant tentative de paiement, qu'un article n'est plus disponible
- * (page de suivi client, polling). Une commande déjà payée a réservé son
- * stock : tout est `available: true` sans requête supplémentaire.
+ * `available`/`fulfillable` : uniquement pertinents pour une commande dont le
+ * stock n'est PAS encore réservé (`stockReservedAt === null`) — comparaison au
+ * stock ACTUEL (produit + options choisies) pour signaler, avant l'envoi en
+ * cuisine, qu'un article n'est plus disponible (page de suivi client, polling).
+ * Une commande déjà entrée en cuisine a réservé son stock : tout est
+ * `available: true` sans requête supplémentaire, même si elle n'est pas encore
+ * encaissée (ardoise) — le critère est bien `stockReservedAt` et non `isPaid`.
  */
 export async function getPublicOrder(
   id: string
@@ -268,7 +279,7 @@ export async function getPublicOrder(
 
   let itemsView: PublicOrderItemView[];
   let fulfillable: boolean;
-  if (order.isPaid) {
+  if (order.stockReservedAt) {
     itemsView = items.map((item) => ({ ...item, available: true }));
     fulfillable = true;
   } else {
@@ -400,19 +411,23 @@ export function buildOrdersWhere({
     };
   }
 
-  const term = search?.trim();
-  if (term) {
+  // Parsing mutualisé avec la recherche caisse (`lib/orders/search.ts`). Un
+  // `where` Prisma ne peut pas appeler un prédicat JS : seul le TERME PARSÉ est
+  // partagé, les clauses SQL restent propres à cette liste.
+  const parsed = search ? parseOrderSearchTerm(search) : null;
+  if (parsed) {
     const or: Prisma.OrderWhereInput[] = [
-      { reference: { contains: term, mode: 'insensitive' } },
-      { customerName: { contains: term, mode: 'insensitive' } },
-      { customerPhone: { contains: term, mode: 'insensitive' } },
+      { reference: { contains: parsed.raw, mode: 'insensitive' } },
+      { customerName: { contains: parsed.raw, mode: 'insensitive' } },
     ];
+    // Téléphone : on compare les CHIFFRES BRUTS du terme, pas le terme brut.
+    // « 07 88 12 » ne matchait rien contre un « +22507881234567 » stocké.
+    if (parsed.digits.length >= PHONE_SEARCH_MIN_DIGITS) {
+      or.push({ customerPhone: { contains: parsed.digits } });
+    }
     // Terme purement numérique → match exact du n° du jour (#003 → 3).
-    if (/^\d+$/.test(term)) {
-      const n = Number(term);
-      if (Number.isSafeInteger(n) && n > 0 && n <= 2_147_483_647) {
-        or.push({ dailyNumber: n });
-      }
+    if (parsed.dailyNumber !== null) {
+      or.push({ dailyNumber: parsed.dailyNumber });
     }
     where.OR = or;
   }
