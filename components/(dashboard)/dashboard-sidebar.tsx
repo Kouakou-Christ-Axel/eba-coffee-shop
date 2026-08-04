@@ -13,6 +13,7 @@ import {
   Contact,
   LayoutDashboard,
   LogOut,
+  NotebookPen,
   PiggyBank,
   Scale,
   Settings,
@@ -93,6 +94,12 @@ const navItems: NavItem[] = [
     label: 'Caisse',
     href: '/dashboard/caisse',
     icon: ShoppingBag,
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER'],
+  },
+  {
+    label: 'Ardoise',
+    href: '/dashboard/ardoise',
+    icon: NotebookPen,
     roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER'],
   },
   {

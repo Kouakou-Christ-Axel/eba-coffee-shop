@@ -79,6 +79,14 @@ export function generateOrderReference(date: Date = new Date()): string {
 
 const MAX_DAILY_NUMBER_RETRIES = 3;
 
+// ASYMÉTRIE VOULUE — ne pas « corriger » :
+// `createCashierOrder` (lib/order-mutations.ts) envoie DIRECTEMENT en cuisine,
+// sans encaissement, la commande d'un client de confiance
+// (`Customer.isTrusted` → ardoise). `createOrder` ne le fait PAS et ne doit
+// jamais le faire : ici, n'importe qui peut saisir le numéro d'un client de
+// confiance au checkout. Auto-envoyer de la nourriture non payée en cuisine
+// sans humain dans la boucle offrirait des repas gratuits à quiconque connaît
+// un numéro. L'ardoise reste donc un geste STAFF, décidé devant le client.
 export async function createOrder(input: CreateOrderInput) {
   const dailyDate = todayDailyDate();
 

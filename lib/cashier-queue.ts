@@ -42,6 +42,13 @@ export type CashierOrder = {
   loyaltyRewardId: string | null;
   status: OrderStatus;
   isPaid: boolean;
+  /** « Ardoise » : partie en cuisine sans encaissement (cf. `Order.isOnAccount`).
+   * Toujours accompagnée de `isPaid: false` — l'argent reste dû. */
+  isOnAccount: boolean;
+  /** Le client lié est-il marqué « de confiance » (`Customer.isTrusted`) ?
+   * `false` pour une commande anonyme. Signal caisse : le non-paiement de ces
+   * commandes n'escalade pas en urgence (cf. `urgency.ts`). */
+  customerTrusted: boolean;
   paymentMode: PaymentMode | null;
   paymentProofUrl: string | null;
   driverRequested: boolean;
@@ -106,6 +113,10 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
         },
       ],
     },
+    // `include` (et non `select`) : on conserve TOUS les champs scalaires
+    // consommés par le mapper ci-dessous, en n'ajoutant que le drapeau
+    // « client de confiance » de la fiche liée.
+    include: { customer: { select: { isTrusted: true } } },
     // FIFO strict : la commande la plus ancienne en haut.
     orderBy: { createdAt: 'asc' },
   });
@@ -234,6 +245,8 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       loyaltyRewardId: o.loyaltyRewardId,
       status: o.status,
       isPaid: o.isPaid,
+      isOnAccount: o.isOnAccount,
+      customerTrusted: o.customer?.isTrusted ?? false,
       paymentMode: o.paymentMode,
       paymentProofUrl: o.paymentProofUrl,
       driverRequested: o.driverRequested,

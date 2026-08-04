@@ -1,19 +1,28 @@
 // app/api/caisse/orders/[id]/status/route.ts
 //
 // PATCH /api/caisse/orders/:id/status
-// Body : { status: OrderStatus }
+// Body : { status: OrderStatus, onAccount?: boolean }
 //
 // Validation : transitions autorisées via lib/order-permissions selon le rôle.
+//
+// `onAccount` n'a de sens que vers PREPARING (entrée en cuisine « ardoise ») :
+// il est transmis à `sendOrderToKitchen`, qui pose `Order.isOnAccount` SANS
+// jamais toucher à `isPaid` — l'argent reste dû. Ignoré pour les autres cibles.
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireCashier } from '@/lib/auth-helpers';
 import type { UserRole } from '@/generated/prisma/client';
 import { orderStatusSchema } from '@/lib/schemas/order';
-import { setOrderStatus, OrderMutationError } from '@/lib/order-mutations';
+import {
+  setOrderStatus,
+  sendOrderToKitchen,
+  OrderMutationError,
+} from '@/lib/order-mutations';
 
 const bodySchema = z.object({
   status: orderStatusSchema,
+  onAccount: z.boolean().optional(),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -48,7 +57,14 @@ export async function PATCH(req: Request, { params }: Params) {
   }
 
   try {
-    await setOrderStatus(id, parsed.data.status, role);
+    // `setOrderStatus` délègue déjà à `sendOrderToKitchen` pour PREPARING,
+    // mais sans pouvoir transmettre `opts` : on l'appelle directement dans ce
+    // seul cas (mêmes gardes de rôle / concurrence, aucune logique dupliquée).
+    if (parsed.data.onAccount && parsed.data.status === 'PREPARING') {
+      await sendOrderToKitchen(id, role, { onAccount: true });
+    } else {
+      await setOrderStatus(id, parsed.data.status, role);
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof OrderMutationError) {

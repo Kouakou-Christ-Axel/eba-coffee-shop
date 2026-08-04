@@ -19,6 +19,10 @@ const HEARTBEAT_INTERVAL_MS = 20_000;
 const DEBOUNCE_MS = 150;
 
 // Types sérialisables : Date → string ISO (ou null) pour traverser JSON.
+// Seules les dates sont listées ici : les champs scalaires ajoutés à
+// `CashierOrder` (booléens `isOnAccount` / `customerTrusted`, etc.) traversent
+// JSON tels quels et sont donc portés automatiquement par le `Omit<…>` et le
+// spread de `serialize` — rien à déclarer.
 type SerializedCashierOrder = Omit<
   CashierOrder,
   | 'pickupTime'

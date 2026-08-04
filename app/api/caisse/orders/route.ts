@@ -10,12 +10,15 @@
 // client, fidélité, antidatage) vit dans `lib/order-mutations.ts`.
 
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { requireCashier } from '@/lib/auth-helpers';
 import { createOrderSchema, orderTypeSchema } from '@/lib/schemas/order';
-import { createCashierOrder } from '@/lib/order-mutations';
+import { createCashierOrder, OrderMutationError } from '@/lib/order-mutations';
 
 const bodySchema = createOrderSchema.extend({
   orderType: orderTypeSchema,
+  // Ardoise forcée par le caissier pour un client non fiché « de confiance ».
+  onAccount: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -59,6 +62,18 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (err) {
+    // La commande d'un client de confiance part directement en cuisine et
+    // RÉSERVE son stock (cf. `createCashierOrder`) : elle peut donc échouer en
+    // 409 « Stock insuffisant pour … ». Ce message doit atteindre le caissier
+    // tel quel — un « Erreur serveur » générique ne lui dirait pas quel article
+    // remplacer. Les autres erreurs métier (400 récompense fidélité indisponible)
+    // passent par le même chemin.
+    if (err instanceof OrderMutationError) {
+      return NextResponse.json(
+        { error: err.message },
+        { status: err.httpStatus }
+      );
+    }
     console.error('[POST /api/caisse/orders]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }

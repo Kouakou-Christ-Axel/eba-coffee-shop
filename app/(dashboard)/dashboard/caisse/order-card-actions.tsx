@@ -256,9 +256,12 @@ export function OrderCardActions({
 
   // `skipUndo` : évite qu'un undo (qui rappelle cette même fonction pour
   // revenir au statut précédent) ne génère lui-même un nouveau toast d'undo.
+  // `onAccount` : envoi « ardoise » (en cuisine sans encaissement) — transmis
+  // tel quel à `sendOrderToKitchen`, qui pose `isOnAccount` SANS toucher à
+  // `isPaid`.
   function handleStatusChange(
     newStatus: OrderStatus,
-    opts?: { skipUndo?: boolean }
+    opts?: { skipUndo?: boolean; onAccount?: boolean }
   ) {
     setActionError(null);
     const previousStatus = order.status;
@@ -267,7 +270,9 @@ export function OrderCardActions({
       const result = await callApi(
         `/api/caisse/orders/${order.id}/status`,
         'PATCH',
-        { status: newStatus }
+        opts?.onAccount
+          ? { status: newStatus, onAccount: true }
+          : { status: newStatus }
       );
       if (!result.ok) {
         setActionError(result.error);
@@ -310,12 +315,12 @@ export function OrderCardActions({
     if (!confirmDespiteShortage()) return;
     if (
       !confirm(
-        'Envoyer cette commande en cuisine sans encaissement ? Tu devras encaisser après la remise.'
+        'Mettre cette commande sur l’ardoise ?\nElle part en cuisine sans encaissement et reste NON PAYÉE : le montant dû restera visible dans « Ardoise » jusqu’au règlement.'
       )
     ) {
       return;
     }
-    handleStatusChange('PREPARING');
+    handleStatusChange('PREPARING', { onAccount: true });
   }
 
   // Annuler une commande non payée ; rembourser (= annuler) une commande payée.
@@ -446,7 +451,9 @@ export function OrderCardActions({
           </Button>
         )}
 
-        {/* Cas exception : envoyer en cuisine sans encaisser (status NEW seul) */}
+        {/* Ardoise : envoyer en cuisine sans encaisser (status NEW seul).
+            La commande reste impayée — c'est le suivi de l'ardoise, pas la
+            caisse, qui porte la dette. */}
         {!order.isPaid && order.status === 'NEW' && (
           <Button
             type="button"
@@ -457,7 +464,7 @@ export function OrderCardActions({
             onClick={handleSendToKitchenWithoutPayment}
           >
             <ChefHat className="mr-1.5 h-4 w-4" />
-            Envoyer en cuisine sans payer
+            Envoyer en cuisine (ardoise)
           </Button>
         )}
 

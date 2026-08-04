@@ -334,6 +334,12 @@ export type CreateCashierOrderInput = {
   createdById?: string | null;
   /** Récompense fidélité (carte à tampons) à appliquer à cette commande. */
   loyaltyRewardId?: string | null;
+  /**
+   * Force l'« ardoise » (envoi direct en cuisine sans encaissement) même si le
+   * client n'est pas marqué de confiance — dérogation du caissier pour un
+   * walk-in qu'il connaît. Absent = on suit `Customer.isTrusted`.
+   */
+  onAccount?: boolean;
 };
 
 /**
@@ -349,6 +355,19 @@ export type CreateCashierOrderInput = {
  * montant réellement encaissé). La récompense est vérifiée (appartient au
  * client résolu, statut `AVAILABLE`) et marquée `USED` dans la MÊME
  * transaction que la création — jamais réutilisable deux fois.
+ *
+ * ARDOISE À LA CRÉATION : si le client résolu est de confiance
+ * (`Customer.isTrusted`) — ou si le caissier force via `input.onAccount` — la
+ * commande est créée DIRECTEMENT en `PREPARING`, marquée `isOnAccount`, et son
+ * stock est réservé dans la MÊME transaction. Elle reste `isPaid: false` : ce
+ * n'est PAS un paiement, seulement un non-blocage (cf. `Order.isOnAccount`).
+ * Une pénurie lève alors `StockShortageError` (409) et annule toute la
+ * création — la commande n'existe pas, rien n'a été décrémenté.
+ *
+ * L'ANTIDATAGE SUPPRIME CE COMPORTEMENT, exactement comme il supprime le push
+ * « nouvelle commande » : une saisie de rattrapage n'est pas un événement en
+ * direct, elle ne doit ni réveiller la cuisine ni décrémenter le stock
+ * d'aujourd'hui pour un plat servi la semaine dernière.
  */
 export async function createCashierOrder(input: CreateCashierOrderInput) {
   // Normalisation téléphone : saisie libre acceptée, stockée en E.164 si
@@ -378,6 +397,20 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
           normalizedPhone,
           input.customerName
         );
+
+        // Client de confiance : sa commande n'attend pas l'encaissement pour
+        // partir en cuisine. `input.onAccount` (dérogation explicite du
+        // caissier) prime sur la fiche — il permet l'ardoise pour un walk-in
+        // non fiché, et permet aussi de la refuser (`false`) à un client fiché.
+        const trusted = customerId
+          ? ((
+              await tx.customer.findUnique({
+                where: { id: customerId },
+                select: { isTrusted: true },
+              })
+            )?.isTrusted ?? false)
+          : false;
+        const goToKitchen = (input.onAccount ?? trusted) && !isBackdated;
 
         // Récompense fidélité : vérifiée à nouveau à CHAQUE tentative (une
         // transaction annulée par un conflit de numéro n'a rien écrit).
@@ -417,11 +450,30 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
             createdById: input.createdById ?? null,
             loyaltyRewardId: reward?.id ?? null,
             loyaltyDiscount: discount || null,
+            // Ardoise : la commande naît en cuisine, non payée. `isPaid` reste
+            // false — le CA n'est jamais gonflé par une commande non réglée
+            // (cf. lib/stats.ts, qui filtre sur `isPaid`).
+            ...(goToKitchen
+              ? {
+                  status: 'PREPARING' as const,
+                  preparingStartedAt: new Date(),
+                  isOnAccount: true,
+                }
+              : {}),
             // Antidatage : aligner createdAt sur le jour civil ciblé pour que le
             // tri chronologique (createdAt desc) reflète la date réelle.
             ...(isBackdated ? { createdAt: dailyDate } : {}),
           },
         });
+
+        // Réservation du stock DANS la transaction de création : la marchandise
+        // part en cuisine, elle doit être décomptée au même instant. Une
+        // pénurie lève `StockShortageError` et annule la création entière.
+        // Point d'entrée normal (`sendOrderToKitchen`) inapplicable ici : il
+        // relit une commande qui n'existe pas encore.
+        if (goToKitchen) {
+          await reserveStockOnce(tx, created.id, input.items as CartItem[]);
+        }
 
         if (reward) {
           await consumeLoyaltyReward(tx, {
@@ -454,6 +506,18 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
           url: '/dashboard/caisse',
           tag: `order-${created.id}`,
         });
+
+        // Ardoise : la commande est née en cuisine, il faut aussi réveiller la
+        // cuisine — le push « nouvelle commande » ci-dessus va à la caisse et
+        // ne suffit pas (mêmes destinataires que `sendOrderToKitchen`).
+        if (created.status === 'PREPARING') {
+          notifyKitchen({
+            id: created.id,
+            dailyNumber: created.dailyNumber,
+            reference: created.reference,
+            items: created.items as unknown as CartItem[],
+          });
+        }
       }
 
       return created;

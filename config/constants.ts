@@ -101,6 +101,13 @@ export const ORDER_CUSTOMER_PHONE_MAX = 30;
 export const ORDER_NOTE_MAX = 500;
 
 /**
+ * Longueur max du motif « client de confiance » (`Customer.trustedNote`) :
+ * texte libre saisi par la gérance pour tracer la raison de l'octroi ou le
+ * plafond d'ardoise convenu avec le client.
+ */
+export const CUSTOMER_TRUSTED_NOTE_MAX = 300;
+
+/**
  * Page publique de suivi de commande (/commande/:id) : intervalle de
  * rafraîchissement du statut (polling léger, le SSE reste réservé au staff).
  */

@@ -14,7 +14,13 @@ vi.mock('@/lib/prisma', () => {
       findUnique: vi.fn(),
       updateMany: vi.fn(),
       update: vi.fn(),
+      create: vi.fn(),
       findMany: vi.fn().mockResolvedValue([]),
+      // `getNextDailyNumber` (lib/daily-numbering.ts) lit MAX(dailyNumber).
+      aggregate: vi.fn().mockResolvedValue({ _max: { dailyNumber: 4 } }),
+    },
+    customer: {
+      findUnique: vi.fn(),
     },
     orderPayment: {
       createMany: vi.fn(),
@@ -45,9 +51,25 @@ vi.mock('@/lib/push-notify', () => ({
   sendPushToRoles: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Collaborateurs de `createCashierOrder` sans intérêt pour ce qu'on teste ici
+// (résolution du client CRM, fidélité) : neutralisés pour isoler la décision
+// « ardoise » et la réservation de stock.
+vi.mock('@/lib/customer-mutations', () => ({
+  upsertCustomerForOrder: vi.fn().mockResolvedValue('cust-1'),
+}));
+
+vi.mock('@/lib/loyalty-mutations', () => ({
+  awardLoyaltyForOrder: vi.fn().mockResolvedValue(undefined),
+  consumeLoyaltyReward: vi.fn().mockResolvedValue(undefined),
+  resolveLoyaltyReward: vi.fn().mockResolvedValue(null),
+  LoyaltyRewardUnavailableError: class LoyaltyRewardUnavailableError extends Error {},
+}));
+
 import prisma from '@/lib/prisma';
 import { notifyOrderCustomer, sendPushToRoles } from '@/lib/push-notify';
+import { upsertCustomerForOrder } from '@/lib/customer-mutations';
 import {
+  createCashierOrder,
   setOrderPayment,
   payAndComplete,
   sendOrderToKitchen,
@@ -65,6 +87,15 @@ const mockOrderUpdateMany = prisma.order.updateMany as MockedFunction<
 >;
 const mockOrderUpdate = prisma.order.update as MockedFunction<
   typeof prisma.order.update
+>;
+const mockOrderCreate = prisma.order.create as MockedFunction<
+  typeof prisma.order.create
+>;
+const mockCustomerFindUnique = prisma.customer.findUnique as MockedFunction<
+  typeof prisma.customer.findUnique
+>;
+const mockUpsertCustomer = upsertCustomerForOrder as MockedFunction<
+  typeof upsertCustomerForOrder
 >;
 const mockOrderPaymentCreateMany = prisma.orderPayment
   .createMany as MockedFunction<typeof prisma.orderPayment.createMany>;
@@ -575,6 +606,152 @@ describe('setOrderPayment — dépaiement', () => {
     expect(mockOrderPaymentDeleteMany).toHaveBeenCalledWith({
       where: { orderId: 'order1' },
     });
+  });
+});
+
+describe('createCashierOrder — ardoise du client de confiance', () => {
+  const items = orderWithOneItem().items as unknown as CartItem[];
+
+  /** Données passées à `order.create` au dernier appel. */
+  const createdData = () =>
+    (
+      mockOrderCreate.mock.calls.at(-1)?.[0] as {
+        data: Record<string, unknown>;
+      }
+    ).data;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpsertCustomer.mockResolvedValue('cust-1');
+    mockOrderCreate.mockImplementation((async (args: {
+      data: Record<string, unknown>;
+    }) => ({
+      id: 'order-new',
+      dailyNumber: 5,
+      reference: 'EBA-20260804-B7C1',
+      total: 2500,
+      customerName: 'Awa',
+      items,
+      status: (args.data.status as string) ?? 'NEW',
+    })) as never);
+    mockOrderUpdateManyWithClaim(1);
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-active' } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+  });
+
+  it('client de confiance : commande créée directement en PREPARING, sur ardoise, stock réservé', async () => {
+    mockCustomerFindUnique.mockResolvedValue({ isTrusted: true } as never);
+
+    await createCashierOrder({
+      items,
+      customerName: 'Awa',
+      customerPhone: '0708090910',
+      orderType: 'TAKEAWAY',
+    });
+
+    expect(createdData()).toMatchObject({
+      status: 'PREPARING',
+      preparingStartedAt: expect.any(Date),
+      isOnAccount: true,
+    });
+    // Jamais payée : l'ardoise n'est pas un encaissement (le CA ne compte que
+    // `isPaid`, cf. lib/stats.ts).
+    expect(createdData()).not.toHaveProperty('isPaid');
+    // Stock réservé dans la même transaction que la création.
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'order-new', stockReservedAt: null },
+      data: { stockReservedAt: expect.any(Date) },
+    });
+    expect(mockProdUpdateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('client de confiance : la cuisine est prévenue, pas seulement la caisse', async () => {
+    mockCustomerFindUnique.mockResolvedValue({ isTrusted: true } as never);
+
+    await createCashierOrder({
+      items,
+      customerPhone: '0708090910',
+      orderType: 'TAKEAWAY',
+    });
+
+    expect(
+      mockSendPushToRoles.mock.calls.find(
+        ([, payload]) => payload.tag === 'order-kitchen-order-new'
+      )
+    ).toBeDefined();
+  });
+
+  it('client ordinaire : commande créée en NEW, sans ardoise ni réservation', async () => {
+    mockCustomerFindUnique.mockResolvedValue({ isTrusted: false } as never);
+
+    await createCashierOrder({
+      items,
+      customerPhone: '0708090910',
+      orderType: 'TAKEAWAY',
+    });
+
+    expect(createdData()).not.toHaveProperty('status');
+    expect(createdData()).not.toHaveProperty('isOnAccount');
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('`onAccount` force l’ardoise pour un client non fiché de confiance', async () => {
+    mockCustomerFindUnique.mockResolvedValue({ isTrusted: false } as never);
+
+    await createCashierOrder({
+      items,
+      customerPhone: '0708090910',
+      orderType: 'TAKEAWAY',
+      onAccount: true,
+    });
+
+    expect(createdData()).toMatchObject({
+      status: 'PREPARING',
+      isOnAccount: true,
+    });
+  });
+
+  it('commande ANTIDATÉE d’un client de confiance : PAS d’envoi auto en cuisine', async () => {
+    // Une saisie de rattrapage n'est pas un événement en direct : elle ne doit
+    // ni réveiller la cuisine ni décrémenter le stock d'aujourd'hui — même
+    // garde que le push « nouvelle commande ».
+    mockCustomerFindUnique.mockResolvedValue({ isTrusted: true } as never);
+
+    await createCashierOrder({
+      items,
+      customerPhone: '0708090910',
+      orderType: 'TAKEAWAY',
+      orderDate: '2026-01-05',
+    });
+
+    expect(createdData()).not.toHaveProperty('status');
+    expect(createdData()).not.toHaveProperty('isOnAccount');
+    expect(createdData()).toHaveProperty('createdAt');
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+    expect(mockSendPushToRoles).not.toHaveBeenCalled();
+  });
+
+  it('commande anonyme (sans téléphone) : jamais d’ardoise implicite', async () => {
+    mockUpsertCustomer.mockResolvedValue(null);
+
+    await createCashierOrder({ items, orderType: 'TAKEAWAY' });
+
+    expect(mockCustomerFindUnique).not.toHaveBeenCalled();
+    expect(createdData()).not.toHaveProperty('isOnAccount');
+  });
+
+  it('pénurie de stock : la création entière est annulée (rien n’est écrit)', async () => {
+    mockCustomerFindUnique.mockResolvedValue({ isTrusted: true } as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 0 } as never);
+
+    await expect(
+      createCashierOrder({
+        items,
+        customerPhone: '0708090910',
+        orderType: 'TAKEAWAY',
+      })
+    ).rejects.toThrow(StockShortageError);
   });
 });
 

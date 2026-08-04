@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Handshake } from 'lucide-react';
 import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
 import { listCustomers } from '@/lib/customers';
 import { formatPhoneForDisplay } from '@/lib/phone';
@@ -11,6 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { CustomerSearch } from './customer-search';
 import { CustomerFormSheet } from './customer-form';
 
@@ -65,6 +67,7 @@ export default async function ClientsPage({
             <TableRow>
               <TableHead>Nom</TableHead>
               <TableHead>Téléphone</TableHead>
+              <TableHead>Confiance</TableHead>
               <TableHead>Commandes</TableHead>
               <TableHead>Total dépensé</TableHead>
               <TableHead>Dernière commande</TableHead>
@@ -84,6 +87,19 @@ export default async function ClientsPage({
                 </TableCell>
                 <TableCell className="font-mono text-sm">
                   {formatPhoneForDisplay(c.phone)}
+                </TableCell>
+                <TableCell>
+                  {c.isTrusted ? (
+                    <Badge
+                      className="bg-blue-600"
+                      title={c.trustedNote ?? undefined}
+                    >
+                      <Handshake className="h-3 w-3" aria-hidden="true" />
+                      Confiance
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
                 </TableCell>
                 <TableCell className="tabular-nums">
                   {c.stats.ordersCount}
@@ -106,7 +122,7 @@ export default async function ClientsPage({
             {customers.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="py-8 text-center text-muted-foreground"
                 >
                   Aucun client pour cette recherche.
