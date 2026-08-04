@@ -18,6 +18,10 @@ import type { MenuCategory } from '@/config/menu';
 import type { CartItemInput } from '@/lib/schemas/order';
 import { todayDailyDate } from '@/lib/daily-numbering';
 import {
+  aggregatePortionCombos,
+  attachPortionCombos,
+} from '@/lib/portion-combos';
+import {
   POPULARITY_MIN_ORDERS,
   POPULARITY_RANKED_COUNT,
   POPULARITY_WINDOW_DAYS,
@@ -39,6 +43,16 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export async function getProductPopularity(): Promise<
   Map<string, ProductPopularity>
 > {
+  return computePopularity(await fetchRecentOrderItems());
+}
+
+/**
+ * Lignes de commande de la fenêtre, à plat. Un SEUL scan sert les deux
+ * enrichissements de la carte (rang de vente et répartitions populaires) : ils
+ * lisent la même table sur la même période, les faire séparément doublerait le
+ * coût à chaque régénération ISR.
+ */
+export async function fetchRecentOrderItems(): Promise<CartItemInput[]> {
   const to = todayDailyDate();
   const from = new Date(to.getTime() - (POPULARITY_WINDOW_DAYS - 1) * DAY_MS);
 
@@ -47,12 +61,18 @@ export async function getProductPopularity(): Promise<
     select: { items: true },
   });
 
+  return orders.flatMap(
+    (order) => (order.items as unknown as CartItemInput[]) ?? []
+  );
+}
+
+/** Classement des ventes à partir de lignes déjà chargées. */
+export function computePopularity(
+  items: CartItemInput[]
+): Map<string, ProductPopularity> {
   const sold = new Map<string, number>();
-  for (const order of orders) {
-    const items = (order.items as unknown as CartItemInput[]) ?? [];
-    for (const item of items) {
-      sold.set(item.productId, (sold.get(item.productId) ?? 0) + item.quantity);
-    }
+  for (const item of items) {
+    sold.set(item.productId, (sold.get(item.productId) ?? 0) + item.quantity);
   }
 
   const ranked = [...sold.entries()].sort((a, b) => b[1] - a[1]);
@@ -89,15 +109,24 @@ export function attachPopularity(
   }));
 }
 
-/** Menu public enrichi de la preuve sociale — dégrade en menu nu si l'agrégation échoue. */
+/**
+ * Menu public enrichi des deux signaux tirés de l'historique : rang de vente et
+ * répartitions de parts les plus choisies. Un seul scan des commandes pour les
+ * deux (voir `fetchRecentOrderItems`).
+ *
+ * Dégrade en menu nu si l'agrégation échoue : ce sont des bonus commerciaux,
+ * ils ne doivent jamais empêcher la carte de s'afficher.
+ */
 export async function getMenuWithPopularity(
   menu: MenuCategory[]
 ): Promise<MenuCategory[]> {
   try {
-    return attachPopularity(menu, await getProductPopularity());
+    const items = await fetchRecentOrderItems();
+    return attachPortionCombos(
+      attachPopularity(menu, computePopularity(items)),
+      aggregatePortionCombos(menu, items)
+    );
   } catch (err) {
-    // La preuve sociale est un bonus commercial : elle ne doit jamais
-    // empêcher la carte de s'afficher.
     console.error('[getMenuWithPopularity]', err);
     return menu;
   }

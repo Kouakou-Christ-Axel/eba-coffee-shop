@@ -223,3 +223,61 @@ export function groupConstraintLabel(group: SupplementGroup): string | null {
   }
   return null;
 }
+
+// ─── Boîtes à parts fixes (ex. « Sponge Cake x4 ») ──────────────────────────
+//
+// Cas particulier d'un groupe 'quantity' dont les bornes sont ÉGALES : le
+// produit est un contenant d'exactement N parts, et le client répartit ces N
+// parts entre les goûts. Le nombre de parts est une propriété du PRODUIT (une
+// boîte fait toujours 4, une autre référence pourra en faire 3 ou 6) — jamais
+// un choix du client, qui ne décide que du remplissage.
+//
+// L'interface publique s'en sert pour basculer d'une liste de compteurs vers un
+// composeur à emplacements (`_components/portion-composer.tsx`).
+
+/** Vrai si le groupe décrit une boîte de N parts à répartir exactement. */
+export function isFixedPortionGroup(group: SupplementGroup): boolean {
+  if (group.type !== 'quantity') return false;
+  const max = effectiveMax(group);
+  return Number.isFinite(max) && max > 0 && effectiveMin(group) === max;
+}
+
+/** Nombre de parts de la boîte. N'a de sens que sur un groupe à parts fixes. */
+export function portionCount(group: SupplementGroup): number {
+  return effectiveMax(group);
+}
+
+/**
+ * Emplacements de la boîte, dans l'ordre des options du groupe : le nom du goût
+ * pour une case remplie, `null` pour une case libre. Toujours `portionCount`
+ * entrées.
+ *
+ * Les cases sont DÉRIVÉES des compteurs, elles ne sont pas un état séparé :
+ * une boîte « 2 Oreo + 2 Kinder » est la même quel que soit l'ordre de saisie,
+ * et le modèle de données (`Record<goût, quantité>`) reste donc inchangé — rien
+ * à modifier côté panier, commande ou caisse.
+ */
+export function portionSlots(
+  group: SupplementGroup,
+  selections: Selections
+): (string | null)[] {
+  const counts = (selections[group.name] as Record<string, number>) ?? {};
+  const filled = group.options.flatMap((opt) =>
+    Array.from({ length: Math.max(0, counts[opt.name] ?? 0) }, () => opt.name)
+  );
+  const size = portionCount(group);
+  return [
+    ...filled.slice(0, size),
+    ...Array.from({ length: Math.max(0, size - filled.length) }, () => null),
+  ];
+}
+
+/**
+ * Nom du groupe débarrassé d'un suffixe « (N parts) » saisi à la main. Le
+ * nombre de parts affiché doit venir des bornes du groupe, pas d'un libellé
+ * libre : en production les deux ont divergé (groupe nommé « (3 parts) » sur un
+ * produit « x4 » borné à 4), et le client voyait un chiffre faux.
+ */
+export function stripPortionSuffix(name: string): string {
+  return name.replace(/\s*\(\s*\d+\s*parts?\s*\)\s*$/i, '').trim() || name;
+}

@@ -27,10 +27,14 @@ import {
   getSupplementsPrice,
   groupConstraintLabel,
   groupSelectionCount,
+  isFixedPortionGroup,
   isGroupValid,
   optionQuantity,
+  portionCount,
+  stripPortionSuffix,
   type Selections,
 } from '@/lib/supplements';
+import { PortionComposer } from './_components/portion-composer';
 import { useResettableState } from '@/lib/hooks/use-resettable-state';
 import { CART_ITEM_QUANTITY_MAX } from '@/config/constants';
 import {
@@ -38,6 +42,11 @@ import {
   ProductMedia,
   productBadgeLabel,
 } from './_components/product-media';
+import {
+  BOTTOM_SHEET_PLACEMENT,
+  SHEET_OVERLAY_TOP,
+  bottomSheetClassNames,
+} from './_components/bottom-sheet';
 
 type SupplementModalProps = {
   product: Product;
@@ -144,8 +153,19 @@ function SupplementModal({
 
   const canSubmit = canSubmitSelections(product, selections);
   // Premier groupe qui bloque l'envoi : le CTA le nomme, au lieu de rester
-  // gris sans dire ce qui manque.
+  // gris sans dire ce qui manque. Sur une boîte à parts fixes on va plus loin
+  // et on chiffre le reste à faire (« Encore 2 parts à choisir »).
   const blockingGroup = groups.find((g) => !isGroupValid(g, selections));
+  const blockingLabel = (() => {
+    if (!blockingGroup) return 'Choisissez vos options';
+    if (isFixedPortionGroup(blockingGroup)) {
+      const missing =
+        portionCount(blockingGroup) -
+        groupSelectionCount(blockingGroup, selections);
+      return `Encore ${missing} part${missing > 1 ? 's' : ''} à choisir`;
+    }
+    return `Choisissez : ${stripPortionSuffix(blockingGroup.name)}`;
+  })();
 
   const unitPrice =
     product.price +
@@ -196,19 +216,23 @@ function SupplementModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      placement="center"
+      // Bottom sheet plein écran sur mobile, dialogue centré sur desktop
+      // (voir _components/bottom-sheet.ts).
+      placement={BOTTOM_SHEET_PLACEMENT}
       size="md"
       scrollBehavior="inside"
       // La photo est collée aux bords : pas de padding d'en-tête, et le bouton
       // de fermeture par défaut passerait dessous — on le remplace par le
       // nôtre, posé en overlay sur l'image.
       hideCloseButton
-      classNames={{ body: 'px-0 py-0' }}
+      classNames={bottomSheetClassNames({ body: 'px-0 py-0' })}
     >
       <ModalContent>
         <ModalBody className="gap-0">
-          {/* Le client configure un produit : il doit le VOIR. */}
-          <div className="relative h-48 w-full shrink-0 overflow-hidden sm:h-56">
+          {/* Le client configure un produit : il doit le VOIR. La feuille
+              occupant tout l'écran sur mobile, la photo peut y être plus
+              généreuse que dans le dialogue de bureau. */}
+          <div className="relative h-64 w-full shrink-0 overflow-hidden sm:h-56">
             <ProductMedia
               product={product}
               sizes="(max-width: 640px) 100vw, 448px"
@@ -219,7 +243,10 @@ function SupplementModal({
               className="absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(0,0,0,0.35)_0%,transparent_100%)]"
             />
             {badge && (
-              <ProductBadge label={badge} className="absolute left-3 top-3" />
+              <ProductBadge
+                label={badge}
+                className={cn('absolute left-3', SHEET_OVERLAY_TOP)}
+              />
             )}
             <Button
               isIconOnly
@@ -227,7 +254,10 @@ function SupplementModal({
               radius="full"
               aria-label="Fermer"
               onPress={onClose}
-              className="absolute right-3 top-3 min-h-9 min-w-9 bg-white/90 text-foreground shadow-md"
+              className={cn(
+                'absolute right-3 min-h-9 min-w-9 bg-white/90 text-foreground shadow-md',
+                SHEET_OVERLAY_TOP
+              )}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -323,7 +353,7 @@ function SupplementModal({
           >
             {canSubmit
               ? `Ajouter — ${priceFormatter.format(runningTotal)} F`
-              : `Choisissez : ${blockingGroup?.name ?? 'vos options'}`}
+              : blockingLabel}
           </Button>
         </ModalFooter>
       </ModalContent>
@@ -331,6 +361,23 @@ function SupplementModal({
   );
 
   function renderGroup(group: SupplementGroup) {
+    // Boîte à parts fixes (« Sponge Cake x4 ») : composeur à emplacements
+    // plutôt qu'une liste de compteurs — et jamais replié, c'est LE choix
+    // structurant du produit, pas une option accessoire.
+    if (isFixedPortionGroup(group)) {
+      return (
+        <PortionComposer
+          key={group.name}
+          group={group}
+          selections={selections}
+          combos={product.portionCombos}
+          onCountsChange={(next) =>
+            setSelections((prev) => ({ ...prev, [group.name]: next }))
+          }
+        />
+      );
+    }
+
     const constraint = groupConstraintLabel(group);
     const count = groupSelectionCount(group, selections);
     const max = effectiveMax(group);

@@ -47,6 +47,9 @@ export type Product = {
   // dessert le produit qu'il est censé vendre, et nos volumes n'ont pas à
   // sortir du back-office.
   popularRank?: number;
+  // Répartitions de parts les plus choisies (voir `PortionCombo`). Vide ou
+  // absent = rien d'assez fréquent à proposer.
+  portionCombos?: PortionCombo[];
   // Stock vendable courant (absent/`null` = illimité) et champs dérivés
   // (voir `SupplementOption` ci-dessus pour la même sémantique).
   stockQuantity?: number | null;
@@ -55,6 +58,24 @@ export type Product = {
   // Pause programmée (ISO 8601) ; `null`/absent = pas de pause. Le calcul
   // « en pause maintenant » (`unavailableUntil > now`) se fait côté lecture.
   unavailableUntil?: string | null;
+};
+
+/**
+ * Répartition d'une boîte à parts fixes réellement choisie par des clients
+ * (ex. « Oreo ×2 · Coco ×1 »), avec le nombre de fois. Proposée en un appui
+ * dans le composeur de parts — l'équivalent du « Most popular » d'Uber Eats,
+ * mais adossé aux commandes passées plutôt qu'à une saisie manuelle.
+ *
+ * Calculée à part de `getMenu()` (voir `lib/portion-combos.ts`) et fusionnée
+ * côté page carte — absente partout ailleurs (ex. `/api/menu`).
+ */
+export type PortionCombo = {
+  /** Groupe de goûts auquel la répartition s'applique. */
+  groupName: string;
+  /** Quantité par goût. La somme vaut toujours la taille de la boîte. */
+  counts: Record<string, number>;
+  /** Nombre de commandes ayant retenu cette répartition. */
+  orders: number;
 };
 
 export type MenuCategory = {

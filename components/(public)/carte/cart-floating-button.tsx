@@ -35,7 +35,11 @@ function CartFloatingButton() {
   return (
     <>
       <AnimatePresence>
-        {totalItems > 0 && (
+        {/* Masqué pendant que le panier est ouvert : depuis que celui-ci est
+            une feuille plein écran sur mobile, le bouton (fixed, z-60) se
+            posait par-dessus le « Passer la commande ». Il n'a de toute façon
+            plus rien à ouvrir tant que le panier est affiché. */}
+        {totalItems > 0 && !drawerOpen && (
           <motion.button
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
