@@ -27,10 +27,14 @@ import {
   getSupplementsPrice,
   groupConstraintLabel,
   groupSelectionCount,
+  isFixedPortionGroup,
   isGroupValid,
   optionQuantity,
+  portionCount,
+  stripPortionSuffix,
   type Selections,
 } from '@/lib/supplements';
+import { PortionComposer } from './_components/portion-composer';
 import { useResettableState } from '@/lib/hooks/use-resettable-state';
 import { CART_ITEM_QUANTITY_MAX } from '@/config/constants';
 import {
@@ -149,8 +153,19 @@ function SupplementModal({
 
   const canSubmit = canSubmitSelections(product, selections);
   // Premier groupe qui bloque l'envoi : le CTA le nomme, au lieu de rester
-  // gris sans dire ce qui manque.
+  // gris sans dire ce qui manque. Sur une boîte à parts fixes on va plus loin
+  // et on chiffre le reste à faire (« Encore 2 parts à choisir »).
   const blockingGroup = groups.find((g) => !isGroupValid(g, selections));
+  const blockingLabel = (() => {
+    if (!blockingGroup) return 'Choisissez vos options';
+    if (isFixedPortionGroup(blockingGroup)) {
+      const missing =
+        portionCount(blockingGroup) -
+        groupSelectionCount(blockingGroup, selections);
+      return `Encore ${missing} part${missing > 1 ? 's' : ''} à choisir`;
+    }
+    return `Choisissez : ${stripPortionSuffix(blockingGroup.name)}`;
+  })();
 
   const unitPrice =
     product.price +
@@ -338,7 +353,7 @@ function SupplementModal({
           >
             {canSubmit
               ? `Ajouter — ${priceFormatter.format(runningTotal)} F`
-              : `Choisissez : ${blockingGroup?.name ?? 'vos options'}`}
+              : blockingLabel}
           </Button>
         </ModalFooter>
       </ModalContent>
@@ -346,6 +361,22 @@ function SupplementModal({
   );
 
   function renderGroup(group: SupplementGroup) {
+    // Boîte à parts fixes (« Sponge Cake x4 ») : composeur à emplacements
+    // plutôt qu'une liste de compteurs — et jamais replié, c'est LE choix
+    // structurant du produit, pas une option accessoire.
+    if (isFixedPortionGroup(group)) {
+      return (
+        <PortionComposer
+          key={group.name}
+          group={group}
+          selections={selections}
+          onCountsChange={(next) =>
+            setSelections((prev) => ({ ...prev, [group.name]: next }))
+          }
+        />
+      );
+    }
+
     const constraint = groupConstraintLabel(group);
     const count = groupSelectionCount(group, selections);
     const max = effectiveMax(group);
