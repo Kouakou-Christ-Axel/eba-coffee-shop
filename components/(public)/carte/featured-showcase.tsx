@@ -72,10 +72,6 @@ function ShowcaseCard({ product }: { product: Product }) {
             monogramClassName="text-5xl"
           />
 
-          {badge && (
-            <ProductBadge label={badge} className="absolute left-2 top-2" />
-          )}
-
           <Button
             isIconOnly
             size="sm"
@@ -96,7 +92,10 @@ function ShowcaseCard({ product }: { product: Product }) {
           </Button>
         </div>
 
+        {/* Le badge ouvre le bloc texte, sous la photo : en overlay il masquait
+            une partie du visuel qu'on venait justement d'agrandir. */}
         <div className="px-3 py-2.5">
+          {badge && <ProductBadge label={badge} className="mb-1" />}
           <p className="truncate text-sm font-semibold tracking-tight text-foreground">
             {product.name}
           </p>

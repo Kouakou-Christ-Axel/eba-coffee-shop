@@ -242,12 +242,6 @@ function SupplementModal({
               aria-hidden="true"
               className="absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(0,0,0,0.35)_0%,transparent_100%)]"
             />
-            {badge && (
-              <ProductBadge
-                label={badge}
-                className={cn('absolute left-3', SHEET_OVERLAY_TOP)}
-              />
-            )}
             <Button
               isIconOnly
               size="sm"
@@ -263,7 +257,11 @@ function SupplementModal({
             </Button>
           </div>
 
+          {/* Le badge ouvre le bloc texte, sous la photo : en overlay il
+              masquait une partie du visuel qui doit donner envie, et sa
+              lisibilité dépendait de ce qu'il y avait dessous. */}
           <div className="px-6 pb-2 pt-4">
+            {badge && <ProductBadge label={badge} className="mb-1.5" />}
             <h2 className="text-xl font-semibold tracking-tight">
               {product.name}
             </h2>

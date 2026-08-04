@@ -79,10 +79,6 @@ function ProductCard({ product }: ProductCardProps) {
             monogramClassName="text-4xl"
           />
 
-          {badge && (
-            <ProductBadge label={badge} className="absolute left-2 top-2" />
-          )}
-
           {/* Ajout rapide, ancré sur la photo (modèle Uber Eats) : cible large
               et lien visuel direct avec ce qu'on ajoute. */}
           {!isUnorderable && (
@@ -107,8 +103,10 @@ function ProductCard({ product }: ProductCardProps) {
           )}
         </div>
 
-        {/* Info */}
+        {/* Info. Le badge ouvre le bloc texte plutôt que de couvrir la photo :
+            il se lit dans le fil « badge → nom → prix » sans rien masquer. */}
         <div className="flex min-w-0 flex-1 flex-col">
+          {badge && <ProductBadge label={badge} className="mb-1 self-start" />}
           <p className="text-sm font-semibold tracking-tight text-foreground sm:text-base">
             {product.name}
           </p>

@@ -71,7 +71,15 @@ export function productBadgeLabel(product: Product): string | null {
   return product.featuredBadge ?? null;
 }
 
-/** Pastille de badge posée en overlay sur une photo produit. */
+/**
+ * Pastille de mise en avant, posée dans le BLOC TEXTE et non sur la photo.
+ *
+ * En overlay elle masquait une partie de l'image — exactement ce qu'on venait
+ * d'agrandir pour donner envie — et sa lisibilité dépendait de ce qu'il y avait
+ * dessous : un badge violet sur une photo sombre passait inaperçu, sur une
+ * photo claire il écrasait le produit. Au-dessus du nom, elle est toujours
+ * lisible, ne cache rien, et se lit dans le fil naturel « badge → nom → prix ».
+ */
 export function ProductBadge({
   label,
   className = '',
@@ -81,7 +89,7 @@ export function ProductBadge({
 }) {
   return (
     <span
-      className={`pointer-events-none rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold leading-tight text-primary-foreground shadow-sm ${className}`}
+      className={`inline-block max-w-full truncate rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary ${className}`}
     >
       {label}
     </span>
