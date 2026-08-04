@@ -21,12 +21,17 @@ const DEBOUNCE_MS = 150;
 // Types sérialisables : Date → string ISO (ou null) pour traverser JSON.
 type SerializedCashierOrder = Omit<
   CashierOrder,
-  'pickupTime' | 'createdAt' | 'preparingStartedAt' | 'readyAt'
+  | 'pickupTime'
+  | 'createdAt'
+  | 'preparingStartedAt'
+  | 'readyAt'
+  | 'stockReservedAt'
 > & {
   pickupTime: string | null;
   createdAt: string;
   preparingStartedAt: string | null;
   readyAt: string | null;
+  stockReservedAt: string | null;
 };
 
 function serialize(orders: CashierOrder[]): SerializedCashierOrder[] {
@@ -38,6 +43,7 @@ function serialize(orders: CashierOrder[]): SerializedCashierOrder[] {
       ? o.preparingStartedAt.toISOString()
       : null,
     readyAt: o.readyAt ? o.readyAt.toISOString() : null,
+    stockReservedAt: o.stockReservedAt ? o.stockReservedAt.toISOString() : null,
   }));
 }
 

@@ -52,9 +52,15 @@ export type CashierOrder = {
   // pour les commandes antérieures à l'ajout des colonnes.
   preparingStartedAt: Date | null;
   readyAt: Date | null;
-  /** Vrai si au moins un article n'est plus dispo au stock actuel (commande
-   * non payée uniquement — toujours faux pour une commande déjà payée, son
-   * stock étant déjà réservé). Signal caisse (flag rouge + garde bouton payer). */
+  /** Instant de réservation (décrément) du stock de cette commande, null tant
+   * qu'elle n'est pas entrée en cuisine. Verrou à sens unique, cf.
+   * `sendOrderToKitchen` (lib/order-mutations.ts). */
+  stockReservedAt: Date | null;
+  /** Vrai si au moins un article n'est plus dispo au stock actuel. Calculé
+   * UNIQUEMENT pour les commandes dont le stock n'est PAS encore réservé
+   * (`stockReservedAt === null`) — une commande déjà entrée en cuisine a son
+   * stock décompté, elle n'est donc jamais « en pénurie », même impayée
+   * (ardoise). Signal caisse (flag rouge + garde bouton payer). */
   stockShortage: boolean;
   /** Noms des articles en cause quand `stockShortage`, pour l'affichage. */
   unavailableItemNames: string[];
@@ -105,12 +111,15 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
   });
 
   // Disponibilité : un seul instantané de stock, batché sur TOUTES les
-  // commandes non payées de la file (pas de N+1 par commande). Une commande
-  // déjà payée a réservé son stock au paiement : jamais de calcul pour elle.
-  const unpaidItemsList = orders
-    .filter((o) => !o.isPaid)
+  // commandes dont le stock n'est pas encore réservé (pas de N+1 par commande).
+  // Une commande entrée en cuisine a déjà décompté son stock : jamais de calcul
+  // pour elle. Le critère est `stockReservedAt` et NON `isPaid` — sinon une
+  // commande en cuisine mais non encaissée (ardoise) afficherait un faux
+  // « stock épuisé ».
+  const unreservedItemsList = orders
+    .filter((o) => o.stockReservedAt === null)
     .map((o) => o.items as CartItem[]);
-  const stock = await fetchStockSnapshot(unpaidItemsList);
+  const stock = await fetchStockSnapshot(unreservedItemsList);
 
   // Fidélité : réglages une seule fois pour toute la file, compteur de
   // tampons batché pour tous les clients liés (récap), et issue précise
@@ -171,7 +180,7 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
 
     let stockShortage = false;
     let unavailableItemNames: string[] = [];
-    if (!o.isPaid) {
+    if (o.stockReservedAt === null) {
       const availability = computeOrderItemsAvailability(items, stock);
       stockShortage = !availability.fulfillable;
       if (stockShortage) {
@@ -233,6 +242,7 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       createdAt: o.createdAt,
       preparingStartedAt: o.preparingStartedAt,
       readyAt: o.readyAt,
+      stockReservedAt: o.stockReservedAt,
       stockShortage,
       unavailableItemNames,
       loyaltySettings,

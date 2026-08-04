@@ -172,9 +172,12 @@ export function OrderCardActions({
       : 'Marquer payée';
 
   // Stock épuisé signalé par le flux SSE (`lib/cashier-queue.ts`) pour une
-  // commande NON payée : le serveur refusera le paiement de toute façon (409),
-  // mais on prévient le staff AVANT le clic pour éviter le clic perdu.
-  const hasStockShortage = order.stockShortage && !order.isPaid;
+  // commande dont le stock n'est PAS encore réservé : le serveur refusera
+  // l'envoi en cuisine de toute façon (409), mais on prévient le staff AVANT le
+  // clic pour éviter le clic perdu. Critère `stockReservedAt` et non `isPaid` :
+  // une commande en cuisine mais non encaissée (ardoise) a déjà son stock.
+  const hasStockShortage =
+    order.stockShortage && order.stockReservedAt === null;
 
   // Non bloquant : une confirmation explicite suffit à passer outre (le staff
   // peut avoir déjà proposé un remplacement au client). Si le stock a bougé
@@ -300,6 +303,11 @@ export function OrderCardActions({
   }
 
   function handleSendToKitchenWithoutPayment() {
+    // L'entrée en cuisine RÉSERVE désormais le stock : cet envoi peut donc
+    // échouer en 409 « stock insuffisant » exactement comme un encaissement.
+    // Même garde qu'avant de payer (l'erreur remonte sinon dans
+    // `setActionError`, mais autant éviter le clic perdu).
+    if (!confirmDespiteShortage()) return;
     if (
       !confirm(
         'Envoyer cette commande en cuisine sans encaissement ? Tu devras encaisser après la remise.'

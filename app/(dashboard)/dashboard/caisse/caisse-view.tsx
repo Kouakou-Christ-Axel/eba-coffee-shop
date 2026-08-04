@@ -40,12 +40,17 @@ const CHIME_REPEAT_MS = 3 * 60_000;
 
 type RawCashierOrder = Omit<
   CashierOrder,
-  'pickupTime' | 'createdAt' | 'preparingStartedAt' | 'readyAt'
+  | 'pickupTime'
+  | 'createdAt'
+  | 'preparingStartedAt'
+  | 'readyAt'
+  | 'stockReservedAt'
 > & {
   pickupTime: string | null;
   createdAt: string;
   preparingStartedAt: string | null;
   readyAt: string | null;
+  stockReservedAt: string | null;
 };
 
 function normalize(raw: unknown): CashierOrder {

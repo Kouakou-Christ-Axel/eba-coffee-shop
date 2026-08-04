@@ -41,6 +41,18 @@ const KITCHEN_ROLES: UserRole[] = [
   'CASHIER',
   'KITCHEN',
 ];
+// Destinataires du push « nouvelle commande en cuisine » : KITCHEN_ROLES SANS
+// CASHIER. Le caissier reçoit déjà « nouvelle commande » (création) et c'est
+// lui qui déclenche l'envoi en cuisine la plupart du temps — l'inclure ne
+// ferait que dupliquer le bruit. On ne se limite pas à `['KITCHEN']` pour
+// autant : dans une boutique où personne n'est connecté avec ce rôle, plus
+// aucun appareil ne serait notifié.
+const KITCHEN_STAFF_ROLES: UserRole[] = [
+  'ADMIN',
+  'MANAGER',
+  'ASSISTANT_MANAGER',
+  'KITCHEN',
+];
 const CLOTURE_ROLES: UserRole[] = [
   'ADMIN',
   'MANAGER',
@@ -192,5 +204,6 @@ export const ROLE_GROUPS = {
   STATS: STATS_ROLES,
   CASHIER_PLUS: CASHIER_ROLES,
   KITCHEN_PLUS: KITCHEN_ROLES,
+  KITCHEN_STAFF: KITCHEN_STAFF_ROLES,
   CLOTURE: CLOTURE_ROLES,
 } as const;

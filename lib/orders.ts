@@ -253,11 +253,13 @@ export type PublicOrderView = {
 };
 
 /**
- * `available`/`fulfillable` : uniquement pertinents pour une commande NON
- * PAYÉE — comparaison au stock ACTUEL (produit + options choisies) pour
- * signaler, avant tentative de paiement, qu'un article n'est plus disponible
- * (page de suivi client, polling). Une commande déjà payée a réservé son
- * stock : tout est `available: true` sans requête supplémentaire.
+ * `available`/`fulfillable` : uniquement pertinents pour une commande dont le
+ * stock n'est PAS encore réservé (`stockReservedAt === null`) — comparaison au
+ * stock ACTUEL (produit + options choisies) pour signaler, avant l'envoi en
+ * cuisine, qu'un article n'est plus disponible (page de suivi client, polling).
+ * Une commande déjà entrée en cuisine a réservé son stock : tout est
+ * `available: true` sans requête supplémentaire, même si elle n'est pas encore
+ * encaissée (ardoise) — le critère est bien `stockReservedAt` et non `isPaid`.
  */
 export async function getPublicOrder(
   id: string
@@ -269,7 +271,7 @@ export async function getPublicOrder(
 
   let itemsView: PublicOrderItemView[];
   let fulfillable: boolean;
-  if (order.isPaid) {
+  if (order.stockReservedAt) {
     itemsView = items.map((item) => ({ ...item, available: true }));
     fulfillable = true;
   } else {
