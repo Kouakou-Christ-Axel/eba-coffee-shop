@@ -13,6 +13,7 @@ import {
   useSoundPreference,
 } from '@/lib/hooks/use-orders-stream';
 import { normalizeOrderDates } from '@/lib/orders/format';
+import { matchesOrderSearch, parseOrderSearchTerm } from '@/lib/orders/search';
 import {
   minutesUntilPickup,
   pickFirstCriticalTab,
@@ -20,6 +21,8 @@ import {
 } from './urgency';
 import { useNowTick } from './use-now-tick';
 import { CaisseHeader } from './_components/caisse-header';
+import { CaisseSearch } from './_components/caisse-search';
+import { CaisseSearchResults } from './_components/caisse-search-results';
 import { AlertBanner } from './_components/alert-banner';
 import { ScheduledSection } from './_components/scheduled-section';
 import { UrgencyTabs } from './_components/urgency-tabs';
@@ -67,6 +70,7 @@ export function CaisseView({
   cashierName: string;
 }) {
   const [tab, setTab] = useState<TabKey>('to-pay');
+  const [search, setSearch] = useState('');
   const { soundEnabled, soundEnabledRef, toggleSound } =
     useSoundPreference(SOUND_STORAGE_KEY);
   const lastChimedAtRef = useRef<Map<string, number>>(new Map());
@@ -202,6 +206,19 @@ export function CaisseView({
     [queue, tab, now]
   );
 
+  // Recherche : purement client. `queue` porte déjà toute la file du jour
+  // (à encaisser + en cours + prêtes + programmées), donc le résultat est
+  // inter-onglets sans aucun aller-retour serveur.
+  const parsedSearch = useMemo(() => parseOrderSearchTerm(search), [search]);
+  const results = useMemo(
+    () =>
+      parsedSearch
+        ? queue.filter((o) => matchesOrderSearch(o, parsedSearch))
+        : [],
+    [queue, parsedSearch]
+  );
+  const searching = parsedSearch !== null;
+
   function handleBannerSeeClick() {
     const criticals: Record<TabKey, number> = {
       'to-pay': counts['to-pay'].critical,
@@ -249,30 +266,48 @@ export function CaisseView({
           </div>
         )}
 
-        {criticalTotal > 0 && (
-          <AlertBanner
-            counts={counts}
-            activeTab={tab}
-            onSeeClick={handleBannerSeeClick}
+        <CaisseSearch value={search} onChange={setSearch} />
+
+        {/* En recherche, on remplace tout le flux de travail par les résultats :
+            le staff cherche UNE commande précise (livreur au comptoir), pas un
+            aperçu de la journée. */}
+        {searching ? (
+          <CaisseSearchResults
+            orders={results}
+            urgencyIndex={urgencyIndex}
+            term={search.trim()}
+            menu={menu}
+            contactSettings={contactSettings}
+            now={now}
           />
+        ) : (
+          <>
+            {criticalTotal > 0 && (
+              <AlertBanner
+                counts={counts}
+                activeTab={tab}
+                onSeeClick={handleBannerSeeClick}
+              />
+            )}
+
+            <ScheduledSection
+              orders={scheduledOrders}
+              menu={menu}
+              contactSettings={contactSettings}
+              now={now}
+            />
+
+            <UrgencyTabs
+              tab={tab}
+              onTabChange={setTab}
+              counts={counts}
+              visibleOrders={visibleOrders}
+              menu={menu}
+              contactSettings={contactSettings}
+              now={now}
+            />
+          </>
         )}
-
-        <ScheduledSection
-          orders={scheduledOrders}
-          menu={menu}
-          contactSettings={contactSettings}
-          now={now}
-        />
-
-        <UrgencyTabs
-          tab={tab}
-          onTabChange={setTab}
-          counts={counts}
-          visibleOrders={visibleOrders}
-          menu={menu}
-          contactSettings={contactSettings}
-          now={now}
-        />
       </div>
     </UndoToastProvider>
   );

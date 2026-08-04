@@ -83,6 +83,16 @@ export const DAILY_NUMBER_MAX_RETRIES = 3;
 export const ORDERS_PAGE_SIZE = 20;
 
 /**
+ * Recherche de commande par téléphone : nombre minimum de chiffres saisis
+ * avant d'activer la comparaison « sous-chaîne de chiffres bruts ». En dessous,
+ * « 07 » matcherait quasiment tous les numéros ivoiriens et noierait le
+ * résultat utile.
+ * Source : lib/orders/search.ts (matchesOrderSearch) + lib/orders.ts
+ * (buildOrdersWhere).
+ */
+export const PHONE_SEARCH_MIN_DIGITS = 3;
+
+/**
  * Longueurs max des champs de saisie commande.
  * Source : schémas Zod existants (createOrderSchema, route caisse).
  */

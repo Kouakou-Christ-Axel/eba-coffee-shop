@@ -23,11 +23,12 @@ import { normalizeIvorianPhone } from '@/lib/phone';
 import { ROLE_GROUPS } from '@/lib/auth-helpers';
 import { sendPushToRoles } from '@/lib/push-notify';
 import { getPickupCode } from '@/lib/orders/format';
+import { parseOrderSearchTerm } from '@/lib/orders/search';
 import {
   fetchStockSnapshot,
   computeOrderItemsAvailability,
 } from '@/lib/orders/availability';
-import { ORDERS_PAGE_SIZE } from '@/config/constants';
+import { ORDERS_PAGE_SIZE, PHONE_SEARCH_MIN_DIGITS } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
 
 // ─── Schéma Zod : online (strict, customer obligatoire) ──────────────────────
@@ -400,19 +401,23 @@ export function buildOrdersWhere({
     };
   }
 
-  const term = search?.trim();
-  if (term) {
+  // Parsing mutualisé avec la recherche caisse (`lib/orders/search.ts`). Un
+  // `where` Prisma ne peut pas appeler un prédicat JS : seul le TERME PARSÉ est
+  // partagé, les clauses SQL restent propres à cette liste.
+  const parsed = search ? parseOrderSearchTerm(search) : null;
+  if (parsed) {
     const or: Prisma.OrderWhereInput[] = [
-      { reference: { contains: term, mode: 'insensitive' } },
-      { customerName: { contains: term, mode: 'insensitive' } },
-      { customerPhone: { contains: term, mode: 'insensitive' } },
+      { reference: { contains: parsed.raw, mode: 'insensitive' } },
+      { customerName: { contains: parsed.raw, mode: 'insensitive' } },
     ];
+    // Téléphone : on compare les CHIFFRES BRUTS du terme, pas le terme brut.
+    // « 07 88 12 » ne matchait rien contre un « +22507881234567 » stocké.
+    if (parsed.digits.length >= PHONE_SEARCH_MIN_DIGITS) {
+      or.push({ customerPhone: { contains: parsed.digits } });
+    }
     // Terme purement numérique → match exact du n° du jour (#003 → 3).
-    if (/^\d+$/.test(term)) {
-      const n = Number(term);
-      if (Number.isSafeInteger(n) && n > 0 && n <= 2_147_483_647) {
-        or.push({ dailyNumber: n });
-      }
+    if (parsed.dailyNumber !== null) {
+      or.push({ dailyNumber: parsed.dailyNumber });
     }
     where.OR = or;
   }

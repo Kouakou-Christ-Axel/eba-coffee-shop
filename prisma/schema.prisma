@@ -203,6 +203,22 @@ model Order {
   preparingStartedAt DateTime?
   readyAt            DateTime?
 
+  // Instant où le stock de cette commande a été RÉSERVÉ (décrémenté). Sert de
+  // verrou d'idempotence : la décrémentation n'a lieu QUE tant que ce champ est
+  // null, et il est posé dans la MÊME transaction (le verrou de ligne sérialise
+  // les appels concurrents). Verrou à sens unique : jamais remis à null, même à
+  // l'annulation. Remplace l'ancienne règle « le stock est décrémenté à
+  // l'encaissement » : plusieurs chemins mènent désormais en cuisine
+  // (encaissement, envoi manuel, ardoise), et seul ce champ dit si la
+  // réservation a déjà eu lieu.
+  stockReservedAt DateTime?
+
+  // « Ardoise » : commande envoyée en cuisine SANS encaissement (client de
+  // confiance ou dérogation caissier). Ce n'est PAS un paiement : `isPaid`
+  // reste false et le CA n'est pas impacté (cf. lib/stats.ts, qui filtre sur
+  // `isPaid`). Le règlement ultérieur suit le flux d'encaissement normal.
+  isOnAccount Boolean @default(false)
+
   driverRequested   Boolean   @default(false)
   driverRequestedAt DateTime?
 
@@ -242,6 +258,10 @@ model Order {
 
   @@unique([dailyDate, dailyNumber])
   @@index([status, isPaid])
+  // Ardoise : impayés tous jours confondus (`isPaid: false` + statut ≠
+  // CANCELLED). L'égalité porte ici sur `isPaid`, d'où l'ordre de colonnes
+  // inverse de l'index ci-dessus (qui sert les requêtes filtrées par statut).
+  @@index([isPaid, status])
   @@index([createdAt(sort: Desc)])
   @@index([customerId])
   @@map("order")
@@ -279,6 +299,14 @@ model Customer {
   // `lastStampDate` sert à la règle « 1 tampon / jour / numéro ».
   stampCount    Int       @default(0)
   lastStampDate DateTime? @db.Date
+
+  // Client de confiance : ses commandes saisies en caisse partent en cuisine
+  // sans encaissement préalable (ardoise, cf. `Order.isOnAccount`).
+  // `trustedSince` = date d'octroi du statut, `trustedNote` = motif/plafond
+  // convenu, saisi librement par le staff.
+  isTrusted    Boolean   @default(false)
+  trustedSince DateTime?
+  trustedNote  String?
 
   orders    Order[]
   rewards   LoyaltyReward[]

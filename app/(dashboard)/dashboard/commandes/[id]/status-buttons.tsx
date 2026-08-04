@@ -22,18 +22,29 @@ const ACTIONS: Record<
   ],
   READY: [{ label: 'Marquer comme récupérée', next: 'COMPLETED' }],
   COMPLETED: [],
-  CANCELLED: [],
+  // Le client revient réclamer une commande annulée faute d'attente : on la
+  // ramène « à encaisser » plutôt que de la ressaisir.
+  CANCELLED: [
+    { label: 'Remettre à encaisser', next: 'NEW', variant: 'outline' },
+  ],
 };
 
 export function StatusButtons({
   orderId,
   currentStatus,
+  isPaid,
 }: {
   orderId: string;
   currentStatus: OrderStatus;
+  isPaid: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
-  const actions = ACTIONS[currentStatus] ?? [];
+  // Une commande annulée APRÈS paiement est un remboursement : la remettre à
+  // encaisser n'a pas de sens (miroir du garde-fou serveur dans
+  // `setOrderStatus`).
+  const actions = (ACTIONS[currentStatus] ?? []).filter(
+    (a) => !(currentStatus === 'CANCELLED' && a.next === 'NEW' && isPaid)
+  );
 
   if (actions.length === 0) return null;
 

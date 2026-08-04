@@ -42,6 +42,7 @@
     "db:backfill-expense-receipts": "tsx --env-file=.env prisma/backfill-expense-receipts.ts",
     "db:backfill-expense-items": "tsx --env-file=.env prisma/backfill-expense-items.ts",
     "db:backfill-cloudinary-uploads": "tsx --env-file=.env prisma/backfill-cloudinary-uploads.ts",
+    "db:backfill-stock-reserved": "tsx --env-file=.env prisma/backfill-stock-reserved.ts",
     "db:trigger": "prisma db execute --file prisma/sql/orders-notify-trigger.sql",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",

@@ -480,7 +480,12 @@ export async function setOrderStatus(
 ): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id },
-    select: { status: true, dailyNumber: true, customerId: true },
+    select: {
+      status: true,
+      dailyNumber: true,
+      customerId: true,
+      isPaid: true,
+    },
   });
   if (!order) {
     throw new OrderMutationError('Commande introuvable', 404);
@@ -490,6 +495,18 @@ export async function setOrderStatus(
     throw new OrderMutationError(
       `Transition non autorisée : ${order.status} → ${newStatus}`,
       403
+    );
+  }
+
+  // Remettre une commande ANNULÉE « à encaisser » n'a de sens que si elle n'a
+  // jamais été encaissée : une annulation après paiement vaut remboursement,
+  // et la replacer en NEW réclamerait un second encaissement du même montant.
+  // Seule la cible NEW est bloquée : CANCELLED → READY/COMPLETED reste
+  // disponible pour défaire un remboursement déclenché par erreur.
+  if (order.status === 'CANCELLED' && newStatus === 'NEW' && order.isPaid) {
+    throw new OrderMutationError(
+      'Commande remboursée : impossible de la remettre à encaisser',
+      409
     );
   }
 
@@ -516,6 +533,14 @@ export async function setOrderStatus(
       // « en cuisine depuis X », le passage prête amorce « prête depuis X ».
       ...(newStatus === 'PREPARING' ? { preparingStartedAt: new Date() } : {}),
       ...(newStatus === 'READY' ? { readyAt: new Date() } : {}),
+      // Retour en NEW (undo d'une mise en cuisine, ou reprise d'une commande
+      // annulée) : on remet les minuteurs à zéro. Sinon la commande revient
+      // avec un « en cuisine depuis 3 h » périmé et, pire, pollue la clé de tri
+      // FIFO cuisine (`preparingStartedAt`, cf. lib/orders/queue-order.ts) dès
+      // sa prochaine entrée en cuisine.
+      ...(newStatus === 'NEW'
+        ? { preparingStartedAt: null, readyAt: null }
+        : {}),
     },
   });
 
