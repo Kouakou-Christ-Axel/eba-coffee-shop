@@ -260,11 +260,15 @@ export const MISSED_ORDER_STAMPS_MAX = 20;
 export const MISSED_ORDER_STAMPS_NOTE_MAX = 200;
 
 /**
- * Preuve sociale de la carte publique (« le plus commandé », « 128 commandés
- * ce mois-ci »). Fenêtre glissante d'agrégation des ventes, nombre de ventes
- * minimum pour afficher un compteur (en dessous, un petit chiffre dessert plus
- * qu'il ne vend), et nombre de produits recevant un badge de rang « #N ».
- * Source : `lib/menu-popularity.ts`.
+ * Preuve sociale de la carte publique (« Le plus commandé », « #2 des ventes »).
+ * Fenêtre glissante d'agrégation des ventes, et nombre de ventes minimum pour
+ * qu'un produit reçoive un rang (en dessous, un « #1 » ment au client).
+ *
+ * `POPULARITY_RANKED_COUNT` ne borne QUE l'affichage du badge
+ * (`productBadgeLabel`) : le rang lui-même est posé sur tous les produits qui
+ * passent le seuil, car il sert aussi à ordonner la vitrine. Les borner
+ * ensemble faisait disparaître la vitrine dès qu'un des trois premiers était
+ * indisponible. Source : `lib/menu-popularity.ts`.
  */
 export const POPULARITY_WINDOW_DAYS = 30;
 export const POPULARITY_MIN_ORDERS = 5;

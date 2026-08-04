@@ -10,6 +10,7 @@ vi.mock('@/lib/prisma', () => ({
 import type { MenuCategory, Product } from '@/config/menu';
 import {
   attachPopularity,
+  computePopularity,
   type ProductPopularity,
 } from '@/lib/menu-popularity';
 import {
@@ -60,7 +61,10 @@ describe('attachPopularity', () => {
     expect(result[0].products[0].popularRank).toBeUndefined();
   });
 
-  it('ne marque que les premiers du classement', () => {
+  it('marque aussi les produits au-delà du plafond du badge', () => {
+    // Le rang sert à ORDONNER la vitrine autant qu'à badger : le borner ici
+    // faisait disparaître la vitrine dès qu'un des trois premiers produits
+    // était indisponible. Le plafond d'affichage vit dans `productBadgeLabel`.
     const result = attachPopularity(
       menu,
       popularity([
@@ -82,7 +86,7 @@ describe('attachPopularity', () => {
     );
 
     expect(result[0].products[0].popularRank).toBe(POPULARITY_RANKED_COUNT);
-    expect(result[0].products[1].popularRank).toBeUndefined();
+    expect(result[0].products[1].popularRank).toBe(POPULARITY_RANKED_COUNT + 1);
   });
 
   it('ne publie jamais le volume de ventes', () => {
@@ -108,5 +112,52 @@ describe('attachPopularity', () => {
     expect(result).toHaveLength(2);
     expect(result[0].products).toHaveLength(3);
     expect(result[1].products[0].popularRank).toBe(1);
+  });
+});
+
+describe('computePopularity', () => {
+  function saleLine(productId: string, quantity: number) {
+    return { productId, quantity } as never;
+  }
+
+  it('classe par quantité vendue décroissante', () => {
+    const ranks = computePopularity([
+      saleLine('petit', 5),
+      saleLine('gros', 50),
+      saleLine('moyen', 20),
+    ]);
+
+    expect(ranks.get('gros')?.rank).toBe(1);
+    expect(ranks.get('moyen')?.rank).toBe(2);
+    expect(ranks.get('petit')?.rank).toBe(3);
+  });
+
+  it('cumule les lignes d’un même produit', () => {
+    const ranks = computePopularity([saleLine('a', 3), saleLine('a', 4)]);
+
+    expect(ranks.get('a')?.orderCount).toBe(7);
+  });
+
+  it('n’attribue pas de rang à un produit absent de la carte', () => {
+    // Le défaut d'origine : un best-seller désactivé consommait un rang, et le
+    // produit visible juste derrière n'en recevait aucun. Constaté en
+    // production — le rang 2 tombait sur un produit retiré de la carte.
+    const ranks = computePopularity(
+      [saleLine('desactive', 100), saleLine('visible', 10)],
+      new Set(['visible'])
+    );
+
+    expect(ranks.has('desactive')).toBe(false);
+    expect(ranks.get('visible')?.rank).toBe(1);
+  });
+
+  it('classe sur tout l’historique quand aucune restriction n’est donnée', () => {
+    const ranks = computePopularity([
+      saleLine('desactive', 100),
+      saleLine('visible', 10),
+    ]);
+
+    expect(ranks.get('desactive')?.rank).toBe(1);
+    expect(ranks.get('visible')?.rank).toBe(2);
   });
 });

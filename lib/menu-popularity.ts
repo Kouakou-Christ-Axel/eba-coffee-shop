@@ -23,7 +23,6 @@ import {
 } from '@/lib/portion-combos';
 import {
   POPULARITY_MIN_ORDERS,
-  POPULARITY_RANKED_COUNT,
   POPULARITY_WINDOW_DAYS,
 } from '@/config/constants';
 
@@ -66,12 +65,22 @@ export async function fetchRecentOrderItems(): Promise<CartItemInput[]> {
   );
 }
 
-/** Classement des ventes à partir de lignes déjà chargées. */
+/**
+ * Classement des ventes à partir de lignes déjà chargées.
+ *
+ * `eligibleIds` restreint le classement aux produits ENCORE proposés. Sans lui,
+ * les rangs sont attribués sur tout l'historique : un best-seller depuis
+ * désactivé consomme un rang et le prive d'un produit visible. Constaté en
+ * production — 4 des 10 meilleures ventes étaient désactivées, et le rang 2
+ * tombait sur un produit absent de la carte.
+ */
 export function computePopularity(
-  items: CartItemInput[]
+  items: CartItemInput[],
+  eligibleIds?: Set<string>
 ): Map<string, ProductPopularity> {
   const sold = new Map<string, number>();
   for (const item of items) {
+    if (eligibleIds && !eligibleIds.has(item.productId)) continue;
     sold.set(item.productId, (sold.get(item.productId) ?? 0) + item.quantity);
   }
 
@@ -85,12 +94,19 @@ export function computePopularity(
 }
 
 /**
- * Fusionne le rang de vente dans un menu public. Deux garde-fous pour que le
- * badge « #N » garde sa valeur de raccourci de décision :
- *   - en dessous de `POPULARITY_MIN_ORDERS` ventes, aucun rang n'est posé — un
- *     « #1 le plus commandé » adossé à 3 ventes ment au client ;
- *   - seuls les `POPULARITY_RANKED_COUNT` premiers sont marqués (un « #14 » ne
- *     vend rien).
+ * Fusionne le rang de vente dans un menu public. Un seul garde-fou ici : en
+ * dessous de `POPULARITY_MIN_ORDERS` ventes aucun rang n'est posé — un
+ * « #1 le plus commandé » adossé à 3 ventes ment au client.
+ *
+ * Le rang est posé sur TOUS les produits qui passent ce seuil, pas seulement
+ * sur les premiers : c'est un ordre de tri autant qu'un label. Le plafond
+ * d'affichage du badge (`POPULARITY_RANKED_COUNT`) est appliqué plus tard, à la
+ * présentation (`productBadgeLabel`) — un « #14 » ne vend rien en badge, mais
+ * il reste une information utile pour classer la vitrine.
+ *
+ * Séparer les deux évite le défaut d'origine : la vitrine ne se remplissait que
+ * des produits BADGÉS, donc au plus trois, et elle disparaissait dès qu'un seul
+ * d'entre eux était indisponible.
  *
  * La quantité vendue n'est jamais recopiée sur le produit : voir l'en-tête.
  */
@@ -103,10 +119,16 @@ export function attachPopularity(
     products: category.products.map((product) => {
       const stats = popularity.get(product.id);
       if (!stats || stats.orderCount < POPULARITY_MIN_ORDERS) return product;
-      if (stats.rank > POPULARITY_RANKED_COUNT) return product;
       return { ...product, popularRank: stats.rank };
     }),
   }));
+}
+
+/** Identifiants des produits présents dans un menu public. */
+function menuProductIds(menu: MenuCategory[]): Set<string> {
+  return new Set(
+    menu.flatMap((category) => category.products.map((p) => p.id))
+  );
 }
 
 /**
@@ -122,8 +144,11 @@ export async function getMenuWithPopularity(
 ): Promise<MenuCategory[]> {
   try {
     const items = await fetchRecentOrderItems();
+    // Classement restreint aux produits de la carte : un best-seller désactivé
+    // ne doit pas consommer un rang au détriment d'un produit commandable.
+    const popularity = computePopularity(items, menuProductIds(menu));
     return attachPortionCombos(
-      attachPopularity(menu, computePopularity(items)),
+      attachPopularity(menu, popularity),
       aggregatePortionCombos(menu, items)
     );
   } catch (err) {
