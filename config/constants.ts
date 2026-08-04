@@ -279,3 +279,15 @@ export const POPULARITY_RANKED_COUNT = 3;
 export const SHOWCASE_MAX_PRODUCTS = 8;
 export const SHOWCASE_MIN_PRODUCTS = 3;
 export const UPSELL_MAX_PRODUCTS = 6;
+
+/**
+ * Répartitions de parts les plus choisies (« Oreo ×2 · Coco ×1 — 34 fois »),
+ * proposées en un appui dans le composeur de boîtes. Agrégées sur la même
+ * fenêtre que la preuve sociale (`POPULARITY_WINDOW_DAYS`).
+ *
+ * `MIN_ORDERS` : en dessous, une « combinaison populaire » n'en est pas une et
+ * afficher son compteur dessert la suggestion. `MAX` borne l'encombrement de la
+ * bande de raccourcis. Source : `lib/portion-combos.ts`.
+ */
+export const PORTION_COMBO_MIN_ORDERS = 3;
+export const PORTION_COMBO_MAX = 3;

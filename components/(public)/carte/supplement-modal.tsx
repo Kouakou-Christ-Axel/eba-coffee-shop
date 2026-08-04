@@ -370,6 +370,7 @@ function SupplementModal({
           key={group.name}
           group={group}
           selections={selections}
+          combos={product.portionCombos}
           onCountsChange={(next) =>
             setSelections((prev) => ({ ...prev, [group.name]: next }))
           }
