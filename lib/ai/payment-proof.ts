@@ -307,15 +307,20 @@ const REVIEW_VERDICT_LABEL: Record<PaymentProofVerdict, string> = {
  * Alerte le staff caisse qu'une preuve de paiement a été analysée SANS
  * déclencher d'encaissement automatique — l'IA « lève la main » pour un
  * arbitrage humain. Fire-and-forget, comme le reste de lib/push-notify.ts.
+ *
+ * Corps COURT et structuré, à l'image des autres pushes du repo
+ * (`notifyKitchen`, « Nouvelle commande en ligne ») — le raisonnement libre
+ * de l'IA n'y figure JAMAIS : il reste consultable d'un clic dans la carte
+ * caisse (popover sur le badge de verdict, cf. order-card.tsx), pas poussé
+ * en notification.
  */
 function notifyPaymentReviewNeeded(
   order: { id: string; dailyNumber: number },
-  verdict: PaymentProofVerdict,
-  reason: string
+  verdict: PaymentProofVerdict
 ): void {
   sendPushToRoles(ROLE_GROUPS.CASHIER_PLUS, {
-    title: `Preuve de paiement à vérifier · #${String(order.dailyNumber).padStart(3, '0')}`,
-    body: `${REVIEW_VERDICT_LABEL[verdict]} — ${reason}`,
+    title: 'Preuve de paiement à vérifier',
+    body: `#${String(order.dailyNumber).padStart(3, '0')} · ${REVIEW_VERDICT_LABEL[verdict]}`,
     url: '/dashboard/caisse',
     tag: `payment-proof-review-${order.id}`,
   }).catch((err) => {
@@ -404,11 +409,17 @@ export async function analyzePaymentProof(orderId: string): Promise<void> {
           autoValidation: { applied: false, reason },
         },
       });
-      notifyPaymentReviewNeeded(order, 'PENDING', reason);
+      notifyPaymentReviewNeeded(order, 'PENDING');
       return;
     }
 
-    const amountMatches = analysis.amount === order.total;
+    // Le surpaiement est accepté (arrondi, erreur en faveur du commerce) —
+    // seul un montant STRICTEMENT inférieur au total (ou illisible) reste un
+    // signal de sous-paiement. `overpaid` est tracé séparément pour
+    // l'affichage caisse (« payé en trop »).
+    const amountMatches =
+      analysis.amount !== null && analysis.amount >= order.total;
+    const overpaid = analysis.amount !== null && analysis.amount > order.total;
     const dateConsistent = isDateConsistent(
       analysis.transactionDate,
       order.createdAt
@@ -445,6 +456,7 @@ export async function analyzePaymentProof(orderId: string): Promise<void> {
         model,
         expectedTotal: order.total,
         amountMatches,
+        overpaid,
         dateConsistent,
         autoValidation,
       },
@@ -453,11 +465,7 @@ export async function analyzePaymentProof(orderId: string): Promise<void> {
     // L'IA « lève la main » : verdict analysé mais aucun encaissement posé —
     // la caisse doit trancher (badge visible + notification push).
     if (!autoValidation.applied) {
-      notifyPaymentReviewNeeded(
-        order,
-        verdict,
-        autoValidation.reason ?? analysis.reasoning
-      );
+      notifyPaymentReviewNeeded(order, verdict);
     }
   } catch (err) {
     // Défense en profondeur : cette fonction tourne en arrière-plan

@@ -4,6 +4,7 @@ import type {
   OrderStatus,
   OrderType,
   PaymentMode,
+  PaymentProofVerdict,
 } from '@/generated/prisma/client';
 import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
@@ -240,6 +241,14 @@ export type PublicOrderView = {
   orderType: OrderType;
   isPaid: boolean;
   paymentProofUrl: string | null;
+  /** Verdict de la dernière pré-analyse IA de `paymentProofUrl`
+   * (lib/ai/payment-proof.ts). `MISMATCH`/`UNREADABLE` signalent au client
+   * que sa capture a été refusée et qu'il doit en renvoyer une autre ;
+   * `PENDING` (analyse indisponible) n'EST PAS un rejet — la caisse tranche
+   * manuellement, l'expérience client reste « en cours de validation ». Le
+   * rapport détaillé (raisonnement libre de l'IA) reste volontairement
+   * interne (backoffice caisse, cf. order-card.tsx) — jamais exposé ici. */
+  paymentProofVerdict: PaymentProofVerdict | null;
   customerName: string | null;
   pickupTime: string | null;
   items: PublicOrderItemView[];
@@ -306,6 +315,7 @@ export async function getPublicOrder(
     orderType: order.orderType,
     isPaid: order.isPaid,
     paymentProofUrl: order.paymentProofUrl,
+    paymentProofVerdict: order.paymentProofVerdict,
     customerName: order.customerName,
     pickupTime: order.pickupTime?.toISOString() ?? null,
     items: itemsView,

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { differenceInMinutes } from 'date-fns';
+import { Popover, PopoverTrigger, PopoverContent } from '@heroui/react';
 import {
   Bike,
   Coffee,
@@ -385,46 +386,18 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
           </a>
         )}
 
-      {/* Verdict de la pré-analyse IA de la preuve. Reste affiché après un
-          encaissement automatique (contexte pour la décision d'annuler ou
-          non), disparaît une fois la commande validée manuellement. */}
+      {/* Verdict de la pré-analyse IA de la preuve — cliquer pour le détail
+          complet (raisonnement IA). Reste affiché après un encaissement
+          automatique (contexte pour la décision d'annuler ou non),
+          disparaît une fois la commande validée manuellement. */}
       {order.paymentProofUrl &&
         (!order.isPaid || order.paymentAutoValidatedByAi) &&
         order.paymentProofVerdict && (
-          <div
-            className={cn(
-              'mt-2 flex items-start gap-2 rounded-lg px-3 py-2 text-xs font-medium ring-1',
-              VERDICT_META[order.paymentProofVerdict].className
-            )}
-            title={paymentProofAnalysisSummary(order.paymentProofAnalysis)}
-          >
-            <div className="flex min-w-0 flex-col gap-0.5">
-              {(() => {
-                const { Icon, label } = VERDICT_META[order.paymentProofVerdict];
-                return (
-                  <span className="flex items-center gap-2">
-                    <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    <span>{label}</span>
-                  </span>
-                );
-              })()}
-              {/* Conforme selon l'IA mais PAS encaissée automatiquement : le
-                  caissier doit comprendre pourquoi avant de valider lui-même
-                  (confiance insuffisante, encaissement auto échoué...). */}
-              {!order.isPaid &&
-                order.paymentProofVerdict === 'MATCH' &&
-                (() => {
-                  const reason = autoValidationReason(
-                    order.paymentProofAnalysis
-                  );
-                  return reason ? (
-                    <span className="pl-6 text-[11px] font-normal opacity-90">
-                      {reason}
-                    </span>
-                  ) : null;
-                })()}
-            </div>
-          </div>
+          <PaymentProofVerdictBadge
+            verdict={order.paymentProofVerdict}
+            analysis={order.paymentProofAnalysis}
+            isPaid={order.isPaid}
+          />
         )}
 
       {/* Note client */}
@@ -518,6 +491,119 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
       {/* Slot actions */}
       {actions && <div className="mt-3">{actions}</div>}
     </article>
+  );
+}
+
+/**
+ * Badge de verdict IA de la preuve de paiement — CLIQUABLE (Popover HeroUI,
+ * même motif que `restock-control.tsx`/`line-discount-control.tsx`) plutôt
+ * qu'un simple tooltip au survol, pour rester utilisable sur écran tactile
+ * (tablette caisse). Le `title` de secours reste posé pour le clavier/lecteur
+ * d'écran.
+ */
+function PaymentProofVerdictBadge({
+  verdict,
+  analysis,
+  isPaid,
+}: {
+  verdict: NonNullable<CashierOrder['paymentProofVerdict']>;
+  analysis: unknown;
+  isPaid: boolean;
+}) {
+  const { Icon, label, className } = VERDICT_META[verdict];
+  const summary = paymentProofAnalysisSummary(analysis);
+  // Conforme selon l'IA mais PAS encaissée automatiquement : le caissier
+  // doit comprendre pourquoi avant de valider lui-même (confiance
+  // insuffisante, encaissement auto échoué...) — affiché en clair, sans
+  // attendre le clic.
+  const autoReason =
+    !isPaid && verdict === 'MATCH' ? autoValidationReason(analysis) : undefined;
+
+  return (
+    <Popover placement="bottom-start" showArrow>
+      <PopoverTrigger>
+        <button
+          type="button"
+          title={summary}
+          className={cn(
+            'mt-2 flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium ring-1 transition-opacity hover:opacity-90',
+            className
+          )}
+        >
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="flex items-center gap-2">
+              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>{label}</span>
+            </span>
+            {autoReason && (
+              <span className="pl-6 text-[11px] font-normal opacity-90">
+                {autoReason}
+              </span>
+            )}
+          </div>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80">
+        <PaymentProofAnalysisDetail analysis={analysis} />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** Détail structuré de l'analyse IA, affiché dans le popover au clic. */
+function PaymentProofAnalysisDetail({ analysis }: { analysis: unknown }) {
+  if (!analysis || typeof analysis !== 'object') {
+    return <p className="p-2 text-xs text-muted-foreground">Aucun détail.</p>;
+  }
+  const a = analysis as Record<string, unknown>;
+  if (typeof a.error === 'string') {
+    return <p className="p-2 text-xs text-muted-foreground">{a.error}</p>;
+  }
+
+  const autoReason = autoValidationReason(analysis);
+
+  return (
+    <div className="w-full space-y-2 p-2 text-xs">
+      <p className="font-semibold">Analyse IA de la preuve</p>
+      {typeof a.reasoning === 'string' && a.reasoning && (
+        <p className="text-foreground/80">{a.reasoning}</p>
+      )}
+      {a.tamperingSuspected === true && (
+        <p className="text-amber-700 dark:text-amber-400">
+          ⚠ Retouche suspectée
+          {typeof a.tamperingReasons === 'string' && a.tamperingReasons
+            ? ` — ${a.tamperingReasons}`
+            : ''}
+        </p>
+      )}
+      {a.dateConsistent === false && (
+        <p className="text-amber-700 dark:text-amber-400">
+          ⚠ Capture antérieure à la commande (paiement recyclé ?)
+        </p>
+      )}
+      {typeof a.amount === 'number' && (
+        <p>
+          Montant détecté : {priceFormatter.format(a.amount)} F
+          {typeof a.expectedTotal === 'number' &&
+            ` (attendu ${priceFormatter.format(a.expectedTotal)} F)`}
+          {a.overpaid === true && ' — payé en trop'}
+        </p>
+      )}
+      {typeof a.recipientName === 'string' && a.recipientName && (
+        <p>Bénéficiaire : {a.recipientName}</p>
+      )}
+      {typeof a.reference === 'string' && a.reference && (
+        <p>Référence : {a.reference}</p>
+      )}
+      {typeof a.confidence === 'number' && (
+        <p className="text-foreground/60">
+          Confiance : {Math.round(a.confidence * 100)}%
+        </p>
+      )}
+      {autoReason && (
+        <p className="border-t pt-2 text-foreground/80">ℹ {autoReason}</p>
+      )}
+    </div>
   );
 }
 
