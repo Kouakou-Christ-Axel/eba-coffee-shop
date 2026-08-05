@@ -1710,12 +1710,14 @@ export async function setOrderPaymentProof(
 
 /**
  * Persiste le verdict de la pré-analyse IA d'une preuve de paiement
- * (lib/ai/payment-proof.ts, appelée en arrière-plan après l'upload). Un
- * signal affiché en caisse, JAMAIS un encaissement : ne touche ni `isPaid`
- * ni `paymentMode`. Re-vérifie `assertOrderAcceptsPaymentProof` avant
- * d'écrire pour ignorer silencieusement un résultat devenu obsolète (le
- * caissier a déjà validé le paiement, ou la commande a été annulée, pendant
- * l'appel IA) plutôt que de faire échouer la tâche d'arrière-plan.
+ * (lib/ai/payment-proof.ts, appelée en arrière-plan après l'upload) : ne
+ * touche jamais `isPaid`/`paymentMode` elle-même. Contrairement à
+ * `setOrderPaymentProof`, N'EXIGE PAS que la commande soit encore non payée
+ * — l'appelant peut avoir entre-temps posé un encaissement AUTOMATIQUE sur
+ * la base de CE MÊME verdict (cf. `analyzePaymentProof`), et cette analyse
+ * reste une information utile à conserver (raisonnement, indices de
+ * retouche...) même une fois la commande payée. Ignore silencieusement une
+ * commande introuvable ou annulée (résultat devenu sans objet).
  */
 export async function setOrderPaymentProofVerdict(
   id: string,
@@ -1724,12 +1726,11 @@ export async function setOrderPaymentProofVerdict(
     analysis: Prisma.InputJsonValue;
   }
 ): Promise<void> {
-  try {
-    await assertOrderAcceptsPaymentProof(id);
-  } catch (err) {
-    if (err instanceof OrderMutationError) return;
-    throw err;
-  }
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+  if (!order || order.status === 'CANCELLED') return;
 
   await prisma.order.update({
     where: { id },

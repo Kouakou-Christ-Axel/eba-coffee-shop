@@ -133,16 +133,29 @@ const VERDICT_META: Record<
 };
 
 // `paymentProofAnalysis` est un JSON libre (lib/ai/payment-proof.ts) — lu ici
-// en `unknown` défensif, uniquement pour un tooltip informatif. Les signaux
-// les plus graves (retouche suspectée, capture antérieure à la commande)
-// sont mis en avant en premier — le caissier voit l'essentiel sans ouvrir
-// le détail.
+// en `unknown` défensif. `autoValidation.reason` explique POURQUOI un
+// encaissement automatique n'a pas été posé (confiance insuffisante, échec
+// technique) — non null uniquement quand `applied` est faux.
+function autoValidationReason(analysis: unknown): string | undefined {
+  if (!analysis || typeof analysis !== 'object') return undefined;
+  const av = (analysis as Record<string, unknown>).autoValidation;
+  if (!av || typeof av !== 'object') return undefined;
+  const reason = (av as Record<string, unknown>).reason;
+  return typeof reason === 'string' ? reason : undefined;
+}
+
+// Tooltip informatif du badge de verdict. Les signaux les plus graves
+// (retouche suspectée, capture antérieure à la commande, raison de la
+// non-validation automatique) sont mis en avant en premier — le caissier
+// voit l'essentiel sans ouvrir le détail.
 function paymentProofAnalysisSummary(analysis: unknown): string | undefined {
   if (!analysis || typeof analysis !== 'object') return undefined;
   const a = analysis as Record<string, unknown>;
   if (typeof a.error === 'string') return a.error;
 
   const parts: string[] = [];
+  const autoReason = autoValidationReason(analysis);
+  if (autoReason) parts.push(`ℹ ${autoReason}`);
   if (a.tamperingSuspected === true) {
     parts.push(
       `⚠ Retouche suspectée${typeof a.tamperingReasons === 'string' && a.tamperingReasons ? ` : ${a.tamperingReasons}` : ''}`
@@ -380,20 +393,37 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
         order.paymentProofVerdict && (
           <div
             className={cn(
-              'mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ring-1',
+              'mt-2 flex items-start gap-2 rounded-lg px-3 py-2 text-xs font-medium ring-1',
               VERDICT_META[order.paymentProofVerdict].className
             )}
             title={paymentProofAnalysisSummary(order.paymentProofAnalysis)}
           >
-            {(() => {
-              const { Icon, label } = VERDICT_META[order.paymentProofVerdict];
-              return (
-                <>
-                  <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span>{label}</span>
-                </>
-              );
-            })()}
+            <div className="flex min-w-0 flex-col gap-0.5">
+              {(() => {
+                const { Icon, label } = VERDICT_META[order.paymentProofVerdict];
+                return (
+                  <span className="flex items-center gap-2">
+                    <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span>{label}</span>
+                  </span>
+                );
+              })()}
+              {/* Conforme selon l'IA mais PAS encaissée automatiquement : le
+                  caissier doit comprendre pourquoi avant de valider lui-même
+                  (confiance insuffisante, encaissement auto échoué...). */}
+              {!order.isPaid &&
+                order.paymentProofVerdict === 'MATCH' &&
+                (() => {
+                  const reason = autoValidationReason(
+                    order.paymentProofAnalysis
+                  );
+                  return reason ? (
+                    <span className="pl-6 text-[11px] font-normal opacity-90">
+                      {reason}
+                    </span>
+                  ) : null;
+                })()}
+            </div>
           </div>
         )}
 

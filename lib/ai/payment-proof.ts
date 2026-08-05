@@ -26,6 +26,14 @@
 // dédié pour ANNULER cet encaissement en un clic si le verdict était erroné
 // (cf. order-card-actions.tsx). MISMATCH/UNREADABLE/PENDING ne déclenchent
 // jamais de paiement : ce sont de purs signaux affichés en caisse.
+//
+// Chaque fois que l'encaissement automatique n'a PAS été appliqué (verdict
+// non-MATCH, confiance insuffisante, ou tentative d'encaissement échouée),
+// le POURQUOI est enregistré dans `paymentProofAnalysis.autoValidation`
+// (affiché en caisse, cf. order-card.tsx) ET une notification push est
+// envoyée au staff caisse (`ROLE_GROUPS.CASHIER_PLUS`) — l'IA « lève la
+// main » explicitement quand elle a besoin d'un arbitrage humain, plutôt
+// que de laisser un badge silencieux passer inaperçu.
 
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
@@ -38,9 +46,15 @@ import { getContactSettings } from '@/lib/contact-settings-db';
 import {
   setOrderPaymentProofVerdict,
   setOrderPayment,
+  OrderMutationError,
 } from '@/lib/order-mutations';
 import { callOpenRouterVision } from '@/lib/ai/openrouter';
-import type { PaymentMode } from '@/generated/prisma/client';
+import { sendPushToRoles } from '@/lib/push-notify';
+import { ROLE_GROUPS } from '@/lib/auth-helpers';
+import type {
+  PaymentMode,
+  PaymentProofVerdict,
+} from '@/generated/prisma/client';
 
 const analysisSchema = z.object({
   readable: z.boolean(),
@@ -214,6 +228,105 @@ function operatorToPaymentMode(operator: Analysis['operator']): PaymentMode {
     : 'OTHER';
 }
 
+/** Résultat de la tentative d'encaissement automatique — `reason` explique
+ * TOUJOURS le pourquoi d'un `applied: false`, affiché en caisse et repris
+ * dans la notification push. `null` uniquement quand `applied` est vrai. */
+type AutoValidationResult = { applied: boolean; reason: string | null };
+
+const NO_AUTO_VALIDATION: AutoValidationResult = {
+  applied: false,
+  reason: null,
+};
+
+/**
+ * Tente l'encaissement automatique pour un verdict MATCH. Revérifie ICI la
+ * confiance (et non seulement plus haut, pour décider du repli de modèle) :
+ * un MATCH obtenu par le modèle de repli avec une confiance elle-même sous
+ * le seuil ne doit pas déclencher de paiement silencieux.
+ */
+async function attemptAutoValidation(
+  orderId: string,
+  order: { total: number },
+  analysis: Analysis,
+  verdict: PaymentProofVerdict
+): Promise<AutoValidationResult> {
+  if (verdict !== 'MATCH') return NO_AUTO_VALIDATION;
+
+  if (analysis.confidence < PAYMENT_PROOF_AI_CONFIDENCE_THRESHOLD) {
+    const confidencePct = Math.round(analysis.confidence * 100);
+    const thresholdPct = Math.round(
+      PAYMENT_PROOF_AI_CONFIDENCE_THRESHOLD * 100
+    );
+    return {
+      applied: false,
+      reason: `Conforme, mais confiance insuffisante pour un encaissement automatique (${confidencePct}% < seuil ${thresholdPct}%)`,
+    };
+  }
+
+  try {
+    await setOrderPayment(
+      orderId,
+      true,
+      [
+        {
+          mode: operatorToPaymentMode(analysis.operator),
+          amount: order.total,
+        },
+      ],
+      null,
+      { autoValidatedByAi: true }
+    );
+    return { applied: true, reason: null };
+  } catch (err) {
+    // Best-effort : le badge MATCH reste affiché, la commande reste non
+    // payée, la caisse garde la main via le bouton de validation manuel
+    // existant (ex. stock épuisé entre-temps, commande déjà encaissée par un
+    // caissier en parallèle, commande annulée).
+    const message =
+      err instanceof OrderMutationError ? err.message : 'erreur inattendue';
+    console.error(
+      '[analyzePaymentProof] encaissement automatique échoué',
+      orderId,
+      err
+    );
+    return {
+      applied: false,
+      reason: `Conforme, mais l'encaissement automatique a échoué (${message})`,
+    };
+  }
+}
+
+const REVIEW_VERDICT_LABEL: Record<PaymentProofVerdict, string> = {
+  MATCH: 'Conforme',
+  MISMATCH: 'Incohérence détectée',
+  UNREADABLE: 'Capture illisible',
+  PENDING: 'Analyse indisponible',
+};
+
+/**
+ * Alerte le staff caisse qu'une preuve de paiement a été analysée SANS
+ * déclencher d'encaissement automatique — l'IA « lève la main » pour un
+ * arbitrage humain. Fire-and-forget, comme le reste de lib/push-notify.ts.
+ */
+function notifyPaymentReviewNeeded(
+  order: { id: string; dailyNumber: number },
+  verdict: PaymentProofVerdict,
+  reason: string
+): void {
+  sendPushToRoles(ROLE_GROUPS.CASHIER_PLUS, {
+    title: `Preuve de paiement à vérifier · #${String(order.dailyNumber).padStart(3, '0')}`,
+    body: `${REVIEW_VERDICT_LABEL[verdict]} — ${reason}`,
+    url: '/dashboard/caisse',
+    tag: `payment-proof-review-${order.id}`,
+  }).catch((err) => {
+    console.error(
+      '[analyzePaymentProof] notification push échouée',
+      order.id,
+      err
+    );
+  });
+}
+
 async function runAnalysis(
   model: string,
   imageUrl: string,
@@ -241,11 +354,13 @@ export async function analyzePaymentProof(orderId: string): Promise<void> {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
       select: {
+        id: true,
         total: true,
         createdAt: true,
         paymentProofUrl: true,
         isPaid: true,
         status: true,
+        dailyNumber: true,
       },
     });
     if (!order || !order.paymentProofUrl) return;
@@ -281,10 +396,15 @@ export async function analyzePaymentProof(orderId: string): Promise<void> {
     }
 
     if (!analysis) {
+      const reason = 'Analyse IA indisponible (échec des deux modèles)';
       await setOrderPaymentProofVerdict(orderId, {
         verdict: 'PENDING',
-        analysis: { error: 'Analyse IA indisponible (échec des deux modèles)' },
+        analysis: {
+          error: reason,
+          autoValidation: { applied: false, reason },
+        },
       });
+      notifyPaymentReviewNeeded(order, 'PENDING', reason);
       return;
     }
 
@@ -308,10 +428,16 @@ export async function analyzePaymentProof(orderId: string): Promise<void> {
         ? 'MISMATCH'
         : 'MATCH';
 
-    // Écrit le verdict/l'analyse PENDANT que la commande est encore non
-    // payée (assertOrderAcceptsPaymentProof, appelé par
-    // setOrderPaymentProofVerdict, refuse d'écrire sur une commande déjà
-    // encaissée) — avant la tentative d'encaissement automatique ci-dessous.
+    // Tentative d'encaissement automatique AVANT l'écriture du verdict — le
+    // résultat (`autoValidation`, avec sa raison si non appliqué) fait
+    // partie de l'analyse persistée en un seul écrit.
+    const autoValidation = await attemptAutoValidation(
+      orderId,
+      order,
+      analysis,
+      verdict
+    );
+
     await setOrderPaymentProofVerdict(orderId, {
       verdict,
       analysis: {
@@ -320,43 +446,18 @@ export async function analyzePaymentProof(orderId: string): Promise<void> {
         expectedTotal: order.total,
         amountMatches,
         dateConsistent,
+        autoValidation,
       },
     });
 
-    // Encaissement automatique : verdict MATCH ET confiance suffisante. La
-    // confiance est revérifiée ICI (et non seulement pour décider du repli
-    // de modèle plus haut) — un MATCH obtenu par le modèle de repli avec une
-    // confiance elle-même sous le seuil ne doit pas déclencher de paiement
-    // silencieux, seulement afficher le badge et laisser la caisse valider
-    // manuellement (bouton « Valider le paiement » déjà existant).
-    if (
-      verdict === 'MATCH' &&
-      analysis.confidence >= PAYMENT_PROOF_AI_CONFIDENCE_THRESHOLD
-    ) {
-      try {
-        await setOrderPayment(
-          orderId,
-          true,
-          [
-            {
-              mode: operatorToPaymentMode(analysis.operator),
-              amount: order.total,
-            },
-          ],
-          null,
-          { autoValidatedByAi: true }
-        );
-      } catch (err) {
-        // Best-effort : le badge MATCH reste affiché, la commande reste non
-        // payée, la caisse garde la main via le bouton de validation manuel
-        // existant (ex. stock épuisé entre-temps, commande déjà encaissée
-        // par un caissier en parallèle, commande annulée).
-        console.error(
-          '[analyzePaymentProof] encaissement automatique échoué',
-          orderId,
-          err
-        );
-      }
+    // L'IA « lève la main » : verdict analysé mais aucun encaissement posé —
+    // la caisse doit trancher (badge visible + notification push).
+    if (!autoValidation.applied) {
+      notifyPaymentReviewNeeded(
+        order,
+        verdict,
+        autoValidation.reason ?? analysis.reasoning
+      );
     }
   } catch (err) {
     // Défense en profondeur : cette fonction tourne en arrière-plan

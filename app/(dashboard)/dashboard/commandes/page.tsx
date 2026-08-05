@@ -277,8 +277,16 @@ export default async function CommandesPage({
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     {order.isPaid ? (
-                      <Badge variant="default" className="bg-green-600">
+                      <Badge
+                        variant="default"
+                        className="inline-flex items-center gap-1 bg-green-600"
+                      >
                         {order.paymentMode ?? 'Fractionné'}
+                        {order.paymentAutoValidatedByAi && (
+                          <span title="Encaissement automatique (IA)">
+                            <Bot className="h-3 w-3" aria-hidden="true" />
+                          </span>
+                        )}
                       </Badge>
                     ) : order.status !== 'CANCELLED' ? (
                       <Badge variant="secondary">À encaisser</Badge>
