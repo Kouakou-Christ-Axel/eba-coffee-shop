@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import type { PublicOrderLoyaltyView, PublicOrderView } from '@/lib/orders';
 import { OrderNotifications } from '@/components/(public)/commande/order-notifications';
+import { OrderNotificationsModal } from '@/components/(public)/commande/order-notifications-modal';
 import { PaymentSection } from '@/components/(public)/commande/payment-section';
 import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
 import { getItemGross } from '@/lib/orders/totals';
@@ -159,6 +160,11 @@ export function OrderTracking({
 
       {/* ── Notifications push (statuts en direct) ── */}
       <OrderNotifications orderId={order.id} isFinal={isFinal} />
+      <OrderNotificationsModal
+        orderId={order.id}
+        isFinal={isFinal}
+        pickupCode={pickupCode}
+      />
 
       {/* ── Alerte stock (uniquement avant paiement) ── */}
       {!isCancelled && hasUnavailableItem && (
