@@ -148,10 +148,7 @@ export function canSubmitSelections(
 /** Convertit l'état de sélection en suppléments prêts pour le panier. */
 export function getSelectedSupplements(
   product: Product,
-  selections: Selections,
-  /** Enregistrer aussi les choix 'single' gratuits (prix 0) — la caisse les
-   * garde visibles en cuisine, le site public les omet historiquement. */
-  includeFreeSingleChoice = true
+  selections: Selections
 ): CartItemSupplement[] {
   const result: CartItemSupplement[] = [];
   (product.supplements ?? []).forEach((group) => {
@@ -159,7 +156,7 @@ export function getSelectedSupplements(
     if (group.type === 'single') {
       if (typeof sel === 'string' && sel && !isOptionSoldOut(group, sel)) {
         const opt = group.options.find((o) => o.name === sel);
-        if (opt && (includeFreeSingleChoice || opt.price > 0)) {
+        if (opt) {
           result.push({
             groupName: group.name,
             optionName: opt.name,
