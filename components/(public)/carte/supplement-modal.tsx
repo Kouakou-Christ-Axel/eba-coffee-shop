@@ -169,7 +169,7 @@ function SupplementModal({
 
   const unitPrice =
     product.price +
-    getSupplementsPrice(getSelectedSupplements(product, selections, false));
+    getSupplementsPrice(getSelectedSupplements(product, selections));
   const runningTotal = unitPrice * quantity;
 
   // Plafond de la ligne : stock restant du produit s'il est suivi, sinon le
@@ -184,7 +184,7 @@ function SupplementModal({
 
   function handleAdd() {
     if (!canSubmit) return;
-    const supplements = getSelectedSupplements(product, selections, false);
+    const supplements = getSelectedSupplements(product, selections);
     // `addItem` ajoute une unité et fusionne les lignes strictement identiques :
     // N appels donnent bien UNE ligne à quantité N, tout en conservant le
     // plafond de stock du store. Pas besoin de toucher lib/cart-store.ts.
@@ -196,9 +196,6 @@ function SupplementModal({
           basePrice: product.price,
           coutMatiere: product.coutMatiere ?? 0,
           coutEmballage: product.coutEmballage ?? 0,
-          // Le site public n'enregistre pas les choix uniques gratuits (ex.
-          // « Lait classique »), contrairement à la caisse qui les garde visibles
-          // pour la cuisine.
           supplements,
         },
         product.remaining ?? undefined
