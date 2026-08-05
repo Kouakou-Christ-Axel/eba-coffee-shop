@@ -1,13 +1,18 @@
-// Ardoise : qui doit de l'argent au commerce, tous jours confondus.
+// Ardoise : qui doit de l'argent au commerce, toutes dates confondues.
 //
-// Volontairement PAS cadrée sur la journée (contrairement à la caisse) : c'est
-// tout l'intérêt du module `lib/ardoise.ts`. Ces commandes restent impayées —
-// aucune écriture comptable n'a lieu ici, seul l'encaissement réel (bouton
-// « Encaisser », même chemin que la section Commandes) solde une dette.
+// Une dette = marchandise remise (commande récupérée) et argent pas reçu. La
+// page n'est volontairement PAS cadrée sur la journée (contrairement à la
+// caisse) : c'est tout l'intérêt du module `lib/ardoise.ts`. Ces commandes
+// restent impayées — aucune écriture comptable n'a lieu ici, seul
+// l'encaissement réel (bouton « Encaisser », même chemin que la section
+// Commandes) solde une dette.
+//
+// La section « À vérifier » montre les impayées anciennes jamais marquées
+// comme récupérées : hors total, elles se corrigent sur la fiche commande.
 
 import Link from 'next/link';
-import { endOfDay, startOfDay } from 'date-fns';
-import { Handshake, Info, NotebookPen } from 'lucide-react';
+import { startOfDay } from 'date-fns';
+import { Handshake, Info, NotebookPen, TriangleAlert } from 'lucide-react';
 import { requireCashier } from '@/lib/auth-helpers';
 import { fetchArdoise } from '@/lib/ardoise';
 import { formatPhoneForDisplay } from '@/lib/phone';
@@ -32,6 +37,13 @@ const dateFmt = new Intl.DateTimeFormat('fr-FR', {
   year: 'numeric',
 });
 
+/** Libellés des statuts « en cours » (même convention locale que /dashboard/clients/[id]). */
+const IN_FLIGHT_LABELS: Record<string, string> = {
+  NEW: 'Nouvelle',
+  PREPARING: 'En cours',
+  READY: 'Prête',
+};
+
 /** Ancienneté d'une dette, en français court : « aujourd'hui », « 3 jours ». */
 function formatDebtAge(from: Date, now: Date): string {
   const days = Math.floor(
@@ -47,30 +59,21 @@ function formatDebtAge(from: Date, now: Date): string {
 export default async function ArdoisePage({
   searchParams,
 }: {
-  searchParams: Promise<{ today?: string; consentie?: string }>;
+  searchParams: Promise<{ consentie?: string }>;
 }) {
   await requireCashier();
   const params = await searchParams;
 
-  const includeToday = params.today === '1';
   const onlyOnAccount = params.consentie === '1';
 
   const now = new Date();
-  // « Inclure aujourd'hui » repousse la borne à la fin du jour : les commandes
-  // du jour pas encore encaissées relèvent normalement de la caisse, pas de
-  // l'ardoise — on ne les mélange que sur demande explicite.
-  const ardoise = await fetchArdoise({
-    onlyOnAccount,
-    before: includeToday ? endOfDay(now) : undefined,
-  });
+  const ardoise = await fetchArdoise({ onlyOnAccount });
 
-  function toggleHref(next: { today?: boolean; consentie?: boolean }): string {
-    const sp = new URLSearchParams();
-    if (next.today ?? includeToday) sp.set('today', '1');
-    if (next.consentie ?? onlyOnAccount) sp.set('consentie', '1');
-    const qs = sp.toString();
-    return qs ? `/dashboard/ardoise?${qs}` : '/dashboard/ardoise';
-  }
+  // Le filtre « consentie » ne porte que sur la dette : la section « À
+  // vérifier » reste entière, un oubli de pointage n'étant jamais consenti.
+  const consentieHref = onlyOnAccount
+    ? '/dashboard/ardoise'
+    : '/dashboard/ardoise?consentie=1';
 
   return (
     <div className="space-y-6">
@@ -82,28 +85,17 @@ export default async function ArdoisePage({
           </h1>
           <p className="text-sm text-muted-foreground">
             {ardoise.ordersCount} commande{ardoise.ordersCount > 1 ? 's' : ''}{' '}
-            non réglée{ardoise.ordersCount > 1 ? 's' : ''}
-            {includeToday ? ' (aujourd’hui inclus)' : ' avant aujourd’hui'}.
+            récupérée{ardoise.ordersCount > 1 ? 's' : ''} et non réglée
+            {ardoise.ordersCount > 1 ? 's' : ''}.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant={includeToday ? 'default' : 'outline'}
-            size="sm"
-            asChild
-          >
-            <Link href={toggleHref({ today: !includeToday })}>
-              Inclure aujourd’hui
-            </Link>
-          </Button>
           <Button
             variant={onlyOnAccount ? 'default' : 'outline'}
             size="sm"
             asChild
           >
-            <Link href={toggleHref({ consentie: !onlyOnAccount })}>
-              Ardoise consentie seulement
-            </Link>
+            <Link href={consentieHref}>Ardoise consentie seulement</Link>
           </Button>
         </div>
       </div>
@@ -230,6 +222,80 @@ export default async function ArdoisePage({
           </p>
         )}
       </div>
+
+      {/* Garde-fou : impayées anciennes jamais marquées « récupérée ». On les
+          montre pour qu'un oubli de pointage ne cache pas une dette réelle,
+          mais on ne les compte pas — tant que le statut n'est pas corrigé, on
+          ne sait pas si la marchandise est partie. */}
+      {ardoise.toCheck.length > 0 && (
+        <section className="rounded-xl border border-dashed bg-muted/30 p-4">
+          <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-muted-foreground">
+            <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />À
+            vérifier
+            <Badge variant="outline">
+              {ardoise.toCheckCount} commande
+              {ardoise.toCheckCount > 1 ? 's' : ''}
+            </Badge>
+            <Badge variant="outline">
+              {priceFmt.format(ardoise.toCheckTotal)} F — non compté dans le
+              total dû
+            </Badge>
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Ces commandes ne sont pas payées et n’ont jamais été marquées comme
+            récupérées : soit le retrait n’a pas été enregistré, soit elles
+            devraient être annulées. Corrigez le statut sur la fiche commande —
+            une fois marquée récupérée, la commande rejoint l’ardoise ci-dessus.
+          </p>
+
+          <div className="mt-3 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>N°</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead>Montant</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ardoise.toCheck.map((o) => (
+                  <TableRow key={o.id}>
+                    <TableCell className="text-sm">
+                      {dateFmt.format(o.createdAt)}
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
+                      <Link
+                        href={`/dashboard/commandes/${o.id}`}
+                        className="hover:underline"
+                      >
+                        #{String(o.dailyNumber).padStart(3, '0')}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {o.name ?? 'Client anonyme'}
+                      {o.phone && (
+                        <span className="ml-2 font-mono text-xs text-muted-foreground">
+                          {formatPhoneForDisplay(o.phone)}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {IN_FLIGHT_LABELS[o.status] ?? o.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {priceFmt.format(o.total)} F
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
