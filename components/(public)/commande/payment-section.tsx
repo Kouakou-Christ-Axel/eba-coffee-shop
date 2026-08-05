@@ -3,13 +3,18 @@
 // components/(public)/commande/payment-section.tsx
 //
 // Bloc « Paiement » de la page publique de suivi (/commande/:id), extrait de
-// order-tracking.tsx. Quatre états explicites pour guider le client (le flux
+// order-tracking.tsx. Cinq états explicites pour guider le client (le flux
 // Wave reste un simple deep link + preuve par capture — pas d'API) :
 //
 //   - `awaiting`      : checklist numérotée « 1. Payer avec Wave » puis
 //                       « 2. Envoyer ta capture » (ou payer au comptoir) ;
-//   - `proof_pending` : preuve reçue, la caisse valide — le bouton Wave
-//                       disparaît (fini le doute « dois-je repayer ? ») ;
+//   - `proof_pending` : preuve reçue, la caisse (ou l'IA) valide — le bouton
+//                       Wave disparaît (fini le doute « dois-je repayer ? ») ;
+//   - `rejected`      : la pré-analyse IA a jugé la capture invalide
+//                       (MISMATCH/UNREADABLE) — on demande une nouvelle
+//                       capture. `PENDING` (analyse indisponible) N'EST PAS
+//                       un rejet, reste `proof_pending` (caisse tranche à la
+//                       main) ;
 //   - `validated`     : paiement confirmé, la commande part en préparation ;
 //   - `nothing_due`   : récompense fidélité couvrant tout le total.
 
@@ -25,6 +30,7 @@ import {
   Loader2,
   MessageCircle,
   Wallet,
+  XCircle,
 } from 'lucide-react';
 import type { PublicOrderView } from '@/lib/orders';
 import { priceFormatter } from '@/config/menu';
@@ -44,6 +50,7 @@ import { cn } from '@/lib/utils';
 type PaymentUiState =
   | 'awaiting'
   | 'proof_pending'
+  | 'rejected'
   | 'validated'
   | 'nothing_due';
 
@@ -52,6 +59,13 @@ function getPaymentUiState(order: PublicOrderView): PaymentUiState {
   // Récompense fidélité couvrant tout le total : rien à régler (proposer
   // « Payer 0 F » n'aurait aucun sens). Le comptoir clôturera au retrait.
   if (order.total <= 0) return 'nothing_due';
+  if (
+    order.paymentProofUrl &&
+    (order.paymentProofVerdict === 'MISMATCH' ||
+      order.paymentProofVerdict === 'UNREADABLE')
+  ) {
+    return 'rejected';
+  }
   if (order.paymentProofUrl) return 'proof_pending';
   return 'awaiting';
 }
@@ -145,7 +159,15 @@ export function PaymentSection({
         `/api/commandes/${order.id}/preuve-paiement`,
         url
       );
-      onOrderChange({ ...order, paymentProofUrl: url });
+      // Patch optimiste du verdict à null : le serveur le réinitialise déjà
+      // (setOrderPaymentProof), mais sans ça l'état `rejected` resterait
+      // affiché ici jusqu'au prochain polling — un ré-upload doit repasser
+      // IMMÉDIATEMENT en « en cours de validation ».
+      onOrderChange({
+        ...order,
+        paymentProofUrl: url,
+        paymentProofVerdict: null,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Échec de l’envoi');
     } finally {
@@ -167,6 +189,10 @@ export function PaymentSection({
         ) : uiState === 'nothing_due' ? (
           <Chip color="success" variant="flat" size="sm">
             Rien à payer
+          </Chip>
+        ) : uiState === 'rejected' ? (
+          <Chip color="danger" variant="flat" size="sm">
+            Capture refusée
           </Chip>
         ) : uiState === 'proof_pending' ? (
           <Chip color="warning" variant="flat" size="sm">
@@ -217,6 +243,67 @@ export function PaymentSection({
             <p className="text-sm font-medium text-success-700 dark:text-success">
               Rien à payer 🎉 — ta récompense fidélité couvre toute la commande.
             </p>
+          </motion.div>
+        ) : uiState === 'rejected' ? (
+          <motion.div
+            key="rejected"
+            initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="mt-4 flex flex-col gap-3"
+          >
+            <div className="flex items-center gap-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-3">
+              {order.paymentProofUrl && (
+                <Image
+                  src={order.paymentProofUrl}
+                  alt="Preuve de paiement refusée"
+                  width={48}
+                  height={48}
+                  className="size-12 shrink-0 rounded-md object-cover opacity-60"
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-1.5 text-sm font-medium text-danger">
+                  <XCircle className="h-4 w-4 shrink-0" />
+                  {order.paymentProofVerdict === 'UNREADABLE'
+                    ? 'Capture illisible — renvoie une photo plus nette.'
+                    : "Cette capture n'a pas pu être validée."}
+                </p>
+                <p className="mt-0.5 text-xs text-foreground/60">
+                  Envoie une nouvelle capture pour qu&apos;on puisse valider ton
+                  paiement.
+                </p>
+              </div>
+            </div>
+            <Button
+              color="danger"
+              size="lg"
+              isDisabled={uploading}
+              onPress={() => fileRef.current?.click()}
+              startContent={
+                uploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Camera className="h-4 w-4" />
+                )
+              }
+            >
+              Envoyer une nouvelle capture
+            </Button>
+            {paymentProofWhatsAppLink && (
+              <Button
+                as="a"
+                href={paymentProofWhatsAppLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="light"
+                size="sm"
+                startContent={<MessageCircle className="h-4 w-4" />}
+              >
+                Ou l’envoyer sur WhatsApp
+              </Button>
+            )}
+            {error && <p className="text-xs text-danger">{error}</p>}
           </motion.div>
         ) : uiState === 'proof_pending' ? (
           <motion.div

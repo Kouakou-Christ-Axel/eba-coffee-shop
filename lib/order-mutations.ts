@@ -1694,7 +1694,11 @@ export async function assertOrderAcceptsPaymentProof(
  * Attache la preuve de paiement (URL `/uploads/payment-proofs/…`) à une
  * commande non encore encaissée. La validation reste manuelle en caisse
  * (`setOrderPayment`) : la preuve est un signal, pas un encaissement.
- * Ré-upload autorisé tant que la commande n'est pas payée (remplace l'URL).
+ * Ré-upload autorisé tant que la commande n'est pas payée (remplace l'URL) —
+ * réinitialise aussi le verdict/l'analyse de la pré-analyse IA PRÉCÉDENTE
+ * (sinon la page de suivi client afficherait encore un rejet pour une
+ * capture que le client vient de remplacer) ; la nouvelle analyse IA,
+ * déclenchée juste après par l'appelant, réécrira ces champs.
  */
 export async function setOrderPaymentProof(
   id: string,
@@ -1704,7 +1708,12 @@ export async function setOrderPaymentProof(
 
   await prisma.order.update({
     where: { id },
-    data: { paymentProofUrl: url },
+    data: {
+      paymentProofUrl: url,
+      paymentProofVerdict: null,
+      paymentProofAnalysis: Prisma.DbNull,
+      paymentProofAnalyzedAt: null,
+    },
   });
 }
 
