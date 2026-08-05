@@ -26,11 +26,16 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 import { POST, GET } from './route';
+import { READ_ONLY_TOOL_NAMES, TOOLSET_TOOL_NAMES } from '@/lib/mcp/tools';
 
 const TOKEN = 'test-secret-token';
 
-function makeRequest(body: unknown, headers: Record<string, string> = {}) {
-  return new Request('http://localhost/api/mcp', {
+function makeRequest(
+  body: unknown,
+  headers: Record<string, string> = {},
+  url = 'http://localhost/api/mcp'
+) {
+  return new Request(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
@@ -165,6 +170,97 @@ describe('authentification — OAuth', () => {
       )
     );
     expect(res.status).toBe(403);
+  });
+});
+
+describe('filtrage par toolset (`?toolset=`)', () => {
+  function toolsListRequest(toolset: string, headers: Record<string, string>) {
+    return makeRequest(
+      { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+      headers,
+      `http://localhost/api/mcp?toolset=${toolset}`
+    );
+  }
+
+  it('restreint à un seul domaine (clé statique)', async () => {
+    const res = await POST(toolsListRequest('finance', authHeader));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const names = (json.result.tools as Array<{ name: string }>).map(
+      (t) => t.name
+    );
+    expect(names).toContain('list_expenses');
+    expect(names).not.toContain('get_menu');
+    expect(names).not.toContain('create_order');
+  });
+
+  it('accepte plusieurs domaines séparés par des virgules (clé statique)', async () => {
+    const res = await POST(toolsListRequest('finance,inventaire', authHeader));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const names = (json.result.tools as Array<{ name: string }>).map(
+      (t) => t.name
+    );
+    expect(names).toContain('list_expenses');
+    expect(names).toContain('list_inventory_items');
+    expect(names).not.toContain('list_polls');
+  });
+
+  it('applique le filtre même sans restriction de rôle (clé statique = accès total)', async () => {
+    const res = await POST(toolsListRequest('sondages', authHeader));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const names = (json.result.tools as Array<{ name: string }>).map(
+      (t) => t.name
+    );
+    expect(new Set(names)).toEqual(TOOLSET_TOOL_NAMES.sondages);
+  });
+
+  it('renvoie 400 sur un toolset inconnu', async () => {
+    const res = await POST(toolsListRequest('inconnu', authHeader));
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error.code).toBe(-32602);
+    expect(json.error.message).toContain('inconnu');
+  });
+
+  it('se compose par intersection avec le rôle COMPTABLE', async () => {
+    getMcpSession.mockResolvedValue({ userId: 'u6' });
+    userFindUnique.mockResolvedValue({ role: 'COMPTABLE' });
+    const res = await POST(
+      toolsListRequest('inventaire', {
+        authorization: 'Bearer jeton-comptable',
+      })
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const names = (json.result.tools as Array<{ name: string }>).map(
+      (t) => t.name
+    );
+    // `list_inventory_items` est à la fois `scope: 'finance'` (rôle) et
+    // `toolset: 'inventaire'` (domaine demandé) : passe l'intersection.
+    expect(names).toContain('list_inventory_items');
+    // `list_polls` est hors du domaine `inventaire` demandé.
+    expect(names).not.toContain('list_polls');
+    // `create_product` est hors des outils finance du rôle COMPTABLE.
+    expect(names).not.toContain('create_product');
+  });
+
+  it('une intersection vide/réduite (rôle ANALYSTE) n’est pas une erreur', async () => {
+    getMcpSession.mockResolvedValue({ userId: 'u7' });
+    userFindUnique.mockResolvedValue({ role: 'ANALYSTE' });
+    const res = await POST(
+      toolsListRequest('finance', { authorization: 'Bearer jeton-analyste' })
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const names = (json.result.tools as Array<{ name: string }>).map(
+      (t) => t.name
+    );
+    const expected = [...TOOLSET_TOOL_NAMES.finance].filter((n) =>
+      READ_ONLY_TOOL_NAMES.has(n)
+    );
+    expect(new Set(names)).toEqual(new Set(expected));
   });
 });
 

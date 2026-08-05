@@ -20,6 +20,11 @@
 //      est restreint aux outils en lecture seule, tous domaines confondus
 //      (cf. `READ_ONLY_TOOL_NAMES`).
 //
+// Un client peut en plus se restreindre volontairement à un sous-ensemble de
+// domaines via `?toolset=finance,inventaire` (cf. section « Filtrage par
+// toolset » ci-dessous) — composé PAR INTERSECTION avec la restriction de
+// rôle, jamais un remplacement.
+//
 // Le dispatch JSON-RPC vit dans `lib/mcp/handler.ts` ; cette route ne gère que
 // le transport HTTP (auth, parsing, réponse, CORS) et l'invalidation du cache.
 
@@ -31,7 +36,12 @@ import { auth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { withCors, corsPreflight } from '@/lib/mcp/cors';
 import { handleRpc } from '@/lib/mcp/handler';
-import { FINANCE_TOOL_NAMES, READ_ONLY_TOOL_NAMES } from '@/lib/mcp/tools';
+import {
+  FINANCE_TOOL_NAMES,
+  READ_ONLY_TOOL_NAMES,
+  TOOLSET_NAMES,
+  TOOLSET_TOOL_NAMES,
+} from '@/lib/mcp/tools';
 import type { UserRole } from '@/generated/prisma/client';
 
 export const runtime = 'nodejs';
@@ -77,6 +87,70 @@ function revalidateMenu() {
     // L'écriture en base a déjà eu lieu : on ne fait pas échouer l'appel MCP.
     console.warn('[mcp] revalidateMenu a échoué', err);
   }
+}
+
+// ─── Filtrage par toolset (paramètre `?toolset=`) ────────────────────────────
+//
+// Un client peut restreindre `tools/list`/`tools/call` à un sous-ensemble de
+// domaines via `?toolset=finance,inventaire` (slugs séparés par des virgules,
+// cf. `TOOLSET_NAMES`). Se compose PAR INTERSECTION avec la restriction de
+// rôle déjà calculée par `withRoleGuard` — jamais un remplacement : un
+// ANALYSTE qui demande `?toolset=finance` reste borné à
+// `READ_ONLY_TOOL_NAMES` ∩ outils du domaine finance (peut légitimement
+// aboutir à un `tools/list` vide, ce n'est pas une erreur).
+
+type ToolsetParam = { allowedTools?: Set<string> };
+
+function invalidToolsetResponse(invalidSlug: string): Response {
+  return NextResponse.json(
+    {
+      jsonrpc: '2.0',
+      id: null,
+      error: {
+        code: -32602,
+        message:
+          `Toolset invalide : "${invalidSlug}". Valeurs autorisées : ` +
+          `${TOOLSET_NAMES.join(', ')}.`,
+      },
+    },
+    { status: 400 }
+  );
+}
+
+function resolveToolsetParam(req: Request): ToolsetParam | Response {
+  const raw = new URL(req.url).searchParams.get('toolset');
+  if (!raw || raw.trim() === '') return {};
+
+  const slugs = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (slugs.length === 0) return invalidToolsetResponse(raw);
+
+  for (const slug of slugs) {
+    if (!(TOOLSET_NAMES as readonly string[]).includes(slug)) {
+      return invalidToolsetResponse(slug);
+    }
+  }
+
+  const allowedTools = new Set<string>();
+  for (const slug of slugs as (typeof TOOLSET_NAMES)[number][]) {
+    for (const name of TOOLSET_TOOL_NAMES[slug]) allowedTools.add(name);
+  }
+  return { allowedTools };
+}
+
+// `undefined` = aucune restriction (élément neutre de l'intersection).
+function intersectAllowedTools(
+  a: Set<string> | undefined,
+  b: Set<string> | undefined
+): Set<string> | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  const out = new Set<string>();
+  for (const name of a) if (b.has(name)) out.add(name);
+  return out;
 }
 
 // ─── Traitement JSON-RPC (commun aux deux chemins d'auth) ───────────────────
@@ -171,13 +245,20 @@ function withRoleGuard(
       select: { role: true },
     });
     if (!user || !MCP_ROLES.includes(user.role)) return forbidden();
-    const allowedTools =
+    const roleAllowedTools =
       user.role === 'COMPTABLE'
         ? FINANCE_TOOL_NAMES
         : user.role === 'ANALYSTE'
           ? READ_ONLY_TOOL_NAMES
           : undefined;
-    return handler(req, allowedTools);
+
+    const toolset = resolveToolsetParam(req);
+    if (toolset instanceof Response) return toolset;
+
+    return handler(
+      req,
+      intersectAllowedTools(roleAllowedTools, toolset.allowedTools)
+    );
   });
 }
 
@@ -229,7 +310,9 @@ function sseStream(): Response {
 export async function POST(req: Request): Promise<Response> {
   // 1. Clé statique (propriétaire / clients « machine »).
   if (matchesStaticKey(req)) {
-    return withCors(await processRpc(req), req);
+    const toolset = resolveToolsetParam(req);
+    if (toolset instanceof Response) return withCors(toolset, req);
+    return withCors(await processRpc(req, toolset.allowedTools), req);
   }
   // 2. OAuth (administrateurs via Claude web/mobile/desktop).
   return withCors(await oauthPostHandler(req), req);
@@ -242,8 +325,12 @@ export const OPTIONS = corsPreflight;
 // ─── GET : flux SSE serveur→client (Streamable HTTP) ─────────────────────────
 
 export async function GET(req: Request): Promise<Response> {
-  // 1. Clé statique.
+  // 1. Clé statique. On valide `?toolset=` même si `sseStream()` ne l'utilise
+  // pas (flux vide keep-alive) : mieux vaut un 400 immédiat ici qu'un échec
+  // tardif et confus sur le premier `tools/list` avec la même URL.
   if (matchesStaticKey(req)) {
+    const toolset = resolveToolsetParam(req);
+    if (toolset instanceof Response) return withCors(toolset, req);
     return withCors(sseStream(), req);
   }
   // 2. OAuth (+ garde ADMIN). Sans jeton valide → 401 + WWW-Authenticate.
