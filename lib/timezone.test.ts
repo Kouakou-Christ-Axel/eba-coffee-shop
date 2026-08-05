@@ -14,6 +14,7 @@ import {
   isoToAbidjanDatetimeLocal,
   formatAbidjanTime,
   formatAbidjanDateTime,
+  getAbidjanWeekday,
 } from '@/lib/timezone';
 
 describe('parseDateOnlyToUTC', () => {
@@ -88,5 +89,18 @@ describe('créneaux de retrait (datetime-local ⇄ ISO, ancrés Abidjan)', () =>
     expect(formatAbidjanDateTime('2026-06-23T10:00:00.000Z')).toContain(
       '10h00'
     );
+  });
+});
+
+describe('getAbidjanWeekday', () => {
+  it('0=dimanche…6=samedi (même convention que WEEKDAY_LABELS)', () => {
+    // 2026-06-21 est un dimanche, 2026-06-24 un mercredi, 2026-06-27 un samedi.
+    expect(getAbidjanWeekday(new Date('2026-06-21T10:00:00.000Z'))).toBe(0);
+    expect(getAbidjanWeekday(new Date('2026-06-24T10:00:00.000Z'))).toBe(3);
+    expect(getAbidjanWeekday(new Date('2026-06-27T10:00:00.000Z'))).toBe(6);
+  });
+
+  it('utilise `now` par défaut', () => {
+    expect(getAbidjanWeekday()).toBe(new Date().getUTCDay());
   });
 });

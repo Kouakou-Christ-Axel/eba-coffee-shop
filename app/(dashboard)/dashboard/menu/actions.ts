@@ -4,7 +4,15 @@ import { revalidatePath } from 'next/cache';
 import { ZodError } from 'zod';
 import { requireManager } from '@/lib/auth-helpers';
 import * as menu from '@/lib/menu-mutations';
-import type { ProductInput, ProductUpdate } from '@/lib/menu-mutations';
+import type {
+  ProductInput,
+  ProductUpdate,
+  CategoryInput,
+  CategoryUpdate,
+  ProductScheduleInput,
+  ProductScheduleUpdateInput,
+  ProductWeeklySpecialInput,
+} from '@/lib/menu-mutations';
 import { menuSettingsSchema } from '@/lib/menu-settings';
 import { updateMenuSettings } from '@/lib/menu-settings-db';
 import { updateGlobalExtraGroups } from '@/lib/global-extras-mutations';
@@ -32,16 +40,13 @@ function revalidateMenu() {
 
 // ── Catégories ──
 
-export async function createCategoryAction(input: { name: string }) {
+export async function createCategoryAction(input: CategoryInput) {
   await requireManager();
   await menu.createCategory(input);
   revalidateMenu();
 }
 
-export async function updateCategoryAction(
-  id: string,
-  input: { name: string }
-) {
+export async function updateCategoryAction(id: string, input: CategoryUpdate) {
   await requireManager();
   await menu.updateCategory(id, input);
   revalidateMenu();
@@ -160,6 +165,60 @@ export async function saveGlobalExtrasAction(
   } catch (err) {
     return { error: formatMutationError(err) };
   }
+  revalidateMenu();
+}
+
+// ── Plannings récurrents ──
+
+export async function createProductScheduleAction(
+  input: ProductScheduleInput
+): Promise<{ error: string } | undefined> {
+  await requireManager();
+  try {
+    await menu.createProductSchedule(input);
+  } catch (err) {
+    return { error: formatMutationError(err) };
+  }
+  revalidateMenu();
+}
+
+export async function updateProductScheduleAction(
+  id: string,
+  input: ProductScheduleUpdateInput
+): Promise<{ error: string } | undefined> {
+  await requireManager();
+  try {
+    await menu.updateProductSchedule(id, input);
+  } catch (err) {
+    return { error: formatMutationError(err) };
+  }
+  revalidateMenu();
+}
+
+export async function deleteProductScheduleAction(id: string) {
+  await requireManager();
+  await menu.deleteProductSchedule(id);
+  revalidateMenu();
+}
+
+// ── Spécialité de la semaine ──
+
+export async function createProductWeeklySpecialAction(
+  productId: string,
+  input: ProductWeeklySpecialInput
+): Promise<{ error: string } | undefined> {
+  await requireManager();
+  try {
+    await menu.createProductWeeklySpecial(productId, input);
+  } catch (err) {
+    return { error: formatMutationError(err) };
+  }
+  revalidateMenu();
+}
+
+export async function deleteProductWeeklySpecialAction(id: string) {
+  await requireManager();
+  await menu.deleteProductWeeklySpecial(id);
   revalidateMenu();
 }
 

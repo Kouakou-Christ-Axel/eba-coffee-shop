@@ -10,6 +10,11 @@ import type { MenuCategory, Product } from '@/config/menu';
 import { selectShowcaseProducts } from '../featured-showcase';
 import { selectUpsellProducts } from './cart-upsell';
 import { SHOWCASE_MAX_PRODUCTS, UPSELL_MAX_PRODUCTS } from '@/config/constants';
+import { getAbidjanWeekday } from '@/lib/timezone';
+
+// Un jour garanti différent d'aujourd'hui (Abidjan) — évite un test flaky
+// selon le jour d'exécution.
+const NOT_TODAY = [(getAbidjanWeekday() + 1) % 7];
 
 function product(id: string, extra: Partial<Product> = {}): Product {
   return {
@@ -92,6 +97,33 @@ describe('selectShowcaseProducts', () => {
       SHOWCASE_MAX_PRODUCTS
     );
   });
+
+  it('écarte un produit hors planning récurrent', () => {
+    const result = selectShowcaseProducts(
+      menuOf([
+        product('hors-jour', { popularRank: 1, availableDays: NOT_TODAY }),
+        product('dispo', { popularRank: 2 }),
+      ])
+    );
+
+    expect(result.map((p) => p.id)).toEqual(['dispo']);
+  });
+
+  it('écarte un produit hors fenêtre « spécialité de la semaine »', () => {
+    const result = selectShowcaseProducts(
+      menuOf([
+        product('hors-semaine', {
+          popularRank: 1,
+          weeklySpecialPeriods: [
+            { startDate: '2020-01-01', endDate: '2020-01-07' },
+          ],
+        }),
+        product('dispo', { popularRank: 2 }),
+      ])
+    );
+
+    expect(result.map((p) => p.id)).toEqual(['dispo']);
+  });
 });
 
 describe('selectUpsellProducts', () => {
@@ -149,5 +181,34 @@ describe('selectUpsellProducts', () => {
     expect(selectUpsellProducts(menuOf([product('quelconque')]), [])).toEqual(
       []
     );
+  });
+
+  it('écarte un produit hors planning récurrent', () => {
+    const result = selectUpsellProducts(
+      menuOf([
+        product('hors-jour', { featured: true, availableDays: NOT_TODAY }),
+        product('dispo', { featured: true }),
+      ]),
+      []
+    );
+
+    expect(result.map((p) => p.id)).toEqual(['dispo']);
+  });
+
+  it('écarte un produit hors fenêtre « spécialité de la semaine »', () => {
+    const result = selectUpsellProducts(
+      menuOf([
+        product('hors-semaine', {
+          featured: true,
+          weeklySpecialPeriods: [
+            { startDate: '2020-01-01', endDate: '2020-01-07' },
+          ],
+        }),
+        product('dispo', { featured: true }),
+      ]),
+      []
+    );
+
+    expect(result.map((p) => p.id)).toEqual(['dispo']);
   });
 });

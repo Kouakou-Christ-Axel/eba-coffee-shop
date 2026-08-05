@@ -11,20 +11,23 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { getMenuSettings } from '@/lib/menu-settings-db';
+import { listProductSchedules } from '@/lib/menu';
 import { CategoryForm } from './category-form';
 import { CategoryRowActions } from './category-row-actions';
 import { MenuPdfField } from './menu-pdf-field';
 
 export default async function MenuPage() {
-  const [categories, menuSettings] = await Promise.all([
+  const [categories, menuSettings, schedules] = await Promise.all([
     prisma.menuCategory.findMany({
       where: { deletedAt: null },
       orderBy: { sortOrder: 'asc' },
       include: {
         _count: { select: { products: { where: { deletedAt: null } } } },
+        schedule: { select: { id: true, name: true } },
       },
     }),
     getMenuSettings(),
+    listProductSchedules(),
   ]);
 
   return (
@@ -32,6 +35,9 @@ export default async function MenuPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Menu — Catégories</h1>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/dashboard/menu/plannings">Plannings récurrents</Link>
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard/menu/stock-supplements">Stock par goût</Link>
           </Button>
@@ -47,7 +53,7 @@ export default async function MenuPage() {
         <h2 className="mb-3 text-sm font-semibold">
           Ajouter une nouvelle catégorie
         </h2>
-        <CategoryForm />
+        <CategoryForm schedules={schedules} />
       </div>
 
       <Table>
@@ -76,9 +82,16 @@ export default async function MenuPage() {
               </TableCell>
               <TableCell>{cat._count.products}</TableCell>
               <TableCell>
-                <Badge variant={cat.available ? 'default' : 'outline'}>
-                  {cat.available ? 'Visible' : 'Masquée'}
-                </Badge>
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge variant={cat.available ? 'default' : 'outline'}>
+                    {cat.available ? 'Visible' : 'Masquée'}
+                  </Badge>
+                  {cat.schedule && (
+                    <Badge variant="outline" title="Planning récurrent">
+                      {cat.schedule.name}
+                    </Badge>
+                  )}
+                </div>
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-2">
@@ -89,6 +102,8 @@ export default async function MenuPage() {
                     id={cat.id}
                     name={cat.name}
                     available={cat.available}
+                    scheduleId={cat.scheduleId}
+                    schedules={schedules}
                     isFirst={idx === 0}
                     isLast={idx === categories.length - 1}
                   />

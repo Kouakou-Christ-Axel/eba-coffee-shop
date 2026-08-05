@@ -37,6 +37,7 @@ const mockDbData = [
     slug: 'boissons-chaudes',
     sortOrder: 0,
     available: true,
+    schedule: null,
     products: [
       {
         id: 'prod1',
@@ -47,6 +48,8 @@ const mockDbData = [
         available: true,
         sortOrder: 0,
         categoryId: 'cat1',
+        schedule: null,
+        weeklySpecials: [],
         supplementGroups: [
           {
             id: 'grp1',
@@ -153,5 +156,84 @@ describe('getMenu', () => {
     expect(mockFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ orderBy: { sortOrder: 'asc' } })
     );
+  });
+
+  it('sans planning (produit ni catégorie) → availableDays absent (tous les jours)', async () => {
+    mockFindMany.mockResolvedValue(mockDbData as never);
+    const result = await getMenu();
+    expect(result[0].availableDays).toBeUndefined();
+    expect(result[0].products[0].availableDays).toBeUndefined();
+  });
+
+  it('planning produit seul → availableDays = jours du planning produit', async () => {
+    const data = [
+      {
+        ...mockDbData[0],
+        products: [{ ...mockDbData[0].products[0], schedule: { days: [3] } }],
+      },
+    ];
+    mockFindMany.mockResolvedValue(data as never);
+    const result = await getMenu();
+    expect(result[0].products[0].availableDays).toEqual([3]);
+  });
+
+  it('planning catégorie seul → hérité par tous ses produits', async () => {
+    const data = [{ ...mockDbData[0], schedule: { days: [0, 6] } }];
+    mockFindMany.mockResolvedValue(data as never);
+    const result = await getMenu();
+    expect(result[0].availableDays).toEqual([0, 6]);
+    expect(result[0].products[0].availableDays).toEqual([0, 6]);
+  });
+
+  it('plannings produit ET catégorie disjoints → availableDays vide (jamais disponible)', async () => {
+    const data = [
+      {
+        ...mockDbData[0],
+        schedule: { days: [0, 6] },
+        products: [{ ...mockDbData[0].products[0], schedule: { days: [3] } }],
+      },
+    ];
+    mockFindMany.mockResolvedValue(data as never);
+    const result = await getMenu();
+    expect(result[0].products[0].availableDays).toEqual([]);
+  });
+
+  it('plannings produit ET catégorie avec jour commun → intersection', async () => {
+    const data = [
+      {
+        ...mockDbData[0],
+        schedule: { days: [1, 3, 5] },
+        products: [
+          { ...mockDbData[0].products[0], schedule: { days: [3, 6] } },
+        ],
+      },
+    ];
+    mockFindMany.mockResolvedValue(data as never);
+    const result = await getMenu();
+    expect(result[0].products[0].availableDays).toEqual([3]);
+  });
+
+  it('retransmet weeklySpecialPeriods tel quel (format YYYY-MM-DD)', async () => {
+    const data = [
+      {
+        ...mockDbData[0],
+        products: [
+          {
+            ...mockDbData[0].products[0],
+            weeklySpecials: [
+              {
+                startDate: new Date('2026-08-03T00:00:00.000Z'),
+                endDate: new Date('2026-08-09T00:00:00.000Z'),
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    mockFindMany.mockResolvedValue(data as never);
+    const result = await getMenu();
+    expect(result[0].products[0].weeklySpecialPeriods).toEqual([
+      { startDate: '2026-08-03', endDate: '2026-08-09' },
+    ]);
   });
 });

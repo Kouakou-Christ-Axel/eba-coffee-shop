@@ -20,18 +20,32 @@ export function slugify(input: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+// Trie et dédoublonne une liste de jours (0..6) — évite les doublons/ordre
+// arbitraire en base pour `ProductSchedule.days`.
+function dedupeDays(days: number[]): number[] {
+  return [...new Set(days)].sort((a, b) => a - b);
+}
+
 // ─── Schémas Zod ──────────────────────────────────────────────────────────────
 //
 // Les schémas de suppléments sont centralisés dans `lib/schemas/menu.ts` (règle
 // CLAUDE.md : pas de redéclaration inline). `imageUrlSchema` (lib/schemas/upload)
 // accepte chemins relatifs locaux ET URLs absolues.
 
+// Planning récurrent (voir `productScheduleSchema` plus bas) : `null` = aucun
+// planning (tous les jours), absent = inchangé (mise à jour partielle).
+const scheduleFieldSchema = {
+  scheduleId: z.string().min(1).nullable().optional(),
+};
+
 export const createCategorySchema = z.object({
   name: z.string().min(1).max(80),
+  ...scheduleFieldSchema,
 });
 
 export const updateCategorySchema = z.object({
-  name: z.string().min(1).max(80),
+  name: z.string().min(1).max(80).optional(),
+  ...scheduleFieldSchema,
 });
 
 const featuredFieldsSchema = {
@@ -51,6 +65,7 @@ const availabilityFieldsSchema = {
   stockQuantity: z.number().int().nonnegative().nullable().optional(),
   // Pause programmée (ISO 8601). `null`/absent = pas de pause.
   unavailableUntil: z.string().datetime().nullable().optional(),
+  ...scheduleFieldSchema,
 };
 
 export const productInputSchema = z.object({
@@ -86,20 +101,36 @@ export const productUpdateSchema = z.object({
 
 // ─── Catégories ───────────────────────────────────────────────────────────────
 
-export async function createCategory(input: { name: string }) {
-  const { name } = createCategorySchema.parse(input);
+export type CategoryInput = z.infer<typeof createCategorySchema>;
+export type CategoryUpdate = z.infer<typeof updateCategorySchema>;
+
+export async function createCategory(input: CategoryInput) {
+  const { name, scheduleId } = createCategorySchema.parse(input);
   const existing = await prisma.menuCategory.findMany({
     where: { deletedAt: null },
     select: { id: true },
   });
   return prisma.menuCategory.create({
-    data: { name, slug: slugify(name), sortOrder: existing.length },
+    data: {
+      name,
+      slug: slugify(name),
+      sortOrder: existing.length,
+      scheduleId: scheduleId ?? null,
+    },
   });
 }
 
-export async function updateCategory(id: string, input: { name: string }) {
-  const { name } = updateCategorySchema.parse(input);
-  return prisma.menuCategory.update({ where: { id }, data: { name } });
+// Mise à jour PARTIELLE (même règle que `updateProduct`) : un champ absent
+// reste inchangé, `scheduleId: null` efface volontairement le planning.
+export async function updateCategory(id: string, input: CategoryUpdate) {
+  const data = updateCategorySchema.parse(input);
+  return prisma.menuCategory.update({
+    where: { id },
+    data: {
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.scheduleId !== undefined && { scheduleId: data.scheduleId }),
+    },
+  });
 }
 
 // Soft delete : on marque la catégorie ET ses produits comme supprimés (au lieu
@@ -184,6 +215,7 @@ export async function createProduct(input: ProductInput) {
       unavailableUntil: data.unavailableUntil
         ? new Date(data.unavailableUntil)
         : null,
+      scheduleId: data.scheduleId ?? null,
       supplementGroups: {
         create: data.supplementGroups.map((g, gi) => ({
           name: g.name,
@@ -239,6 +271,7 @@ export async function updateProduct(id: string, input: ProductUpdate) {
         ? new Date(data.unavailableUntil)
         : null,
     }),
+    ...(data.scheduleId !== undefined && { scheduleId: data.scheduleId }),
   };
 
   // Les groupes de suppléments ne sont remplacés QUE s'ils sont fournis. Absents
@@ -465,4 +498,146 @@ export async function resumeProduct(id: string) {
     where: { id },
     data: { unavailableUntil: null },
   });
+}
+
+// ─── Plannings récurrents (« à la cal.com ») ────────────────────────────────
+//
+// Un `ProductSchedule` est nommé et réutilisable, assignable à plusieurs
+// produits ET catégories (`scheduleId` sur les deux, voir §A du plan). CRUD
+// calqué sur `createCategory`/`updateCategory`/`deleteCategory` — pas de
+// soft-delete (rien de client-facing à préserver), la relation optionnelle
+// `onDelete: SetNull` (prisma/schema.prisma) désassigne automatiquement tout
+// ce qui utilisait le planning supprimé.
+
+export const productScheduleSchema = z.object({
+  name: z.string().min(1).max(60),
+  // 0=dimanche…6=samedi, au moins un jour (un planning sans jour n'a pas de
+  // sens — contrairement à `Product.availableDays`/`MenuCategory.availableDays`
+  // résolus, où un tableau vide signale une intersection sans jour commun).
+  days: z.array(z.number().int().min(0).max(6)).min(1).max(7),
+});
+
+export const productScheduleUpdateSchema = z.object({
+  name: z.string().min(1).max(60).optional(),
+  days: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
+});
+
+export type ProductScheduleInput = z.infer<typeof productScheduleSchema>;
+export type ProductScheduleUpdateInput = z.infer<
+  typeof productScheduleUpdateSchema
+>;
+
+export async function createProductSchedule(input: ProductScheduleInput) {
+  const data = productScheduleSchema.parse(input);
+  return prisma.productSchedule.create({
+    data: { name: data.name, days: dedupeDays(data.days) },
+  });
+}
+
+// Mise à jour PARTIELLE : un champ absent reste inchangé.
+export async function updateProductSchedule(
+  id: string,
+  input: ProductScheduleUpdateInput
+) {
+  const data = productScheduleUpdateSchema.parse(input);
+  return prisma.productSchedule.update({
+    where: { id },
+    data: {
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.days !== undefined && { days: dedupeDays(data.days) }),
+    },
+  });
+}
+
+// Supprime le planning : les produits/catégories qui l'utilisaient redeviennent
+// disponibles tous les jours (`onDelete: SetNull`), rien d'autre n'est touché.
+export async function deleteProductSchedule(id: string) {
+  return prisma.productSchedule.delete({ where: { id } });
+}
+
+// ─── Spécialité de la semaine ────────────────────────────────────────────────
+//
+// `ProductWeeklySpecial` est un historique structuré : chaque ligne est un
+// passage (programmé, en cours ou passé). Dès qu'au moins une ligne existe
+// pour un produit, il n'est commandable QUE dans une fenêtre active — voir
+// `isWithinAnyPeriod` (lib/supplements.ts). Pas de soft-delete : supprimer une
+// ligne annule le passage, ça n'a pas vocation à rester masqué.
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export const productWeeklySpecialSchema = z
+  .object({
+    startDate: z.string().regex(DATE_ONLY_RE, 'Format YYYY-MM-DD'),
+    endDate: z.string().regex(DATE_ONLY_RE, 'Format YYYY-MM-DD'),
+    note: z.string().max(200).nullable().optional(),
+  })
+  .refine((v) => v.endDate >= v.startDate, {
+    message: 'La date de fin doit être après la date de début',
+    path: ['endDate'],
+  });
+
+export const productWeeklySpecialUpdateSchema = z
+  .object({
+    startDate: z.string().regex(DATE_ONLY_RE, 'Format YYYY-MM-DD').optional(),
+    endDate: z.string().regex(DATE_ONLY_RE, 'Format YYYY-MM-DD').optional(),
+    note: z.string().max(200).nullable().optional(),
+  })
+  .refine(
+    (v) =>
+      v.startDate === undefined ||
+      v.endDate === undefined ||
+      v.endDate >= v.startDate,
+    {
+      message: 'La date de fin doit être après la date de début',
+      path: ['endDate'],
+    }
+  );
+
+export type ProductWeeklySpecialInput = z.infer<
+  typeof productWeeklySpecialSchema
+>;
+export type ProductWeeklySpecialUpdateInput = z.infer<
+  typeof productWeeklySpecialUpdateSchema
+>;
+
+export async function createProductWeeklySpecial(
+  productId: string,
+  input: ProductWeeklySpecialInput
+) {
+  const data = productWeeklySpecialSchema.parse(input);
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { id: true },
+  });
+  if (!product) throw new Error('Produit introuvable');
+  return prisma.productWeeklySpecial.create({
+    data: {
+      productId,
+      startDate: new Date(data.startDate),
+      endDate: new Date(data.endDate),
+      note: data.note ?? null,
+    },
+  });
+}
+
+// Mise à jour PARTIELLE : un champ absent reste inchangé.
+export async function updateProductWeeklySpecial(
+  id: string,
+  input: ProductWeeklySpecialUpdateInput
+) {
+  const data = productWeeklySpecialUpdateSchema.parse(input);
+  return prisma.productWeeklySpecial.update({
+    where: { id },
+    data: {
+      ...(data.startDate !== undefined && {
+        startDate: new Date(data.startDate),
+      }),
+      ...(data.endDate !== undefined && { endDate: new Date(data.endDate) }),
+      ...(data.note !== undefined && { note: data.note }),
+    },
+  });
+}
+
+export async function deleteProductWeeklySpecial(id: string) {
+  return prisma.productWeeklySpecial.delete({ where: { id } });
 }

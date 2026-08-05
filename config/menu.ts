@@ -58,6 +58,17 @@ export type Product = {
   // Pause programmée (ISO 8601) ; `null`/absent = pas de pause. Le calcul
   // « en pause maintenant » (`unavailableUntil > now`) se fait côté lecture.
   unavailableUntil?: string | null;
+  // Planning récurrent effectif (0=dimanche…6=samedi), résolu à la lecture en
+  // intersectant le planning du produit ET celui de sa catégorie (voir
+  // `intersectAvailableDays`, lib/menu.ts). `undefined`/absent = tous les
+  // jours ; un tableau MÊME VIDE = aucun jour commun (jamais disponible) — voir
+  // `isAvailableToday` (lib/supplements.ts).
+  availableDays?: number[];
+  // Fenêtre(s) « spécialité de la semaine » (0, 1 ou plusieurs, rare passage
+  // reconduit). Vide/absent = pas de restriction. Dès qu'au moins une fenêtre
+  // existe, le produit n'est commandable QUE dans une fenêtre active — voir
+  // `isWithinAnyPeriod` (lib/supplements.ts).
+  weeklySpecialPeriods?: { startDate: string; endDate: string }[];
 };
 
 /**
@@ -82,6 +93,12 @@ export type MenuCategory = {
   id: string;
   name: string;
   products: Product[];
+  // Planning récurrent propre à la catégorie (0=dimanche…6=samedi), ex. « menu
+  // brunch » le week-end seulement. `undefined`/absent = tous les jours. Sert
+  // au message affiché en en-tête de section (voir `isAvailableToday`,
+  // lib/supplements.ts) — indépendant de `Product.availableDays`, qui l'a déjà
+  // intégré par intersection pour chaque produit.
+  availableDays?: number[];
 };
 
 const milkChoice: SupplementGroup = {

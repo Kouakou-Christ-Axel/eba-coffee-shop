@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import prisma from '@/lib/prisma';
+import { listProductSchedules, listProductWeeklySpecials } from '@/lib/menu';
 import { ProductForm, type ProductFormInitial } from '../product-form';
 import { BackButton } from '@/components/(dashboard)/back-button';
 
@@ -10,7 +11,7 @@ export default async function EditProductPage({
 }) {
   const { categoryId, productId } = await params;
 
-  const [category, product] = await Promise.all([
+  const [category, product, schedules, weeklySpecials] = await Promise.all([
     prisma.menuCategory.findUnique({
       where: { id: categoryId },
       select: { id: true, name: true, deletedAt: true },
@@ -24,6 +25,8 @@ export default async function EditProductPage({
         },
       },
     }),
+    listProductSchedules(),
+    listProductWeeklySpecials(productId),
   ]);
 
   if (
@@ -49,6 +52,8 @@ export default async function EditProductPage({
     featuredBadge: product.featuredBadge,
     stockQuantity: product.stockQuantity,
     unavailableUntil: product.unavailableUntil,
+    scheduleId: product.scheduleId,
+    weeklySpecials,
     supplementGroups: product.supplementGroups.map((g) => ({
       name: g.name,
       type: g.type as 'single' | 'multiple' | 'quantity',
@@ -75,7 +80,11 @@ export default async function EditProductPage({
         />
         <h1 className="text-2xl font-bold">Modifier {product.name}</h1>
       </div>
-      <ProductForm categoryId={categoryId} initial={initial} />
+      <ProductForm
+        categoryId={categoryId}
+        initial={initial}
+        schedules={schedules}
+      />
     </div>
   );
 }

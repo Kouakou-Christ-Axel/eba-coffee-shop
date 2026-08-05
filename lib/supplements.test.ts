@@ -10,7 +10,10 @@ import {
   getSupplementsPrice,
   groupConstraintLabel,
   groupSelectionCount,
+  isAvailableToday,
   isGroupValid,
+  isWithinAnyPeriod,
+  nextUpcomingPeriod,
   optionQuantity,
   type Selections,
 } from './supplements';
@@ -273,5 +276,83 @@ describe('buildInitialSelections', () => {
       { groupName: 'Goûts', optionName: 'Chocolat', price: 0, quantity: 1 },
     ]);
     expect(selections['Goûts']).toEqual({ Vanille: 2, Chocolat: 1 });
+  });
+});
+
+// 2026-08-05 est un mercredi (jour=3).
+const WEDNESDAY = new Date('2026-08-05T10:00:00.000Z');
+
+describe('isAvailableToday', () => {
+  it('null/absent = pas de restriction (toujours disponible)', () => {
+    expect(isAvailableToday(null, WEDNESDAY)).toBe(true);
+    expect(isAvailableToday(undefined, WEDNESDAY)).toBe(true);
+  });
+
+  it('jour présent dans la liste → disponible', () => {
+    expect(isAvailableToday([3], WEDNESDAY)).toBe(true);
+    expect(isAvailableToday([0, 3, 6], WEDNESDAY)).toBe(true);
+  });
+
+  it('jour absent de la liste → non disponible', () => {
+    expect(isAvailableToday([1, 2], WEDNESDAY)).toBe(false);
+  });
+
+  it('tableau vide = intersection sans jour commun → jamais disponible (distinct de null/absent)', () => {
+    expect(isAvailableToday([], WEDNESDAY)).toBe(false);
+  });
+});
+
+describe('isWithinAnyPeriod', () => {
+  it('vide/absent = pas de restriction (toujours disponible)', () => {
+    expect(isWithinAnyPeriod([], WEDNESDAY)).toBe(true);
+    expect(isWithinAnyPeriod(undefined, WEDNESDAY)).toBe(true);
+  });
+
+  it('aujourd’hui dans une fenêtre → disponible (bornes incluses)', () => {
+    expect(
+      isWithinAnyPeriod(
+        [{ startDate: '2026-08-03', endDate: '2026-08-09' }],
+        WEDNESDAY
+      )
+    ).toBe(true);
+    expect(
+      isWithinAnyPeriod(
+        [{ startDate: '2026-08-05', endDate: '2026-08-05' }],
+        WEDNESDAY
+      )
+    ).toBe(true);
+  });
+
+  it('aujourd’hui hors de toutes les fenêtres → non disponible', () => {
+    expect(
+      isWithinAnyPeriod(
+        [{ startDate: '2026-08-10', endDate: '2026-08-16' }],
+        WEDNESDAY
+      )
+    ).toBe(false);
+  });
+});
+
+describe('nextUpcomingPeriod', () => {
+  it('renvoie null si aucune fenêtre future', () => {
+    expect(
+      nextUpcomingPeriod(
+        [{ startDate: '2026-07-01', endDate: '2026-07-07' }],
+        WEDNESDAY
+      )
+    ).toBeNull();
+    expect(nextUpcomingPeriod([], WEDNESDAY)).toBeNull();
+  });
+
+  it('renvoie la fenêtre future la plus proche', () => {
+    expect(
+      nextUpcomingPeriod(
+        [
+          { startDate: '2026-09-01', endDate: '2026-09-07' },
+          { startDate: '2026-08-10', endDate: '2026-08-16' },
+        ],
+        WEDNESDAY
+      )
+    ).toEqual({ startDate: '2026-08-10', endDate: '2026-08-16' });
   });
 });

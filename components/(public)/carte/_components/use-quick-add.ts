@@ -10,7 +10,11 @@
 
 import { useState } from 'react';
 import { useCartStore } from '@/lib/cart-store';
-import { isPausedNow } from '@/lib/supplements';
+import {
+  isPausedNow,
+  isAvailableToday,
+  isWithinAnyPeriod,
+} from '@/lib/supplements';
 import { LOW_STOCK_THRESHOLD } from '@/config/constants';
 import type { Product } from '@/config/menu';
 
@@ -24,18 +28,28 @@ export function useQuickAdd(product: Product) {
 
   const hasOptions = (product.supplements?.length ?? 0) > 0;
 
-  // Priorité d'affichage : pause > épuisé > stock bas > rien (illimité/stock
-  // confortable). Pause et épuisé désactivent l'ajout ; stock bas reste une
-  // simple info (le prochain « Épuisé » viendra tout seul à 0).
+  // Priorité d'affichage : pause > épuisé > hors « spécialité de la semaine »
+  // > hors planning récurrent > stock bas > rien (illimité/stock confortable).
+  // Pause, épuisé et hors planning/fenêtre désactivent l'ajout ; stock bas
+  // reste une simple info (le prochain « Épuisé » viendra tout seul à 0).
   const paused = isPausedNow(product.unavailableUntil);
   const soldOut = !paused && product.soldOut === true;
+  const weeklyGated =
+    !paused && !soldOut && !isWithinAnyPeriod(product.weeklySpecialPeriods);
+  const outOfSchedule =
+    !paused &&
+    !soldOut &&
+    !weeklyGated &&
+    !isAvailableToday(product.availableDays);
   const lowStock =
     !paused &&
     !soldOut &&
+    !weeklyGated &&
+    !outOfSchedule &&
     product.remaining != null &&
     product.remaining > 0 &&
     product.remaining <= LOW_STOCK_THRESHOLD;
-  const isUnorderable = paused || soldOut;
+  const isUnorderable = paused || soldOut || weeklyGated || outOfSchedule;
 
   /**
    * Ajoute `quantity` exemplaires SANS supplément. Le store plafonne lui-même
@@ -71,6 +85,8 @@ export function useQuickAdd(product: Product) {
     hasOptions,
     paused,
     soldOut,
+    weeklyGated,
+    outOfSchedule,
     lowStock,
     isUnorderable,
     justAdded,

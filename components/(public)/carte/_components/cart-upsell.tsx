@@ -11,7 +11,11 @@ import dynamic from 'next/dynamic';
 import { Button } from '@heroui/react';
 import { Check, Plus } from 'lucide-react';
 import { priceFormatter, type MenuCategory, type Product } from '@/config/menu';
-import { isPausedNow } from '@/lib/supplements';
+import {
+  isPausedNow,
+  isAvailableToday,
+  isWithinAnyPeriod,
+} from '@/lib/supplements';
 import { UPSELL_MAX_PRODUCTS } from '@/config/constants';
 import { useQuickAdd } from './use-quick-add';
 import { ProductMedia } from './product-media';
@@ -39,6 +43,8 @@ export function selectUpsellProducts(
         !inCart.has(p.id) &&
         p.soldOut !== true &&
         !isPausedNow(p.unavailableUntil) &&
+        isAvailableToday(p.availableDays) &&
+        isWithinAnyPeriod(p.weeklySpecialPeriods) &&
         (p.popularRank != null || p.featured)
     )
     .sort((a, b) => {
