@@ -127,16 +127,30 @@ const VERDICT_META: Record<
 };
 
 // `paymentProofAnalysis` est un JSON libre (lib/ai/payment-proof.ts) — lu ici
-// en `unknown` défensif, uniquement pour un tooltip informatif.
+// en `unknown` défensif, uniquement pour un tooltip informatif. Les signaux
+// les plus graves (retouche suspectée, capture antérieure à la commande)
+// sont mis en avant en premier — le caissier voit l'essentiel sans ouvrir
+// le détail.
 function paymentProofAnalysisSummary(analysis: unknown): string | undefined {
   if (!analysis || typeof analysis !== 'object') return undefined;
   const a = analysis as Record<string, unknown>;
-  if (typeof a.reasoning === 'string') {
-    const amount = typeof a.amount === 'number' ? `${a.amount} FCFA — ` : '';
-    return `${amount}${a.reasoning}`;
-  }
   if (typeof a.error === 'string') return a.error;
-  return undefined;
+
+  const parts: string[] = [];
+  if (a.tamperingSuspected === true) {
+    parts.push(
+      `⚠ Retouche suspectée${typeof a.tamperingReasons === 'string' && a.tamperingReasons ? ` : ${a.tamperingReasons}` : ''}`
+    );
+  }
+  if (a.dateConsistent === false) {
+    parts.push('⚠ Capture antérieure à la commande (paiement recyclé ?)');
+  }
+  if (typeof a.amount === 'number') parts.push(`${a.amount} FCFA`);
+  if (typeof a.recipientName === 'string' && a.recipientName) {
+    parts.push(`Bénéficiaire : ${a.recipientName}`);
+  }
+  if (typeof a.reasoning === 'string') parts.push(a.reasoning);
+  return parts.length > 0 ? parts.join(' — ') : undefined;
 }
 
 type Props = {
