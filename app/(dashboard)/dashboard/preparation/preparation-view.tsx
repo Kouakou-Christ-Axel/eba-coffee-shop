@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, useTransition } from 'react';
 import {
   cancelOrderFromKitchen,
   markOrderReady,
+  markOrderRetrieved,
   requestDriver,
 } from './actions';
 import { type PreparationOrder } from '@/lib/preparation-queue';
@@ -144,6 +145,22 @@ export function PreparationView({
     [setPending]
   );
 
+  const handleRetrieved = useCallback(
+    (id: string) => {
+      setPending(id, true);
+      startTransition(async () => {
+        try {
+          await markOrderRetrieved(id);
+        } catch (err) {
+          console.error('[preparation] markOrderRetrieved échoué :', err);
+        } finally {
+          setPending(id, false);
+        }
+      });
+    },
+    [setPending]
+  );
+
   const handleRequestDriver = useCallback(
     (id: string) => {
       setPending(id, true);
@@ -239,6 +256,10 @@ export function PreparationView({
           handleCancel(id);
         }}
         onRequestDriver={handleRequestDriver}
+        onRetrieve={(id) => {
+          setSelectedId(null);
+          handleRetrieved(id);
+        }}
       />
 
       {/* Commandes hors du travail courant, rangées dans des bottom sheets. */}
@@ -249,6 +270,8 @@ export function PreparationView({
         open={openSheet === 'scheduled'}
         onOpenChange={(o) => setOpenSheet(o ? 'scheduled' : null)}
         onExpand={setSelectedId}
+        pendingIds={pendingIds}
+        onRetrieve={handleRetrieved}
       />
       <OrdersListSheet
         variant="ready"
@@ -257,6 +280,8 @@ export function PreparationView({
         open={openSheet === 'ready'}
         onOpenChange={(o) => setOpenSheet(o ? 'ready' : null)}
         onExpand={setSelectedId}
+        pendingIds={pendingIds}
+        onRetrieve={handleRetrieved}
       />
     </div>
   );
