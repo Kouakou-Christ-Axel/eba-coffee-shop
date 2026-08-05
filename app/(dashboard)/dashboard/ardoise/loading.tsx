@@ -4,7 +4,7 @@ import { PageHeaderSkeleton } from '@/components/(dashboard)/skeletons';
 export default function ArdoiseLoading() {
   return (
     <div className="space-y-6">
-      <PageHeaderSkeleton actions={2} />
+      <PageHeaderSkeleton actions={1} />
       <Skeleton className="h-24 rounded-xl" />
       <Skeleton className="h-10 rounded-lg" />
       <div className="space-y-3">
