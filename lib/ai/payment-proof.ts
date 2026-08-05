@@ -19,9 +19,13 @@
 // server-side à `Order.createdAt` (cf. `isDateConsistent`) pour repérer une
 // capture antérieure à la commande — signe de paiement recyclé.
 //
-// Le résultat (`Order.paymentProofVerdict`/`paymentProofAnalysis`) est un
-// SIGNAL affiché en caisse, jamais une validation automatique du paiement —
-// `isPaid` reste un geste caisse manuel (setOrderPayment).
+// Un verdict MATCH avec une confiance suffisante (>=
+// PAYMENT_PROOF_AI_CONFIDENCE_THRESHOLD) déclenche un encaissement
+// AUTOMATIQUE (setOrderPayment, mode déduit de l'opérateur détecté),
+// marqué `Order.paymentAutoValidatedByAi` — la caisse dispose d'un bouton
+// dédié pour ANNULER cet encaissement en un clic si le verdict était erroné
+// (cf. order-card-actions.tsx). MISMATCH/UNREADABLE/PENDING ne déclenchent
+// jamais de paiement : ce sont de purs signaux affichés en caisse.
 
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
@@ -31,8 +35,12 @@ import {
   PAYMENT_PROOF_AI_CONFIDENCE_THRESHOLD,
 } from '@/config/constants';
 import { getContactSettings } from '@/lib/contact-settings-db';
-import { setOrderPaymentProofVerdict } from '@/lib/order-mutations';
+import {
+  setOrderPaymentProofVerdict,
+  setOrderPayment,
+} from '@/lib/order-mutations';
 import { callOpenRouterVision } from '@/lib/ai/openrouter';
+import type { PaymentMode } from '@/generated/prisma/client';
 
 const analysisSchema = z.object({
   readable: z.boolean(),
@@ -104,7 +112,7 @@ const ANALYSIS_JSON_SCHEMA = {
       confidence: {
         type: 'number',
         description:
-          "Confiance globale du modèle dans son extraction, entre 0 (aucune) et 1 (certaine).",
+          'Confiance globale du modèle dans son extraction, entre 0 (aucune) et 1 (certaine).',
       },
       reasoning: {
         type: 'string',
@@ -139,9 +147,9 @@ const SYSTEM_PROMPT =
   'a DEUX volets, aussi importants l’un que l’autre : (1) extraire les ' +
   'informations du paiement, (2) chercher activement des indices que la ' +
   "capture a été retouchée, montée, ou réutilisée d'un autre paiement. Ne " +
-  "donne jamais le bénéfice du doute par défaut — une capture propre et " +
+  'donne jamais le bénéfice du doute par défaut — une capture propre et ' +
   'un montant qui correspond ne suffisent pas à écarter une manipulation ' +
-  "si tu observes des anomalies visuelles. Réponds STRICTEMENT au format " +
+  'si tu observes des anomalies visuelles. Réponds STRICTEMENT au format ' +
   'JSON demandé, sans aucun texte hors du JSON.';
 
 function buildUserPrompt(
@@ -166,8 +174,8 @@ function buildUserPrompt(
     '- Date et heure de la transaction affichées sur la capture (ISO 8601 ' +
     'uniquement si non ambiguës, sinon null) — une capture datée AVANT la ' +
     "commande trahit un paiement recyclé d'une commande précédente.\n" +
-    "- Indices de retouche/montage : polices ou espacements incohérents " +
-    "autour du montant/de la date/de la référence, alignement anormal, " +
+    '- Indices de retouche/montage : polices ou espacements incohérents ' +
+    'autour du montant/de la date/de la référence, alignement anormal, ' +
     "flou ou pixellisation localisée, éléments d'interface ne correspondant " +
     "pas à l'application officielle Wave/Orange Money, zone recadrée " +
     'masquant des informations, ou toute autre anomalie visuelle.\n\n' +
@@ -197,6 +205,13 @@ function isDateConsistent(
   if (Number.isNaN(parsed.getTime())) return null;
   const toleranceMs = 10 * 60 * 1000;
   return parsed.getTime() >= orderCreatedAt.getTime() - toleranceMs;
+}
+
+/** `UNKNOWN` (opérateur non identifié malgré un verdict MATCH) → `OTHER`. */
+function operatorToPaymentMode(operator: Analysis['operator']): PaymentMode {
+  return operator === 'WAVE' || operator === 'ORANGE_MONEY'
+    ? operator
+    : 'OTHER';
 }
 
 async function runAnalysis(
@@ -293,6 +308,10 @@ export async function analyzePaymentProof(orderId: string): Promise<void> {
         ? 'MISMATCH'
         : 'MATCH';
 
+    // Écrit le verdict/l'analyse PENDANT que la commande est encore non
+    // payée (assertOrderAcceptsPaymentProof, appelé par
+    // setOrderPaymentProofVerdict, refuse d'écrire sur une commande déjà
+    // encaissée) — avant la tentative d'encaissement automatique ci-dessous.
     await setOrderPaymentProofVerdict(orderId, {
       verdict,
       analysis: {
@@ -303,6 +322,42 @@ export async function analyzePaymentProof(orderId: string): Promise<void> {
         dateConsistent,
       },
     });
+
+    // Encaissement automatique : verdict MATCH ET confiance suffisante. La
+    // confiance est revérifiée ICI (et non seulement pour décider du repli
+    // de modèle plus haut) — un MATCH obtenu par le modèle de repli avec une
+    // confiance elle-même sous le seuil ne doit pas déclencher de paiement
+    // silencieux, seulement afficher le badge et laisser la caisse valider
+    // manuellement (bouton « Valider le paiement » déjà existant).
+    if (
+      verdict === 'MATCH' &&
+      analysis.confidence >= PAYMENT_PROOF_AI_CONFIDENCE_THRESHOLD
+    ) {
+      try {
+        await setOrderPayment(
+          orderId,
+          true,
+          [
+            {
+              mode: operatorToPaymentMode(analysis.operator),
+              amount: order.total,
+            },
+          ],
+          null,
+          { autoValidatedByAi: true }
+        );
+      } catch (err) {
+        // Best-effort : le badge MATCH reste affiché, la commande reste non
+        // payée, la caisse garde la main via le bouton de validation manuel
+        // existant (ex. stock épuisé entre-temps, commande déjà encaissée
+        // par un caissier en parallèle, commande annulée).
+        console.error(
+          '[analyzePaymentProof] encaissement automatique échoué',
+          orderId,
+          err
+        );
+      }
+    }
   } catch (err) {
     // Défense en profondeur : cette fonction tourne en arrière-plan
     // (Next.js `after()`), une erreur ne doit jamais remonter à l'appelant.

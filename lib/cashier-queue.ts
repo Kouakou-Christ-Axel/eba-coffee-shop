@@ -52,6 +52,11 @@ export type CashierOrder = {
    * commandes n'escalade pas en urgence (cf. `urgency.ts`). */
   customerTrusted: boolean;
   paymentMode: PaymentMode | null;
+  /** Vrai si l'encaissement courant (`isPaid`) a été posé automatiquement par
+   * la pré-analyse IA (verdict MATCH) plutôt que par un geste caisse. Pilote
+   * le bouton dédié « Annuler l'encaissement automatique ». Toujours `false`
+   * si `isPaid` est faux. */
+  paymentAutoValidatedByAi: boolean;
   paymentProofUrl: string | null;
   /** Verdict de la pré-analyse IA de `paymentProofUrl` (lib/ai/payment-proof.ts).
    * Null tant que pas analysée (ou fonctionnalité inactive) — signal caisse
@@ -258,6 +263,7 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       isOnAccount: o.isOnAccount,
       customerTrusted: o.customer?.isTrusted ?? false,
       paymentMode: o.paymentMode,
+      paymentAutoValidatedByAi: o.paymentAutoValidatedByAi,
       paymentProofUrl: o.paymentProofUrl,
       paymentProofVerdict: o.paymentProofVerdict,
       paymentProofAnalysis: o.paymentProofAnalysis,

@@ -62,7 +62,7 @@ const ORDER_TYPE_META: Record<OrderType, { label: string; Icon: typeof Bike }> =
   };
 
 type PaymentBadge =
-  | { kind: 'paid'; split: boolean }
+  | { kind: 'paid'; split: boolean; autoValidatedByAi: boolean }
   | { kind: 'unpaid' }
   | { kind: 'on-account' }
   | { kind: 'pay-after' }
@@ -72,7 +72,13 @@ function getPaymentBadge(order: CashierOrder): PaymentBadge {
   // Payée sans mode unique résolu = paiement fractionné (2+ moyens distincts),
   // cf. lib/order-mutations.ts::resolvePaymentMode — le détail vit dans
   // `OrderPayment`, non exposé sur `CashierOrder`.
-  if (order.isPaid) return { kind: 'paid', split: order.paymentMode === null };
+  if (order.isPaid) {
+    return {
+      kind: 'paid',
+      split: order.paymentMode === null,
+      autoValidatedByAi: order.paymentAutoValidatedByAi,
+    };
+  }
   // Ardoise : partie en cuisine sans encaissement, en toute connaissance de
   // cause. Prioritaire sur les badges d'alerte ci-dessous (« Récupérée · à
   // encaisser » en rouge) — ce n'est pas une anomalie, c'est le processus.
@@ -350,40 +356,46 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
         </div>
       )}
 
-      {/* Preuve de paiement envoyée par le client, en attente de validation */}
-      {order.paymentProofUrl && !order.isPaid && (
-        <a
-          href={order.paymentProofUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900 ring-1 ring-emerald-300 transition-colors hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-100 dark:ring-emerald-800"
-        >
-          <Receipt className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>Preuve de paiement Wave reçue — appuyer pour vérifier</span>
-        </a>
-      )}
+      {/* Preuve de paiement envoyée par le client. Reste visible même après un
+          encaissement AUTOMATIQUE (IA) — le caissier peut vouloir consulter
+          l'image avant de décider de garder ou d'annuler cet encaissement. */}
+      {order.paymentProofUrl &&
+        (!order.isPaid || order.paymentAutoValidatedByAi) && (
+          <a
+            href={order.paymentProofUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900 ring-1 ring-emerald-300 transition-colors hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-100 dark:ring-emerald-800"
+          >
+            <Receipt className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>Preuve de paiement Wave reçue — appuyer pour vérifier</span>
+          </a>
+        )}
 
-      {/* Verdict de la pré-analyse IA de la preuve — purement informatif, ne
-          remplace jamais la vérification/validation manuelle ci-dessus. */}
-      {order.paymentProofUrl && !order.isPaid && order.paymentProofVerdict && (
-        <div
-          className={cn(
-            'mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ring-1',
-            VERDICT_META[order.paymentProofVerdict].className
-          )}
-          title={paymentProofAnalysisSummary(order.paymentProofAnalysis)}
-        >
-          {(() => {
-            const { Icon, label } = VERDICT_META[order.paymentProofVerdict];
-            return (
-              <>
-                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>{label}</span>
-              </>
-            );
-          })()}
-        </div>
-      )}
+      {/* Verdict de la pré-analyse IA de la preuve. Reste affiché après un
+          encaissement automatique (contexte pour la décision d'annuler ou
+          non), disparaît une fois la commande validée manuellement. */}
+      {order.paymentProofUrl &&
+        (!order.isPaid || order.paymentAutoValidatedByAi) &&
+        order.paymentProofVerdict && (
+          <div
+            className={cn(
+              'mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ring-1',
+              VERDICT_META[order.paymentProofVerdict].className
+            )}
+            title={paymentProofAnalysisSummary(order.paymentProofAnalysis)}
+          >
+            {(() => {
+              const { Icon, label } = VERDICT_META[order.paymentProofVerdict];
+              return (
+                <>
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span>{label}</span>
+                </>
+              );
+            })()}
+          </div>
+        )}
 
       {/* Note client */}
       {order.note && (
@@ -516,11 +528,22 @@ function PaymentBadgePill({ payment }: { payment: PaymentBadge }) {
   return (
     <span
       className={cn(
-        'shrink-0 rounded-full px-2.5 py-1 text-xs font-medium',
+        'inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium',
         config.className
       )}
     >
       {label}
+      {/* Encaissement posé automatiquement par l'IA (verdict MATCH) — pas un
+          geste caisse. Le bouton d'annulation dédié est dans les actions. */}
+      {payment.kind === 'paid' && payment.autoValidatedByAi && (
+        <span
+          className="inline-flex items-center gap-0.5 rounded-full bg-white/60 px-1 py-0.5 text-[10px] font-semibold dark:bg-black/20"
+          title="Encaissement validé automatiquement par l’IA"
+        >
+          <Bot className="h-2.5 w-2.5" aria-hidden="true" />
+          IA
+        </span>
+      )}
     </span>
   );
 }

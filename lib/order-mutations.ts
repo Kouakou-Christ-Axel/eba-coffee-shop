@@ -898,7 +898,17 @@ export async function setOrderPayment(
   id: string,
   isPaid: boolean,
   payments?: OrderPaymentLineInput[],
-  actorId?: string | null
+  actorId?: string | null,
+  opts?: {
+    /**
+     * Vrai UNIQUEMENT quand cet encaissement provient de la pré-analyse IA
+     * (verdict MATCH, cf. lib/ai/payment-proof.ts) plutôt que d'un geste
+     * caisse. Persisté sur `Order.paymentAutoValidatedByAi` pour piloter le
+     * bouton de retour en arrière dédié côté caisse. Ignoré si `isPaid` est
+     * faux (le dépaiement remet toujours ce drapeau à `false`).
+     */
+    autoValidatedByAi?: boolean;
+  }
 ): Promise<{ startedPreparation: boolean }> {
   if (isPaid && (!payments || payments.length === 0)) {
     throw new OrderMutationError('payments requis quand isPaid=true', 400);
@@ -919,7 +929,12 @@ export async function setOrderPayment(
     const [result] = await prisma.$transaction([
       prisma.order.updateMany({
         where: { id, isPaid: true },
-        data: { isPaid: false, paymentMode: null, paidAt: null },
+        data: {
+          isPaid: false,
+          paymentMode: null,
+          paidAt: null,
+          paymentAutoValidatedByAi: false,
+        },
       }),
       prisma.orderPayment.deleteMany({ where: { orderId: id } }),
     ]);
@@ -983,6 +998,7 @@ export async function setOrderPayment(
           isPaid: true,
           paymentMode: resolvePaymentMode(lines),
           paidAt: new Date(),
+          paymentAutoValidatedByAi: opts?.autoValidatedByAi ?? false,
           // Encaisser une commande encore NEW la pousse en cuisine : on amorce
           // alors le chrono « en cuisine depuis X » au même instant.
           ...(startedPreparation

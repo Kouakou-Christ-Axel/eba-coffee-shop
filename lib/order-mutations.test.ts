@@ -601,7 +601,12 @@ describe('setOrderPayment — dépaiement', () => {
     expect(result).toEqual({ startedPreparation: false });
     expect(mockOrderUpdateMany).toHaveBeenCalledWith({
       where: { id: 'order1', isPaid: true },
-      data: { isPaid: false, paymentMode: null, paidAt: null },
+      data: {
+        isPaid: false,
+        paymentMode: null,
+        paidAt: null,
+        paymentAutoValidatedByAi: false,
+      },
     });
     expect(mockOrderPaymentDeleteMany).toHaveBeenCalledWith({
       where: { orderId: 'order1' },

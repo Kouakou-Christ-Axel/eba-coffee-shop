@@ -38,6 +38,7 @@ function makeOrder(
     isOnAccount: false,
     customerTrusted: false,
     paymentMode: null,
+    paymentAutoValidatedByAi: false,
     paymentProofUrl: null,
     paymentProofVerdict: null,
     paymentProofAnalysis: null,
