@@ -265,6 +265,27 @@ import {
 } from '@/lib/schemas/poll';
 import { uploadPollOptionImage, uploadPollImage } from '@/lib/cloudinary';
 
+// ─── Domaines fonctionnels (toolsets) ──────────────────────────────────────
+//
+// Partition les outils en domaines mutuellement exclusifs, utilisée pour le
+// filtrage `?toolset=` côté route (cf. `app/api/mcp/route.ts`). Champ
+// PUREMENT organisationnel, sans lien avec `scope` (qui gate l'accès par
+// rôle) : un outil peut avoir `toolset: 'inventaire'` et `scope: 'finance'`
+// en même temps (ex. `list_inventory_items`), ou `toolset: 'stats'` sans
+// aucun `scope` (ex. `get_customer_stats`) — ne pas déduire l'un de l'autre.
+export const TOOLSET_NAMES = [
+  'menu',
+  'stats',
+  'finance',
+  'commandes',
+  'crm',
+  'contact',
+  'inventaire',
+  'sondages',
+] as const;
+
+export type ToolsetName = (typeof TOOLSET_NAMES)[number];
+
 // ─── Type d'un outil ────────────────────────────────────────────────────────
 
 export type McpTool = {
@@ -275,6 +296,8 @@ export type McpTool = {
   inputSchema: z.ZodType;
   /** Outil en lecture seule (annotation MCP `readOnlyHint`). */
   readOnly: boolean;
+  /** Domaine fonctionnel (cf. `TOOLSET_NAMES`) — obligatoire, tout nouvel outil doit être classé. */
+  toolset: ToolsetName;
   /**
    * Portée d'accès restreinte. `'finance'` = accessible aux rôles finance
    * (ADMIN, MANAGER, COMPTABLE) ; absent = accessible à ADMIN/MANAGER
@@ -334,6 +357,7 @@ export const tools: McpTool[] = [
   // — Lecture —
   {
     name: 'get_menu',
+    toolset: 'menu',
     title: 'Lire le menu',
     description:
       'Renvoie le menu complet avec les identifiants internes (id), y compris ' +
@@ -347,6 +371,7 @@ export const tools: McpTool[] = [
   // — Statistiques (lecture seule) —
   {
     name: 'get_daily_stats',
+    toolset: 'stats',
     scope: 'finance',
     title: 'Stats du jour',
     description:
@@ -359,6 +384,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_range_stats',
+    toolset: 'stats',
     scope: 'finance',
     title: 'Stats sur une période',
     description:
@@ -374,6 +400,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_daily_series',
+    toolset: 'stats',
     scope: 'finance',
     title: 'Série journalière',
     description:
@@ -389,6 +416,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_top_products',
+    toolset: 'stats',
     scope: 'finance',
     title: 'Top produits',
     description:
@@ -413,6 +441,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_stats_comparison',
+    toolset: 'stats',
     scope: 'finance',
     title: 'Comparaison de période',
     description:
@@ -431,6 +460,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_hourly_stats',
+    toolset: 'stats',
     scope: 'finance',
     title: 'Heures de pointe',
     description:
@@ -447,6 +477,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_kitchen_performance',
+    toolset: 'stats',
     title: 'Performance cuisine',
     description:
       'Temps de préparation (passage en préparation → prêt) et d’attente ' +
@@ -462,6 +493,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_customer_stats',
+    toolset: 'stats',
     title: 'Stats clients & fidélité',
     description:
       'Agrégats clients sur la plage demandée : nouveaux clients, clients ' +
@@ -490,6 +522,7 @@ export const tools: McpTool[] = [
   // — Dépenses : catégories —
   {
     name: 'list_expense_categories',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Lister les catégories de dépense',
     description:
@@ -501,6 +534,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_expense_category',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Créer une catégorie de dépense',
     description:
@@ -512,6 +546,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_expense_category',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Renommer une catégorie de dépense',
     description: 'Met à jour le nom d’une catégorie de dépense.',
@@ -524,6 +559,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_expense_category',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Supprimer une catégorie de dépense',
     description:
@@ -537,6 +573,7 @@ export const tools: McpTool[] = [
   // — Dépenses : opérations —
   {
     name: 'list_expenses',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Lister les dépenses',
     description:
@@ -567,6 +604,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_expense_summary',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Synthèse des dépenses',
     description:
@@ -581,6 +619,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_expense',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Créer une dépense',
     description:
@@ -607,6 +646,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_expense',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Modifier une dépense',
     description:
@@ -625,6 +665,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_expense',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Supprimer une dépense',
     description: 'Supprime définitivement une dépense. Action irréversible.',
@@ -634,6 +675,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'set_expense_receipt',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Joindre un justificatif à une dépense',
     description:
@@ -681,6 +723,7 @@ export const tools: McpTool[] = [
   // description).
   {
     name: 'prepare_purchase',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Préparer un achat (brouillon)',
     description:
@@ -705,6 +748,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'confirm_purchase',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Confirmer un achat (brouillon → dépense)',
     description:
@@ -732,6 +776,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'prepare_other_expense',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Préparer une dépense simple (brouillon)',
     description:
@@ -747,6 +792,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'confirm_other_expense',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Confirmer une dépense simple (brouillon → dépense)',
     description:
@@ -763,6 +809,7 @@ export const tools: McpTool[] = [
   // — Dépenses : articles (référentiel, rapprochement, fréquence d'achat) —
   {
     name: 'search_article',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Rechercher un article de dépense',
     description:
@@ -784,6 +831,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'detect_article',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Détecter l’article correspondant à un libellé',
     description:
@@ -805,6 +853,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_purchase_frequency',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Fréquence d’achat par article',
     description:
@@ -832,6 +881,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'list_expense_articles',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Lister les articles de dépense',
     description:
@@ -846,6 +896,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_expense_article_history',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Historique d’achat d’un article',
     description:
@@ -869,6 +920,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_expense_monthly_series',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Série mensuelle des dépenses',
     description:
@@ -884,6 +936,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_expense_settings',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Lire les réglages du module dépenses',
     description:
@@ -897,6 +950,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'relink_expense_item',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Re-lier une ligne de dépense à un article',
     description:
@@ -916,6 +970,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'merge_articles',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Fusionner deux articles en doublon',
     description:
@@ -935,6 +990,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'rename_expense_article',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Renommer un article de dépense',
     description:
@@ -949,6 +1005,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'set_expense_article_settings',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Régler un article de dépense',
     description:
@@ -966,6 +1023,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_expense_settings',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Modifier les réglages du module dépenses',
     description:
@@ -982,6 +1040,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'rematch_expense_items',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Rapprocher les lignes non liées',
     description:
@@ -1009,6 +1068,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'backfill_expense_items',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Régénérer le détail des dépenses liées aux réappros',
     description:
@@ -1031,6 +1091,7 @@ export const tools: McpTool[] = [
   // — Investissements : sources de financement —
   {
     name: 'list_investment_sources',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Lister les sources de financement',
     description:
@@ -1043,6 +1104,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_investment_source',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Créer une source de financement',
     description:
@@ -1054,6 +1116,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_investment_source',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Renommer une source de financement',
     description: 'Met à jour le nom d’une source de financement.',
@@ -1066,6 +1129,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_investment_source',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Supprimer une source de financement',
     description:
@@ -1079,6 +1143,7 @@ export const tools: McpTool[] = [
   // — Investissements : apports —
   {
     name: 'list_investments',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Lister les apports',
     description:
@@ -1105,6 +1170,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_investment_summary',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Synthèse des investissements',
     description:
@@ -1119,6 +1185,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_investment',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Créer un apport',
     description:
@@ -1136,6 +1203,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_investment',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Modifier un apport',
     description:
@@ -1151,6 +1219,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_investment',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Supprimer un apport',
     description: 'Supprime définitivement un apport. Action irréversible.',
@@ -1160,6 +1229,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'set_investment_document',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Joindre un justificatif à un apport',
     description:
@@ -1199,6 +1269,7 @@ export const tools: McpTool[] = [
   // — Régularisations de recette (ajustement manuel du CA) —
   {
     name: 'list_revenue_adjustments',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Lister les régularisations de recette',
     description:
@@ -1224,6 +1295,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_revenue_adjustment_summary',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Synthèse des régularisations de recette',
     description:
@@ -1238,6 +1310,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_revenue_adjustment',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Créer une régularisation de recette',
     description:
@@ -1253,6 +1326,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_revenue_adjustment',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Modifier une régularisation de recette',
     description:
@@ -1269,6 +1343,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_revenue_adjustment',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Supprimer une régularisation de recette',
     description:
@@ -1281,6 +1356,7 @@ export const tools: McpTool[] = [
   // — Clôture de caisse (espèces, journalière) —
   {
     name: 'get_cash_position',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Position de caisse (espèces) d’un jour',
     description:
@@ -1300,6 +1376,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_cash_closing',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Lire une clôture de caisse',
     description:
@@ -1314,6 +1391,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'list_cash_closings',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Lister les clôtures de caisse',
     description:
@@ -1328,6 +1406,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'save_cash_closing',
+    toolset: 'finance',
     scope: 'finance',
     title: 'Enregistrer une clôture de caisse',
     description:
@@ -1343,6 +1422,7 @@ export const tools: McpTool[] = [
   // — Commandes (écriture) —
   {
     name: 'create_order',
+    toolset: 'commandes',
     title: 'Enregistrer une commande',
     description:
       'Enregistre une commande (utile pour saisir des commandes anciennes). ' +
@@ -1429,6 +1509,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'list_orders',
+    toolset: 'commandes',
     title: 'Lister les commandes',
     description:
       'Renvoie les commandes (les plus récentes d’abord) avec leur `id`, ' +
@@ -1464,6 +1545,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'set_order_status',
+    toolset: 'commandes',
     title: 'Changer le statut d’une commande',
     description:
       'Fait passer une commande à un nouveau `status` ' +
@@ -1487,6 +1569,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'mark_order_paid',
+    toolset: 'commandes',
     title: 'Encaisser une commande',
     description:
       'Marque une commande comme payée avec un `paymentMode` ∈ ' +
@@ -1515,6 +1598,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_order',
+    toolset: 'commandes',
     title: 'Modifier les détails d’une commande',
     description:
       'Met à jour de façon PARTIELLE les métadonnées d’une commande existante : ' +
@@ -1544,6 +1628,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'apply_order_discount',
+    toolset: 'commandes',
     title: 'Appliquer une remise à une commande',
     description:
       'Applique une remise (montant fixe FCFA) à une ou plusieurs lignes d’une ' +
@@ -1615,6 +1700,7 @@ export const tools: McpTool[] = [
   // — Clients (CRM, lecture seule) —
   {
     name: 'list_customers',
+    toolset: 'crm',
     title: 'Lister / rechercher des clients',
     description:
       'Renvoie les clients (identifiés par téléphone) avec leurs stats ' +
@@ -1632,6 +1718,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_customer',
+    toolset: 'crm',
     title: 'Détail d’un client',
     description:
       'Renvoie un client avec ses stats et ses commandes récentes. Fournis ' +
@@ -1656,6 +1743,7 @@ export const tools: McpTool[] = [
 
   {
     name: 'get_ardoise',
+    toolset: 'crm',
     title: 'Ardoise (impayés par client)',
     description:
       'Renvoie tout ce qui est dû au commerce, regroupé par client et trié ' +
@@ -1687,6 +1775,7 @@ export const tools: McpTool[] = [
   // — Fidélité (carte à tampons) —
   {
     name: 'get_loyalty_card',
+    toolset: 'crm',
     title: 'Carte de fidélité d’un client',
     description:
       'Renvoie l’avancement de la carte à tampons d’un client et ses ' +
@@ -1708,6 +1797,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'adjust_loyalty_stamps',
+    toolset: 'crm',
     title: 'Ajuster les tampons d’un client',
     description:
       'Ajuste manuellement le compteur de tampons (correction). `delta` peut ' +
@@ -1746,6 +1836,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_loyalty_settings',
+    toolset: 'crm',
     title: 'Lire les réglages de fidélité',
     description:
       'Renvoie la configuration de la carte à tampons (programme actif, montant ' +
@@ -1756,6 +1847,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_loyalty_settings',
+    toolset: 'crm',
     title: 'Modifier les réglages de fidélité',
     description:
       'Met à jour la configuration de la carte à tampons. Le palier ' +
@@ -1770,6 +1862,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_contact_settings',
+    toolset: 'contact',
     title: 'Lire les coordonnées du commerce',
     description:
       'Renvoie les coordonnées publiques du commerce : adresse, quartier, ' +
@@ -1782,6 +1875,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_contact_settings',
+    toolset: 'contact',
     title: 'Modifier les coordonnées du commerce',
     description:
       'Met à jour les coordonnées publiques du commerce (adresse, téléphone, ' +
@@ -1799,6 +1893,7 @@ export const tools: McpTool[] = [
   // — Catégories —
   {
     name: 'create_category',
+    toolset: 'menu',
     title: 'Créer une catégorie',
     description:
       'Crée une nouvelle catégorie de menu. Le slug et l’ordre sont générés ' +
@@ -1809,6 +1904,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_category',
+    toolset: 'menu',
     title: 'Renommer une catégorie',
     description: 'Met à jour le nom d’une catégorie existante.',
     inputSchema: updateCategorySchema.extend({ id: idSchema }),
@@ -1820,6 +1916,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_category',
+    toolset: 'menu',
     title: 'Supprimer une catégorie',
     description:
       'Supprime une catégorie et, en cascade, tous ses produits. Soft delete : ' +
@@ -1832,6 +1929,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'toggle_category_availability',
+    toolset: 'menu',
     title: 'Afficher/masquer une catégorie',
     description:
       'Inverse la visibilité d’une catégorie sur le site public (visible ↔ ' +
@@ -1842,6 +1940,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'move_category',
+    toolset: 'menu',
     title: 'Réordonner une catégorie',
     description:
       'Déplace une catégorie d’un cran vers le haut ou vers le bas dans ' +
@@ -1863,6 +1962,7 @@ export const tools: McpTool[] = [
   // — Produits —
   {
     name: 'create_product',
+    toolset: 'menu',
     title: 'Créer un produit',
     description:
       'Crée un produit dans une catégorie (via `categoryId`). Les prix et coûts ' +
@@ -1886,6 +1986,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_product',
+    toolset: 'menu',
     title: 'Modifier un produit',
     description:
       'Met à jour un produit existant de façon PARTIELLE : ne fournis que les ' +
@@ -1904,6 +2005,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'set_product_image',
+    toolset: 'menu',
     title: 'Définir l’image d’un produit',
     description:
       'Associe une image à un produit. Deux modes : (1) `imageUrl` — une URL ' +
@@ -1951,6 +2053,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'move_product',
+    toolset: 'menu',
     title: 'Réordonner un produit',
     description:
       'Déplace un produit d’un cran vers le haut ou vers le bas dans l’ordre ' +
@@ -1970,6 +2073,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_product',
+    toolset: 'menu',
     title: 'Supprimer un produit',
     description:
       'Supprime un produit. Soft delete : le produit est masqué partout (et ' +
@@ -1980,6 +2084,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'toggle_product_availability',
+    toolset: 'menu',
     title: 'Afficher/masquer un produit',
     description:
       'Inverse la disponibilité d’un produit sur le site public (disponible ↔ ' +
@@ -1990,6 +2095,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'toggle_product_featured',
+    toolset: 'menu',
     title: 'Mettre en avant / retirer un produit',
     description: 'Inverse le statut « mis en avant » d’un produit.',
     inputSchema: z.object({ id: idSchema }),
@@ -2008,6 +2114,7 @@ export const tools: McpTool[] = [
   // `restock_*` AJOUTE un delta (nouvelle fournée en journée).
   {
     name: 'set_product_stock',
+    toolset: 'menu',
     title: 'Définir le stock d’un produit (absolu)',
     description:
       'Définit la quantité vendable ACTUELLE d’un produit (« définir le matin »). ' +
@@ -2036,6 +2143,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'set_option_stock',
+    toolset: 'menu',
     title: 'Définir le stock d’une option (absolu)',
     description:
       'Définit la quantité vendable ACTUELLE d’une option de supplément (un ' +
@@ -2062,6 +2170,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'restock_product',
+    toolset: 'menu',
     title: 'Réapprovisionner un produit (+ fournée)',
     description:
       'AJOUTE `delta` au stock courant d’un produit (nouvelle fournée en cours ' +
@@ -2084,6 +2193,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'restock_option',
+    toolset: 'menu',
     title: 'Réapprovisionner une option (+ fournée)',
     description:
       'Équivalent de `restock_product` pour une option de supplément : AJOUTE ' +
@@ -2104,6 +2214,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_pending_demand',
+    toolset: 'menu',
     title: 'Quantité déjà demandée (commandes non payées)',
     description:
       'Renvoie, par produit et par option, la quantité déjà demandée par des ' +
@@ -2130,6 +2241,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'pause_product',
+    toolset: 'menu',
     title: 'Mettre un produit en pause',
     description:
       'Met un produit en pause jusqu’à `until` (datetime ISO 8601) : il reste ' +
@@ -2154,6 +2266,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'resume_product',
+    toolset: 'menu',
     title: 'Lever la pause d’un produit',
     description:
       'Lève manuellement la pause d’un produit avant son terme naturel (efface ' +
@@ -2176,6 +2289,7 @@ export const tools: McpTool[] = [
   // fonctionnent déjà par `id` d'option : aucun nouvel outil de stock requis.
   {
     name: 'list_global_extras',
+    toolset: 'menu',
     title: 'Lister les extras globaux',
     description:
       'Renvoie tous les groupes d’extras globaux (« Extras », ex. chantilly, ' +
@@ -2188,6 +2302,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_global_extra_group',
+    toolset: 'menu',
     title: 'Créer un groupe d’extras global',
     description:
       'Crée un groupe d’extras global (sans option — les ajouter ensuite via ' +
@@ -2199,6 +2314,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_global_extra_group',
+    toolset: 'menu',
     title: 'Modifier un groupe d’extras global',
     description:
       'Met à jour PARTIELLEMENT un groupe d’extras global (nom, requis, ' +
@@ -2212,6 +2328,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_global_extra_group',
+    toolset: 'menu',
     title: 'Supprimer un groupe d’extras global',
     description:
       'Supprime définitivement un groupe d’extras global et, en cascade, ses ' +
@@ -2222,6 +2339,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_global_extra_option',
+    toolset: 'menu',
     title: 'Ajouter une option à un groupe d’extras global',
     description:
       'Ajoute une option (ex. « Chantilly ») à un groupe d’extras global ' +
@@ -2238,6 +2356,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_global_extra_option',
+    toolset: 'menu',
     title: 'Modifier une option d’extra global',
     description:
       'Met à jour PARTIELLEMENT une option d’extra global (nom, prix, ' +
@@ -2252,6 +2371,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_global_extra_option',
+    toolset: 'menu',
     title: 'Supprimer une option d’extra global',
     description: 'Supprime définitivement une option d’extra global.',
     inputSchema: z.object({ id: idSchema }),
@@ -2262,6 +2382,7 @@ export const tools: McpTool[] = [
   // — Inventaire (matières premières & consommables) —
   {
     name: 'list_inventory_items',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Lister les références d’inventaire',
     description:
@@ -2277,6 +2398,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_inventory_item',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Détail d’une référence d’inventaire',
     description:
@@ -2288,6 +2410,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_inventory_summary',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Synthèse de l’inventaire',
     description:
@@ -2300,6 +2423,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'list_low_stock_items',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Références sous le seuil',
     description:
@@ -2311,6 +2435,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'list_inventory_purchases',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Lister les achats d’inventaire',
     description:
@@ -2335,6 +2460,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'list_inventory_counts',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Lister les comptages d’inventaire',
     description:
@@ -2346,6 +2472,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_inventory_count',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Détail d’un comptage d’inventaire',
     description:
@@ -2358,6 +2485,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_inventory_item',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Créer une référence d’inventaire',
     description:
@@ -2375,6 +2503,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_inventory_item',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Modifier une référence d’inventaire',
     description:
@@ -2392,6 +2521,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'archive_inventory_item',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Archiver une référence d’inventaire',
     description:
@@ -2403,6 +2533,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'record_inventory_purchases',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Enregistrer un réapprovisionnement',
     description:
@@ -2418,6 +2549,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'cancel_restock_batch',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Annuler un lot de réapprovisionnement',
     description:
@@ -2432,6 +2564,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'record_inventory_count',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Enregistrer un comptage d’inventaire',
     description:
@@ -2446,6 +2579,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_inventory_settings',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Lire les réglages d’inventaire',
     description:
@@ -2457,6 +2591,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_inventory_settings',
+    toolset: 'inventaire',
     scope: 'finance',
     title: 'Modifier les réglages d’inventaire',
     description:
@@ -2473,6 +2608,7 @@ export const tools: McpTool[] = [
   // — Sondages (moteur générique de vote) —
   {
     name: 'list_polls',
+    toolset: 'sondages',
     title: 'Lister les sondages',
     description:
       'Renvoie les sondages avec leur `id`, statut, nombre d’options, de votes ' +
@@ -2485,6 +2621,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_poll',
+    toolset: 'sondages',
     title: 'Lire un sondage',
     description:
       'Renvoie le détail d’un sondage : ses options (y compris supprimées), le ' +
@@ -2495,6 +2632,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_poll_results',
+    toolset: 'sondages',
     title: 'Lire les résultats d’un sondage',
     description:
       'Renvoie le décompte des votes par option (nombre + pourcentage) et le ' +
@@ -2505,6 +2643,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_poll',
+    toolset: 'sondages',
     title: 'Créer un sondage',
     description:
       'Crée un sondage générique avec ses options (au moins 2). `allowSuggestions` ' +
@@ -2518,6 +2657,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_poll',
+    toolset: 'sondages',
     title: 'Modifier un sondage',
     description:
       'Met à jour les champs scalaires d’un sondage de façon PARTIELLE (titre, ' +
@@ -2533,6 +2673,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'set_poll_status',
+    toolset: 'sondages',
     title: 'Ouvrir/clôturer un sondage',
     description:
       'Change le statut d’un sondage : DRAFT (préparation, peut déjà collecter ' +
@@ -2549,6 +2690,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_poll',
+    toolset: 'sondages',
     title: 'Supprimer un sondage',
     description:
       'Supprime définitivement un sondage. Refusé si le sondage n’est pas en ' +
@@ -2559,6 +2701,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'set_poll_image',
+    toolset: 'sondages',
     title: 'Illustrer un sondage',
     description:
       'Associe une image de couverture à un sondage. Deux modes : (1) `imageUrl` — ' +
@@ -2595,6 +2738,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'create_poll_option',
+    toolset: 'sondages',
     title: 'Ajouter une option à un sondage',
     description:
       'Ajoute une option de vote à un sondage existant (`pollId`). `label` ' +
@@ -2611,6 +2755,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'update_poll_option',
+    toolset: 'sondages',
     title: 'Modifier une option de sondage',
     description:
       'Met à jour une option de façon PARTIELLE (label, description, imageUrl).',
@@ -2623,6 +2768,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'move_poll_option',
+    toolset: 'sondages',
     title: 'Réordonner une option de sondage',
     description:
       'Déplace une option d’un cran (haut/bas) dans l’ordre d’affichage de son ' +
@@ -2642,6 +2788,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'delete_poll_option',
+    toolset: 'sondages',
     title: 'Supprimer une option de sondage',
     description:
       'Retire une option d’un sondage (suppression douce : les votes déjà ' +
@@ -2652,6 +2799,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'set_poll_option_image',
+    toolset: 'sondages',
     title: 'Illustrer une option de sondage',
     description:
       'Associe une image à une option de sondage. Deux modes : (1) `imageUrl` — ' +
@@ -2688,6 +2836,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'list_poll_suggestions',
+    toolset: 'sondages',
     title: 'Lister les suggestions de la communauté',
     description:
       'Renvoie les suggestions (pâtisseries proposées par les clients) ' +
@@ -2703,6 +2852,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'get_poll_suggestion',
+    toolset: 'sondages',
     title: 'Lire une suggestion',
     description: 'Renvoie le détail d’une suggestion de la communauté.',
     inputSchema: z.object({ id: idSchema }),
@@ -2711,6 +2861,7 @@ export const tools: McpTool[] = [
   },
   {
     name: 'moderate_poll_suggestion',
+    toolset: 'sondages',
     title: 'Approuver/rejeter une suggestion',
     description:
       'Modère une suggestion PENDING. `decision: "approve"` la promeut en ' +
@@ -2726,6 +2877,22 @@ export const tools: McpTool[] = [
 ];
 
 export const toolsByName = new Map(tools.map((t) => [t.name, t]));
+
+/**
+ * Partition des noms d'outils par domaine fonctionnel (`toolset`). Utilisé
+ * par `app/api/mcp/route.ts` pour le filtrage `?toolset=` — composable par
+ * intersection avec les restrictions de rôle ci-dessous, jamais un
+ * remplacement.
+ */
+export const TOOLSET_TOOL_NAMES: Record<
+  ToolsetName,
+  Set<string>
+> = Object.fromEntries(
+  TOOLSET_NAMES.map((toolset) => [
+    toolset,
+    new Set(tools.filter((t) => t.toolset === toolset).map((t) => t.name)),
+  ])
+) as Record<ToolsetName, Set<string>>;
 
 /**
  * Noms des outils accessibles au rôle COMPTABLE (finance uniquement).
