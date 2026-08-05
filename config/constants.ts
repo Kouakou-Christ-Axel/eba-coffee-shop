@@ -165,6 +165,17 @@ export const SCHEDULED_LEAD_IN_MINUTES = 60;
 export const SCHEDULED_ALERT_MINUTES = 15;
 
 /**
+ * Pré-analyse IA des preuves de paiement (Wave/Orange Money), via OpenRouter
+ * (lib/ai/payment-proof.ts). Stratégie à deux étages : le modèle primaire
+ * (rapide/économique) traite tous les appels ; le modèle de repli (plus
+ * précis) n'est sollicité qu'en cas d'échec de parsing ou de confiance basse
+ * du premier passage. Inerte si `OPENROUTER_API_KEY` est absente.
+ */
+export const PAYMENT_PROOF_AI_MODEL_PRIMARY = 'google/gemini-2.5-flash';
+export const PAYMENT_PROOF_AI_MODEL_FALLBACK = 'anthropic/claude-sonnet-4.5';
+export const PAYMENT_PROOF_AI_CONFIDENCE_THRESHOLD = 0.6;
+
+/**
  * Presets rapides (minutes à partir de maintenant) proposés en caisse pour
  * fixer/modifier le créneau de retrait d'une commande existante (ex. « le
  * livreur arrive dans 15 min », ou un retrait client plus tardif).

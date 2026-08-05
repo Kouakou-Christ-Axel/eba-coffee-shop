@@ -19,9 +19,11 @@ import {
 import { getLoyaltySettings } from '@/lib/loyalty-settings-db';
 import type { LoyaltySettings } from '@/lib/loyalty-settings';
 import type {
+  OrderSource,
   OrderStatus,
   OrderType,
   PaymentMode,
+  PaymentProofVerdict,
 } from '@/generated/prisma/client';
 
 export type CashierOrder = {
@@ -50,7 +52,20 @@ export type CashierOrder = {
    * commandes n'escalade pas en urgence (cf. `urgency.ts`). */
   customerTrusted: boolean;
   paymentMode: PaymentMode | null;
+  /** Vrai si l'encaissement courant (`isPaid`) a été posé automatiquement par
+   * la pré-analyse IA (verdict MATCH) plutôt que par un geste caisse. Pilote
+   * le bouton dédié « Annuler l'encaissement automatique ». Toujours `false`
+   * si `isPaid` est faux. */
+  paymentAutoValidatedByAi: boolean;
   paymentProofUrl: string | null;
+  /** Verdict de la pré-analyse IA de `paymentProofUrl` (lib/ai/payment-proof.ts).
+   * Null tant que pas analysée (ou fonctionnalité inactive) — signal caisse
+   * uniquement, ne remplace jamais la validation manuelle. */
+  paymentProofVerdict: PaymentProofVerdict | null;
+  /** Détail structuré de l'analyse IA (montant/opérateur/référence détectés). */
+  paymentProofAnalysis: unknown;
+  /** Origine de création de la commande (cf. enum `OrderSource`). */
+  source: OrderSource;
   driverRequested: boolean;
   driverName: string | null;
   driverPhone: string | null;
@@ -248,7 +263,11 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       isOnAccount: o.isOnAccount,
       customerTrusted: o.customer?.isTrusted ?? false,
       paymentMode: o.paymentMode,
+      paymentAutoValidatedByAi: o.paymentAutoValidatedByAi,
       paymentProofUrl: o.paymentProofUrl,
+      paymentProofVerdict: o.paymentProofVerdict,
+      paymentProofAnalysis: o.paymentProofAnalysis,
+      source: o.source,
       driverRequested: o.driverRequested,
       driverName: o.driverName,
       driverPhone: o.driverPhone,

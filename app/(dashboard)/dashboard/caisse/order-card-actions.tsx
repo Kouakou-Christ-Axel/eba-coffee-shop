@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   UserCog,
   Gift,
+  Bot,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -323,6 +324,32 @@ export function OrderCardActions({
     handleStatusChange('PREPARING', { onAccount: true });
   }
 
+  // Annule un encaissement posé AUTOMATIQUEMENT par l'IA (verdict MATCH,
+  // cf. lib/ai/payment-proof.ts) — ne touche qu'au paiement (isPaid → false),
+  // jamais au statut : la commande peut déjà être en cuisine, voire prête,
+  // et ce n'est pas à cette action d'en décider. Toujours disponible tant
+  // que `paymentAutoValidatedByAi` est vrai — pas de fenêtre de 10 s comme
+  // le toast d'annulation d'un encaissement caisse classique, car personne
+  // n'était devant l'écran au moment de l'encaissement automatique.
+  function handleUndoAutoValidation() {
+    if (
+      !confirm(
+        `Annuler l'encaissement automatique (IA) de la commande ${orderRef} ?\nElle repassera « non payée ».`
+      )
+    ) {
+      return;
+    }
+    setActionError(null);
+    startTransition(async () => {
+      const result = await callApi(
+        `/api/caisse/orders/${order.id}/payment`,
+        'PATCH',
+        { isPaid: false }
+      );
+      if (!result.ok) setActionError(result.error);
+    });
+  }
+
   // Annuler une commande non payée ; rembourser (= annuler) une commande payée.
   function handleCancelOrRefund() {
     const message = order.isPaid
@@ -431,6 +458,25 @@ export function OrderCardActions({
             >
               <Check className="mr-1.5 h-4 w-4" />
               Valider le paiement Wave
+            </Button>
+          )}
+
+        {/* Encaissement posé automatiquement par l'IA : retour en arrière en
+            un clic, sans limite de temps (contrairement au toast d'undo 10 s
+            d'un encaissement caisse — personne n'était devant l'écran). */}
+        {order.isPaid &&
+          order.paymentAutoValidatedByAi &&
+          order.status !== 'CANCELLED' && (
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="w-full border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+              disabled={isPending}
+              onClick={handleUndoAutoValidation}
+            >
+              <Bot className="mr-1.5 h-4 w-4" />
+              Annuler l&apos;encaissement automatique
             </Button>
           )}
 

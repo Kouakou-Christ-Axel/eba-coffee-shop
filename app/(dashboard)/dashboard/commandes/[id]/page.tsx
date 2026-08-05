@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { Gift } from 'lucide-react';
+import { Gift, Bot } from 'lucide-react';
 import { getOrder } from '@/lib/orders';
 import { getMenu } from '@/lib/menu';
 import { getContactSettings } from '@/lib/contact-settings-db';
@@ -124,8 +124,16 @@ export default async function CommandeDetailPage({
           <Badge variant={STATUS_VARIANTS[order.status]}>
             {STATUS_LABELS[order.status]}
           </Badge>
-          <Badge variant={order.isPaid ? 'default' : 'secondary'}>
+          <Badge
+            variant={order.isPaid ? 'default' : 'secondary'}
+            className="inline-flex items-center gap-1"
+          >
             {order.isPaid ? 'Payée' : 'Non payée'}
+            {order.isPaid && order.paymentAutoValidatedByAi && (
+              <span title="Encaissement automatique (IA)">
+                <Bot className="h-3 w-3" aria-hidden="true" />
+              </span>
+            )}
           </Badge>
           {order.status === 'CANCELLED' && order.isPaid && (
             <Badge variant="destructive">Remboursée</Badge>

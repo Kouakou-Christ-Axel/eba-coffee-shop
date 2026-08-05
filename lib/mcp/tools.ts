@@ -1496,6 +1496,7 @@ export const tools: McpTool[] = [
         customerName: a.customerName ?? null,
         customerPhone: a.customerPhone ?? null,
         note: a.note ?? null,
+        source: 'MCP',
       });
       return {
         id: order.id,

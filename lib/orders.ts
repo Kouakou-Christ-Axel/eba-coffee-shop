@@ -137,6 +137,7 @@ export async function createOrder(input: CreateOrderInput) {
             items: input.items,
             total: input.total - discount,
             note: input.note ?? null,
+            source: 'ONLINE',
             driverName: input.driverName ?? null,
             driverPhone,
             loyaltyRewardId: reward?.id ?? null,

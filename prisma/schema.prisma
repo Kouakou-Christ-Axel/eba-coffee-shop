@@ -176,6 +176,27 @@ enum PaymentMode {
   OTHER
 }
 
+// Origine de création d'une commande — distingue le panier public (client),
+// l'écran caisse (staff connecté) et l'outil MCP `create_order` (saisie
+// rétroactive par un agent). `createdById` seul ne suffit pas : il est null
+// à la fois pour ONLINE et MCP.
+enum OrderSource {
+  ONLINE
+  CASHIER
+  MCP
+}
+
+// Verdict de la pré-analyse IA d'une capture de paiement Wave/Orange Money
+// (lib/ai/payment-proof.ts). Un verdict `MATCH` (avec confiance suffisante)
+// déclenche un encaissement AUTOMATIQUE (cf. `Order.paymentAutoValidatedByAi`)
+// — réversible en un clic côté caisse, jamais définitif sans recours.
+enum PaymentProofVerdict {
+  MATCH
+  MISMATCH
+  UNREADABLE
+  PENDING
+}
+
 model Order {
   id            String      @id @default(cuid())
   reference     String      @unique
@@ -193,6 +214,15 @@ model Order {
   isPaid      Boolean      @default(false)
   paymentMode PaymentMode?
   paidAt      DateTime?
+
+  // Vrai si CET encaissement (isPaid=true courant) a été posé automatiquement
+  // par la pré-analyse IA (verdict MATCH, cf. lib/ai/payment-proof.ts) plutôt
+  // que par un geste caisse. Remis à `false` dès que `isPaid` repasse à
+  // `false` (setOrderPayment) — un dépaiement, qu'il vienne de l'annulation
+  // caisse dédiée ou d'un dépaiement générique, efface le statut « auto ».
+  // Pilote un bouton caisse dédié (« Annuler l'encaissement automatique »)
+  // tant que ce drapeau est vrai, pour un retour en arrière sans ambiguïté.
+  paymentAutoValidatedByAi Boolean @default(false)
 
   // Horodatages du cycle cuisine, servant les minuteurs des écrans staff
   // (cuisine + caisse). `preparingStartedAt` : entrée en cuisine (NEW →
@@ -230,6 +260,22 @@ model Order {
   // (/uploads/payment-proofs/…). Validée manuellement en caisse.
   paymentProofUrl String?
 
+  // Pré-analyse IA de `paymentProofUrl` (lib/ai/payment-proof.ts, déclenchée
+  // en arrière-plan après l'upload). `paymentProofVerdict` null = pas encore
+  // analysée (ou OPENROUTER_API_KEY absente — fonctionnalité inerte).
+  // `paymentProofAnalysis` conserve le détail structuré (montant/opérateur/
+  // référence/raisonnement/modèle) pour affichage caisse. Un signal, jamais
+  // une validation automatique : `isPaid` reste un geste caisse manuel.
+  paymentProofVerdict   PaymentProofVerdict?
+  paymentProofAnalysis  Json?
+  paymentProofAnalyzedAt DateTime?
+
+  // Origine de création (cf. enum OrderSource ci-dessus). Défaut CASHIER pour
+  // les lignes existantes (hypothèse la plus sûre en l'absence d'historique
+  // fiable) — les nouvelles commandes fixent explicitement leur source à la
+  // création (lib/orders.ts, lib/order-mutations.ts, lib/mcp/tools.ts).
+  source OrderSource @default(CASHIER)
+
   // Récompense fidélité appliquée à cette commande (réduction déjà déduite de
   // `total`). `loyaltyRewardId` référence `LoyaltyReward.id` (pas de relation
   // Prisma, cf. `LoyaltyReward.usedOrderId` — même convention côté inverse).
@@ -264,6 +310,7 @@ model Order {
   @@index([isPaid, status])
   @@index([createdAt(sort: Desc)])
   @@index([customerId])
+  @@index([source])
   @@map("order")
 }
 

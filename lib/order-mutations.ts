@@ -26,8 +26,10 @@
 
 import { Prisma } from '@/generated/prisma/client';
 import type {
+  OrderSource,
   OrderStatus,
   PaymentMode,
+  PaymentProofVerdict,
   UserRole,
 } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
@@ -332,6 +334,12 @@ export type CreateCashierOrderInput = {
   orderDate?: string | null;
   /** Utilisateur caisse à l'origine ; null pour un outil MCP. */
   createdById?: string | null;
+  /**
+   * Origine de création (cf. enum `OrderSource`, prisma/schema.prisma).
+   * Défaut `CASHIER` (l'appelant caisse le plus courant) ; l'outil MCP
+   * `create_order` (lib/mcp/tools.ts) passe explicitement `MCP`.
+   */
+  source?: OrderSource;
   /** Récompense fidélité (carte à tampons) à appliquer à cette commande. */
   loyaltyRewardId?: string | null;
   /**
@@ -448,6 +456,7 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
             total,
             note: input.note ?? null,
             createdById: input.createdById ?? null,
+            source: input.source ?? 'CASHIER',
             loyaltyRewardId: reward?.id ?? null,
             loyaltyDiscount: discount || null,
             // Ardoise : la commande naît en cuisine, non payée. `isPaid` reste
@@ -889,7 +898,17 @@ export async function setOrderPayment(
   id: string,
   isPaid: boolean,
   payments?: OrderPaymentLineInput[],
-  actorId?: string | null
+  actorId?: string | null,
+  opts?: {
+    /**
+     * Vrai UNIQUEMENT quand cet encaissement provient de la pré-analyse IA
+     * (verdict MATCH, cf. lib/ai/payment-proof.ts) plutôt que d'un geste
+     * caisse. Persisté sur `Order.paymentAutoValidatedByAi` pour piloter le
+     * bouton de retour en arrière dédié côté caisse. Ignoré si `isPaid` est
+     * faux (le dépaiement remet toujours ce drapeau à `false`).
+     */
+    autoValidatedByAi?: boolean;
+  }
 ): Promise<{ startedPreparation: boolean }> {
   if (isPaid && (!payments || payments.length === 0)) {
     throw new OrderMutationError('payments requis quand isPaid=true', 400);
@@ -910,7 +929,12 @@ export async function setOrderPayment(
     const [result] = await prisma.$transaction([
       prisma.order.updateMany({
         where: { id, isPaid: true },
-        data: { isPaid: false, paymentMode: null, paidAt: null },
+        data: {
+          isPaid: false,
+          paymentMode: null,
+          paidAt: null,
+          paymentAutoValidatedByAi: false,
+        },
       }),
       prisma.orderPayment.deleteMany({ where: { orderId: id } }),
     ]);
@@ -974,6 +998,7 @@ export async function setOrderPayment(
           isPaid: true,
           paymentMode: resolvePaymentMode(lines),
           paidAt: new Date(),
+          paymentAutoValidatedByAi: opts?.autoValidatedByAi ?? false,
           // Encaisser une commande encore NEW la pousse en cuisine : on amorce
           // alors le chrono « en cuisine depuis X » au même instant.
           ...(startedPreparation
@@ -1680,5 +1705,39 @@ export async function setOrderPaymentProof(
   await prisma.order.update({
     where: { id },
     data: { paymentProofUrl: url },
+  });
+}
+
+/**
+ * Persiste le verdict de la pré-analyse IA d'une preuve de paiement
+ * (lib/ai/payment-proof.ts, appelée en arrière-plan après l'upload) : ne
+ * touche jamais `isPaid`/`paymentMode` elle-même. Contrairement à
+ * `setOrderPaymentProof`, N'EXIGE PAS que la commande soit encore non payée
+ * — l'appelant peut avoir entre-temps posé un encaissement AUTOMATIQUE sur
+ * la base de CE MÊME verdict (cf. `analyzePaymentProof`), et cette analyse
+ * reste une information utile à conserver (raisonnement, indices de
+ * retouche...) même une fois la commande payée. Ignore silencieusement une
+ * commande introuvable ou annulée (résultat devenu sans objet).
+ */
+export async function setOrderPaymentProofVerdict(
+  id: string,
+  input: {
+    verdict: PaymentProofVerdict;
+    analysis: Prisma.InputJsonValue;
+  }
+): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+  if (!order || order.status === 'CANCELLED') return;
+
+  await prisma.order.update({
+    where: { id },
+    data: {
+      paymentProofVerdict: input.verdict,
+      paymentProofAnalysis: input.analysis,
+      paymentProofAnalyzedAt: new Date(),
+    },
   });
 }
