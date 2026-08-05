@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarClock, PackageCheck } from 'lucide-react';
+import { CalendarClock, CheckCheck, PackageCheck } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -42,6 +42,8 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onExpand: (id: string) => void;
+  pendingIds: Set<string>;
+  onRetrieve: (id: string) => void;
 };
 
 /**
@@ -57,6 +59,8 @@ export function OrdersListSheet({
   open,
   onOpenChange,
   onExpand,
+  pendingIds,
+  onRetrieve,
 }: Props) {
   const meta = VARIANT_META[variant];
   const Icon = meta.Icon;
@@ -91,6 +95,8 @@ export function OrdersListSheet({
                   order={order}
                   now={now}
                   onExpand={onExpand}
+                  pending={pendingIds.has(order.id)}
+                  onRetrieve={onRetrieve}
                 />
               ))}
             </ul>
@@ -106,11 +112,15 @@ function OrdersListRow({
   order,
   now,
   onExpand,
+  pending,
+  onRetrieve,
 }: {
   variant: OrdersListVariant;
   order: PreparationOrder;
   now: Date;
   onExpand: (id: string) => void;
+  pending: boolean;
+  onRetrieve: (id: string) => void;
 }) {
   const TypeIcon = ORDER_TYPE_META[order.orderType].Icon;
   const isReady = variant === 'ready';
@@ -204,8 +214,17 @@ function OrdersListRow({
       </button>
 
       {isReady && (
-        <div className="px-4 pb-4">
-          <TrackingLinkButton orderId={order.id} />
+        <div className="flex items-center gap-2 px-4 pb-4">
+          <TrackingLinkButton orderId={order.id} className="flex-1" />
+          <button
+            type="button"
+            onClick={() => onRetrieve(order.id)}
+            disabled={pending}
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-50"
+          >
+            <CheckCheck className="h-4 w-4" strokeWidth={2.5} />
+            Récupérée
+          </button>
         </div>
       )}
     </li>

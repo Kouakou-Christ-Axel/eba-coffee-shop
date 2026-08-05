@@ -23,7 +23,9 @@ const KITCHEN_PLUS: UserRole[] = [
 const TRANSITIONS: readonly Transition[] = [
   { from: 'NEW', to: 'PREPARING', roles: KITCHEN_PLUS },
   { from: 'PREPARING', to: 'READY', roles: KITCHEN_PLUS },
-  { from: 'READY', to: 'COMPLETED', roles: CASHIER_PLUS },
+  // KITCHEN inclus : le cuisinier peut aussi remettre la commande au client
+  // et la marquer récupérée, sans attendre la caisse.
+  { from: 'READY', to: 'COMPLETED', roles: [...CASHIER_PLUS, 'KITCHEN'] },
 
   // Annulations / remboursements : tout caissier peut annuler une commande
   // active. Annuler une commande déjà payée vaut remboursement.

@@ -34,6 +34,20 @@ export async function markOrderReady(id: string): Promise<void> {
 }
 
 /**
+ * Marquer une commande prête comme récupérée par le client (READY →
+ * COMPLETED), même principe qu'en caisse. Délègue à `setOrderStatus` comme
+ * `markOrderReady`, pour les mêmes raisons (notifications/push).
+ */
+export async function markOrderRetrieved(id: string): Promise<void> {
+  const session = await requireKitchen();
+  await setOrderStatus(id, 'COMPLETED', session.user.role as UserRole);
+
+  revalidatePath('/dashboard/preparation');
+  revalidatePath('/dashboard/caisse');
+  revalidatePath('/dashboard/commandes');
+}
+
+/**
  * DÉLIBÉRÉMENT laissée en `updateMany` brut, contrairement à `markOrderReady` :
  * `KITCHEN` n'appartient pas à `CASHIER_PLUS`, or PREPARING → CANCELLED est
  * réservé à `CASHIER_PLUS` (lib/order-permissions.ts). Passer par

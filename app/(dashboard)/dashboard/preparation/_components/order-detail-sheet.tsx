@@ -3,6 +3,7 @@
 import {
   Bike,
   Check,
+  CheckCheck,
   ChefHat,
   PackageCheck,
   StickyNote,
@@ -40,14 +41,15 @@ type Props = {
   onReady: (id: string) => void;
   onCancel: (id: string) => void;
   onRequestDriver: (id: string) => void;
+  onRetrieve: (id: string) => void;
 };
 
 /**
  * Bottom sheet de détail d'UNE commande, pensé pour être lu de loin en cuisine
  * (numéro et articles très grands). Ouvert au toucher d'une carte / d'une ligne
  * de liste. Regroupe aussi les actions (Prête / Annuler / Livreur) en gros
- * boutons tactiles. Pour une commande déjà prête (READY), remplace « Prête » par
- * le lien de suivi.
+ * boutons tactiles. Pour une commande déjà prête (READY), remplace « Prête »
+ * par le lien de suivi et le bouton « Marquer récupérée ».
  */
 export function OrderDetailSheet({
   order,
@@ -57,6 +59,7 @@ export function OrderDetailSheet({
   onReady,
   onCancel,
   onRequestDriver,
+  onRetrieve,
 }: Props) {
   const open = order !== null;
 
@@ -79,6 +82,7 @@ export function OrderDetailSheet({
             onReady={onReady}
             onCancel={onCancel}
             onRequestDriver={onRequestDriver}
+            onRetrieve={onRetrieve}
           />
         )}
       </SheetContent>
@@ -93,6 +97,7 @@ function OrderDetailBody({
   onReady,
   onCancel,
   onRequestDriver,
+  onRetrieve,
 }: {
   order: PreparationOrder;
   now: Date;
@@ -100,6 +105,7 @@ function OrderDetailBody({
   onReady: (id: string) => void;
   onCancel: (id: string) => void;
   onRequestDriver: (id: string) => void;
+  onRetrieve: (id: string) => void;
 }) {
   const typeMeta = ORDER_TYPE_META[order.orderType];
   const TypeIcon = typeMeta.Icon;
@@ -233,7 +239,22 @@ function OrderDetailBody({
         )}
 
         {isReady ? (
-          <TrackingLinkButton orderId={order.id} className="py-1" />
+          <div className="flex flex-col gap-3">
+            <TrackingLinkButton orderId={order.id} className="py-1" />
+            <button
+              type="button"
+              onClick={() => onRetrieve(order.id)}
+              disabled={pending}
+              className="flex items-center justify-center gap-2 rounded-xl bg-green-600 py-4 text-xl font-bold text-white shadow-sm transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-50"
+            >
+              {pending ? (
+                <ChefHat className="h-7 w-7 animate-pulse" />
+              ) : (
+                <CheckCheck className="h-7 w-7" strokeWidth={2.5} />
+              )}
+              Marquer récupérée
+            </button>
+          </div>
         ) : (
           <div className="grid grid-cols-[1fr_2.5fr] gap-3">
             <button
