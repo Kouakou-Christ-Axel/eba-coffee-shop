@@ -6,23 +6,14 @@
 // active les notifications push pour SA commande (préparation, prête,
 // récupérée, paiement validé) — plus besoin de garder la page ouverte.
 //
-// L'appareil suit une commande à la fois (localStorage + upsert par endpoint
-// côté serveur) : activer ici bascule l'appareil sur cette commande. Masqué si
-// non supporté (dont Safari iOS hors PWA installée) ou commande terminée.
+// Complété par la popup order-notifications-modal.tsx (incitation au premier
+// affichage) ; les deux partagent l'état via useOrderPushNotifications.
+// Masqué si non supporté (dont Safari iOS hors PWA installée) ou commande
+// terminée.
 
-import { useCallback, useEffect, useState } from 'react';
 import { Button, Chip } from '@heroui/react';
 import { Bell, BellRing } from 'lucide-react';
-import {
-  ensurePushSubscription,
-  getServiceWorkerRegistration,
-  isPushSupported,
-} from '@/lib/push-client';
-
-/** Commande suivie par CET appareil (une seule à la fois). */
-const STORAGE_KEY = 'eba-push-order';
-
-type Status = 'hidden' | 'off' | 'denied' | 'on';
+import { useOrderPushNotifications } from '@/lib/hooks/use-order-push-notifications';
 
 export function OrderNotifications({
   orderId,
@@ -31,73 +22,10 @@ export function OrderNotifications({
   orderId: string;
   isFinal: boolean;
 }) {
-  const [status, setStatus] = useState<Status>('hidden');
-  const [pending, setPending] = useState(false);
-
-  useEffect(() => {
-    if (isFinal || !isPushSupported()) {
-      setStatus('hidden');
-      return;
-    }
-    if (Notification.permission === 'denied') {
-      setStatus('denied');
-      return;
-    }
-    (async () => {
-      const registration = await getServiceWorkerRegistration();
-      const subscription = await registration.pushManager.getSubscription();
-      const followedOrder = localStorage.getItem(STORAGE_KEY);
-      setStatus(subscription && followedOrder === orderId ? 'on' : 'off');
-    })().catch(() => setStatus('off'));
-  }, [orderId, isFinal]);
-
-  const enable = useCallback(async () => {
-    setPending(true);
-    try {
-      const subscription = await ensurePushSubscription();
-      if (!subscription) {
-        setStatus(Notification.permission === 'denied' ? 'denied' : 'off');
-        return;
-      }
-
-      const res = await fetch(`/api/commandes/${orderId}/notifications`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subscription.toJSON()),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      localStorage.setItem(STORAGE_KEY, orderId);
-      setStatus('on');
-    } catch (err) {
-      console.error('[push] activation échouée :', err);
-      setStatus('off');
-    } finally {
-      setPending(false);
-    }
-  }, [orderId]);
-
-  const disable = useCallback(async () => {
-    setPending(true);
-    try {
-      const registration = await getServiceWorkerRegistration();
-      const subscription = await registration.pushManager.getSubscription();
-      if (subscription) {
-        await fetch(`/api/commandes/${orderId}/notifications`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ endpoint: subscription.endpoint }),
-        });
-        await subscription.unsubscribe();
-      }
-      localStorage.removeItem(STORAGE_KEY);
-      setStatus('off');
-    } catch (err) {
-      console.error('[push] désactivation échouée :', err);
-    } finally {
-      setPending(false);
-    }
-  }, [orderId]);
+  const { status, pending, enable, disable } = useOrderPushNotifications({
+    orderId,
+    isFinal,
+  });
 
   if (status === 'hidden') return null;
 
