@@ -6,6 +6,8 @@ import { motion, useReducedMotion } from 'framer-motion';
 import type { MenuCategory } from '@/config/menu';
 import ProductCard from '@/components/(public)/carte/product-card';
 import FeaturedShowcase from '@/components/(public)/carte/featured-showcase';
+import { isAvailableToday } from '@/lib/supplements';
+import { formatAvailableDaysLabel } from '@/components/(public)/carte/_components/availability-labels';
 
 type Props = {
   menuData: MenuCategory[];
@@ -101,44 +103,59 @@ function CarteMenuSectionClient({ menuData }: Props) {
       <FeaturedShowcase menuData={menuData} />
 
       <div className="content-container mt-8 space-y-10 md:mt-10 md:space-y-14">
-        {menuData.map((category) => (
-          <div
-            key={category.id}
-            id={category.id}
-            ref={(el) => {
-              if (el) sectionRefs.current.set(category.id, el);
-            }}
-          >
-            <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
-              {category.name}
-            </h2>
+        {menuData.map((category) => {
+          // Planning propre à la catégorie (indépendant de celui de ses
+          // produits, déjà intégré individuellement par intersection) : sert
+          // uniquement au message d'en-tête de section, pas au blocage des
+          // produits eux-mêmes.
+          const categoryOutOfSchedule = !isAvailableToday(
+            category.availableDays
+          );
+          return (
+            <div
+              key={category.id}
+              id={category.id}
+              ref={(el) => {
+                if (el) sectionRefs.current.set(category.id, el);
+              }}
+              className={categoryOutOfSchedule ? 'opacity-60' : undefined}
+            >
+              <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
+                {category.name}
+              </h2>
+              {categoryOutOfSchedule && (
+                <p className="mt-0.5 text-sm text-foreground/60">
+                  {formatAvailableDaysLabel(category.availableDays ?? [])}
+                </p>
+              )}
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {category.products.map((product, i) => (
-                // `initial`/`whileInView` sont volontairement IDENTIQUES en
-                // reduced-motion : `useReducedMotion()` vaut `false` côté
-                // serveur, donc conditionner ces props dessus produisait un
-                // markup différent du client. React abandonnait l'hydratation
-                // et les cartes restaient bloquées à `opacity: 0` — carte
-                // entièrement blanche pour qui a coupé les animations. Seule
-                // la DURÉE varie : le rendu est instantané au lieu d'animé.
-                <motion.div
-                  key={product.id}
-                  initial={{ opacity: 0, y: 16 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, amount: 0.15 }}
-                  transition={
-                    reduceMotion
-                      ? { duration: 0 }
-                      : { duration: 0.4, delay: i * 0.05, ease: 'easeOut' }
-                  }
-                >
-                  <ProductCard product={product} />
-                </motion.div>
-              ))}
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {category.products.map((product, i) => (
+                  // `initial`/`whileInView` sont volontairement IDENTIQUES en
+                  // reduced-motion : `useReducedMotion()` vaut `false` côté
+                  // serveur, donc conditionner ces props dessus produisait un
+                  // markup différent du client. React abandonnait l'hydratation
+                  // et les cartes restaient bloquées à `opacity: 0` — carte
+                  // entièrement blanche pour qui a coupé les animations. Seule
+                  // la DURÉE varie : le rendu est instantané au lieu d'animé.
+                  <motion.div
+                    key={product.id}
+                    initial={{ opacity: 0, y: 16 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.15 }}
+                    transition={
+                      reduceMotion
+                        ? { duration: 0 }
+                        : { duration: 0.4, delay: i * 0.05, ease: 'easeOut' }
+                    }
+                  >
+                    <ProductCard product={product} />
+                  </motion.div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

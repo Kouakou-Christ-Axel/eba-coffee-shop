@@ -16,6 +16,14 @@ import {
 import { ProductImagesField } from './_components/product-images-field';
 import { BadgesField } from './_components/badges-field';
 import {
+  ScheduleField,
+  type ScheduleOption,
+} from '@/components/(dashboard)/schedule-field';
+import {
+  WeeklySpecialField,
+  type WeeklySpecialRow,
+} from './_components/weekly-special-field';
+import {
   SupplementsEditor,
   type SupplementGroup,
 } from '@/components/(dashboard)/supplements-editor';
@@ -39,6 +47,8 @@ export type ProductFormInitial = {
   featuredBadge: string | null;
   stockQuantity: number | null;
   unavailableUntil: Date | null;
+  scheduleId: string | null;
+  weeklySpecials: WeeklySpecialRow[];
 };
 
 const EMPTY: ProductFormInitial = {
@@ -54,14 +64,18 @@ const EMPTY: ProductFormInitial = {
   featuredBadge: null,
   stockQuantity: null,
   unavailableUntil: null,
+  scheduleId: null,
+  weeklySpecials: [],
 };
 
 export function ProductForm({
   categoryId,
   initial,
+  schedules,
 }: {
   categoryId: string;
   initial?: ProductFormInitial;
+  schedules: ScheduleOption[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -101,6 +115,9 @@ export function ProductForm({
   );
   const [stockQuantity, setStockQuantity] = useState<number | null>(
     initial?.stockQuantity ?? EMPTY.stockQuantity
+  );
+  const [scheduleId, setScheduleId] = useState<string | null>(
+    initial?.scheduleId ?? EMPTY.scheduleId
   );
 
   // Pause programmée : gérée indépendamment de la sauvegarde du formulaire
@@ -184,6 +201,7 @@ export function ProductForm({
           featuredOrder: featured ? Number(featuredOrder) || 0 : 0,
           featuredBadge: featured ? featuredBadge : null,
           stockQuantity,
+          scheduleId,
         };
         const result =
           isEdit && initial?.id
@@ -282,6 +300,12 @@ export function ProductForm({
               décrémenté au paiement.
             </p>
           </div>
+          <ScheduleField
+            schedules={schedules}
+            scheduleId={scheduleId}
+            onChange={setScheduleId}
+            helpText="Restreint la commande aux jours du planning (combiné avec celui de la catégorie si elle en a un)."
+          />
           {priceNum > 0 && (
             <div className="rounded-lg bg-muted px-3 py-2 text-sm">
               <span className="text-muted-foreground">Marge estimée : </span>
@@ -374,6 +398,13 @@ export function ProductForm({
             )}
           </CardContent>
         </Card>
+      )}
+
+      {isEdit && initial?.id && (
+        <WeeklySpecialField
+          productId={initial.id}
+          initialSpecials={initial.weeklySpecials}
+        />
       )}
 
       <ProductImagesField

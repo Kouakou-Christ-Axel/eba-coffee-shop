@@ -269,6 +269,14 @@ réduite, voire vide, ce n'est pas une erreur.
 | `restock_option`                 | menu       | écriture | Ajouter une fournée (delta) au stock d’une option                  |
 | `pause_product`                  | menu       | écriture | Mettre un produit en pause jusqu’à une date-heure                  |
 | `resume_product`                 | menu       | écriture | Lever la pause d’un produit avant son terme                        |
+| `list_product_schedules`         | menu       | lecture  | Lister les plannings récurrents (jours + produits/catégories liés) |
+| `create_product_schedule`        | menu       | écriture | Créer un planning récurrent nommé                                  |
+| `update_product_schedule`        | menu       | écriture | Modifier un planning récurrent (mise à jour **partielle**)         |
+| `delete_product_schedule`        | menu       | écriture | Supprimer un planning (désassigne, sans rien supprimer d’autre)    |
+| `list_product_weekly_specials`   | menu       | lecture  | Historique « spécialité de la semaine » (par produit ou global)    |
+| `create_product_weekly_special`  | menu       | écriture | Programmer une fenêtre « spécialité de la semaine »                |
+| `update_product_weekly_special`  | menu       | écriture | Corriger une fenêtre existante (mise à jour **partielle**)         |
+| `delete_product_weekly_special`  | menu       | écriture | Retirer une fenêtre de l’historique                                |
 | `get_pending_demand`             | menu       | lecture  | Quantité déjà demandée (commandes non payées)                      |
 | `list_global_extras`             | menu       | lecture  | Lister les extras globaux                                          |
 | `create_global_extra_group`      | menu       | écriture | Créer un groupe d’extras global                                    |
@@ -612,6 +620,43 @@ sur la carte publique avec un tag « Indisponible — retour {heure} » ; la
 reprise est **automatique** (calculée à la lecture, sans cron). `resume_product`
 lève la pause manuellement avant son terme. Différent de
 `toggle_product_availability`, qui masque complètement le produit.
+
+### Plannings récurrents (« à la cal.com »)
+
+Un `ProductSchedule` est **nommé et réutilisable** (ex. « Jour du chocolat » =
+mercredi uniquement) : créé une fois via `create_product_schedule` (`name`,
+`days` — 0=dimanche…6=samedi, au moins un jour), il s'assigne ensuite via
+`scheduleId` sur **plusieurs produits ET catégories à la fois**
+(`create_product`/`update_product`, `create_category`/`update_category`) —
+modifier le planning (`update_product_schedule`) met à jour tout ce qui
+l'utilise. `scheduleId: null` désassigne (redevient disponible tous les
+jours) ; `delete_product_schedule` désassigne tout ce qui l'utilisait sans
+rien supprimer d'autre.
+
+Le jour effectif d'un produit est l'**intersection** de son propre planning et
+de celui de sa catégorie s'il en a un (ex. produit « mercredi » dans une
+catégorie « week-end » ⇒ jamais disponible — configuration incohérente
+signalée honnêtement plutôt qu'ignorée). `get_menu` renvoie `availableDays`
+(tableau de jours effectif) pour chaque produit ET chaque catégorie ; côté
+carte publique, un produit/catégorie hors planning reste **visible** avec un
+message de retour, mais son **prix ne s'affiche plus** tant qu'il n'est pas
+dans sa fenêtre.
+
+### Spécialité de la semaine
+
+`ProductWeeklySpecial` trace un **historique structuré** de fenêtres de
+disponibilité datées (`startDate`/`endDate`, format YYYY-MM-DD) pour un
+produit — utile pour un article inédit disponible une semaine, qui peut
+revenir plus tard sans perdre la trace des passages précédents.
+`create_product_weekly_special` programme une fenêtre ; dès qu'**au moins
+une** existe pour un produit, il n'est commandable **que** dans une fenêtre
+active (comportement additif à `available`/`unavailableUntil`, pas un
+remplacement). `list_product_weekly_specials` (avec ou sans `productId`)
+renvoie l'historique complet — les fenêtres passées y restent, purement
+consultatives, sans effet sur la disponibilité courante.
+`update_product_weekly_special` corrige une fenêtre sans créer de nouvelle
+ligne ; `delete_product_weekly_special` retire un passage (si c'était le
+dernier, le produit redevient commandable normalement).
 
 ## Architecture
 

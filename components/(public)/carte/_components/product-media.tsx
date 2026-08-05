@@ -9,6 +9,7 @@
 import { MediaImage } from '@/components/ui/media-image';
 import type { Product } from '@/config/menu';
 import { POPULARITY_RANKED_COUNT } from '@/config/constants';
+import { isWithinAnyPeriod } from '@/lib/supplements';
 
 /**
  * Photo du produit, ou repli de marque quand il n'y en a pas. L'ancien repli
@@ -60,13 +61,21 @@ export function ProductMedia({
 }
 
 /**
- * Badge de mise en avant, en un seul exemplaire par produit : le rang de vente
- * l'emporte sur le badge éditorial (`featuredBadge`, saisi au dashboard), parce
- * qu'un fait mesuré convainc mieux qu'une étiquette maison.
+ * Badge de mise en avant, en un seul exemplaire par produit. Priorité : une
+ * « spécialité de la semaine » ACTIVEMENT en cours l'emporte sur tout le
+ * reste (le plus urgent/nouveau d'abord) ; sinon le rang de vente l'emporte
+ * sur le badge éditorial (`featuredBadge`, saisi au dashboard), parce qu'un
+ * fait mesuré convainc mieux qu'une étiquette maison.
  *
  * Ne publie que le rang, jamais le volume de ventes (voir lib/menu-popularity.ts).
  */
 export function productBadgeLabel(product: Product): string | null {
+  if (
+    (product.weeklySpecialPeriods?.length ?? 0) > 0 &&
+    isWithinAnyPeriod(product.weeklySpecialPeriods)
+  ) {
+    return 'Spécialité de la semaine';
+  }
   const rank = product.popularRank;
   // `popularRank` est posé sur tous les produits assez vendus (il sert aussi à
   // ORDONNER la vitrine) ; seuls les premiers méritent un badge — « #14 des

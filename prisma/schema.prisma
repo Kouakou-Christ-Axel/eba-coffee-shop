@@ -618,6 +618,12 @@ model MenuCategory {
   products  Product[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  // Planning récurrent (ex. « menu brunch » uniquement le week-end). `null` =
+  // pas de planning, disponible tous les jours (comportement historique). Se
+  // combine par intersection avec le planning propre à chaque produit — voir
+  // `intersectAvailableDays` (lib/menu.ts).
+  scheduleId String?
+  schedule   ProductSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
 
   @@index([deletedAt])
   @@map("menu_category")
@@ -650,12 +656,60 @@ model Product {
   categoryId       String
   category         MenuCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   supplementGroups SupplementGroup[]
+  // Planning récurrent (ex. « jour du chocolat » = mercredi uniquement). `null`
+  // = pas de planning, disponible tous les jours. Se combine par intersection
+  // avec le planning éventuel de la catégorie — voir `intersectAvailableDays`
+  // (lib/menu.ts). Supprimer le planning désassigne juste le produit (`SetNull`).
+  scheduleId       String?
+  schedule         ProductSchedule?  @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  // Historique structuré des passages « spécialité de la semaine » : le produit
+  // n'est commandable QUE dans une fenêtre active (voir `isWithinAnyPeriod`,
+  // lib/supplements.ts) dès qu'au moins une ligne existe. Peut être reconduit
+  // (plusieurs lignes dans le temps) — chaque passage reste enregistré.
+  weeklySpecials   ProductWeeklySpecial[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
   @@index([featured, featuredOrder])
   @@index([deletedAt])
   @@map("product")
+}
+
+// Planning récurrent nommé et réutilisable (à la cal.com) : un ensemble de
+// jours de la semaine assignable à plusieurs produits ET catégories à la fois.
+// Modifier le planning met à jour tout ce qui l'utilise. `days` est vide côté
+// UI seulement au moment de la création (validation Zod : au moins un jour) —
+// un planning sans jour n'aurait pas de sens.
+model ProductSchedule {
+  id         String         @id @default(cuid())
+  name       String
+  // 0=dimanche…6=samedi, même convention que WEEKDAY_LABELS/weeklyHoursSchema
+  // (lib/pickup-settings.ts).
+  days       Int[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  products   Product[]
+  categories MenuCategory[]
+
+  @@map("product_schedule")
+}
+
+// Historique des fenêtres « spécialité de la semaine » d'un produit. Chaque
+// ligne est un passage (programmé, en cours ou passé) ; la présence d'AU MOINS
+// UNE ligne rend le produit non commandable en dehors de toute fenêtre active
+// (voir `isWithinAnyPeriod`). Pas de soft delete : une ligne supprimée est un
+// passage annulé, pas juste masqué.
+model ProductWeeklySpecial {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@map("product_weekly_special")
 }
 
 model SupplementGroup {

@@ -1,6 +1,25 @@
 // lib/menu.ts
 import prisma from '@/lib/prisma';
 import type { MenuCategory } from '@/config/menu';
+import { formatLocalDateOnly } from '@/lib/timezone';
+
+/**
+ * Combine le planning propre d'un produit avec celui de sa catégorie (les deux
+ * sont optionnels et indépendants) : le produit n'est disponible que les jours
+ * communs aux deux. `null` = pas de restriction de ce côté. Convention : `null`
+ * si ni l'un ni l'autre ne restreint, sinon un tableau (MÊME VIDE si les deux
+ * plannings n'ont aucun jour en commun — voir `isAvailableToday`,
+ * lib/supplements.ts).
+ */
+function intersectAvailableDays(
+  a: number[] | null,
+  b: number[] | null
+): number[] | null {
+  if (a == null && b == null) return null;
+  if (a == null) return b;
+  if (b == null) return a;
+  return a.filter((d) => b.includes(d));
+}
 
 // Un groupe « Extras » global (`isGlobal: true`, `productId: null`) est
 // configuré une seule fois et proposé sur TOUS les produits, sans avoir à le
@@ -18,6 +37,7 @@ export async function getMenu(): Promise<MenuCategory[]> {
       where: { available: true, deletedAt: null },
       orderBy: { sortOrder: 'asc' },
       include: {
+        schedule: { select: { days: true } },
         products: {
           // `available: true` masque un produit désactivé manuellement, mais un
           // produit à stock 0 (épuisé) ou en pause reste visible (champs dérivés
@@ -26,6 +46,8 @@ export async function getMenu(): Promise<MenuCategory[]> {
           where: { available: true, deletedAt: null },
           orderBy: { sortOrder: 'asc' },
           include: {
+            schedule: { select: { days: true } },
+            weeklySpecials: { select: { startDate: true, endDate: true } },
             // Côté client : on n'expose que les groupes et goûts disponibles. Un
             // groupe/goût désactivé reste configuré mais devient non sélectionnable.
             // Un goût épuisé (stock 0), lui, reste inclus (même logique que les
@@ -66,56 +88,69 @@ export async function getMenu(): Promise<MenuCategory[]> {
       })),
     }));
 
-  return categories.map((cat) => ({
-    id: cat.slug,
-    name: cat.name,
-    products: cat.products.map((p) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      price: p.price,
-      coutMatiere: p.coutMatiere,
-      coutEmballage: p.coutEmballage,
-      image: p.imageUrl ?? undefined,
-      // Mise en avant éditoriale : reprise telle quelle côté public pour la
-      // vitrine « Les plus commandés » (carte) et la vente additionnelle du
-      // panier, en plus de la section « incontournables » de l'accueil.
-      featured: p.featured,
-      featuredOrder: p.featuredOrder,
-      featuredBadge: p.featuredBadge ?? undefined,
-      stockQuantity: p.stockQuantity,
-      remaining: p.stockQuantity,
-      soldOut: p.stockQuantity === 0,
-      unavailableUntil: p.unavailableUntil
-        ? p.unavailableUntil.toISOString()
-        : null,
-      // Un groupe dont tous les goûts sont désactivés n'a plus d'option : inutile
-      // de le présenter, on le retire. Un groupe dont les options sont toutes
-      // épuisées (stock 0) reste néanmoins présenté (l'option affiche « épuisé »
-      // côté UI) : on ne filtre ici que sur la présence d'options disponibles.
-      // Les groupes globaux (« Extras ») sont ajoutés après ceux propres au
-      // produit.
-      supplements: [
-        ...p.supplementGroups
-          .filter((g) => g.options.length > 0)
-          .map((g) => ({
-            name: g.name,
-            type: g.type as 'single' | 'multiple' | 'quantity',
-            required: g.required,
-            minSelect: g.minSelect,
-            maxSelect: g.maxSelect,
-            options: g.options.map((o) => ({
-              name: o.name,
-              price: o.price,
-              stockQuantity: o.stockQuantity,
-              remaining: o.stockQuantity,
-              soldOut: o.stockQuantity === 0,
+  return categories.map((cat) => {
+    const categoryDays = cat.schedule?.days ?? null;
+    return {
+      id: cat.slug,
+      name: cat.name,
+      availableDays: categoryDays ?? undefined,
+      products: cat.products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        price: p.price,
+        coutMatiere: p.coutMatiere,
+        coutEmballage: p.coutEmballage,
+        image: p.imageUrl ?? undefined,
+        // Mise en avant éditoriale : reprise telle quelle côté public pour la
+        // vitrine « Les plus commandés » (carte) et la vente additionnelle du
+        // panier, en plus de la section « incontournables » de l'accueil.
+        featured: p.featured,
+        featuredOrder: p.featuredOrder,
+        featuredBadge: p.featuredBadge ?? undefined,
+        stockQuantity: p.stockQuantity,
+        remaining: p.stockQuantity,
+        soldOut: p.stockQuantity === 0,
+        unavailableUntil: p.unavailableUntil
+          ? p.unavailableUntil.toISOString()
+          : null,
+        // Planning effectif = intersection du planning propre au produit et de
+        // celui de sa catégorie (voir `intersectAvailableDays`).
+        availableDays:
+          intersectAvailableDays(p.schedule?.days ?? null, categoryDays) ??
+          undefined,
+        weeklySpecialPeriods: p.weeklySpecials.map((w) => ({
+          startDate: formatLocalDateOnly(w.startDate),
+          endDate: formatLocalDateOnly(w.endDate),
+        })),
+        // Un groupe dont tous les goûts sont désactivés n'a plus d'option : inutile
+        // de le présenter, on le retire. Un groupe dont les options sont toutes
+        // épuisées (stock 0) reste néanmoins présenté (l'option affiche « épuisé »
+        // côté UI) : on ne filtre ici que sur la présence d'options disponibles.
+        // Les groupes globaux (« Extras ») sont ajoutés après ceux propres au
+        // produit.
+        supplements: [
+          ...p.supplementGroups
+            .filter((g) => g.options.length > 0)
+            .map((g) => ({
+              name: g.name,
+              type: g.type as 'single' | 'multiple' | 'quantity',
+              required: g.required,
+              minSelect: g.minSelect,
+              maxSelect: g.maxSelect,
+              options: g.options.map((o) => ({
+                name: o.name,
+                price: o.price,
+                stockQuantity: o.stockQuantity,
+                remaining: o.stockQuantity,
+                soldOut: o.stockQuantity === 0,
+              })),
             })),
-          })),
-        ...publicGlobalGroups,
-      ],
-    })),
-  }));
+          ...publicGlobalGroups,
+        ],
+      })),
+    };
+  });
 }
 
 // ─── Lecture côté administration ────────────────────────────────────────────
@@ -147,6 +182,12 @@ export type AdminMenuSupplementGroup = {
   // gestion (CRUD) se fait via `getGlobalExtras`/écran dédié, pas ici.
   isGlobal?: boolean;
 };
+export type AdminMenuWeeklySpecial = {
+  id: string;
+  startDate: string;
+  endDate: string;
+  note: string | null;
+};
 export type AdminMenuProduct = {
   id: string;
   name: string;
@@ -162,6 +203,12 @@ export type AdminMenuProduct = {
   sortOrder: number;
   stockQuantity: number | null;
   unavailableUntil: Date | null;
+  // Planning récurrent assigné (voir ProductSchedule) et jours effectifs
+  // (intersection avec celui de la catégorie, cf. `intersectAvailableDays`).
+  scheduleId: string | null;
+  scheduleName: string | null;
+  availableDays: number[];
+  weeklySpecials: AdminMenuWeeklySpecial[];
   supplements: AdminMenuSupplementGroup[];
 };
 export type AdminMenuCategory = {
@@ -170,6 +217,9 @@ export type AdminMenuCategory = {
   name: string;
   available: boolean;
   sortOrder: number;
+  scheduleId: string | null;
+  scheduleName: string | null;
+  availableDays: number[];
   products: AdminMenuProduct[];
 };
 
@@ -179,10 +229,13 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
       where: { deletedAt: null },
       orderBy: { sortOrder: 'asc' },
       include: {
+        schedule: { select: { id: true, name: true, days: true } },
         products: {
           where: { deletedAt: null },
           orderBy: { sortOrder: 'asc' },
           include: {
+            schedule: { select: { id: true, name: true, days: true } },
+            weeklySpecials: { orderBy: { startDate: 'desc' } },
             supplementGroups: {
               orderBy: { sortOrder: 'asc' },
               include: { options: true },
@@ -213,47 +266,63 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
     })
   );
 
-  return categories.map((cat) => ({
-    id: cat.id,
-    slug: cat.slug,
-    name: cat.name,
-    available: cat.available,
-    sortOrder: cat.sortOrder,
-    products: cat.products.map((p) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      price: p.price,
-      coutMatiere: p.coutMatiere,
-      coutEmballage: p.coutEmballage,
-      imageUrl: p.imageUrl ?? null,
-      available: p.available,
-      featured: p.featured,
-      featuredOrder: p.featuredOrder,
-      featuredBadge: p.featuredBadge ?? null,
-      sortOrder: p.sortOrder,
-      stockQuantity: p.stockQuantity,
-      unavailableUntil: p.unavailableUntil,
-      supplements: [
-        ...p.supplementGroups.map((g) => ({
-          name: g.name,
-          type: g.type as 'single' | 'multiple' | 'quantity',
-          required: g.required,
-          available: g.available,
-          minSelect: g.minSelect,
-          maxSelect: g.maxSelect,
-          options: g.options.map((o) => ({
-            id: o.id,
-            name: o.name,
-            price: o.price,
-            available: o.available,
-            stockQuantity: o.stockQuantity,
-          })),
+  return categories.map((cat) => {
+    const categoryDays = cat.schedule?.days ?? null;
+    return {
+      id: cat.id,
+      slug: cat.slug,
+      name: cat.name,
+      available: cat.available,
+      sortOrder: cat.sortOrder,
+      scheduleId: cat.scheduleId,
+      scheduleName: cat.schedule?.name ?? null,
+      availableDays: categoryDays ?? [],
+      products: cat.products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        price: p.price,
+        coutMatiere: p.coutMatiere,
+        coutEmballage: p.coutEmballage,
+        imageUrl: p.imageUrl ?? null,
+        available: p.available,
+        featured: p.featured,
+        featuredOrder: p.featuredOrder,
+        featuredBadge: p.featuredBadge ?? null,
+        sortOrder: p.sortOrder,
+        stockQuantity: p.stockQuantity,
+        unavailableUntil: p.unavailableUntil,
+        scheduleId: p.scheduleId,
+        scheduleName: p.schedule?.name ?? null,
+        availableDays:
+          intersectAvailableDays(p.schedule?.days ?? null, categoryDays) ?? [],
+        weeklySpecials: p.weeklySpecials.map((w) => ({
+          id: w.id,
+          startDate: formatLocalDateOnly(w.startDate),
+          endDate: formatLocalDateOnly(w.endDate),
+          note: w.note,
         })),
-        ...adminGlobalGroups,
-      ],
-    })),
-  }));
+        supplements: [
+          ...p.supplementGroups.map((g) => ({
+            name: g.name,
+            type: g.type as 'single' | 'multiple' | 'quantity',
+            required: g.required,
+            available: g.available,
+            minSelect: g.minSelect,
+            maxSelect: g.maxSelect,
+            options: g.options.map((o) => ({
+              id: o.id,
+              name: o.name,
+              price: o.price,
+              available: o.available,
+              stockQuantity: o.stockQuantity,
+            })),
+          })),
+          ...adminGlobalGroups,
+        ],
+      })),
+    };
+  });
 }
 
 // ─── Extras globaux (admin) ─────────────────────────────────────────────────
@@ -356,4 +425,69 @@ export async function getAllOptionStock(): Promise<OptionStockRow[]> {
       categoryName: o.group.product?.category.name ?? null,
     }))
     .sort((a, b) => (a.stockQuantity ?? 0) - (b.stockQuantity ?? 0));
+}
+
+// ─── Plannings récurrents (« à la cal.com ») ────────────────────────────────
+//
+// Un `ProductSchedule` est nommé et réutilisable : assignable à plusieurs
+// produits ET catégories à la fois (voir `Product.scheduleId`/
+// `MenuCategory.scheduleId`, prisma/schema.prisma). Modifier le planning met
+// à jour tout ce qui l'utilise. Écran dédié :
+// `app/(dashboard)/dashboard/menu/plannings`.
+
+export type ProductScheduleRow = {
+  id: string;
+  name: string;
+  days: number[];
+  productCount: number;
+  categoryCount: number;
+};
+
+export async function listProductSchedules(): Promise<ProductScheduleRow[]> {
+  const schedules = await prisma.productSchedule.findMany({
+    orderBy: { name: 'asc' },
+    include: {
+      _count: { select: { products: true, categories: true } },
+    },
+  });
+
+  return schedules.map((s) => ({
+    id: s.id,
+    name: s.name,
+    days: s.days,
+    productCount: s._count.products,
+    categoryCount: s._count.categories,
+  }));
+}
+
+// ─── Spécialité de la semaine — historique ──────────────────────────────────
+//
+// Historique structuré des passages « spécialité de la semaine » d'un produit
+// (voir `ProductWeeklySpecial`, prisma/schema.prisma). Alimente la carte dédiée
+// du formulaire produit (`product-form.tsx`) : le produit reste commandable
+// SEULEMENT dans une fenêtre active dès qu'une ligne existe (voir
+// `isWithinAnyPeriod`, lib/supplements.ts) — l'historique lui-même est purement
+// consultatif (les lignes passées n'ont plus d'effet sur la disponibilité).
+
+export type ProductWeeklySpecialRow = {
+  id: string;
+  startDate: string;
+  endDate: string;
+  note: string | null;
+};
+
+export async function listProductWeeklySpecials(
+  productId: string
+): Promise<ProductWeeklySpecialRow[]> {
+  const rows = await prisma.productWeeklySpecial.findMany({
+    where: { productId },
+    orderBy: { startDate: 'desc' },
+  });
+
+  return rows.map((w) => ({
+    id: w.id,
+    startDate: formatLocalDateOnly(w.startDate),
+    endDate: formatLocalDateOnly(w.endDate),
+    note: w.note,
+  }));
 }

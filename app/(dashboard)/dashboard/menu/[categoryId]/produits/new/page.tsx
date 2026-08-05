@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import prisma from '@/lib/prisma';
+import { listProductSchedules } from '@/lib/menu';
 import { ProductForm } from '../product-form';
 import { BackButton } from '@/components/(dashboard)/back-button';
 
@@ -9,10 +10,13 @@ export default async function NewProductPage({
   params: Promise<{ categoryId: string }>;
 }) {
   const { categoryId } = await params;
-  const category = await prisma.menuCategory.findUnique({
-    where: { id: categoryId },
-    select: { id: true, name: true, deletedAt: true },
-  });
+  const [category, schedules] = await Promise.all([
+    prisma.menuCategory.findUnique({
+      where: { id: categoryId },
+      select: { id: true, name: true, deletedAt: true },
+    }),
+    listProductSchedules(),
+  ]);
   if (!category || category.deletedAt) notFound();
 
   return (
@@ -25,7 +29,7 @@ export default async function NewProductPage({
         />
         <h1 className="text-2xl font-bold">Nouveau produit</h1>
       </div>
-      <ProductForm categoryId={categoryId} />
+      <ProductForm categoryId={categoryId} schedules={schedules} />
     </div>
   );
 }

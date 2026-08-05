@@ -16,6 +16,7 @@
 
 import type { Product, SupplementGroup } from '@/config/menu';
 import type { CartItemSupplement } from '@/lib/cart-store';
+import { formatLocalDateOnly, getAbidjanWeekday } from '@/lib/timezone';
 
 /**
  * Un produit en pause programmée (`unavailableUntil` dans le futur) est
@@ -35,6 +36,54 @@ export function isPausedNow(
       ? new Date(unavailableUntil)
       : unavailableUntil;
   return until.getTime() > now.getTime();
+}
+
+/**
+ * Planning récurrent (`Product.availableDays`/`MenuCategory.availableDays`,
+ * résolu à la lecture par `lib/menu.ts` depuis les plannings `ProductSchedule`
+ * assignés — voir `intersectAvailableDays`). Convention IMPORTANTE : `null`/
+ * absent = pas de restriction (tous les jours) ; un tableau MÊME VIDE = jour(s)
+ * explicitement restreints (`[]` = jamais disponible, cas d'une intersection
+ * produit×catégorie sans jour commun — on signale honnêtement l'impossibilité
+ * plutôt que de retomber silencieusement sur « tous les jours »).
+ */
+export function isAvailableToday(
+  availableDays: number[] | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (availableDays == null) return true;
+  return availableDays.includes(getAbidjanWeekday(now));
+}
+
+/**
+ * Fenêtres « spécialité de la semaine » (`Product.weeklySpecialPeriods`). Dès
+ * qu'au moins une fenêtre existe pour un produit, il n'est commandable QUE
+ * dans une fenêtre active — en dehors, `false` (produit visible mais non
+ * commandable, comme une pause). Vide/absent = pas de restriction.
+ */
+export function isWithinAnyPeriod(
+  periods: { startDate: string; endDate: string }[] | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!periods || periods.length === 0) return true;
+  const today = formatLocalDateOnly(now);
+  return periods.some((p) => p.startDate <= today && today <= p.endDate);
+}
+
+/**
+ * Prochaine fenêtre « spécialité de la semaine » à venir (pour le badge
+ * « Revient le … »), ou `null` si aucune n'est programmée.
+ */
+export function nextUpcomingPeriod(
+  periods: { startDate: string; endDate: string }[] | null | undefined,
+  now: Date = new Date()
+): { startDate: string; endDate: string } | null {
+  const today = formatLocalDateOnly(now);
+  return (
+    (periods ?? [])
+      .filter((p) => p.startDate > today)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate))[0] ?? null
+  );
 }
 
 /** Sélection pour un groupe : nom d'option ('single'), noms cochés

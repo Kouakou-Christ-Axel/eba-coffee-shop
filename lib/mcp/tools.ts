@@ -16,7 +16,12 @@
 
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
-import { getMenuAdmin, getGlobalExtras } from '@/lib/menu';
+import {
+  getMenuAdmin,
+  getGlobalExtras,
+  listProductSchedules,
+  listProductWeeklySpecials,
+} from '@/lib/menu';
 import { getPendingDemand } from '@/lib/orders/pending-demand';
 import {
   getDailyStats,
@@ -49,10 +54,20 @@ import {
   restockOption,
   pauseProduct,
   resumeProduct,
+  createProductSchedule,
+  updateProductSchedule,
+  deleteProductSchedule,
+  createProductWeeklySpecial,
+  updateProductWeeklySpecial,
+  deleteProductWeeklySpecial,
   createCategorySchema,
   updateCategorySchema,
   productInputSchema,
   productUpdateSchema,
+  productScheduleSchema,
+  productScheduleUpdateSchema,
+  productWeeklySpecialSchema,
+  productWeeklySpecialUpdateSchema,
 } from '@/lib/menu-mutations';
 import {
   createGlobalExtraGroup,
@@ -1893,20 +1908,28 @@ export const tools: McpTool[] = [
     title: 'Créer une catégorie',
     description:
       'Crée une nouvelle catégorie de menu. Le slug et l’ordre sont générés ' +
-      'automatiquement.',
+      'automatiquement. `scheduleId` (optionnel) assigne un planning récurrent ' +
+      '(voir `list_product_schedules`) : la catégorie et ses produits ne sont ' +
+      'alors commandables que les jours du planning — absent = tous les jours.',
     inputSchema: createCategorySchema,
     readOnly: false,
-    handler: (args) => createCategory(args as { name: string }),
+    handler: (args) =>
+      createCategory(args as z.infer<typeof createCategorySchema>),
   },
   {
     name: 'update_category',
     toolset: 'menu',
     title: 'Renommer une catégorie',
-    description: 'Met à jour le nom d’une catégorie existante.',
+    description:
+      'Met à jour une catégorie existante de façon PARTIELLE : ne fournis que ' +
+      'les champs à modifier. `scheduleId: null` retire le planning récurrent ' +
+      'assigné (catégorie de nouveau disponible tous les jours).',
     inputSchema: updateCategorySchema.extend({ id: idSchema }),
     readOnly: false,
     handler: (args) => {
-      const { id, ...rest } = args as { id: string; name: string };
+      const { id, ...rest } = args as { id: string } & z.infer<
+        typeof updateCategorySchema
+      >;
       return updateCategory(id, rest);
     },
   },
@@ -1974,7 +1997,10 @@ export const tools: McpTool[] = [
       '`imageUrl` accepte un ' +
       'chemin local (`/uploads/products/...`, obtenu via `set_product_image`) ou ' +
       'une URL http(s) ; pour téléverser un fichier, utilise plutôt ' +
-      '`set_product_image`.',
+      '`set_product_image`. `scheduleId` (optionnel) assigne un planning ' +
+      'récurrent (voir `list_product_schedules`) : le produit n’est alors ' +
+      'commandable que les jours du planning (combiné par intersection avec ' +
+      'celui de sa catégorie s’il en a un) — absent = tous les jours.',
     inputSchema: productInputSchema,
     readOnly: false,
     handler: (args) =>
@@ -1989,7 +2015,9 @@ export const tools: McpTool[] = [
       'champs à modifier, les autres restent inchangés. `categoryId` permet de ' +
       'déplacer le produit vers une autre catégorie. ⚠️ Si tu fournis ' +
       '`supplementGroups`, la liste entière est remplacée par celle fournie ' +
-      '(omets-la pour conserver les suppléments existants).',
+      '(omets-la pour conserver les suppléments existants). `scheduleId: null` ' +
+      'retire le planning récurrent assigné (produit de nouveau disponible ' +
+      'tous les jours, sous réserve du planning de sa catégorie).',
     inputSchema: productUpdateSchema.extend({ id: idSchema }),
     readOnly: false,
     handler: (args) => {
@@ -2271,6 +2299,149 @@ export const tools: McpTool[] = [
     inputSchema: z.object({ id: idSchema }),
     readOnly: false,
     handler: (args) => resumeProduct((args as { id: string }).id),
+  },
+
+  // — Plannings récurrents (« à la cal.com ») —
+  //
+  // Un planning est nommé et réutilisable : assignable à plusieurs produits ET
+  // catégories à la fois via leur `scheduleId` (`create_product`/`update_product`,
+  // `create_category`/`update_category`). Modifier le planning met à jour tout
+  // ce qui l'utilise.
+  {
+    name: 'list_product_schedules',
+    toolset: 'menu',
+    title: 'Lister les plannings récurrents',
+    description:
+      'Renvoie les plannings récurrents (`id`, `name`, `days` [0=dimanche…' +
+      '6=samedi], nombre de produits et de catégories assignés). Utilise ces ' +
+      '`id` pour `scheduleId` sur `create_product`/`update_product`/' +
+      '`create_category`/`update_category`.',
+    inputSchema: z.object({}),
+    readOnly: true,
+    handler: () => listProductSchedules(),
+  },
+  {
+    name: 'create_product_schedule',
+    toolset: 'menu',
+    title: 'Créer un planning récurrent',
+    description:
+      'Crée un planning récurrent nommé (ex. « Jour du chocolat »). `days` ' +
+      '(0=dimanche…6=samedi) doit contenir au moins un jour. Assigne-le ensuite ' +
+      'via `scheduleId` sur un ou plusieurs produits/catégories.',
+    inputSchema: productScheduleSchema,
+    readOnly: false,
+    handler: (args) =>
+      createProductSchedule(args as z.infer<typeof productScheduleSchema>),
+  },
+  {
+    name: 'update_product_schedule',
+    toolset: 'menu',
+    title: 'Modifier un planning récurrent',
+    description:
+      'Met à jour un planning existant de façon PARTIELLE (nom et/ou jours) : ' +
+      'tout ce qui l’utilise (produits, catégories) est affecté immédiatement.',
+    inputSchema: productScheduleUpdateSchema.extend({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, ...rest } = args as { id: string } & z.infer<
+        typeof productScheduleUpdateSchema
+      >;
+      return updateProductSchedule(id, rest);
+    },
+  },
+  {
+    name: 'delete_product_schedule',
+    toolset: 'menu',
+    title: 'Supprimer un planning récurrent',
+    description:
+      'Supprime un planning récurrent. Les produits et catégories qui ' +
+      'l’utilisaient sont simplement DÉSASSIGNÉS (redeviennent disponibles ' +
+      'tous les jours) — rien d’autre n’est supprimé.',
+    inputSchema: z.object({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => deleteProductSchedule((args as { id: string }).id),
+  },
+
+  // — Spécialité de la semaine —
+  //
+  // Historique structuré des passages « spécialité de la semaine » d'un
+  // produit : dès qu'AU MOINS UNE fenêtre existe, le produit n'est commandable
+  // QUE dans une fenêtre active (en dehors, visible avec un badge « Revient le
+  // … », prix masqué). Un produit peut être reconduit : chaque passage reste
+  // enregistré dans l'historique.
+  {
+    name: 'list_product_weekly_specials',
+    toolset: 'menu',
+    title: 'Lister l’historique « spécialité de la semaine »',
+    description:
+      'Renvoie l’historique des fenêtres « spécialité de la semaine » d’un ' +
+      'produit (`productId` optionnel — omis, renvoie tous les produits ayant ' +
+      'un historique), triées de la plus récente à la plus ancienne.',
+    inputSchema: z.object({ productId: idSchema.optional() }),
+    readOnly: true,
+    handler: async (args) => {
+      const { productId } = args as { productId?: string };
+      if (productId) return listProductWeeklySpecials(productId);
+      const menu = await getMenuAdmin();
+      return menu.flatMap((cat) =>
+        cat.products
+          .filter((p) => p.weeklySpecials.length > 0)
+          .map((p) => ({
+            productId: p.id,
+            productName: p.name,
+            weeklySpecials: p.weeklySpecials,
+          }))
+      );
+    },
+  },
+  {
+    name: 'create_product_weekly_special',
+    toolset: 'menu',
+    title: 'Programmer une « spécialité de la semaine »',
+    description:
+      'Programme une fenêtre de disponibilité (`startDate`/`endDate`, format ' +
+      'YYYY-MM-DD) pour un produit : il ne sera commandable QUE durant cette ' +
+      'fenêtre (en dehors, visible avec un badge « Revient le … », prix ' +
+      'masqué). Peut être appelé plusieurs fois pour le même produit — chaque ' +
+      'passage reste dans l’historique (`list_product_weekly_specials`), même ' +
+      'après la fin de sa fenêtre.',
+    inputSchema: productWeeklySpecialSchema.extend({ productId: idSchema }),
+    readOnly: false,
+    handler: (args) => {
+      const { productId, ...rest } = args as { productId: string } & z.infer<
+        typeof productWeeklySpecialSchema
+      >;
+      return createProductWeeklySpecial(productId, rest);
+    },
+  },
+  {
+    name: 'update_product_weekly_special',
+    toolset: 'menu',
+    title: 'Modifier une « spécialité de la semaine »',
+    description:
+      'Corrige une fenêtre existante de façon PARTIELLE (dates et/ou note), ' +
+      'sans créer de nouvelle ligne d’historique.',
+    inputSchema: productWeeklySpecialUpdateSchema.extend({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, ...rest } = args as { id: string } & z.infer<
+        typeof productWeeklySpecialUpdateSchema
+      >;
+      return updateProductWeeklySpecial(id, rest);
+    },
+  },
+  {
+    name: 'delete_product_weekly_special',
+    toolset: 'menu',
+    title: 'Retirer une « spécialité de la semaine »',
+    description:
+      'Supprime une ligne de l’historique « spécialité de la semaine » (annule ' +
+      'un passage programmé, ou efface un passage passé). Si c’était la ' +
+      'DERNIÈRE fenêtre du produit, il redevient commandable normalement ' +
+      '(comme un produit sans historique).',
+    inputSchema: z.object({ id: idSchema }),
+    readOnly: false,
+    handler: (args) => deleteProductWeeklySpecial((args as { id: string }).id),
   },
 
   // — Extras globaux —

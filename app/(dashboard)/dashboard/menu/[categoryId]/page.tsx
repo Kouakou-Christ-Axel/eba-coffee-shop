@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ProductsTable } from './products-table';
 import { BackButton } from '@/components/(dashboard)/back-button';
 import { getPendingDemand } from '@/lib/orders/pending-demand';
+import { formatLocalDateOnly } from '@/lib/timezone';
 
 export default async function CategoryProductsPage({
   params,
@@ -32,6 +33,8 @@ export default async function CategoryProductsPage({
             featuredBadge: true,
             stockQuantity: true,
             unavailableUntil: true,
+            schedule: { select: { name: true } },
+            weeklySpecials: { select: { startDate: true, endDate: true } },
           },
         },
       },
@@ -43,6 +46,11 @@ export default async function CategoryProductsPage({
 
   const products = category.products.map((p) => ({
     ...p,
+    scheduleName: p.schedule?.name ?? null,
+    weeklySpecialPeriods: p.weeklySpecials.map((w) => ({
+      startDate: formatLocalDateOnly(w.startDate),
+      endDate: formatLocalDateOnly(w.endDate),
+    })),
     pending: pendingDemand.products.get(p.id) ?? 0,
   }));
 

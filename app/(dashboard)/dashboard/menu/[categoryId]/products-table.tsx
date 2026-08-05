@@ -20,8 +20,12 @@ import {
 } from '@/components/ui/table';
 import { ProductRowActions } from './product-row-actions';
 import { StockBadge } from '@/components/(dashboard)/stock-badge';
-import { isPausedNow } from '@/lib/supplements';
-import { formatAbidjanDateTime } from '@/lib/timezone';
+import {
+  isPausedNow,
+  isWithinAnyPeriod,
+  nextUpcomingPeriod,
+} from '@/lib/supplements';
+import { formatAbidjanDateTime, formatAbidjanShortDate } from '@/lib/timezone';
 
 export type ProductRow = {
   id: string;
@@ -35,6 +39,8 @@ export type ProductRow = {
   featuredBadge: string | null;
   stockQuantity: number | null;
   unavailableUntil: Date | null;
+  scheduleName: string | null;
+  weeklySpecialPeriods: { startDate: string; endDate: string }[];
   /** Quantité déjà demandée par des commandes NON payées (lecture seule). */
   pending?: number;
 };
@@ -203,6 +209,31 @@ export function ProductsTable({
                         En pause
                       </Badge>
                     )}
+                    {p.scheduleName && (
+                      <Badge variant="outline" title="Planning récurrent">
+                        {p.scheduleName}
+                      </Badge>
+                    )}
+                    {p.weeklySpecialPeriods.length > 0 &&
+                      (() => {
+                        if (isWithinAnyPeriod(p.weeklySpecialPeriods)) {
+                          return (
+                            <Badge
+                              variant="outline"
+                              className="border-emerald-400 text-emerald-700 dark:text-emerald-400"
+                            >
+                              Spécialité de la semaine
+                            </Badge>
+                          );
+                        }
+                        const next = nextUpcomingPeriod(p.weeklySpecialPeriods);
+                        if (!next) return null;
+                        return (
+                          <Badge variant="outline">
+                            Revient le {formatAbidjanShortDate(next.startDate)}
+                          </Badge>
+                        );
+                      })()}
                   </div>
                 </TableCell>
                 <TableCell className="text-right">

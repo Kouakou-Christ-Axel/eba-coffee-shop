@@ -162,6 +162,17 @@ export function formatAbidjanShortDate(value: string | Date): string {
   }).format(d);
 }
 
+/**
+ * Jour de la semaine « aujourd'hui » (ou pour une date donnée) en heure
+ * Abidjan : 0=dimanche…6=samedi — même convention que `WEEKDAY_LABELS`/
+ * `weeklyHoursSchema` (lib/pickup-settings.ts). Comme Abidjan = UTC+0, réutilise
+ * `shift()`/`ABIDJAN_OFFSET_MS` pour rester cohérent avec les autres helpers
+ * isomorphes (identique client/serveur) si le fuseau métier changeait un jour.
+ */
+export function getAbidjanWeekday(d: Date = new Date()): number {
+  return shift(d, ABIDJAN_OFFSET_MS).getUTCDay();
+}
+
 /** Instant → « lundi 23 juin · 10h00 » (heure Abidjan). */
 export function formatAbidjanDateTime(value: string | Date): string {
   const d = typeof value === 'string' ? new Date(value) : value;

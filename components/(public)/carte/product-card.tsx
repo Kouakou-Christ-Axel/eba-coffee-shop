@@ -16,6 +16,10 @@ import {
   ProductMedia,
   productBadgeLabel,
 } from './_components/product-media';
+import {
+  formatAvailableDaysLabel,
+  formatWeeklySpecialLabel,
+} from './_components/availability-labels';
 
 /** « Indisponible — retour {…} » : juste l'heure si la reprise tombe
  * aujourd'hui (Abidjan), sinon date courte + heure — reste lisible dans un
@@ -46,6 +50,8 @@ function ProductCard({ product }: ProductCardProps) {
     hasOptions,
     paused,
     soldOut,
+    weeklyGated,
+    outOfSchedule,
     lowStock,
     isUnorderable,
     justAdded,
@@ -56,6 +62,11 @@ function ProductCard({ product }: ProductCardProps) {
 
   // Le badge de vente n'a pas de sens sur un produit qu'on ne peut pas prendre.
   const badge = isUnorderable ? null : productBadgeLabel(product);
+  // Hors planning récurrent ou hors fenêtre « spécialité de la semaine » : le
+  // produit reste visible (comme une pause) mais son prix n'a plus de sens
+  // tant qu'il n'est pas dans sa fenêtre — décision volontaire, distincte de
+  // `paused`/`soldOut` (prix toujours affiché dans ces deux cas).
+  const hidePrice = outOfSchedule || weeklyGated;
 
   return (
     <>
@@ -115,11 +126,13 @@ function ProductCard({ product }: ProductCardProps) {
               {product.description}
             </p>
           )}
-          <p className="mt-auto pt-1.5 text-base font-bold text-primary">
-            {priceFormatter.format(product.price)}&nbsp;F
-          </p>
+          {!hidePrice && (
+            <p className="mt-auto pt-1.5 text-base font-bold text-primary">
+              {priceFormatter.format(product.price)}&nbsp;F
+            </p>
+          )}
 
-          {(paused || soldOut || lowStock) && (
+          {(paused || soldOut || weeklyGated || outOfSchedule || lowStock) && (
             // `min-w-0` + troncature : un Chip HeroUI est en `min-w-min`, donc
             // un libellé long (« Retour 4 août · 01h52 ») élargissait la carte
             // au-delà de la grille et faisait défiler la page horizontalement.
@@ -137,6 +150,28 @@ function ProductCard({ product }: ProductCardProps) {
               {soldOut && (
                 <Chip color="danger" variant="flat" size="sm">
                   Épuisé
+                </Chip>
+              )}
+              {/* Priorité pause/épuisé déjà garantie par le hook (`weeklyGated`/
+                  `outOfSchedule` ne passent à `true` que si aucun des deux). */}
+              {weeklyGated && (
+                <Chip
+                  color="secondary"
+                  variant="flat"
+                  size="sm"
+                  classNames={{ base: 'max-w-full', content: 'truncate' }}
+                >
+                  {formatWeeklySpecialLabel(product.weeklySpecialPeriods ?? [])}
+                </Chip>
+              )}
+              {outOfSchedule && (
+                <Chip
+                  color="secondary"
+                  variant="flat"
+                  size="sm"
+                  classNames={{ base: 'max-w-full', content: 'truncate' }}
+                >
+                  {formatAvailableDaysLabel(product.availableDays ?? [])}
                 </Chip>
               )}
               {/* Rareté : le seul argument d'urgence dont dispose la carte —
