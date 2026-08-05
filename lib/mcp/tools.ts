@@ -15,7 +15,6 @@
 //   2. valider les `arguments` reçus dans `tools/call` avant d'appeler le handler.
 
 import { z } from 'zod';
-import { endOfDay } from 'date-fns';
 import prisma from '@/lib/prisma';
 import { getMenuAdmin, getGlobalExtras } from '@/lib/menu';
 import { getPendingDemand } from '@/lib/orders/pending-demand';
@@ -1744,31 +1743,27 @@ export const tools: McpTool[] = [
   {
     name: 'get_ardoise',
     toolset: 'crm',
-    title: 'Ardoise (impayés par client)',
+    title: 'Ardoise (dette par client)',
     description:
-      'Renvoie tout ce qui est dû au commerce, regroupé par client et trié ' +
-      'par dette la plus ancienne : total dû, nombre de commandes, ancienneté, ' +
-      'et le détail des commandes. Tous jours confondus (PAS cadré sur la ' +
-      'journée). Par défaut, les commandes du jour en cours sont exclues (elles ' +
-      'relèvent de la caisse) — `includeToday` les réintègre. `onlyOnAccount` ' +
-      'restreint à l’ardoise consentie (`isOnAccount`), par opposition aux ' +
-      'impayés oubliés. Lecture seule : rien n’est encaissé ici.',
+      'Renvoie ce qui est réellement dû au commerce — commandes RÉCUPÉRÉES ' +
+      '(`COMPLETED`) et non payées : marchandise remise, argent pas reçu — ' +
+      'regroupé par client et trié par dette la plus ancienne (total dû, ' +
+      'nombre de commandes, ancienneté, détail). Toutes dates confondues, ' +
+      'aucune borne : une commande récupérée impayée compte dès le jour même. ' +
+      'Une commande encore en cours (`NEW`/`PREPARING`/`READY`) n’est pas une ' +
+      'dette, le client n’a rien emporté. `toCheck` liste à part les impayées ' +
+      'd’avant aujourd’hui jamais marquées comme récupérées (pointage oublié ' +
+      'ou commande à annuler) : elles sont visibles mais JAMAIS comptées dans ' +
+      '`totalOwed`. `onlyOnAccount` restreint la dette à l’ardoise consentie ' +
+      '(`isOnAccount`), par opposition aux impayés oubliés — sans effet sur ' +
+      '`toCheck`. Lecture seule : le règlement passe par `mark_order_paid`.',
     inputSchema: z.object({
       onlyOnAccount: z.boolean().optional(),
-      includeToday: z.boolean().optional(),
     }),
     readOnly: true,
     handler: (args) => {
-      const { onlyOnAccount, includeToday } = args as {
-        onlyOnAccount?: boolean;
-        includeToday?: boolean;
-      };
-      return fetchArdoise({
-        onlyOnAccount,
-        // `fetchArdoise` borne par défaut à minuit du jour en cours ; on ne
-        // repousse la borne que sur demande explicite.
-        ...(includeToday ? { before: endOfDay(new Date()) } : {}),
-      });
+      const { onlyOnAccount } = args as { onlyOnAccount?: boolean };
+      return fetchArdoise({ onlyOnAccount });
     },
   },
 

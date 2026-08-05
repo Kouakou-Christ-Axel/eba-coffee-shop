@@ -244,7 +244,7 @@ réduite, voire vide, ce n'est pas une erreur.
 | `apply_order_discount`           | commandes  | écriture | Appliquer une remise de ligne (FCFA)                               |
 | `list_customers`                 | crm        | lecture  | Lister / rechercher des clients (+ stats)                          |
 | `get_customer`                   | crm        | lecture  | Détail d’un client (par `id` ou `phone`)                           |
-| `get_ardoise`                    | crm        | lecture  | Impayés (« ardoise ») regroupés par client, tous jours confondus   |
+| `get_ardoise`                    | crm        | lecture  | Ardoise : récupérées non payées par client + anomalies à vérifier  |
 | `get_loyalty_card`               | crm        | lecture  | Carte à tampons d’un client + récompenses dispo                    |
 | `adjust_loyalty_stamps`          | crm        | écriture | Ajuster les tampons d’un client (correction)                       |
 | `get_loyalty_settings`           | crm        | lecture  | Lire la config de la carte à tampons                               |
@@ -494,14 +494,25 @@ Les outils **clients** (CRM, lecture seule) exposent les clients identifiés par
 dernière commande). `get_customer` accepte un `phone` saisi librement (normalisé
 automatiquement) ou un `id`.
 
-`get_ardoise` répond à « qui me doit de l’argent ? » : toutes les commandes non
-payées et non annulées, regroupées par client, triées par dette la plus
-ancienne (total dû, nb de commandes, ancienneté, détail). **Tous jours
-confondus** — contrairement à la file caisse, bornée à la journée. Les
-commandes du jour en cours sont exclues par défaut (elles relèvent de la
-caisse) ; `includeToday` les réintègre, `onlyOnAccount` restreint à l’ardoise
-consentie (`Order.isOnAccount`). Lecture seule : le règlement passe par
-`mark_order_paid`.
+`get_ardoise` répond à « qui me doit de l’argent ? ». Une dette naît quand la
+**marchandise est partie sans l’argent** : seules les commandes **récupérées**
+(`COMPLETED`) et **non payées** comptent, regroupées par client et triées par
+dette la plus ancienne (total dû, nb de commandes, ancienneté, détail).
+**Aucune borne de date** — contrairement à la file caisse, cadrée sur la
+journée : la dette d’hier reste visible, et une commande récupérée impayée du
+jour même apparaît tout de suite. Une commande encore `NEW`/`PREPARING`/`READY`
+n’est **pas** une ardoise : le client n’a rien emporté.
+
+Le champ `toCheck` liste à part les impayées **d’avant aujourd’hui** encore
+`NEW`/`PREPARING`/`READY` : soit le « c’est récupéré » a été oublié (dette
+réelle qui disparaîtrait en silence), soit la commande aurait dû être annulée.
+Elles sont visibles mais **jamais comptées dans `totalOwed`** (`toCheckCount` /
+`toCheckTotal` sont indicatifs) ; la correction passe par `set_order_status`.
+
+`onlyOnAccount` restreint **la dette** à l’ardoise consentie
+(`Order.isOnAccount`), par opposition aux impayés oubliés — sans effet sur
+`toCheck`, une anomalie restant une anomalie qu’elle ait été consentie ou non.
+Lecture seule : le règlement passe par `mark_order_paid`.
 
 Les outils **fidélité** (carte à tampons) : `get_loyalty_card` (avancement +
 récompenses dispo), `adjust_loyalty_stamps` (correction tracée),
