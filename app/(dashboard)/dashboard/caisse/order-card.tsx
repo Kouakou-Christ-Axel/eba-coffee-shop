@@ -15,6 +15,11 @@ import {
   Phone,
   Receipt,
   PackageCheck,
+  Globe,
+  Bot,
+  ShieldCheck,
+  ShieldAlert,
+  ShieldQuestion,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
@@ -79,6 +84,59 @@ function getPaymentBadge(order: CashierOrder): PaymentBadge {
     return { kind: 'pay-after' };
   }
   return { kind: 'unpaid' };
+}
+
+// Origine de création : le cas courant CASHIER n'affiche rien (pas de bruit
+// visuel sur la majorité des cartes) ; ONLINE/MCP se distinguent d'un coup
+// d'œil, notamment pour repérer une saisie rétroactive (MCP).
+const SOURCE_META: Partial<
+  Record<CashierOrder['source'], { label: string; Icon: typeof Globe }>
+> = {
+  ONLINE: { label: 'En ligne', Icon: Globe },
+  MCP: { label: 'MCP', Icon: Bot },
+};
+
+const VERDICT_META: Record<
+  NonNullable<CashierOrder['paymentProofVerdict']>,
+  { label: string; Icon: typeof ShieldCheck; className: string }
+> = {
+  MATCH: {
+    label: 'IA : montant conforme',
+    Icon: ShieldCheck,
+    className:
+      'bg-green-100 text-green-900 ring-green-300 dark:bg-green-950/40 dark:text-green-100 dark:ring-green-800',
+  },
+  MISMATCH: {
+    label: 'IA : à vérifier',
+    Icon: ShieldAlert,
+    className:
+      'bg-amber-100 text-amber-900 ring-amber-300 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-800',
+  },
+  UNREADABLE: {
+    label: 'IA : capture illisible',
+    Icon: ShieldQuestion,
+    className:
+      'bg-muted text-muted-foreground ring-border dark:bg-muted dark:text-muted-foreground',
+  },
+  PENDING: {
+    label: 'IA : analyse indisponible',
+    Icon: ShieldQuestion,
+    className:
+      'bg-muted text-muted-foreground ring-border dark:bg-muted dark:text-muted-foreground',
+  },
+};
+
+// `paymentProofAnalysis` est un JSON libre (lib/ai/payment-proof.ts) — lu ici
+// en `unknown` défensif, uniquement pour un tooltip informatif.
+function paymentProofAnalysisSummary(analysis: unknown): string | undefined {
+  if (!analysis || typeof analysis !== 'object') return undefined;
+  const a = analysis as Record<string, unknown>;
+  if (typeof a.reasoning === 'string') {
+    const amount = typeof a.amount === 'number' ? `${a.amount} FCFA — ` : '';
+    return `${amount}${a.reasoning}`;
+  }
+  if (typeof a.error === 'string') return a.error;
+  return undefined;
 }
 
 type Props = {
@@ -162,6 +220,26 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
                 >
                   <Handshake className="h-3 w-3" aria-hidden="true" />
                   Confiance
+                </span>
+              )}
+              {SOURCE_META[order.source] && (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  title={
+                    order.source === 'ONLINE'
+                      ? 'Commande passée par le client sur le site'
+                      : 'Commande saisie via l’outil MCP (rétroactive)'
+                  }
+                >
+                  {(() => {
+                    const { Icon, label } = SOURCE_META[order.source]!;
+                    return (
+                      <>
+                        <Icon className="h-3 w-3" aria-hidden="true" />
+                        {label}
+                      </>
+                    );
+                  })()}
                 </span>
               )}
             </p>
@@ -269,6 +347,28 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
           <Receipt className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span>Preuve de paiement Wave reçue — appuyer pour vérifier</span>
         </a>
+      )}
+
+      {/* Verdict de la pré-analyse IA de la preuve — purement informatif, ne
+          remplace jamais la vérification/validation manuelle ci-dessus. */}
+      {order.paymentProofUrl && !order.isPaid && order.paymentProofVerdict && (
+        <div
+          className={cn(
+            'mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ring-1',
+            VERDICT_META[order.paymentProofVerdict].className
+          )}
+          title={paymentProofAnalysisSummary(order.paymentProofAnalysis)}
+        >
+          {(() => {
+            const { Icon, label } = VERDICT_META[order.paymentProofVerdict];
+            return (
+              <>
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{label}</span>
+              </>
+            );
+          })()}
+        </div>
       )}
 
       {/* Note client */}

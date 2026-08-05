@@ -1,10 +1,14 @@
 import Link from 'next/link';
-import { Bike, Coffee, ShoppingBag } from 'lucide-react';
+import { Bike, Coffee, ShoppingBag, Globe, Bot } from 'lucide-react';
 import { listOrders } from '@/lib/orders';
 import type { OrderSort, PaymentFilter } from '@/lib/orders';
 import { getPickupCode } from '@/lib/orders/format';
 import { parseDateOnlyToUTC, todayDateString } from '@/lib/timezone';
-import type { OrderStatus, OrderType } from '@/generated/prisma/client';
+import type {
+  OrderSource,
+  OrderStatus,
+  OrderType,
+} from '@/generated/prisma/client';
 import {
   Table,
   TableBody,
@@ -51,6 +55,23 @@ const TYPE_LABELS: Record<OrderType, string> = {
   DELIVERY: 'Livraison',
   DINE_IN: 'Sur place',
   TAKEAWAY: 'À emporter',
+};
+
+// Origine de création — le cas courant CASHIER n'affiche rien (pas de bruit
+// visuel sur la majorité des lignes) ; ONLINE/MCP se distinguent d'un badge.
+const SOURCE_META: Partial<
+  Record<OrderSource, { label: string; title: string; Icon: typeof Globe }>
+> = {
+  ONLINE: {
+    label: 'En ligne',
+    title: 'Commande passée par le client sur le site',
+    Icon: Globe,
+  },
+  MCP: {
+    label: 'MCP',
+    title: 'Commande saisie via l’outil MCP (rétroactive)',
+    Icon: Bot,
+  },
 };
 
 const VALID_STATUSES = new Set<OrderStatus>([
@@ -217,6 +238,22 @@ export default async function CommandesPage({
                     >
                       {getPickupCode(order.reference)}
                     </span>
+                    {SOURCE_META[order.source] && (
+                      <span
+                        className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        title={SOURCE_META[order.source]!.title}
+                      >
+                        {(() => {
+                          const { Icon, label } = SOURCE_META[order.source]!;
+                          return (
+                            <>
+                              <Icon className="h-3 w-3" aria-hidden="true" />
+                              {label}
+                            </>
+                          );
+                        })()}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <span

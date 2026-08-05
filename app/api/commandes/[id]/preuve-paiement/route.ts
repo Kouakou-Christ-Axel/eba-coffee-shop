@@ -8,15 +8,17 @@
 // obtenue. Même modèle de confiance que le GET public : l'`id` cuid non
 // devinable sert de capability URL. Refusé si la commande est déjà encaissée
 // ou annulée (setOrderPaymentProof) — la validation reste un geste caisse
-// (« Valider le paiement Wave »).
+// (« Valider le paiement Wave »). Une pré-analyse IA (lib/ai/payment-proof.ts)
+// est déclenchée en arrière-plan juste après, purement informative.
 
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { cloudinaryUrlSchema } from '@/lib/schemas/upload';
 import {
   OrderMutationError,
   assertOrderAcceptsPaymentProof,
   setOrderPaymentProof,
 } from '@/lib/order-mutations';
+import { analyzePaymentProof } from '@/lib/ai/payment-proof';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -46,6 +48,9 @@ export async function POST(req: Request, { params }: Params) {
     // moment, l'état a pu changer entre-temps (paiement caisse concurrent).
     await assertOrderAcceptsPaymentProof(id);
     await setOrderPaymentProof(id, url);
+    // Pré-analyse IA en arrière-plan, après l'envoi de la réponse : n'ajoute
+    // aucune latence côté client (cf. lib/ai/payment-proof.ts).
+    after(() => analyzePaymentProof(id));
     return NextResponse.json({ url });
   } catch (err) {
     if (err instanceof OrderMutationError) {

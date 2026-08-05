@@ -176,6 +176,26 @@ enum PaymentMode {
   OTHER
 }
 
+// Origine de création d'une commande — distingue le panier public (client),
+// l'écran caisse (staff connecté) et l'outil MCP `create_order` (saisie
+// rétroactive par un agent). `createdById` seul ne suffit pas : il est null
+// à la fois pour ONLINE et MCP.
+enum OrderSource {
+  ONLINE
+  CASHIER
+  MCP
+}
+
+// Verdict de la pré-analyse IA d'une capture de paiement Wave/Orange Money
+// (lib/ai/payment-proof.ts). Un signal pour le caissier, jamais une
+// validation automatique du paiement (cf. `Order.isPaid`).
+enum PaymentProofVerdict {
+  MATCH
+  MISMATCH
+  UNREADABLE
+  PENDING
+}
+
 model Order {
   id            String      @id @default(cuid())
   reference     String      @unique
@@ -230,6 +250,22 @@ model Order {
   // (/uploads/payment-proofs/…). Validée manuellement en caisse.
   paymentProofUrl String?
 
+  // Pré-analyse IA de `paymentProofUrl` (lib/ai/payment-proof.ts, déclenchée
+  // en arrière-plan après l'upload). `paymentProofVerdict` null = pas encore
+  // analysée (ou OPENROUTER_API_KEY absente — fonctionnalité inerte).
+  // `paymentProofAnalysis` conserve le détail structuré (montant/opérateur/
+  // référence/raisonnement/modèle) pour affichage caisse. Un signal, jamais
+  // une validation automatique : `isPaid` reste un geste caisse manuel.
+  paymentProofVerdict   PaymentProofVerdict?
+  paymentProofAnalysis  Json?
+  paymentProofAnalyzedAt DateTime?
+
+  // Origine de création (cf. enum OrderSource ci-dessus). Défaut CASHIER pour
+  // les lignes existantes (hypothèse la plus sûre en l'absence d'historique
+  // fiable) — les nouvelles commandes fixent explicitement leur source à la
+  // création (lib/orders.ts, lib/order-mutations.ts, lib/mcp/tools.ts).
+  source OrderSource @default(CASHIER)
+
   // Récompense fidélité appliquée à cette commande (réduction déjà déduite de
   // `total`). `loyaltyRewardId` référence `LoyaltyReward.id` (pas de relation
   // Prisma, cf. `LoyaltyReward.usedOrderId` — même convention côté inverse).
@@ -264,6 +300,7 @@ model Order {
   @@index([isPaid, status])
   @@index([createdAt(sort: Desc)])
   @@index([customerId])
+  @@index([source])
   @@map("order")
 }
 
