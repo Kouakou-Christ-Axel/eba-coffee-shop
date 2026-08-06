@@ -41,8 +41,10 @@ export type PreparationOrder = {
 };
 
 /**
- * Renvoie les commandes du jour visibles en cuisine : en préparation
+ * Renvoie les commandes visibles en cuisine : en préparation
  * (status=PREPARING) et prêtes en attente de récupération (status=READY),
+ * créées aujourd'hui OU programmées pour un retrait aujourd'hui/à venir
+ * (une commande passée la veille pour un retrait du jour reste visible),
  * triées en FIFO par ENTRÉE EN CUISINE (`preparingStartedAt`, repli
  * `createdAt` — cf. `compareKitchenFifo`).
  *
@@ -62,13 +64,20 @@ export type PreparationOrder = {
  */
 export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
   const now = new Date();
+  const dayStart = startOfDay(now);
+  const dayEnd = endOfDay(now);
+
   const orders = await prisma.order.findMany({
     where: {
       status: { in: ['PREPARING', 'READY'] },
-      createdAt: {
-        gte: startOfDay(now),
-        lte: endOfDay(now),
-      },
+      // Du jour (walk-in) OU programmée pour aujourd'hui/à venir : on inclut ainsi
+      // une commande passée la veille (ou plus tôt) pour un retrait aujourd'hui ou
+      // plus tard — sinon elle disparaît de la cuisine dès le changement de jour
+      // civil, alors qu'elle est déjà PREPARING/READY (cf. `fetchCashierQueue`).
+      OR: [
+        { createdAt: { gte: dayStart, lte: dayEnd } },
+        { pickupTime: { gte: dayStart } },
+      ],
     },
     orderBy: { createdAt: 'asc' },
   });
