@@ -133,6 +133,20 @@ const VERDICT_META: Record<
   },
 };
 
+// Applications de paiement que la pré-analyse IA sait nommer (cf.
+// PAYMENT_PROOF_OPERATORS dans lib/ai/payment-proof-rules.ts) — le client
+// peut payer depuis n'importe laquelle, l'afficher évite au caissier de
+// deviner à quoi ressemble la capture avant de l'ouvrir.
+const PAYMENT_APP_LABELS: Record<string, string> = {
+  WAVE: 'Wave',
+  ORANGE_MONEY: 'Orange Money',
+  MTN_MONEY: 'MTN MoMo',
+  MOOV_MONEY: 'Moov Money',
+  DJAMO: 'Djamo',
+  BANK: 'Application bancaire',
+  OTHER: 'Autre application',
+};
+
 // `paymentProofAnalysis` est un JSON libre (lib/ai/payment-proof.ts) — lu ici
 // en `unknown` défensif. `autoValidation.reason` explique POURQUOI un
 // encaissement automatique n'a pas été posé (confiance insuffisante, échec
@@ -589,8 +603,19 @@ function PaymentProofAnalysisDetail({ analysis }: { analysis: unknown }) {
           {a.overpaid === true && ' — payé en trop'}
         </p>
       )}
-      {typeof a.recipientName === 'string' && a.recipientName && (
+      {typeof a.operator === 'string' && a.operator !== 'UNKNOWN' && (
+        <p>
+          Application : {PAYMENT_APP_LABELS[a.operator] ?? 'Autre application'}
+        </p>
+      )}
+      {typeof a.recipientName === 'string' && a.recipientName ? (
         <p>Bénéficiaire : {a.recipientName}</p>
+      ) : (
+        a.recipientMatch === 'UNKNOWN' && (
+          <p className="text-foreground/60">
+            Bénéficiaire non affiché par l&apos;application
+          </p>
+        )
       )}
       {typeof a.reference === 'string' && a.reference && (
         <p>Référence : {a.reference}</p>
