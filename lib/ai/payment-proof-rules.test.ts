@@ -137,6 +137,69 @@ describe('computeVerdict', () => {
   });
 });
 
+describe('isDateConsistent', () => {
+  // Commande #24 du 06/08 (Mouna client, 3 000 F) : créée à 17h22 UTC,
+  // capture datée 17h31. `new Date('2026-08-06T17:31:00')` parsait cette
+  // heure murale dans le fuseau du runtime — sur un serveur à UTC+2 elle
+  // devenait 15h31 UTC, soit « 1h51 avant la commande » → fausse alerte de
+  // paiement recyclé. L'heure lue sur la capture est de l'heure d'Abidjan.
+  const MOUNA_ORDER_CREATED_AT = new Date('2026-08-06T17:22:39.596Z');
+
+  it('accepte une capture postérieure à la commande, quel que soit le fuseau du runtime', () => {
+    expect(
+      isDateConsistent('2026-08-06T17:31:00', MOUNA_ORDER_CREATED_AT)
+    ).toBe(true);
+  });
+
+  it('interprète une heure sans fuseau comme de l’heure d’Abidjan', () => {
+    // 17:31 Abidjan = 17:31 UTC : à la seconde près sur la borne de tolérance
+    // (2 h avant la commande), pas 2 h plus tôt comme sur un runtime UTC+2.
+    expect(
+      isDateConsistent('2026-08-06T15:23:00', MOUNA_ORDER_CREATED_AT)
+    ).toBe(true);
+    expect(
+      isDateConsistent('2026-08-06T15:21:00', MOUNA_ORDER_CREATED_AT)
+    ).toBe(false);
+  });
+
+  it('respecte un décalage explicite quand le modèle en fournit un', () => {
+    expect(
+      isDateConsistent('2026-08-06T19:31:00+02:00', MOUNA_ORDER_CREATED_AT)
+    ).toBe(true);
+    expect(
+      isDateConsistent('2026-08-06T17:31:00Z', MOUNA_ORDER_CREATED_AT)
+    ).toBe(true);
+  });
+
+  it('tolère un paiement fait avant la saisie de la commande en caisse', () => {
+    // Le client paie, la caisse saisit la commande une heure plus tard.
+    expect(
+      isDateConsistent('2026-08-06T16:30:00', MOUNA_ORDER_CREATED_AT)
+    ).toBe(true);
+  });
+
+  it('compare au jour civil quand la capture ne porte pas d’heure', () => {
+    // Sans cette règle, minuit passerait pour antérieur à toute commande de
+    // l'après-midi.
+    expect(isDateConsistent('2026-08-06', MOUNA_ORDER_CREATED_AT)).toBe(true);
+    expect(isDateConsistent('2026-08-05', MOUNA_ORDER_CREATED_AT)).toBe(false);
+  });
+
+  it('signale toujours une capture de la veille', () => {
+    expect(
+      isDateConsistent('2026-08-05T17:31:00', MOUNA_ORDER_CREATED_AT)
+    ).toBe(false);
+  });
+
+  it('ne juge pas en l’absence de date exploitable', () => {
+    expect(isDateConsistent(null, MOUNA_ORDER_CREATED_AT)).toBeNull();
+    expect(isDateConsistent('hier soir', MOUNA_ORDER_CREATED_AT)).toBeNull();
+    expect(
+      isDateConsistent('2026-13-45T99:99:00', MOUNA_ORDER_CREATED_AT)
+    ).toBeNull();
+  });
+});
+
 describe('blocksAutoValidation', () => {
   it("retient l'encaissement quand le bénéficiaire n'est pas identifiable", () => {
     expect(

@@ -593,6 +593,9 @@ function PaymentProofAnalysisDetail({ analysis }: { analysis: unknown }) {
       {a.dateConsistent === false && (
         <p className="text-amber-700 dark:text-amber-400">
           ⚠ Capture antérieure à la commande (paiement recyclé ?)
+          {typeof a.transactionDate === 'string' && a.transactionDate
+            ? ` — capture datée du ${a.transactionDate}`
+            : ''}
         </p>
       )}
       {typeof a.amount === 'number' && (

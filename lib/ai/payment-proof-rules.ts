@@ -19,6 +19,7 @@
 // automatique et renvoie l'arbitrage à la caisse.
 
 import { z } from 'zod';
+import { formatLocalDateOnly } from '@/lib/timezone';
 import type {
   PaymentMode,
   PaymentProofVerdict,
@@ -107,7 +108,7 @@ export const ANALYSIS_JSON_SCHEMA = {
       transactionDate: {
         type: ['string', 'null'],
         description:
-          "Date et heure de la transaction telles qu'affichées, au format ISO 8601 (ex. 2026-08-05T14:32:00) UNIQUEMENT si tu peux les déduire sans ambiguïté. Sinon null — ne devine pas.",
+          "Date et heure de la transaction telles qu'affichées sur la capture, recopiées SANS conversion de fuseau, au format ISO 8601 (ex. 2026-08-05T14:32:00) UNIQUEMENT si tu peux les déduire sans ambiguïté. Si seule la date est lisible, renvoie-la seule (ex. 2026-08-05). Sinon null — ne devine pas.",
       },
       tamperingSuspected: {
         type: 'boolean',
@@ -213,9 +214,10 @@ export function buildUserPrompt(
     'manquants et les fautes légères. Si la capture ne montre aucun ' +
     'bénéficiaire, réponds UNKNOWN plutôt que MISMATCH.\n' +
     '- Statut de la transaction, si un statut est affiché.\n' +
-    '- Date et heure affichées (ISO 8601 uniquement si non ambiguës, sinon ' +
-    'null) — une capture datée AVANT la commande trahit un paiement recyclé ' +
-    "d'une commande précédente.\n" +
+    '- Date et heure affichées, recopiées telles quelles (heure locale ' +
+    "d'Abidjan, aucune conversion de fuseau ; ISO 8601 uniquement si non " +
+    'ambiguës, sinon null) — une capture datée AVANT la commande trahit un ' +
+    "paiement recyclé d'une commande précédente.\n" +
     '- Indices matériels de retouche, en te limitant à ce qui se voit dans ' +
     'les pixels : police/graisse/anticrénelage du montant différents du ' +
     'reste du texte, chiffres décalés de la ligne de base, pixellisation ou ' +
@@ -227,26 +229,97 @@ export function buildUserPrompt(
   );
 }
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/;
+const ISO_DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_DATE_TIME_RE =
+  /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/;
+/** Suffixe de fuseau explicite : `Z`, `+00:00`, `-0200`… */
+const EXPLICIT_TZ_RE = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+
+/** Une capture peut légitimement précéder la commande : le client paie au
+ * comptoir ou sur WhatsApp, et la caisse saisit la commande ensuite. Seul un
+ * écart franc trahit un paiement recyclé — d'où une tolérance large plutôt
+ * qu'une poignée de minutes. */
+const CAPTURE_BEFORE_ORDER_TOLERANCE_MS = 2 * 60 * 60 * 1000;
+
+type ParsedCaptureDate = { instant: Date; hasTime: boolean };
+
+/**
+ * Interprète la date lue sur la capture. Le modèle renvoie une heure
+ * MURALE, telle qu'affichée sur le téléphone du client — donc en heure
+ * d'Abidjan, sans indicateur de fuseau. `new Date('2026-08-06T17:31:00')`
+ * la parserait dans le fuseau du RUNTIME (cf. lib/timezone.ts : un serveur
+ * hors UTC décale tout de +2h), ce qui faisait passer une capture postérieure
+ * de 9 minutes à la commande pour un paiement recyclé de 1h51 d'âge. On ancre
+ * donc explicitement sur Abidjan (= composantes UTC), et on respecte un
+ * décalage quand le modèle en fournit un.
+ */
+function parseCaptureDate(raw: string): ParsedCaptureDate | null {
+  const value = raw.trim();
+
+  if (EXPLICIT_TZ_RE.test(value)) {
+    const withTz = new Date(value);
+    return Number.isNaN(withTz.getTime())
+      ? null
+      : { instant: withTz, hasTime: true };
+  }
+
+  if (ISO_DATE_ONLY_RE.test(value)) {
+    const dayOnly = new Date(`${value}T00:00:00Z`);
+    return Number.isNaN(dayOnly.getTime())
+      ? null
+      : { instant: dayOnly, hasTime: false };
+  }
+
+  const m = ISO_DATE_TIME_RE.exec(value);
+  if (!m) return null;
+  const [year, month, day, hour, minute] = m.slice(1, 6).map(Number);
+  const second = m[6] ? Number(m[6]) : 0;
+  const wallClock = new Date(
+    Date.UTC(year, month - 1, day, hour, minute, second)
+  );
+  if (Number.isNaN(wallClock.getTime())) return null;
+  // `Date.UTC` normalise silencieusement les valeurs hors bornes (le 45/13
+  // devient une date de l'année suivante). Un aller-retour rejette ces
+  // hallucinations plutôt que d'en tirer une comparaison qui a l'air valide.
+  const roundTrips =
+    wallClock.getUTCFullYear() === year &&
+    wallClock.getUTCMonth() === month - 1 &&
+    wallClock.getUTCDate() === day &&
+    wallClock.getUTCHours() === hour &&
+    wallClock.getUTCMinutes() === minute &&
+    wallClock.getUTCSeconds() === second;
+  return roundTrips ? { instant: wallClock, hasTime: true } : null;
+}
 
 /**
  * Compare la date de transaction extraite de la capture à la date de
  * création de la commande. `null` = pas de date exploitable côté capture
  * (rien à reprocher : la date n'est pas toujours visible/lisible). `false`
- * = capture visiblement ANTÉRIEURE à la commande (au-delà d'une tolérance
- * d'horloge) — signe fort de réutilisation d'un ancien paiement.
+ * = capture visiblement ANTÉRIEURE à la commande — signe fort de
+ * réutilisation d'un ancien paiement.
+ *
+ * Quand la capture ne porte qu'une date (sans heure), la comparaison se fait
+ * au JOUR civil : sinon minuit passerait mécaniquement pour « antérieur » à
+ * toute commande de la journée.
  */
 export function isDateConsistent(
   transactionDateRaw: string | null,
   orderCreatedAt: Date
 ): boolean | null {
-  if (!transactionDateRaw || !ISO_DATE_RE.test(transactionDateRaw)) {
-    return null;
+  if (!transactionDateRaw) return null;
+  const parsed = parseCaptureDate(transactionDateRaw);
+  if (!parsed) return null;
+
+  if (!parsed.hasTime) {
+    return (
+      formatLocalDateOnly(parsed.instant) >= formatLocalDateOnly(orderCreatedAt)
+    );
   }
-  const parsed = new Date(transactionDateRaw);
-  if (Number.isNaN(parsed.getTime())) return null;
-  const toleranceMs = 10 * 60 * 1000;
-  return parsed.getTime() >= orderCreatedAt.getTime() - toleranceMs;
+
+  return (
+    parsed.instant.getTime() >=
+    orderCreatedAt.getTime() - CAPTURE_BEFORE_ORDER_TOLERANCE_MS
+  );
 }
 
 /**
