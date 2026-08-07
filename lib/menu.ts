@@ -21,6 +21,22 @@ function intersectAvailableDays(
   return a.filter((d) => b.includes(d));
 }
 
+/**
+ * Combine le délai de commande à l'avance du produit et celui de sa
+ * catégorie (voir `Product.advanceOrderDays`/`MenuCategory.advanceOrderDays`,
+ * prisma/schema.prisma) : le délai EFFECTIF est le plus restrictif des deux
+ * (maximum) — contrairement à `intersectAvailableDays`, il n'y a rien à
+ * « intersecter » entre deux entiers. `null` = aucune contrainte des deux
+ * côtés.
+ */
+function effectiveAdvanceOrderDays(
+  productDays: number | null,
+  categoryDays: number | null
+): number | null {
+  if (productDays == null && categoryDays == null) return null;
+  return Math.max(productDays ?? 0, categoryDays ?? 0);
+}
+
 // Un groupe « Extras » global (`isGlobal: true`, `productId: null`) est
 // configuré une seule fois et proposé sur TOUS les produits, sans avoir à le
 // rattacher à chacun individuellement. On le lit à part puis on le fusionne
@@ -90,10 +106,12 @@ export async function getMenu(): Promise<MenuCategory[]> {
 
   return categories.map((cat) => {
     const categoryDays = cat.schedule?.days ?? null;
+    const categoryAdvanceOrderDays = cat.advanceOrderDays ?? null;
     return {
       id: cat.slug,
       name: cat.name,
       availableDays: categoryDays ?? undefined,
+      advanceOrderDays: categoryAdvanceOrderDays ?? undefined,
       products: cat.products.map((p) => ({
         id: p.id,
         name: p.name,
@@ -119,6 +137,11 @@ export async function getMenu(): Promise<MenuCategory[]> {
         availableDays:
           intersectAvailableDays(p.schedule?.days ?? null, categoryDays) ??
           undefined,
+        advanceOrderDays:
+          effectiveAdvanceOrderDays(
+            p.advanceOrderDays ?? null,
+            categoryAdvanceOrderDays
+          ) ?? undefined,
         weeklySpecialPeriods: p.weeklySpecials.map((w) => ({
           startDate: formatLocalDateOnly(w.startDate),
           endDate: formatLocalDateOnly(w.endDate),
@@ -208,6 +231,13 @@ export type AdminMenuProduct = {
   scheduleId: string | null;
   scheduleName: string | null;
   availableDays: number[];
+  // Commande à l'avance obligatoire (voir `Product.advanceOrderDays`,
+  // prisma/schema.prisma) : `advanceOrderDays` est la valeur BRUTE propre à
+  // CE produit (pour le formulaire admin), `effectiveAdvanceOrderDays` le
+  // délai réellement appliqué (maximum avec celui de la catégorie — voir
+  // `effectiveAdvanceOrderDays`, ce fichier).
+  advanceOrderDays: number | null;
+  effectiveAdvanceOrderDays: number | null;
   weeklySpecials: AdminMenuWeeklySpecial[];
   supplements: AdminMenuSupplementGroup[];
 };
@@ -220,6 +250,9 @@ export type AdminMenuCategory = {
   scheduleId: string | null;
   scheduleName: string | null;
   availableDays: number[];
+  // Délai de commande à l'avance propre à la catégorie (brut, voir
+  // `MenuCategory.advanceOrderDays`).
+  advanceOrderDays: number | null;
   products: AdminMenuProduct[];
 };
 
@@ -268,6 +301,7 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
 
   return categories.map((cat) => {
     const categoryDays = cat.schedule?.days ?? null;
+    const categoryAdvanceOrderDays = cat.advanceOrderDays ?? null;
     return {
       id: cat.id,
       slug: cat.slug,
@@ -277,6 +311,7 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
       scheduleId: cat.scheduleId,
       scheduleName: cat.schedule?.name ?? null,
       availableDays: categoryDays ?? [],
+      advanceOrderDays: categoryAdvanceOrderDays,
       products: cat.products.map((p) => ({
         id: p.id,
         name: p.name,
@@ -296,6 +331,11 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
         scheduleName: p.schedule?.name ?? null,
         availableDays:
           intersectAvailableDays(p.schedule?.days ?? null, categoryDays) ?? [],
+        advanceOrderDays: p.advanceOrderDays,
+        effectiveAdvanceOrderDays: effectiveAdvanceOrderDays(
+          p.advanceOrderDays ?? null,
+          categoryAdvanceOrderDays
+        ),
         weeklySpecials: p.weeklySpecials.map((w) => ({
           id: w.id,
           startDate: formatLocalDateOnly(w.startDate),

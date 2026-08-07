@@ -16,7 +16,11 @@
 
 import type { Product, SupplementGroup } from '@/config/menu';
 import type { CartItemSupplement } from '@/lib/cart-store';
-import { formatLocalDateOnly, getAbidjanWeekday } from '@/lib/timezone';
+import {
+  formatLocalDateOnly,
+  getAbidjanWeekday,
+  shiftDateString,
+} from '@/lib/timezone';
 
 /**
  * Un produit en pause programmée (`unavailableUntil` dans le futur) est
@@ -68,6 +72,41 @@ export function isWithinAnyPeriod(
   if (!periods || periods.length === 0) return true;
   const today = formatLocalDateOnly(now);
   return periods.some((p) => p.startDate <= today && today <= p.endDate);
+}
+
+/**
+ * Vrai si `pickupDate` respecte le délai minimum de commande à l'avance
+ * (`advanceOrderDays`, résolu par `effectiveAdvanceOrderDays`, lib/menu.ts).
+ * `null`/absent/0 = pas de contrainte. La comparaison se fait en JOURS CIVILS
+ * Abidjan (comme `Order.dailyDate`) : commander AUJOURD'HUI pour un retrait
+ * dans J+advanceOrderDays jours civils (ou plus tard) est autorisé. Un
+ * retrait « dès que possible » (pas de date choisie) ne peut jamais
+ * satisfaire une contrainte existante — il faut une date choisie et
+ * suffisamment lointaine.
+ */
+export function isPickupDateAllowed(
+  advanceOrderDays: number | null | undefined,
+  pickupDate: Date | string | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!advanceOrderDays) return true;
+  if (!pickupDate) return false;
+  const pickupStr =
+    typeof pickupDate === 'string'
+      ? formatLocalDateOnly(new Date(pickupDate))
+      : formatLocalDateOnly(pickupDate);
+  return (
+    pickupStr >= shiftDateString(formatLocalDateOnly(now), advanceOrderDays)
+  );
+}
+
+/** Date civile (YYYY-MM-DD, Abidjan) la plus proche satisfaisant un délai de
+ * commande à l'avance donné. */
+export function minAllowedPickupDateString(
+  advanceOrderDays: number,
+  now: Date = new Date()
+): string {
+  return shiftDateString(formatLocalDateOnly(now), advanceOrderDays);
 }
 
 /**

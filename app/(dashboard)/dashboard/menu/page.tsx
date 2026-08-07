@@ -103,6 +103,7 @@ export default async function MenuPage() {
                     name={cat.name}
                     available={cat.available}
                     scheduleId={cat.scheduleId}
+                    advanceOrderDays={cat.advanceOrderDays}
                     schedules={schedules}
                     isFirst={idx === 0}
                     isLast={idx === categories.length - 1}

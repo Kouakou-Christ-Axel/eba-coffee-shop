@@ -66,6 +66,7 @@ export function useQuickAdd(product: Product) {
           coutMatiere: product.coutMatiere ?? 0,
           coutEmballage: product.coutEmballage ?? 0,
           supplements: [],
+          advanceOrderDays: product.advanceOrderDays,
         },
         product.remaining ?? undefined
       );

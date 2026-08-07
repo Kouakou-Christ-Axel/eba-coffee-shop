@@ -1,6 +1,10 @@
 // app/api/commandes/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { createOrder, createOrderSchema } from '@/lib/orders';
+import {
+  createOrder,
+  createOrderSchema,
+  AdvanceOrderRequiredError,
+} from '@/lib/orders';
 import { LoyaltyRewardUnavailableError } from '@/lib/loyalty-mutations';
 import { sendNewOrderEmail } from '@/lib/email';
 import type { CartItem } from '@/lib/cart-store';
@@ -44,6 +48,11 @@ export async function POST(req: NextRequest) {
         { error: 'Récompense fidélité indisponible' },
         { status: 400 }
       );
+    }
+    // Date de retrait choisie (ou « dès que possible ») trop proche pour un
+    // article exigeant une commande à l'avance (voir lib/orders.ts).
+    if (err instanceof AdvanceOrderRequiredError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
     }
     console.error('[POST /api/commandes]', err);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

@@ -323,3 +323,11 @@ export const UPSELL_MAX_PRODUCTS = 6;
  */
 export const PORTION_COMBO_MIN_ORDERS = 3;
 export const PORTION_COMBO_MAX = 3;
+
+/**
+ * Commande à l'avance : délai max (jours) qu'un produit ou une catégorie
+ * peut exiger avant retrait. Garde-fou anti-faute de frappe — un délai plus
+ * long qu'un mois n'a pas de sens pour une carte de coffee shop.
+ * Source : lib/menu-mutations.ts (advanceOrderDaysFieldSchema).
+ */
+export const ADVANCE_ORDER_DAYS_MAX = 30;

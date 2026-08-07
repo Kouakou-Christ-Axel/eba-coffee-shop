@@ -28,9 +28,28 @@ import { parseOrderSearchTerm } from '@/lib/orders/search';
 import {
   fetchStockSnapshot,
   computeOrderItemsAvailability,
+  fetchAdvanceOrderSnapshot,
+  maxRequiredAdvanceOrderDays,
 } from '@/lib/orders/availability';
+import { isPickupDateAllowed } from '@/lib/supplements';
 import { ORDERS_PAGE_SIZE, PHONE_SEARCH_MIN_DIGITS } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
+
+/**
+ * Au moins un article du panier exige un délai de commande à l'avance (voir
+ * `Product.advanceOrderDays`/`MenuCategory.advanceOrderDays`) que la date de
+ * retrait choisie (ou l'absence de date, « dès que possible ») ne respecte
+ * pas. Contrôlé uniquement côté flux public (`createOrder`) — la caisse
+ * garde la main (voir `lib/orders/availability.ts`).
+ */
+export class AdvanceOrderRequiredError extends Error {
+  constructor(public readonly requiredDays: number) {
+    super(
+      `Cet article doit être commandé au moins ${requiredDays} jour(s) à l'avance.`
+    );
+    this.name = 'AdvanceOrderRequiredError';
+  }
+}
 
 // ─── Schéma Zod : online (strict, customer obligatoire) ──────────────────────
 //
@@ -90,6 +109,21 @@ const MAX_DAILY_NUMBER_RETRIES = 3;
 // un numéro. L'ardoise reste donc un geste STAFF, décidé devant le client.
 export async function createOrder(input: CreateOrderInput) {
   const dailyDate = todayDailyDate();
+
+  // Contrôle en lecture seule, non racy — inutile de le refaire à chaque
+  // tentative de retry (collision de numéro quotidien) ci-dessous.
+  const items = input.items as CartItem[];
+  const advanceSnapshot = await fetchAdvanceOrderSnapshot(items);
+  const requiredAdvanceDays = maxRequiredAdvanceOrderDays(
+    items,
+    advanceSnapshot
+  );
+  if (
+    requiredAdvanceDays > 0 &&
+    !isPickupDateAllowed(requiredAdvanceDays, input.pickupTime ?? null)
+  ) {
+    throw new AdvanceOrderRequiredError(requiredAdvanceDays);
+  }
 
   for (let attempt = 0; attempt < MAX_DAILY_NUMBER_RETRIES; attempt++) {
     try {

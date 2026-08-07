@@ -32,6 +32,7 @@ import {
   formatAbidjanDateTime,
 } from '@/lib/timezone';
 import { isPausedNow } from '@/lib/supplements';
+import { ADVANCE_ORDER_DAYS_MAX } from '@/config/constants';
 
 export type ProductFormInitial = {
   id?: string;
@@ -48,6 +49,9 @@ export type ProductFormInitial = {
   stockQuantity: number | null;
   unavailableUntil: Date | null;
   scheduleId: string | null;
+  // Délai de commande à l'avance (jours, brut — voir `Product.advanceOrderDays`,
+  // prisma/schema.prisma). `null` = pas de contrainte propre à ce produit.
+  advanceOrderDays: number | null;
   weeklySpecials: WeeklySpecialRow[];
 };
 
@@ -65,6 +69,7 @@ const EMPTY: ProductFormInitial = {
   stockQuantity: null,
   unavailableUntil: null,
   scheduleId: null,
+  advanceOrderDays: null,
   weeklySpecials: [],
 };
 
@@ -118,6 +123,9 @@ export function ProductForm({
   );
   const [scheduleId, setScheduleId] = useState<string | null>(
     initial?.scheduleId ?? EMPTY.scheduleId
+  );
+  const [advanceOrderDays, setAdvanceOrderDays] = useState<number | null>(
+    initial?.advanceOrderDays ?? EMPTY.advanceOrderDays
   );
 
   // Pause programmée : gérée indépendamment de la sauvegarde du formulaire
@@ -202,6 +210,7 @@ export function ProductForm({
           featuredBadge: featured ? featuredBadge : null,
           stockQuantity,
           scheduleId,
+          advanceOrderDays,
         };
         const result =
           isEdit && initial?.id
@@ -306,6 +315,30 @@ export function ProductForm({
             onChange={setScheduleId}
             helpText="Restreint la commande aux jours du planning (combiné avec celui de la catégorie si elle en a un)."
           />
+          <div className="space-y-1.5">
+            <Label htmlFor="advance-order-days">
+              Commande à l&apos;avance (jours)
+            </Label>
+            <Input
+              id="advance-order-days"
+              type="number"
+              min={1}
+              max={ADVANCE_ORDER_DAYS_MAX}
+              step={1}
+              placeholder="Aucun"
+              value={advanceOrderDays ?? ''}
+              onChange={(e) =>
+                setAdvanceOrderDays(
+                  e.target.value === '' ? null : Number(e.target.value)
+                )
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Délai minimum entre la commande et le retrait. Vide = pas de
+              contrainte. Combiné avec celui de la catégorie (le plus grand des
+              deux s&apos;applique).
+            </p>
+          </div>
           {priceNum > 0 && (
             <div className="rounded-lg bg-muted px-3 py-2 text-sm">
               <span className="text-muted-foreground">Marge estimée : </span>

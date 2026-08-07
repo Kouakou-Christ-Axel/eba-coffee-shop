@@ -38,3 +38,13 @@ export function formatWeeklySpecialLabel(
   if (next) return `Revient le ${formatAbidjanShortDate(next.startDate)}`;
   return 'Spécialité ponctuelle — indisponible';
 }
+
+/**
+ * « Commande à J-3 » : délai de commande à l'avance requis (voir
+ * `Product.advanceOrderDays`, lib/menu.ts). Contrairement aux autres libellés
+ * de ce fichier, n'indique PAS une indisponibilité — le produit reste
+ * commandable, seule la date de retrait choisie au checkout est contrainte.
+ */
+export function formatAdvanceOrderLabel(days: number): string {
+  return `Commande à J-${days}`;
+}

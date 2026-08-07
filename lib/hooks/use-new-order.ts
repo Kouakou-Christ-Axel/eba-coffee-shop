@@ -173,6 +173,7 @@ export function useNewOrder() {
         coutEmballage: product.coutEmballage ?? 0,
         quantity: 1,
         supplements,
+        advanceOrderDays: product.advanceOrderDays,
       };
       return [...prev, item];
     });

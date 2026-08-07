@@ -15,12 +15,14 @@ import {
   deleteCategoryAction,
   updateCategoryAction,
 } from './actions';
+import { ADVANCE_ORDER_DAYS_MAX } from '@/config/constants';
 
 export function CategoryRowActions({
   id,
   name,
   available,
   scheduleId,
+  advanceOrderDays,
   schedules,
   isFirst,
   isLast,
@@ -29,6 +31,7 @@ export function CategoryRowActions({
   name: string;
   available: boolean;
   scheduleId: string | null;
+  advanceOrderDays: number | null;
   schedules: ScheduleOption[];
   isFirst: boolean;
   isLast: boolean;
@@ -39,16 +42,21 @@ export function CategoryRowActions({
   const [editScheduleId, setEditScheduleId] = useState<string | null>(
     scheduleId
   );
+  const [editAdvanceOrderDays, setEditAdvanceOrderDays] = useState<
+    number | null
+  >(advanceOrderDays);
 
   function startEdit() {
     setEditName(name);
     setEditScheduleId(scheduleId);
+    setEditAdvanceOrderDays(advanceOrderDays);
     setIsEditing(true);
   }
 
   function cancelEdit() {
     setEditName(name);
     setEditScheduleId(scheduleId);
+    setEditAdvanceOrderDays(advanceOrderDays);
     setIsEditing(false);
   }
 
@@ -57,7 +65,11 @@ export function CategoryRowActions({
       cancelEdit();
       return;
     }
-    if (editName.trim() === name && editScheduleId === scheduleId) {
+    if (
+      editName.trim() === name &&
+      editScheduleId === scheduleId &&
+      editAdvanceOrderDays === advanceOrderDays
+    ) {
       cancelEdit();
       return;
     }
@@ -65,6 +77,7 @@ export function CategoryRowActions({
       await updateCategoryAction(id, {
         name: editName.trim(),
         scheduleId: editScheduleId,
+        advanceOrderDays: editAdvanceOrderDays,
       });
       setIsEditing(false);
     });
@@ -111,6 +124,23 @@ export function CategoryRowActions({
           label="Planning récurrent"
           helpText="Ex. « menu brunch » disponible le week-end seulement."
         />
+        <div className="space-y-1">
+          <Input
+            type="number"
+            min={1}
+            max={ADVANCE_ORDER_DAYS_MAX}
+            step={1}
+            placeholder="Commande à l'avance (jours)"
+            value={editAdvanceOrderDays ?? ''}
+            onChange={(e) =>
+              setEditAdvanceOrderDays(
+                e.target.value === '' ? null : Number(e.target.value)
+              )
+            }
+            className="h-8 text-sm"
+            disabled={isPending}
+          />
+        </div>
       </div>
     );
   }

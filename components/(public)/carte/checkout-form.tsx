@@ -50,7 +50,14 @@ export function CheckoutForm({
     items,
     total,
   });
-  const pickupInfo = usePickupInfo();
+  // Plus grand délai de commande à l'avance requis par le panier (voir
+  // `CartItem.advanceOrderDays`, lib/cart-store.ts) : étend l'horizon de
+  // créneaux et contraint le sélecteur (voir SlotPicker).
+  const minAdvanceOrderDays = items.reduce(
+    (max, i) => Math.max(max, i.advanceOrderDays ?? 0),
+    0
+  );
+  const pickupInfo = usePickupInfo(minAdvanceOrderDays);
   // Recherche débouncée de la récompense du numéro saisi.
   const reward = useLoyaltyReward(values.customerPhone);
 
@@ -140,6 +147,7 @@ export function CheckoutForm({
         onChange={(iso) => setField('pickupTime', iso)}
         error={errors.pickupTime}
         info={pickupInfo}
+        minAdvanceOrderDays={minAdvanceOrderDays}
       />
 
       <NoteField
