@@ -35,5 +35,8 @@ jobs:
             pnpm install --frozen-lockfile
             pnpm db:push
             pnpm db:trigger
-            pnpm build
+            # Même fuseau qu'au runtime (cf. ecosystem.config.cjs) : le build
+            # prérend des pages, et une date figée dans le fuseau du VPS
+            # ressortirait décalée par rapport au serveur qui les sert.
+            TZ=UTC pnpm build
             pm2 startOrReload ecosystem.config.cjs --update-env
