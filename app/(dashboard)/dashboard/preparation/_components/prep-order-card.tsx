@@ -159,9 +159,16 @@ export function PrepOrderCard({
                 )}
               </span>
               {item.supplements.length > 0 && (
-                <span className="block pl-5 text-xs text-muted-foreground">
-                  {item.supplements.map(formatSupplementLabel).join(' · ')}
-                </span>
+                <ul className="pl-5">
+                  {item.supplements.map((s) => (
+                    <li
+                      key={`${s.groupName}:${s.optionName}`}
+                      className="text-xs font-semibold text-secondary-600"
+                    >
+                      + {formatSupplementLabel(s)}
+                    </li>
+                  ))}
+                </ul>
               )}
             </li>
           ))}

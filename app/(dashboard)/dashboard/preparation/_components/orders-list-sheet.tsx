@@ -197,9 +197,10 @@ function OrdersListRow({
                 {item.quantity}× {item.productName}
               </span>
               {item.supplements.length > 0 && (
-                <span className="text-muted-foreground">
-                  {' · '}
-                  {item.supplements.map(formatSupplementLabel).join(', ')}
+                <span className="ml-1 block pl-4 text-sm font-semibold text-secondary-600">
+                  {item.supplements
+                    .map((s) => `+ ${formatSupplementLabel(s)}`)
+                    .join('  ')}
                 </span>
               )}
             </li>
