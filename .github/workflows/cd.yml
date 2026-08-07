@@ -31,12 +31,32 @@ jobs:
             # plus versionné : on le supprime avant le pull pour que d'anciennes
             # modifications locales ne bloquent jamais le merge.
             rm -f env.d.ts
+            OLD_SHA=$(git rev-parse HEAD)
             git pull origin master
+            NEW_SHA=$(git rev-parse HEAD)
+
+            if [ "$OLD_SHA" = "$NEW_SHA" ]; then
+              echo "Aucun nouveau commit, déploiement ignoré."
+              exit 0
+            fi
+
             pnpm install --frozen-lockfile
             pnpm db:push
             pnpm db:trigger
-            # Même fuseau qu'au runtime (cf. ecosystem.config.cjs) : le build
-            # prérend des pages, et une date figée dans le fuseau du VPS
-            # ressortirait décalée par rapport au serveur qui les sert.
-            TZ=UTC pnpm build
+
+            # Rebuild Next.js uniquement si un fichier qui alimente réellement
+            # le build a changé. Allowlist plutôt que denylist : la liste des
+            # sources d'un build Next.js est bornée par l'architecture du
+            # projet, contrairement à la liste des dossiers de config d'outils
+            # annexes (docs, CI, assistants IA…) qui ne fait que croître.
+            BUILD_INPUTS="app components lib config emails hooks patches prisma prisma.config.ts .env.schema .npmrc pnpm-workspace.yaml next.config.ts package.json pnpm-lock.yaml postcss.config.mjs tsconfig.json"
+            if ! git diff --quiet "$OLD_SHA" "$NEW_SHA" -- $BUILD_INPUTS; then
+              # Même fuseau qu'au runtime (cf. ecosystem.config.cjs) : le build
+              # prérend des pages, et une date figée dans le fuseau du VPS
+              # ressortirait décalée par rapport au serveur qui les sert.
+              TZ=UTC pnpm build
+            else
+              echo "Aucun fichier source du build modifié, rebuild Next.js ignoré."
+            fi
+
             pm2 startOrReload ecosystem.config.cjs --update-env
