@@ -44,17 +44,19 @@ jobs:
             pnpm db:push
             pnpm db:trigger
 
-            # Rebuild Next.js uniquement si des fichiers pouvant influencer le
-            # build ont changé (le reste — docs, CI, config d'outils annexes —
-            # ne justifie pas un rebuild).
-            BUILD_IRRELEVANT='^(docs/|README\.md$|CLAUDE\.md$|\.github/|\.junie/|\.agents/|\.claude/|\.superpowers/|\.husky/|skills-lock\.json$|docker-compose\.yml$|bunfig\.toml$|\.prettierrc\.json$|eslint\.config\.mjs$|vitest\.config\.ts$)'
-            if git diff --name-only "$OLD_SHA" "$NEW_SHA" | grep -qvE "$BUILD_IRRELEVANT"; then
+            # Rebuild Next.js uniquement si un fichier qui alimente réellement
+            # le build a changé. Allowlist plutôt que denylist : la liste des
+            # sources d'un build Next.js est bornée par l'architecture du
+            # projet, contrairement à la liste des dossiers de config d'outils
+            # annexes (docs, CI, assistants IA…) qui ne fait que croître.
+            BUILD_INPUTS="app components lib config emails hooks patches prisma prisma.config.ts .env.schema .npmrc pnpm-workspace.yaml next.config.ts package.json pnpm-lock.yaml postcss.config.mjs tsconfig.json"
+            if ! git diff --quiet "$OLD_SHA" "$NEW_SHA" -- $BUILD_INPUTS; then
               # Même fuseau qu'au runtime (cf. ecosystem.config.cjs) : le build
               # prérend des pages, et une date figée dans le fuseau du VPS
               # ressortirait décalée par rapport au serveur qui les sert.
               TZ=UTC pnpm build
             else
-              echo "Aucun fichier d'application modifié, rebuild Next.js ignoré."
+              echo "Aucun fichier source du build modifié, rebuild Next.js ignoré."
             fi
 
             pm2 startOrReload ecosystem.config.cjs --update-env
