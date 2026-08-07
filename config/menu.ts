@@ -69,6 +69,13 @@ export type Product = {
   // existe, le produit n'est commandable QUE dans une fenêtre active — voir
   // `isWithinAnyPeriod` (lib/supplements.ts).
   weeklySpecialPeriods?: { startDate: string; endDate: string }[];
+  // Commande à l'avance obligatoire (jours civils), délai EFFECTIF = maximum
+  // entre celui du produit et celui de sa catégorie (voir
+  // `effectiveAdvanceOrderDays`, lib/menu.ts). `undefined`/absent = pas de
+  // contrainte. N'empêche PAS l'ajout au panier : seule la date de retrait
+  // choisie au checkout est contrainte — voir `isPickupDateAllowed`
+  // (lib/supplements.ts).
+  advanceOrderDays?: number;
 };
 
 /**
@@ -99,6 +106,10 @@ export type MenuCategory = {
   // lib/supplements.ts) — indépendant de `Product.availableDays`, qui l'a déjà
   // intégré par intersection pour chaque produit.
   availableDays?: number[];
+  // Délai de commande à l'avance propre à la catégorie (jours civils), déjà
+  // intégré par maximum dans `Product.advanceOrderDays` de chaque produit —
+  // exposé ici pour un éventuel message d'en-tête de section.
+  advanceOrderDays?: number;
 };
 
 const milkChoice: SupplementGroup = {

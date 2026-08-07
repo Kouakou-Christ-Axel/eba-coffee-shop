@@ -53,6 +53,7 @@ export default async function EditProductPage({
     stockQuantity: product.stockQuantity,
     unavailableUntil: product.unavailableUntil,
     scheduleId: product.scheduleId,
+    advanceOrderDays: product.advanceOrderDays,
     weeklySpecials,
     supplementGroups: product.supplementGroups.map((g) => ({
       name: g.name,

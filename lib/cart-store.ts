@@ -30,6 +30,12 @@ export type CartItem = {
   // motif optionnel. Absent = pas de remise.
   discount?: number;
   discountReason?: string | null;
+  // Snapshot du délai de commande à l'avance EFFECTIF (produit × catégorie,
+  // voir `Product.advanceOrderDays`/`effectiveAdvanceOrderDays`, lib/menu.ts)
+  // au moment de l'ajout au panier. Absent/0 = pas de contrainte. Permet au
+  // checkout de calculer la date de retrait minimale sans re-fetcher le menu
+  // (comme `basePrice`).
+  advanceOrderDays?: number;
 };
 
 /** Total net d'une ligne (après remise). Voir lib/orders/totals.ts. */

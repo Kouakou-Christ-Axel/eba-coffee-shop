@@ -160,6 +160,7 @@ describe('createCategory', () => {
         slug: 'patisseries',
         sortOrder: 2,
         scheduleId: null,
+        advanceOrderDays: null,
       },
     });
   });
@@ -181,6 +182,7 @@ describe('createCategory', () => {
         slug: 'brunch',
         sortOrder: 0,
         scheduleId: 'sched1',
+        advanceOrderDays: null,
       },
     });
   });

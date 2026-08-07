@@ -25,6 +25,7 @@ import {
   saveLastContact,
 } from '@/lib/order-history';
 import { createOrderSchema } from '@/lib/schemas/order';
+import { isPickupDateAllowed } from '@/lib/supplements';
 
 // ─── Types publics ───────────────────────────────────────────────────────────
 
@@ -136,6 +137,25 @@ export function validateCheckoutForm(
     errors.pickupTime = 'Veuillez choisir un créneau';
   }
 
+  // Confort client (la vérité reste le contrôle serveur, voir
+  // `createOrder`/`AdvanceOrderRequiredError`, lib/orders.ts) : un article du
+  // panier peut exiger un délai de commande à l'avance (jours) supérieur à
+  // la date de retrait effectivement soumise.
+  if (!errors.pickupTime) {
+    const requiredAdvanceDays = items.reduce(
+      (max, i) => Math.max(max, i.advanceOrderDays ?? 0),
+      0
+    );
+    const submittedPickupTime =
+      values.timing === 'scheduled' ? values.pickupTime : null;
+    if (
+      requiredAdvanceDays > 0 &&
+      !isPickupDateAllowed(requiredAdvanceDays, submittedPickupTime)
+    ) {
+      errors.pickupTime = `Cet article doit être commandé au moins ${requiredAdvanceDays} jour(s) à l'avance.`;
+    }
+  }
+
   const note = values.note.trim();
   if (note.length > ORDER_NOTE_MAX) {
     errors.note = `Note trop longue (max ${ORDER_NOTE_MAX} caractères)`;
@@ -245,6 +265,12 @@ export async function submitCheckout({
           error:
             'Récompense fidélité indisponible — réessaie sans la récompense.',
         };
+      }
+      // Délai de commande à l'avance non respecté (voir
+      // `AdvanceOrderRequiredError`, lib/orders.ts) — message déjà explicite
+      // côté serveur, on le remonte tel quel.
+      if (typeof data.error === 'string' && data.error.includes("à l'avance")) {
+        return { ok: false, error: data.error };
       }
     }
     return {

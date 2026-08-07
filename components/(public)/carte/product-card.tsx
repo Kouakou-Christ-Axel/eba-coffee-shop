@@ -17,6 +17,7 @@ import {
   productBadgeLabel,
 } from './_components/product-media';
 import {
+  formatAdvanceOrderLabel,
   formatAvailableDaysLabel,
   formatWeeklySpecialLabel,
 } from './_components/availability-labels';
@@ -132,7 +133,12 @@ function ProductCard({ product }: ProductCardProps) {
             </p>
           )}
 
-          {(paused || soldOut || weeklyGated || outOfSchedule || lowStock) && (
+          {(paused ||
+            soldOut ||
+            weeklyGated ||
+            outOfSchedule ||
+            lowStock ||
+            (product.advanceOrderDays ?? 0) > 0) && (
             // `min-w-0` + troncature : un Chip HeroUI est en `min-w-min`, donc
             // un libellé long (« Retour 4 août · 01h52 ») élargissait la carte
             // au-delà de la grille et faisait défiler la page horizontalement.
@@ -179,6 +185,14 @@ function ProductCard({ product }: ProductCardProps) {
               {lowStock && (
                 <Chip color="warning" variant="flat" size="sm">
                   Plus que {product.remaining} !
+                </Chip>
+              )}
+              {/* Purement informatif : contrairement aux chips ci-dessus, ne
+                  signale PAS une indisponibilité — le produit reste
+                  commandable normalement, voir formatAdvanceOrderLabel. */}
+              {(product.advanceOrderDays ?? 0) > 0 && (
+                <Chip color="default" variant="flat" size="sm">
+                  {formatAdvanceOrderLabel(product.advanceOrderDays!)}
                 </Chip>
               )}
             </div>

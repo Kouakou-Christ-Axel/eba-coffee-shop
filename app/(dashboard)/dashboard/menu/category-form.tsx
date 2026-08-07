@@ -8,10 +8,12 @@ import {
   type ScheduleOption,
 } from '@/components/(dashboard)/schedule-field';
 import { createCategoryAction } from './actions';
+import { ADVANCE_ORDER_DAYS_MAX } from '@/config/constants';
 
 export function CategoryForm({ schedules }: { schedules: ScheduleOption[] }) {
   const [name, setName] = useState('');
   const [scheduleId, setScheduleId] = useState<string | null>(null);
+  const [advanceOrderDays, setAdvanceOrderDays] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -20,9 +22,10 @@ export function CategoryForm({ schedules }: { schedules: ScheduleOption[] }) {
     setError(null);
     startTransition(async () => {
       try {
-        await createCategoryAction({ name, scheduleId });
+        await createCategoryAction({ name, scheduleId, advanceOrderDays });
         setName('');
         setScheduleId(null);
+        setAdvanceOrderDays(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Erreur');
       }
@@ -52,6 +55,26 @@ export function CategoryForm({ schedules }: { schedules: ScheduleOption[] }) {
         label="Planning récurrent (optionnel)"
         helpText="Ex. « menu brunch » disponible le week-end seulement."
       />
+      <div className="space-y-1">
+        <Input
+          type="number"
+          min={1}
+          max={ADVANCE_ORDER_DAYS_MAX}
+          step={1}
+          placeholder="Commande à l'avance (jours, optionnel)"
+          value={advanceOrderDays ?? ''}
+          onChange={(e) =>
+            setAdvanceOrderDays(
+              e.target.value === '' ? null : Number(e.target.value)
+            )
+          }
+          disabled={isPending}
+        />
+        <p className="text-xs text-muted-foreground">
+          Délai minimum entre la commande et le retrait pour tout produit de
+          cette catégorie. Vide = pas de contrainte.
+        </p>
+      </div>
     </form>
   );
 }

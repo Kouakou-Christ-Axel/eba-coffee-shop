@@ -27,6 +27,7 @@ import {
 import type { TimeRange } from '@/lib/pickup-settings';
 import type { PickupInfoState, PickupDay } from '@/lib/hooks/use-pickup-info';
 import type { PickupTiming } from '@/lib/hooks/use-checkout-form';
+import { minAllowedPickupDateString } from '@/lib/supplements';
 import { cn } from '@/lib/utils';
 
 type SlotPickerProps = {
@@ -36,6 +37,9 @@ type SlotPickerProps = {
   onChange: (iso: string) => void;
   error?: string;
   info: PickupInfoState;
+  /** Délai de commande à l'avance requis par le panier (jours), voir
+   * `Product.advanceOrderDays` (lib/menu.ts). 0/absent = pas de contrainte. */
+  minAdvanceOrderDays?: number;
 };
 
 type Period = 'morning' | 'noon' | 'afternoon' | 'evening';
@@ -111,6 +115,7 @@ export function SlotPicker({
   onChange,
   error,
   info,
+  minAdvanceOrderDays = 0,
 }: SlotPickerProps) {
   const today = todayDateString();
   const [activeDay, setActiveDay] = useState<string | null>(null);
@@ -127,12 +132,22 @@ export function SlotPicker({
     return map;
   }, [info]);
 
-  const days: PickupDay[] = info.status === 'ready' ? info.days : [];
-  const todayRanges = days.find((d) => d.date === today)?.ranges ?? [];
-  const openNow = isOpenNow(todayRanges);
+  // Un article du panier exige une commande à l'avance : « Dès que possible »
+  // ne peut jamais satisfaire un délai en jours, et les jours trop proches
+  // n'ont pas lieu d'être proposés.
+  const minAllowedDate =
+    minAdvanceOrderDays > 0
+      ? minAllowedPickupDateString(minAdvanceOrderDays)
+      : null;
+  const allDays: PickupDay[] = info.status === 'ready' ? info.days : [];
+  const days = minAllowedDate
+    ? allDays.filter((d) => d.date >= minAllowedDate)
+    : allDays;
+  const todayRanges = allDays.find((d) => d.date === today)?.ranges ?? [];
+  const openNow = isOpenNow(todayRanges) && !minAllowedDate;
 
-  // Fermé en ce moment : « Dès que possible » n'a pas de sens, on bascule
-  // d'office sur la planification.
+  // Fermé en ce moment (ou délai de commande à l'avance actif) : « Dès que
+  // possible » n'a pas de sens, on bascule d'office sur la planification.
   useEffect(() => {
     if (info.status === 'ready' && !openNow && timing === 'asap') {
       onTimingChange('scheduled');
@@ -177,6 +192,14 @@ export function SlotPicker({
         </div>
       ) : (
         <>
+          {minAdvanceOrderDays > 0 && (
+            <p className="text-xs text-foreground/60">
+              Un article de votre panier doit être commandé au moins{' '}
+              {minAdvanceOrderDays} jour
+              {minAdvanceOrderDays > 1 ? 's' : ''} à l&apos;avance.
+            </p>
+          )}
+
           {/* Dès que possible / Planifier */}
           <div
             role="radiogroup"
@@ -211,9 +234,11 @@ export function SlotPicker({
                 Dès que possible
               </span>
               <span className="text-xs text-foreground/50">
-                {openNow
-                  ? `Prête dans ~${info.leadTimeMin} min`
-                  : 'Fermé actuellement'}
+                {minAllowedDate
+                  ? 'Commande à l’avance requise'
+                  : openNow
+                    ? `Prête dans ~${info.leadTimeMin} min`
+                    : 'Fermé actuellement'}
               </span>
             </button>
 

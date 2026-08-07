@@ -1,6 +1,7 @@
 // lib/menu-mutations.ts
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
+import { ADVANCE_ORDER_DAYS_MAX } from '@/config/constants';
 import prisma from '@/lib/prisma';
 import {
   supplementGroupSchema,
@@ -38,14 +39,32 @@ const scheduleFieldSchema = {
   scheduleId: z.string().min(1).nullable().optional(),
 };
 
+// Commande à l'avance obligatoire (voir `Product.advanceOrderDays`/
+// `MenuCategory.advanceOrderDays`, prisma/schema.prisma) : délai MINIMUM
+// (jours) entre la commande et le retrait. `null` = aucune contrainte,
+// absent = inchangé (mise à jour partielle). `.min(1)` (pas 0) : zéro jour
+// équivaudrait à « pas de contrainte », déjà représenté par `null` — éviter
+// la double représentation ambiguë.
+const advanceOrderDaysFieldSchema = {
+  advanceOrderDays: z
+    .number()
+    .int()
+    .min(1)
+    .max(ADVANCE_ORDER_DAYS_MAX)
+    .nullable()
+    .optional(),
+};
+
 export const createCategorySchema = z.object({
   name: z.string().min(1).max(80),
   ...scheduleFieldSchema,
+  ...advanceOrderDaysFieldSchema,
 });
 
 export const updateCategorySchema = z.object({
   name: z.string().min(1).max(80).optional(),
   ...scheduleFieldSchema,
+  ...advanceOrderDaysFieldSchema,
 });
 
 const featuredFieldsSchema = {
@@ -66,6 +85,7 @@ const availabilityFieldsSchema = {
   // Pause programmée (ISO 8601). `null`/absent = pas de pause.
   unavailableUntil: z.string().datetime().nullable().optional(),
   ...scheduleFieldSchema,
+  ...advanceOrderDaysFieldSchema,
 };
 
 export const productInputSchema = z.object({
@@ -105,7 +125,8 @@ export type CategoryInput = z.infer<typeof createCategorySchema>;
 export type CategoryUpdate = z.infer<typeof updateCategorySchema>;
 
 export async function createCategory(input: CategoryInput) {
-  const { name, scheduleId } = createCategorySchema.parse(input);
+  const { name, scheduleId, advanceOrderDays } =
+    createCategorySchema.parse(input);
   const existing = await prisma.menuCategory.findMany({
     where: { deletedAt: null },
     select: { id: true },
@@ -116,6 +137,7 @@ export async function createCategory(input: CategoryInput) {
       slug: slugify(name),
       sortOrder: existing.length,
       scheduleId: scheduleId ?? null,
+      advanceOrderDays: advanceOrderDays ?? null,
     },
   });
 }
@@ -129,6 +151,9 @@ export async function updateCategory(id: string, input: CategoryUpdate) {
     data: {
       ...(data.name !== undefined && { name: data.name }),
       ...(data.scheduleId !== undefined && { scheduleId: data.scheduleId }),
+      ...(data.advanceOrderDays !== undefined && {
+        advanceOrderDays: data.advanceOrderDays,
+      }),
     },
   });
 }
@@ -216,6 +241,7 @@ export async function createProduct(input: ProductInput) {
         ? new Date(data.unavailableUntil)
         : null,
       scheduleId: data.scheduleId ?? null,
+      advanceOrderDays: data.advanceOrderDays ?? null,
       supplementGroups: {
         create: data.supplementGroups.map((g, gi) => ({
           name: g.name,
@@ -272,6 +298,9 @@ export async function updateProduct(id: string, input: ProductUpdate) {
         : null,
     }),
     ...(data.scheduleId !== undefined && { scheduleId: data.scheduleId }),
+    ...(data.advanceOrderDays !== undefined && {
+      advanceOrderDays: data.advanceOrderDays,
+    }),
   };
 
   // Les groupes de suppléments ne sont remplacés QUE s'ils sont fournis. Absents

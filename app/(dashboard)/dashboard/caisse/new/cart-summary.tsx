@@ -83,8 +83,17 @@ export function CartSummary({
             <li key={item.cartId} className="px-3 py-2">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
+                  <p className="flex flex-wrap items-center gap-1.5 truncate text-sm font-medium">
                     {item.productName}
+                    {/* Informatif seulement : contrairement au checkout en
+                        ligne, la caisse n'est PAS bloquée par cette règle
+                        (voir lib/orders/availability.ts) — le personnel
+                        garde la main sur les exceptions. */}
+                    {(item.advanceOrderDays ?? 0) > 0 && (
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
+                        Commande à J-{item.advanceOrderDays}
+                      </span>
+                    )}
                   </p>
                   {item.supplements.length > 0 && (
                     <p className="truncate text-xs text-muted-foreground">

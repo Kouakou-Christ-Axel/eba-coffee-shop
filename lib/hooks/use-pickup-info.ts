@@ -32,7 +32,13 @@ export type PickupInfoState =
   | { status: 'error'; retry: () => void }
   | ({ status: 'ready' } & PickupInfo);
 
-export function usePickupInfo(): PickupInfoState {
+/**
+ * `minDays` : délai minimum (jours) requis par le panier courant (voir
+ * `Product.advanceOrderDays`, lib/menu.ts) — étend l'horizon de créneaux
+ * au-delà du réglage global si besoin (voir `/api/pickup-slots?minDays=`).
+ * 0/absent = pas de contrainte, comportement inchangé.
+ */
+export function usePickupInfo(minDays = 0): PickupInfoState {
   const [state, setState] = useState<PickupInfoState>({ status: 'loading' });
   // Compteur de tentatives : `retry()` relance le fetch sans recharger la
   // page (un reload viderait le contexte du checkout en cours).
@@ -45,7 +51,11 @@ export function usePickupInfo(): PickupInfoState {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/pickup-slots')
+    const url =
+      minDays > 0
+        ? `/api/pickup-slots?minDays=${minDays}`
+        : '/api/pickup-slots';
+    fetch(url)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(
         (data: {
@@ -72,7 +82,7 @@ export function usePickupInfo(): PickupInfoState {
     return () => {
       cancelled = true;
     };
-  }, [attempt, retry]);
+  }, [attempt, retry, minDays]);
 
   return state;
 }

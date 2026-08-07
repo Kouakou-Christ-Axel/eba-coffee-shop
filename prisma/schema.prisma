@@ -624,6 +624,11 @@ model MenuCategory {
   // `intersectAvailableDays` (lib/menu.ts).
   scheduleId String?
   schedule   ProductSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  // Commande à l'avance obligatoire : délai MINIMUM (jours civils) entre la
+  // commande et la date de retrait pour tout produit de cette catégorie.
+  // `null` = pas de contrainte. Se combine avec celle du produit par MAXIMUM
+  // (le plus restrictif gagne) — voir `effectiveAdvanceOrderDays` (lib/menu.ts).
+  advanceOrderDays Int?
 
   @@index([deletedAt])
   @@map("menu_category")
@@ -667,6 +672,13 @@ model Product {
   // lib/supplements.ts) dès qu'au moins une ligne existe. Peut être reconduit
   // (plusieurs lignes dans le temps) — chaque passage reste enregistré.
   weeklySpecials   ProductWeeklySpecial[]
+  // Commande à l'avance obligatoire : délai MINIMUM (jours civils) entre la
+  // commande et la date de retrait choisie. `null` = pas de contrainte.
+  // Combiné avec celui de la catégorie par MAXIMUM (le plus restrictif
+  // gagne) — voir `effectiveAdvanceOrderDays` (lib/menu.ts). N'empêche PAS
+  // l'ajout au panier : seule la date de retrait choisie au checkout est
+  // contrainte (voir `isPickupDateAllowed`, lib/supplements.ts).
+  advanceOrderDays Int?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
