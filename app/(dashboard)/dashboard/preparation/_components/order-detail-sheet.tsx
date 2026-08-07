@@ -210,9 +210,16 @@ function OrderDetailBody({
                 )}
               </span>
               {item.supplements.length > 0 && (
-                <span className="mt-1 block pl-10 text-lg text-muted-foreground">
-                  {item.supplements.map(formatSupplementLabel).join(' · ')}
-                </span>
+                <ul className="mt-1 pl-10">
+                  {item.supplements.map((s) => (
+                    <li
+                      key={`${s.groupName}:${s.optionName}`}
+                      className="text-lg font-semibold text-secondary-600"
+                    >
+                      + {formatSupplementLabel(s)}
+                    </li>
+                  ))}
+                </ul>
               )}
             </li>
           ))}
