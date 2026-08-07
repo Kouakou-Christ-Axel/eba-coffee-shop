@@ -23,6 +23,7 @@ import {
   getSupplementsPrice,
   groupConstraintLabel,
   groupSelectionCount,
+  multipleSelection,
   optionQuantity,
   type Selections,
 } from '@/lib/supplements';
@@ -126,7 +127,7 @@ export function SupplementPicker({
 
   function toggleMultiple(groupName: string, optionName: string) {
     setSelections((prev) => {
-      const cur = (prev[groupName] as string[]) ?? [];
+      const cur = multipleSelection(prev, groupName);
       const next = cur.includes(optionName)
         ? cur.filter((n) => n !== optionName)
         : [...cur, optionName];
@@ -298,7 +299,7 @@ export function SupplementPicker({
             {group.type === 'multiple' && (
               <div className="space-y-2">
                 {group.options.map((opt) => {
-                  const current = (selections[group.name] as string[]) ?? [];
+                  const current = multipleSelection(selections, group.name);
                   const isChecked = current.includes(opt.name);
                   const isDisabled =
                     opt.soldOut || (!isChecked && count >= max);

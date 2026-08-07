@@ -29,6 +29,7 @@ import {
   groupSelectionCount,
   isFixedPortionGroup,
   isGroupValid,
+  multipleSelection,
   optionQuantity,
   portionCount,
   stripPortionSuffix,
@@ -131,7 +132,7 @@ function SupplementModal({
 
   function toggleMultiple(groupName: string, optionName: string) {
     setSelections((prev) => {
-      const cur = (prev[groupName] as string[]) ?? [];
+      const cur = multipleSelection(prev, groupName);
       const next = cur.includes(optionName)
         ? cur.filter((n) => n !== optionName)
         : [...cur, optionName];
@@ -457,7 +458,7 @@ function SupplementModal({
             {group.type === 'multiple' && (
               <div className="space-y-2">
                 {options.map((opt) => {
-                  const current = (selections[group.name] as string[]) ?? [];
+                  const current = multipleSelection(selections, group.name);
                   const isChecked = current.includes(opt.name);
                   const isDisabled =
                     opt.soldOut || (!isChecked && count >= max);

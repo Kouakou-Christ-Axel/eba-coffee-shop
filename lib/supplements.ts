@@ -138,6 +138,21 @@ export function groupSelectionCount(
   );
 }
 
+/** Options cochées pour un groupe 'multiple', sous forme de tableau sûr.
+ * `selections[group.name]` peut être autre chose qu'un tableau si deux
+ * groupes distincts partagent le même nom (ex. un groupe propre au produit et
+ * un extra global tous deux nommés « Lait végétal ») — auquel cas la dernière
+ * écriture dans `buildInitialSelections`/les handlers de sélection peut y
+ * avoir placé une chaîne ('single') ou un objet de quantités ('quantity'). On
+ * traite alors le groupe comme vide plutôt que de planter sur `.includes`. */
+export function multipleSelection(
+  selections: Selections,
+  groupName: string
+): string[] {
+  const sel = selections[groupName];
+  return Array.isArray(sel) ? sel : [];
+}
+
 /** Quantité choisie pour une option précise (groupe type 'quantity'). */
 export function optionQuantity(
   group: SupplementGroup,
