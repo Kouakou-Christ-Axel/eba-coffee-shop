@@ -31,12 +31,30 @@ jobs:
             # plus versionné : on le supprime avant le pull pour que d'anciennes
             # modifications locales ne bloquent jamais le merge.
             rm -f env.d.ts
+            OLD_SHA=$(git rev-parse HEAD)
             git pull origin master
+            NEW_SHA=$(git rev-parse HEAD)
+
+            if [ "$OLD_SHA" = "$NEW_SHA" ]; then
+              echo "Aucun nouveau commit, déploiement ignoré."
+              exit 0
+            fi
+
             pnpm install --frozen-lockfile
             pnpm db:push
             pnpm db:trigger
-            # Même fuseau qu'au runtime (cf. ecosystem.config.cjs) : le build
-            # prérend des pages, et une date figée dans le fuseau du VPS
-            # ressortirait décalée par rapport au serveur qui les sert.
-            TZ=UTC pnpm build
+
+            # Rebuild Next.js uniquement si des fichiers pouvant influencer le
+            # build ont changé (le reste — docs, CI, config d'outils annexes —
+            # ne justifie pas un rebuild).
+            BUILD_IRRELEVANT='^(docs/|README\.md$|CLAUDE\.md$|\.github/|\.junie/|\.agents/|\.claude/|\.superpowers/|\.husky/|skills-lock\.json$|docker-compose\.yml$|bunfig\.toml$|\.prettierrc\.json$|eslint\.config\.mjs$|vitest\.config\.ts$)'
+            if git diff --name-only "$OLD_SHA" "$NEW_SHA" | grep -qvE "$BUILD_IRRELEVANT"; then
+              # Même fuseau qu'au runtime (cf. ecosystem.config.cjs) : le build
+              # prérend des pages, et une date figée dans le fuseau du VPS
+              # ressortirait décalée par rapport au serveur qui les sert.
+              TZ=UTC pnpm build
+            else
+              echo "Aucun fichier d'application modifié, rebuild Next.js ignoré."
+            fi
+
             pm2 startOrReload ecosystem.config.cjs --update-env
