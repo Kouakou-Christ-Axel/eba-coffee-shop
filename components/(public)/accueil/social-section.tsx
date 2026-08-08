@@ -4,7 +4,6 @@ import { Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import type { ContactSettings } from '@/lib/contact-settings';
 import type { PublicTiktokVideo } from '@/lib/tiktok';
-import SocialGallery from './_components/social-gallery';
 import TiktokEmbedRow from './_components/tiktok-embed-row';
 
 function SocialSection({
@@ -59,8 +58,6 @@ function SocialSection({
             </Link>
           </div>
         </motion.div>
-
-        <SocialGallery reduceMotion={reduceMotion} contact={contact} />
 
         {tiktokVideos.length > 0 && <TiktokEmbedRow videos={tiktokVideos} />}
 
