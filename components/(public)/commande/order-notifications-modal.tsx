@@ -43,6 +43,7 @@ export function OrderNotificationsModal({
     isFinal,
   });
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (status !== 'off') return;
@@ -60,19 +61,29 @@ export function OrderNotificationsModal({
 
   function dismiss() {
     localStorage.setItem(PROMPTED_KEY, orderId);
+    setError(null);
     setOpen(false);
   }
 
   async function activate() {
-    // On ferme dans tous les cas une fois la tentative terminée : la
-    // décision navigateur (accordée/refusée) est alors définitive, et
-    // laisser la popup ouverte sur un échec silencieux (refus, souci réseau,
-    // souscription qui échoue — fréquent sur mobile) donnait l'impression
-    // qu'elle ne réagissait pas au clic. Le bloc inline (order-notifications.tsx)
-    // explique déjà l'état « refusé » si c'est le cas.
-    await enable();
+    setError(null);
+    const ok = await enable();
     localStorage.setItem(PROMPTED_KEY, orderId);
-    setOpen(false);
+    if (ok) {
+      setOpen(false);
+      return;
+    }
+    // Échec (refus, souci réseau, souscription qui échoue — fréquent sur
+    // mobile) : on garde la popup ouverte avec un message explicite plutôt
+    // que de la fermer silencieusement (l'utilisateur cliquait sans jamais
+    // savoir pourquoi ça n'avait pas marché) ou de la laisser bloquée sans
+    // aucun retour. Le bouton reste disponible pour réessayer (utile en cas
+    // de souci réseau ponctuel).
+    setError(
+      Notification.permission === 'denied'
+        ? 'Notifications bloquées dans les réglages de ton navigateur — active-les manuellement pour être prévenu(e).'
+        : "Impossible d'activer les notifications pour l'instant. Réessaie dans un instant."
+    );
   }
 
   return (
@@ -100,6 +111,7 @@ export function OrderNotificationsModal({
             </span>{' '}
             est prête — plus besoin de garder cette page ouverte.
           </p>
+          {error && <p className="text-sm text-danger">{error}</p>}
         </ModalBody>
         <ModalFooter className="flex-col gap-2 pb-6">
           <Button
