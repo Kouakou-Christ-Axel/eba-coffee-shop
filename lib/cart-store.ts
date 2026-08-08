@@ -36,6 +36,18 @@ export type CartItem = {
   // checkout de calculer la date de retrait minimale sans re-fetcher le menu
   // (comme `basePrice`).
   advanceOrderDays?: number;
+  // Snapshot du planning récurrent EFFECTIF (`Product.availableDays`, déjà
+  // intersecté avec celui de la catégorie — voir `intersectAvailableDays`,
+  // lib/menu.ts) au moment de l'ajout au panier. Absent = pas de restriction.
+  // Comme `advanceOrderDays`, sert au CONFORT du sélecteur de créneau (voir
+  // SlotPicker) — la vérité reste revérifiée côté serveur PAR PRODUIT au
+  // paiement (lib/orders/availability.ts), jamais depuis ce snapshot.
+  availableDays?: number[];
+  // Snapshot des fenêtres « spécialité de la semaine »
+  // (`Product.weeklySpecialPeriods`) au moment de l'ajout au panier.
+  // Absent/vide = pas de restriction. Même rôle « confort » que
+  // `availableDays` ci-dessus.
+  weeklySpecialPeriods?: { startDate: string; endDate: string }[];
 };
 
 /** Total net d'une ligne (après remise). Voir lib/orders/totals.ts. */

@@ -26,7 +26,10 @@ import {
   getPickupSettings,
 } from '@/lib/pickup-settings-db';
 import { formatDateKey, getRangesForDay } from '@/lib/pickup-settings';
-import { ADVANCE_ORDER_DAYS_MAX } from '@/config/constants';
+import {
+  ADVANCE_ORDER_DAYS_MAX,
+  PICKUP_MIN_VISIBLE_DAYS,
+} from '@/config/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +46,11 @@ export async function GET(req: Request) {
       : 0;
     const settings = {
       ...baseSettings,
-      visibleDays: Math.max(baseSettings.visibleDays, minDays),
+      visibleDays: Math.max(
+        baseSettings.visibleDays,
+        PICKUP_MIN_VISIBLE_DAYS,
+        minDays
+      ),
     };
 
     const slots = await getAvailablePickupSlots(now, settings);

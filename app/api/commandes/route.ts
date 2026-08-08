@@ -4,6 +4,7 @@ import {
   createOrder,
   createOrderSchema,
   AdvanceOrderRequiredError,
+  ScheduleUnavailableError,
 } from '@/lib/orders';
 import { LoyaltyRewardUnavailableError } from '@/lib/loyalty-mutations';
 import { sendNewOrderEmail } from '@/lib/email';
@@ -52,6 +53,11 @@ export async function POST(req: NextRequest) {
     // Date de retrait choisie (ou « dès que possible ») trop proche pour un
     // article exigeant une commande à l'avance (voir lib/orders.ts).
     if (err instanceof AdvanceOrderRequiredError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    // Article hors planning récurrent / fenêtre « spécialité de la semaine »
+    // à la date de retrait choisie (voir lib/orders.ts).
+    if (err instanceof ScheduleUnavailableError) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
     console.error('[POST /api/commandes]', err);

@@ -48,7 +48,7 @@ const DEFAULT_RANGE: TimeRange = { start: '07:30', end: '21:30' };
 export const DEFAULT_SETTINGS: PickupSettings = {
   slotIntervalMin: 15,
   leadTimeMin: 30,
-  visibleDays: 2,
+  visibleDays: 7,
   capacityPerSlot: null,
   weeklyHours: {
     '0': [DEFAULT_RANGE],

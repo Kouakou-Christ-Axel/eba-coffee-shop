@@ -30,6 +30,8 @@ import {
   computeOrderItemsAvailability,
   fetchAdvanceOrderSnapshot,
   maxRequiredAdvanceOrderDays,
+  fetchScheduleSnapshot,
+  findScheduleBlockedItem,
 } from '@/lib/orders/availability';
 import { isPickupDateAllowed } from '@/lib/supplements';
 import { ORDERS_PAGE_SIZE, PHONE_SEARCH_MIN_DIGITS } from '@/config/constants';
@@ -48,6 +50,20 @@ export class AdvanceOrderRequiredError extends Error {
       `Cet article doit être commandé au moins ${requiredDays} jour(s) à l'avance.`
     );
     this.name = 'AdvanceOrderRequiredError';
+  }
+}
+
+/**
+ * Au moins un article du panier est hors de son planning récurrent
+ * (`Product.availableDays`) ou de sa fenêtre « spécialité de la semaine »
+ * (`Product.weeklySpecialPeriods`) à la date de retrait choisie (ou
+ * maintenant, pour « dès que possible »). Même asymétrie que
+ * `AdvanceOrderRequiredError` — contrôlé uniquement côté flux public.
+ */
+export class ScheduleUnavailableError extends Error {
+  constructor(public readonly productName: string) {
+    super(`${productName} n'est pas disponible à cette date.`);
+    this.name = 'ScheduleUnavailableError';
   }
 }
 
@@ -123,6 +139,16 @@ export async function createOrder(input: CreateOrderInput) {
     !isPickupDateAllowed(requiredAdvanceDays, input.pickupTime ?? null)
   ) {
     throw new AdvanceOrderRequiredError(requiredAdvanceDays);
+  }
+
+  const scheduleSnapshot = await fetchScheduleSnapshot(items);
+  const scheduleBlockedItem = findScheduleBlockedItem(
+    items,
+    scheduleSnapshot,
+    input.pickupTime ?? null
+  );
+  if (scheduleBlockedItem) {
+    throw new ScheduleUnavailableError(scheduleBlockedItem.productName);
   }
 
   for (let attempt = 0; attempt < MAX_DAILY_NUMBER_RETRIES; attempt++) {

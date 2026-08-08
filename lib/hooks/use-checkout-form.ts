@@ -25,7 +25,11 @@ import {
   saveLastContact,
 } from '@/lib/order-history';
 import { createOrderSchema } from '@/lib/schemas/order';
-import { isPickupDateAllowed } from '@/lib/supplements';
+import {
+  isAvailableToday,
+  isPickupDateAllowed,
+  isWithinAnyPeriod,
+} from '@/lib/supplements';
 
 // ─── Types publics ───────────────────────────────────────────────────────────
 
@@ -156,6 +160,26 @@ export function validateCheckoutForm(
     }
   }
 
+  // Confort client (la vérité reste le contrôle serveur, voir
+  // `createOrder`/`ScheduleUnavailableError`, lib/orders.ts) : un article du
+  // panier peut être hors de son planning récurrent ou de sa fenêtre
+  // « spécialité de la semaine » à la date effectivement soumise (« dès que
+  // possible » est vérifié contre maintenant).
+  if (!errors.pickupTime) {
+    const target =
+      values.timing === 'scheduled' && values.pickupTime
+        ? new Date(values.pickupTime)
+        : new Date();
+    const blockedItem = items.find(
+      (i) =>
+        !isAvailableToday(i.availableDays ?? null, target) ||
+        !isWithinAnyPeriod(i.weeklySpecialPeriods ?? null, target)
+    );
+    if (blockedItem) {
+      errors.pickupTime = `${blockedItem.productName} n'est pas disponible à cette date.`;
+    }
+  }
+
   const note = values.note.trim();
   if (note.length > ORDER_NOTE_MAX) {
     errors.note = `Note trop longue (max ${ORDER_NOTE_MAX} caractères)`;
@@ -270,6 +294,15 @@ export async function submitCheckout({
       // `AdvanceOrderRequiredError`, lib/orders.ts) — message déjà explicite
       // côté serveur, on le remonte tel quel.
       if (typeof data.error === 'string' && data.error.includes("à l'avance")) {
+        return { ok: false, error: data.error };
+      }
+      // Article hors planning récurrent / fenêtre « spécialité de la
+      // semaine » à la date choisie (voir `ScheduleUnavailableError`,
+      // lib/orders.ts) — message déjà explicite côté serveur, idem.
+      if (
+        typeof data.error === 'string' &&
+        data.error.includes("n'est pas disponible à cette date")
+      ) {
         return { ok: false, error: data.error };
       }
     }
