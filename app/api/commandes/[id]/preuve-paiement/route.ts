@@ -19,6 +19,7 @@ import {
   setOrderPaymentProof,
 } from '@/lib/order-mutations';
 import { analyzePaymentProof } from '@/lib/ai/payment-proof';
+import { allowPaymentProofAnalysis } from '@/lib/payment-proof-rate-limit';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -49,8 +50,15 @@ export async function POST(req: Request, { params }: Params) {
     await assertOrderAcceptsPaymentProof(id);
     await setOrderPaymentProof(id, url);
     // Pré-analyse IA en arrière-plan, après l'envoi de la réponse : n'ajoute
-    // aucune latence côté client (cf. lib/ai/payment-proof.ts).
-    after(() => analyzePaymentProof(id));
+    // aucune latence côté client (cf. lib/ai/payment-proof.ts). Au-delà du
+    // quota (réuploads répétés sur cette commande), on saute l'analyse sans
+    // bloquer l'upload : la commande reste consultable en caisse pour une
+    // validation manuelle (cf. lib/payment-proof-rate-limit.ts).
+    const forwardedFor = req.headers.get('x-forwarded-for');
+    const ipAddress = forwardedFor?.split(',')[0]?.trim() ?? 'unknown';
+    if (allowPaymentProofAnalysis(`${ipAddress}:${id}`)) {
+      after(() => analyzePaymentProof(id));
+    }
     return NextResponse.json({ url });
   } catch (err) {
     if (err instanceof OrderMutationError) {
