@@ -17,10 +17,10 @@ function TiktokEmbed({ video }: TiktokEmbedProps) {
 
   return (
     <blockquote
-      className="tiktok-embed"
+      className="tiktok-embed overflow-hidden rounded-2xl border border-default-200/60 shadow-sm"
       cite={video.url}
       data-video-id={video.videoId}
-      style={{ maxWidth: 605, minWidth: 325 }}
+      style={{ width: 325 }}
     >
       <section>
         {caption && <p>{caption}</p>}

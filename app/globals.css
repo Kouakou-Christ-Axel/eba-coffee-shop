@@ -233,3 +233,11 @@
     animation: none !important;
   }
 }
+
+/* Embed TikTok (cf. TiktokEmbedRow / TiktokEmbed) — `embed.js` injecte
+   l'iframe du lecteur à l'intérieur du blockquote sans retirer le contenu
+   de repli (légende + lien "Voir sur TikTok") : sans cette règle, les deux
+   restent visibles empilés une fois la vidéo chargée. */
+.tiktok-embed:has(iframe) section {
+  display: none;
+}

@@ -10,7 +10,8 @@ type TiktokEmbedRowProps = {
 };
 
 // Rangée scrollable horizontalement : les embeds TikTok imposent leur propre
-// largeur (min 325px / max 605px), incompatibles avec une grille classique.
+// largeur fixe (325px, le minimum accepté par TikTok), incompatible avec une
+// grille classique.
 function TiktokEmbedRow({ videos }: TiktokEmbedRowProps) {
   const reduceMotion = useReducedMotion();
 
