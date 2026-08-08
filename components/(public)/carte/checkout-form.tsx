@@ -147,6 +147,7 @@ export function CheckoutForm({
         onChange={(iso) => setField('pickupTime', iso)}
         error={errors.pickupTime}
         info={pickupInfo}
+        items={items}
         minAdvanceOrderDays={minAdvanceOrderDays}
       />
 

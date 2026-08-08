@@ -51,11 +51,14 @@ export function GeneralSettingsForm({ settings, onUpdate }: Props) {
           <Input
             id="visibleDays"
             type="number"
-            min={1}
+            min={7}
             max={14}
             value={settings.visibleDays}
             onChange={(e) => onUpdate('visibleDays', Number(e.target.value))}
           />
+          <p className="text-xs text-muted-foreground">
+            Toujours au moins 7 jours côté client, même si réglé plus bas ici.
+          </p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="capacity">

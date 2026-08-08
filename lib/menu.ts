@@ -11,7 +11,7 @@ import { formatLocalDateOnly } from '@/lib/timezone';
  * plannings n'ont aucun jour en commun — voir `isAvailableToday`,
  * lib/supplements.ts).
  */
-function intersectAvailableDays(
+export function intersectAvailableDays(
   a: number[] | null,
   b: number[] | null
 ): number[] | null {

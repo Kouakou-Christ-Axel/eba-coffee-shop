@@ -359,3 +359,12 @@ export const PORTION_COMBO_MAX = 3;
  * Source : lib/menu-mutations.ts (advanceOrderDaysFieldSchema).
  */
 export const ADVANCE_ORDER_DAYS_MAX = 30;
+
+/**
+ * Horizon minimum (jours) toujours proposé au client dans le sélecteur de
+ * créneau du checkout (« Planifier »), quel que soit le réglage
+ * `visibleDays` enregistré (`/dashboard/parametres`) — appliqué en lecture
+ * dans `/api/pickup-slots`, sans jamais réduire un réglage déjà plus large.
+ * Source : lib/pickup-settings.ts (DEFAULT_SETTINGS.visibleDays).
+ */
+export const PICKUP_MIN_VISIBLE_DAYS = 7;
