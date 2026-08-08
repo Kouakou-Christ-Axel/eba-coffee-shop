@@ -9,16 +9,55 @@ import {
   tiktokVideoUpdateSchema,
   extractTiktokVideoId,
 } from '@/lib/schemas/tiktok';
+import { fetchTiktokOEmbed } from '@/lib/tiktok-oembed';
+import { saveTiktokThumbnailFromUrl } from '@/lib/uploads';
+
+type OEmbedFields = {
+  oembedTitle: string | null;
+  authorName: string | null;
+  thumbnailUrl: string | null;
+};
+
+const NO_OEMBED_FIELDS: OEmbedFields = {
+  oembedTitle: null,
+  authorName: null,
+  thumbnailUrl: null,
+};
+
+/**
+ * Enrichissement best-effort d'une vidéo à partir de l'oEmbed public de
+ * TikTok : ne doit jamais faire échouer la création/mise à jour appelante,
+ * y compris si le téléchargement de la miniature échoue une fois l'oEmbed
+ * obtenu (URL expirée, hôte injoignable...).
+ */
+async function enrichFromOEmbed(url: string): Promise<OEmbedFields> {
+  const oembed = await fetchTiktokOEmbed(url);
+  if (!oembed) return NO_OEMBED_FIELDS;
+
+  let thumbnailUrl: string | null = null;
+  if (oembed.thumbnailUrl) {
+    try {
+      thumbnailUrl = await saveTiktokThumbnailFromUrl(oembed.thumbnailUrl);
+    } catch {
+      thumbnailUrl = null;
+    }
+  }
+
+  return { oembedTitle: oembed.title, authorName: oembed.authorName, thumbnailUrl };
+}
 
 export async function createTiktokVideo(input: unknown, createdById?: string) {
   const data = tiktokVideoInputSchema.parse(input);
   const videoId = extractTiktokVideoId(data.url);
   if (!videoId) throw new Error('URL TikTok invalide');
 
-  const existing = await prisma.tiktokVideo.findMany({
-    where: { deletedAt: null },
-    select: { id: true },
-  });
+  const [existing, oembedFields] = await Promise.all([
+    prisma.tiktokVideo.findMany({
+      where: { deletedAt: null },
+      select: { id: true },
+    }),
+    enrichFromOEmbed(data.url),
+  ]);
 
   return prisma.tiktokVideo.create({
     data: {
@@ -28,6 +67,7 @@ export async function createTiktokVideo(input: unknown, createdById?: string) {
       isActive: data.isActive,
       sortOrder: existing.length,
       createdById: createdById ?? null,
+      ...oembedFields,
     },
   });
 }
@@ -38,16 +78,21 @@ export async function updateTiktokVideo(id: string, input: unknown) {
   if (!existing) throw new Error('Vidéo introuvable');
 
   let videoId: string | undefined;
+  let oembedFields: OEmbedFields | undefined;
   if (data.url !== undefined) {
     const extracted = extractTiktokVideoId(data.url);
     if (!extracted) throw new Error('URL TikTok invalide');
     videoId = extracted;
+    // L'URL change : les métadonnées auto-détectées précédentes ne
+    // correspondent plus à la nouvelle vidéo — on les rafraîchit (ou on les
+    // vide si l'oEmbed échoue, plutôt que de garder des données périmées).
+    oembedFields = await enrichFromOEmbed(data.url);
   }
 
   return prisma.tiktokVideo.update({
     where: { id },
     data: {
-      ...(data.url !== undefined && { url: data.url, videoId }),
+      ...(data.url !== undefined && { url: data.url, videoId, ...oembedFields }),
       ...(data.caption !== undefined && { caption: data.caption }),
       ...(data.isActive !== undefined && { isActive: data.isActive }),
     },

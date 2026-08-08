@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { MediaImage as Image } from '@/components/ui/media-image';
 import { ArrowDown, ArrowUp, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -38,6 +39,9 @@ type TiktokVideoRow = {
   url: string;
   caption: string | null;
   isActive: boolean;
+  oembedTitle: string | null;
+  authorName: string | null;
+  thumbnailUrl: string | null;
 };
 
 export function TiktokTable({ videos }: { videos: TiktokVideoRow[] }) {
@@ -142,6 +146,7 @@ export function TiktokTable({ videos }: { videos: TiktokVideoRow[] }) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Aperçu</TableHead>
               <TableHead>URL</TableHead>
               <TableHead>Légende</TableHead>
               <TableHead>Active</TableHead>
@@ -152,6 +157,19 @@ export function TiktokTable({ videos }: { videos: TiktokVideoRow[] }) {
           <TableBody>
             {videos.map((video, i) => (
               <TableRow key={video.id}>
+                <TableCell>
+                  {video.thumbnailUrl ? (
+                    <Image
+                      src={video.thumbnailUrl}
+                      alt={video.caption ?? 'Miniature vidéo TikTok'}
+                      width={40}
+                      height={40}
+                      className="size-10 rounded-md object-cover"
+                    />
+                  ) : (
+                    <div className="size-10 rounded-md border border-dashed" />
+                  )}
+                </TableCell>
                 <TableCell className="max-w-xs truncate text-sm font-medium">
                   <a
                     href={video.url}
@@ -220,7 +238,7 @@ export function TiktokTable({ videos }: { videos: TiktokVideoRow[] }) {
             {videos.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={6}
                   className="py-8 text-center text-sm text-muted-foreground"
                 >
                   Aucune vidéo TikTok pour l’instant.
