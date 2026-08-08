@@ -4,6 +4,31 @@
 // dans le code). Chaque entrée référence sa provenance pour faciliter la
 // suppression du doublon dans la vague d'intégration suivante.
 
+import type { UserRole } from '@/generated/prisma/client';
+
+/**
+ * Rôles ayant accès au dashboard. Source de vérité UNIQUE, partagée entre le
+ * garde serveur (`requireDashboard`, lib/auth-helpers.ts) et l'UI publique qui
+ * décide d'afficher un raccourci « Dashboard » (navbar, footer, FAB mobile).
+ *
+ * Pourquoi ici plutôt que dans `lib/auth-helpers.ts` : ce dernier importe
+ * `next/headers`, donc inutilisable depuis un composant client. Ce fichier est
+ * pur. Import de TYPE uniquement pour `UserRole` (effacé au build) — rien du
+ * client Prisma ne part dans le bundle navigateur.
+ *
+ * L'UI publique ne fait qu'afficher/masquer un lien : l'autorisation réelle
+ * reste côté serveur (le layout dashboard appelle `requireDashboard`).
+ */
+export const DASHBOARD_ROLES: UserRole[] = [
+  'ADMIN',
+  'MANAGER',
+  'ASSISTANT_MANAGER',
+  'CASHIER',
+  'KITCHEN',
+  'COMPTABLE',
+  'ANALYSTE',
+];
+
 /**
  * Taille maximale d'un upload d'image en octets (25 MB).
  * Cap d'ENTRÉE : on accepte des photos de téléphone lourdes (et du HEIC), qui

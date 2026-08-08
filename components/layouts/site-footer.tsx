@@ -7,12 +7,10 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { MapPin, MessageCircle, Mail } from 'lucide-react';
 import { IconBrandInstagram, IconBrandTiktok } from '@tabler/icons-react';
 import { brandConfig } from '@/config/brand.config';
+import { DASHBOARD_ROLES } from '@/config/constants';
 import { authClient } from '@/lib/auth-client';
 import type { ContactSettings } from '@/lib/contact-settings';
 import { buildWhatsAppLink } from '@/lib/contact-links';
-
-// Mêmes rôles staff que la navbar / le FAB dashboard.
-const DASHBOARD_ROLES = ['ADMIN', 'CASHIER', 'KITCHEN'];
 
 function SiteFooter({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
@@ -31,7 +29,8 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
   const whatsappHref = buildWhatsAppLink(contact.whatsapp) ?? '#';
   const { data: session } = authClient.useSession();
   const userRole = (session?.user as { role?: string } | undefined)?.role;
-  const hasDashboardAccess = !!userRole && DASHBOARD_ROLES.includes(userRole);
+  const hasDashboardAccess =
+    !!userRole && (DASHBOARD_ROLES as string[]).includes(userRole);
   // Point d'accès indispensable dans la PWA installée (pas de barre d'adresse) :
   // « Connexion » si déconnecté, sinon raccourci vers le dashboard pour le staff.
   const accountLink = hasDashboardAccess

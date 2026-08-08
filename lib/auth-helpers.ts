@@ -2,6 +2,7 @@ import { cache } from 'react';
 import { headers } from 'next/headers';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
+import { DASHBOARD_ROLES } from '@/config/constants';
 import type { UserRole } from '@/generated/prisma/client';
 
 type SessionUser = {
@@ -60,15 +61,8 @@ const CLOTURE_ROLES: UserRole[] = [
   'CASHIER',
   'COMPTABLE',
 ];
-const DASHBOARD_ROLES: UserRole[] = [
-  'ADMIN',
-  'MANAGER',
-  'ASSISTANT_MANAGER',
-  'CASHIER',
-  'KITCHEN',
-  'COMPTABLE',
-  'ANALYSTE',
-];
+// DASHBOARD_ROLES vit dans config/constants.ts : l'UI publique (navbar, footer,
+// FAB) en a besoin côté client, et ce module importe `next/headers`.
 
 // Validation runtime du shape renvoyé par Better Auth.
 //
