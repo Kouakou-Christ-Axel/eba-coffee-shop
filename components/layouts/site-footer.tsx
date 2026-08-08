@@ -48,7 +48,7 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
 
   return (
     <footer className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(20,20,25,1)_0%,rgba(15,15,20,1)_100%)] text-white">
-      <div className="mx-auto w-full max-w-5xl px-6">
+      <div className="content-container">
         <motion.div className="flex items-center justify-between border-b border-white/10 py-6 md:py-7">
           <Image
             src="/assets/logos/eba_white_n.svg"
