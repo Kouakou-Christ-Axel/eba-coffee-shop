@@ -37,7 +37,8 @@ export type UploadSubdir =
   | 'payment-proofs'
   | 'poll-options'
   | 'polls'
-  | 'menu-pdf';
+  | 'menu-pdf'
+  | 'tiktok';
 
 /**
  * Racine disque des fichiers uploadés : `<cwd>/public/uploads`.
@@ -340,3 +341,8 @@ export const savePollImageFromBase64 = (input: string, mimeType?: string) =>
 /** Image de couverture d'un sondage rapatriée depuis une URL distante (MCP). */
 export const savePollImageFromUrl = (url: string) =>
   saveImageFromUrl(url, 'polls');
+
+/** Miniature d'une vidéo TikTok embarquée, rapatriée depuis l'oEmbed TikTok
+ * (lib/tiktok-oembed.ts) — jamais servie directement depuis le CDN TikTok. */
+export const saveTiktokThumbnailFromUrl = (url: string) =>
+  saveImageFromUrl(url, 'tiktok');

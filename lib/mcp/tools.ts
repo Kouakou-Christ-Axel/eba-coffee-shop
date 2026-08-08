@@ -3084,7 +3084,11 @@ export const tools: McpTool[] = [
       '(format `https://www.tiktok.com/@compte/video/<id>` — l’identifiant de ' +
       'vidéo requis par le script d’embed TikTok en est extrait automatiquement). ' +
       '`caption` (légende personnalisée affichée sur le site) est optionnelle, ' +
-      '`isActive` par défaut à `true`. Ajoutée en fin de liste d’affichage.',
+      '`isActive` par défaut à `true`. La légende d’origine TikTok, l’auteur et ' +
+      'une miniature sont également récupérés automatiquement en best-effort ' +
+      'via l’oEmbed public de TikTok (utilisés en repli si `caption` est ' +
+      'absente, sans jamais bloquer l’ajout si TikTok est injoignable). ' +
+      'Ajoutée en fin de liste d’affichage.',
     inputSchema: tiktokVideoInputSchema,
     readOnly: false,
     handler: (args) => createTiktokVideo(args),
@@ -3095,7 +3099,9 @@ export const tools: McpTool[] = [
     title: 'Modifier une vidéo TikTok',
     description:
       'Met à jour une vidéo TikTok embarquée de façon PARTIELLE (url, caption, ' +
-      'isActive).',
+      'isActive). Changer `url` redéclenche automatiquement la récupération ' +
+      'best-effort de la légende d’origine/auteur/miniature via l’oEmbed ' +
+      'TikTok pour la nouvelle vidéo.',
     inputSchema: tiktokVideoUpdateSchema.extend({ id: idSchema }),
     readOnly: false,
     handler: (args) => {

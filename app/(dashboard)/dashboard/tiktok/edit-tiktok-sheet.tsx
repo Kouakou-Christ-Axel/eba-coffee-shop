@@ -22,6 +22,8 @@ type TiktokVideoScalar = {
   url: string;
   caption: string | null;
   isActive: boolean;
+  oembedTitle: string | null;
+  authorName: string | null;
 };
 
 function toFormValues(video: TiktokVideoScalar): TiktokVideoFormValues {
@@ -96,6 +98,13 @@ export function EditTiktokSheet({ video }: { video: TiktokVideoScalar }) {
               onChange={setValues}
               idPrefix="tiktok-edit"
             />
+            {(video.oembedTitle || video.authorName) && (
+              <p className="text-xs text-muted-foreground">
+                Détecté automatiquement sur TikTok
+                {video.oembedTitle && ` : « ${video.oembedTitle} »`}
+                {video.authorName && ` — @${video.authorName}`}
+              </p>
+            )}
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button className="mt-2" onClick={submit} disabled={pending}>
               {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}

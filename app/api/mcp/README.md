@@ -319,7 +319,7 @@ réduite, voire vide, ce n'est pas une erreur.
 | `moderate_poll_suggestion`       | sondages   | écriture | Approuver (→ option) ou rejeter une suggestion                     |
 | `list_tiktok_videos`             | tiktok     | lecture  | Lister les vidéos TikTok embarquées                                 |
 | `get_tiktok_video`               | tiktok     | lecture  | Détail d’une vidéo TikTok embarquée                                 |
-| `create_tiktok_video`            | tiktok     | écriture | Ajouter une vidéo TikTok (URL, videoId extrait automatiquement)    |
+| `create_tiktok_video`            | tiktok     | écriture | Ajouter une vidéo TikTok (URL, videoId + légende/auteur/miniature auto via oEmbed) |
 | `update_tiktok_video`            | tiktok     | écriture | Modifier une vidéo TikTok (mise à jour **partielle**)               |
 | `move_tiktok_video`              | tiktok     | écriture | Réordonner une vidéo TikTok (`up` / `down`)                         |
 | `delete_tiktok_video`            | tiktok     | écriture | Retirer une vidéo TikTok (soft delete)                              |

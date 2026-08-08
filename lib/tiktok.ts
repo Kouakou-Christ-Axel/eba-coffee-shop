@@ -27,7 +27,14 @@ export const listPublicTiktokVideos = cache(async () => {
   return prisma.tiktokVideo.findMany({
     where: { isActive: true, deletedAt: null },
     orderBy: { sortOrder: 'asc' },
-    select: { id: true, url: true, videoId: true, caption: true },
+    select: {
+      id: true,
+      url: true,
+      videoId: true,
+      caption: true,
+      oembedTitle: true,
+      authorName: true,
+    },
   });
 });
 

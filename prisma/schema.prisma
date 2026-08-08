@@ -550,6 +550,14 @@ model TiktokVideo {
   isActive  Boolean @default(true)
   sortOrder Int     @default(0)
 
+  // Enrichissement automatique best-effort via l'oEmbed public de TikTok
+  // (lib/tiktok-oembed.ts), déclenché à la création/au changement d'URL.
+  // `thumbnailUrl` est rapatriée localement (lib/uploads.ts) pour rester
+  // affichable sous la CSP `img-src 'self'` sans whitelister le CDN TikTok.
+  oembedTitle  String?
+  authorName   String?
+  thumbnailUrl String?
+
   createdById String?
   createdBy   User?   @relation("TiktokVideoCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
