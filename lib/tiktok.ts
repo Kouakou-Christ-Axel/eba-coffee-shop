@@ -5,6 +5,7 @@
 
 import { cache } from 'react';
 import prisma from '@/lib/prisma';
+import { TIKTOK_HOME_DISPLAY_MAX } from '@/config/constants';
 
 // ─── Admin ──────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ export const listPublicTiktokVideos = cache(async () => {
   return prisma.tiktokVideo.findMany({
     where: { isActive: true, deletedAt: null },
     orderBy: { sortOrder: 'asc' },
+    take: TIKTOK_HOME_DISPLAY_MAX,
     select: {
       id: true,
       url: true,

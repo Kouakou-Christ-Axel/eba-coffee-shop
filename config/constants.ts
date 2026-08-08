@@ -296,6 +296,14 @@ export const POLL_LIST_PAGE_SIZE = 20;
 export const TIKTOK_CAPTION_MAX = 300;
 
 /**
+ * Nombre max de vidéos TikTok affichées dans la section « Suivez l'aventure »
+ * de l'accueil, même si davantage sont marquées actives côté dashboard — les
+ * `TIKTOK_HOME_DISPLAY_MAX` premières par `sortOrder`. Source : lib/tiktok.ts
+ * (listPublicTiktokVideos).
+ */
+export const TIKTOK_HOME_DISPLAY_MAX = 4;
+
+/**
  * Liste publique des sondages (`/sondages`) : passée en ISR plutôt qu'en
  * `force-dynamic` pour un TTFB quasi instantané côté public. Trade-off :
  * les compteurs de votes affichés peuvent être périmés jusqu'à cette durée
