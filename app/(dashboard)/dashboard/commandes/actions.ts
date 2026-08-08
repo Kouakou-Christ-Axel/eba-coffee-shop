@@ -44,6 +44,8 @@ function formatMutationError(err: unknown): string {
 function revalidatePublicMenu(): void {
   revalidatePath('/api/menu');
   revalidatePath('/carte');
+  // L'accueil aussi : sa vitrine est commandable et filtre sur le stock.
+  revalidatePath('/');
 }
 
 export async function updateOrderStatus(

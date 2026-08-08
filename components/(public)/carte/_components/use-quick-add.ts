@@ -13,6 +13,7 @@ import { useCartStore } from '@/lib/cart-store';
 import {
   isPausedNow,
   isAvailableToday,
+  isOrderableNow,
   isWithinAnyPeriod,
 } from '@/lib/supplements';
 import { LOW_STOCK_THRESHOLD } from '@/config/constants';
@@ -49,7 +50,10 @@ export function useQuickAdd(product: Product) {
     product.remaining != null &&
     product.remaining > 0 &&
     product.remaining <= LOW_STOCK_THRESHOLD;
-  const isUnorderable = paused || soldOut || weeklyGated || outOfSchedule;
+  // Les drapeaux ci-dessus restent nécessaires aux LIBELLÉS (chacun a son
+  // message) ; la décision « peut-on ajouter ? » se lit, elle, à la source
+  // partagée avec les vitrines qui filtrent leur sélection.
+  const isUnorderable = !isOrderableNow(product);
 
   /**
    * Ajoute `quantity` exemplaires SANS supplément. Le store plafonne lui-même

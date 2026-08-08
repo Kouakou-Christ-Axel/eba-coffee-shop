@@ -46,6 +46,8 @@ function revalidatePublicMenu() {
   try {
     revalidatePath('/api/menu');
     revalidatePath('/carte');
+    // L'accueil aussi : sa vitrine est commandable et filtre sur le stock.
+    revalidatePath('/');
   } catch (err) {
     console.warn('[caisse/restock] revalidatePublicMenu a échoué', err);
   }

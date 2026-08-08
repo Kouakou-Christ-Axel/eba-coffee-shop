@@ -23,6 +23,9 @@ function revalidatePublicMenu() {
   try {
     revalidatePath('/api/menu');
     revalidatePath('/carte');
+    // L'accueil aussi : sa vitrine « Ce qu'on aime vous servir » est
+    // commandable et ne montre que des produits en stock.
+    revalidatePath('/');
   } catch (err) {
     console.warn('[caisse/payment] revalidatePublicMenu a échoué', err);
   }
