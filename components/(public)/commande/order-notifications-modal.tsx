@@ -64,9 +64,15 @@ export function OrderNotificationsModal({
   }
 
   async function activate() {
-    const ok = await enable();
+    // On ferme dans tous les cas une fois la tentative terminée : la
+    // décision navigateur (accordée/refusée) est alors définitive, et
+    // laisser la popup ouverte sur un échec silencieux (refus, souci réseau,
+    // souscription qui échoue — fréquent sur mobile) donnait l'impression
+    // qu'elle ne réagissait pas au clic. Le bloc inline (order-notifications.tsx)
+    // explique déjà l'état « refusé » si c'est le cas.
+    await enable();
     localStorage.setItem(PROMPTED_KEY, orderId);
-    if (ok) setOpen(false);
+    setOpen(false);
   }
 
   return (
