@@ -157,6 +157,7 @@ connecteur, avec un ou plusieurs domaines séparés par des virgules :
 | `contact`    | Coordonnées du commerce (adresse, horaires, téléphone…)                  |
 | `inventaire` | Matières premières & consommables                                        |
 | `sondages`   | Sondages communauté                                                      |
+| `tiktok`     | Vidéos TikTok embarquées (section "Suivez l'aventure")                   |
 
 Exemples :
 
@@ -316,6 +317,12 @@ réduite, voire vide, ce n'est pas une erreur.
 | `list_poll_suggestions`          | sondages   | lecture  | Lister les suggestions de la communauté                            |
 | `get_poll_suggestion`            | sondages   | lecture  | Détail d’une suggestion                                            |
 | `moderate_poll_suggestion`       | sondages   | écriture | Approuver (→ option) ou rejeter une suggestion                     |
+| `list_tiktok_videos`             | tiktok     | lecture  | Lister les vidéos TikTok embarquées                                 |
+| `get_tiktok_video`               | tiktok     | lecture  | Détail d’une vidéo TikTok embarquée                                 |
+| `create_tiktok_video`            | tiktok     | écriture | Ajouter une vidéo TikTok (URL, videoId extrait automatiquement)    |
+| `update_tiktok_video`            | tiktok     | écriture | Modifier une vidéo TikTok (mise à jour **partielle**)               |
+| `move_tiktok_video`              | tiktok     | écriture | Réordonner une vidéo TikTok (`up` / `down`)                         |
+| `delete_tiktok_video`            | tiktok     | écriture | Retirer une vidéo TikTok (soft delete)                              |
 
 Les prix et coûts (`coutMatiere`, `coutEmballage`) sont exprimés en **francs
 CFA** (nombres entiers) et `get_menu` les renvoie. Commence toujours par

@@ -12,6 +12,7 @@ import FindUsSection from '@/components/(public)/accueil/find-us-section';
 import { getContactSettings } from '@/lib/contact-settings-db';
 import { getPickupSettings } from '@/lib/pickup-settings-db';
 import { summarizeWeeklyHours } from '@/lib/pickup-settings';
+import { listPublicTiktokVideos } from '@/lib/tiktok';
 
 // ISR: regenerate the homepage at most once per hour.
 // Featured products change rarely, and the dashboard menu actions already
@@ -52,9 +53,10 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const [contact, pickup] = await Promise.all([
+  const [contact, pickup, tiktokVideos] = await Promise.all([
     getContactSettings(),
     getPickupSettings(),
+    listPublicTiktokVideos(),
   ]);
   const hoursLabel = summarizeWeeklyHours(pickup.weeklyHours);
   return (
@@ -67,7 +69,7 @@ export default async function HomePage() {
       <UniversEbaSection />
       <PlaceSection />
       <FindUsSection contact={contact} hoursLabel={hoursLabel} />
-      <SocialSection contact={contact} />
+      <SocialSection contact={contact} tiktokVideos={tiktokVideos} />
     </>
   );
 }

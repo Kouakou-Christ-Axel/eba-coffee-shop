@@ -52,8 +52,8 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
       <div className="mx-auto w-full max-w-5xl px-6">
         <motion.div className="flex items-center justify-between border-b border-white/10 py-6 md:py-7">
           <Image
-            src="/assets/logos/eba_white_n.png"
-            alt="EBA logo"
+            src="/assets/logos/eba_white_n.svg"
+            alt="EBA Coffee Shop — café et pâtisserie à Abidjan"
             width={48}
             height={48}
           />

@@ -267,6 +267,9 @@ export const POLL_VOTER_TOKEN_MAX = 100;
 /** Taille de page par défaut pour les listes paginées (dashboard). */
 export const POLL_LIST_PAGE_SIZE = 20;
 
+/** Longueur max de la légende personnalisée d'une vidéo TikTok embarquée. */
+export const TIKTOK_CAPTION_MAX = 300;
+
 /**
  * Liste publique des sondages (`/sondages`) : passée en ISR plutôt qu'en
  * `force-dynamic` pour un TTFB quasi instantané côté public. Trade-off :

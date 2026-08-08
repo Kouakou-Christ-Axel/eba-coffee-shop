@@ -20,6 +20,7 @@ import {
   ShoppingBag,
   UtensilsCrossed,
   Users,
+  Video,
   Vote,
   Wallet,
 } from 'lucide-react';
@@ -150,6 +151,12 @@ const navItems: NavItem[] = [
     label: 'Sondages',
     href: '/dashboard/sondages',
     icon: Vote,
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'ANALYSTE'],
+  },
+  {
+    label: 'TikTok',
+    href: '/dashboard/tiktok',
+    icon: Video,
     roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'ANALYSTE'],
   },
   {
