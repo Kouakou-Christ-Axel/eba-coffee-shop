@@ -75,6 +75,29 @@ export function isWithinAnyPeriod(
 }
 
 /**
+ * Vrai si le produit peut être mis au panier MAINTENANT : ni épuisé, ni en
+ * pause, ni hors de son planning hebdomadaire, ni hors d'une fenêtre
+ * « spécialité de la semaine ».
+ *
+ * Source unique de cette conjonction, partagée par les surfaces qui décident
+ * quoi mettre en avant (vitrine de la carte, vitrine de l'accueil) et par le
+ * geste d'ajout lui-même (`useQuickAdd`). Ce dernier garde ses drapeaux
+ * détaillés pour les libellés — un produit non commandable reste VISIBLE avec
+ * son motif — mais la règle « peut-on l'ajouter ? » se lit ici.
+ *
+ * Garde-fou d'interface uniquement : la vérité stock reste le PAIEMENT
+ * (lib/order-mutations.ts).
+ */
+export function isOrderableNow(product: Product, now: Date = new Date()) {
+  return (
+    product.soldOut !== true &&
+    !isPausedNow(product.unavailableUntil, now) &&
+    isAvailableToday(product.availableDays, now) &&
+    isWithinAnyPeriod(product.weeklySpecialPeriods, now)
+  );
+}
+
+/**
  * Vrai si `pickupDate` respecte le délai minimum de commande à l'avance
  * (`advanceOrderDays`, résolu par `effectiveAdvanceOrderDays`, lib/menu.ts).
  * `null`/absent/0 = pas de contrainte. La comparaison se fait en JOURS CIVILS

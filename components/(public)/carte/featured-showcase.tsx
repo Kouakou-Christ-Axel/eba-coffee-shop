@@ -15,11 +15,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { Button } from '@heroui/react';
 import { Check, Plus } from 'lucide-react';
 import { priceFormatter, type MenuCategory, type Product } from '@/config/menu';
-import {
-  isPausedNow,
-  isAvailableToday,
-  isWithinAnyPeriod,
-} from '@/lib/supplements';
+import { isOrderableNow } from '@/lib/supplements';
 import {
   SHOWCASE_MAX_PRODUCTS,
   SHOWCASE_MIN_PRODUCTS,
@@ -44,13 +40,7 @@ const SupplementModal = dynamic(
 export function selectShowcaseProducts(menuData: MenuCategory[]): Product[] {
   const orderable = menuData
     .flatMap((category) => category.products)
-    .filter(
-      (p) =>
-        p.soldOut !== true &&
-        !isPausedNow(p.unavailableUntil) &&
-        isAvailableToday(p.availableDays) &&
-        isWithinAnyPeriod(p.weeklySpecialPeriods)
-    );
+    .filter((p) => isOrderableNow(p));
 
   const ranked = orderable
     .filter((p) => p.popularRank != null)

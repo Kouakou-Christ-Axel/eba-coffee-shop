@@ -4,6 +4,8 @@ import Image from 'next/image';
 import React from 'react';
 import { Button, Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { ShoppingBag } from 'lucide-react';
+import { RecentOrdersLink } from '@/components/(public)/commande/recent-orders-link';
 
 function HeroSection() {
   const reduceMotion = useReducedMotion();
@@ -51,9 +53,15 @@ function HeroSection() {
             size="lg"
             radius="full"
             className="mt-2 px-8"
+            startContent={<ShoppingBag className="h-5 w-5" aria-hidden />}
           >
-            Voir la carte
+            Voir la carte &amp; commander
           </Button>
+
+          {/* Chemin de recommande immédiat pour un habitué — rendu `null` tant
+              que cet appareil n'a rien commandé, donc invisible pour un
+              nouveau visiteur. Habillage clair : le hero est sombre. */}
+          <RecentOrdersLink className="border-white/40 bg-white/10 text-white hover:border-white/70 hover:text-white" />
         </div>
       </motion.div>
     </section>

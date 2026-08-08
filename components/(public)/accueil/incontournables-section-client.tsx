@@ -1,37 +1,111 @@
 'use client';
 
-import { MediaImage as Image } from '@/components/ui/media-image';
+// components/(public)/accueil/incontournables-section-client.tsx
+//
+// Les produits vedettes de l'accueil sont COMMANDABLES. Auparavant leur bouton
+// « Je commande » ouvrait WhatsApp avec un message pré-rempli : le client
+// quittait le site et le panier applicatif ne voyait jamais rien passer. Ils
+// passent maintenant par `useQuickAdd`, le même geste que la carte — modale
+// pour un produit à options, ajout direct sinon.
+//
+// L'accusé de réception est l'icône panier de la navbar, qui apparaît en
+// animation avec le compteur et le montant (`NavbarCartButton`, actif partout
+// sauf sur /carte*). Pas de bouton flottant ici : il ferait doublon.
+
 import React from 'react';
-import { Button, Card, CardBody, CardFooter, Chip, Link } from '@heroui/react';
+import dynamic from 'next/dynamic';
+import { Button, Card, CardBody, CardFooter, Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { Check, Plus } from 'lucide-react';
 
-import { buildWhatsAppLink } from '@/lib/contact-links';
+import { priceFormatter, type Product } from '@/config/menu';
+import { useQuickAdd } from '@/components/(public)/carte/_components/use-quick-add';
+import {
+  ProductBadge,
+  ProductMedia,
+  productBadgeLabel,
+} from '@/components/(public)/carte/_components/product-media';
 
-export type FeaturedProduct = {
-  id: string;
-  name: string;
-  description: string;
-  price: number;
-  imageUrl: string | null;
-  featuredBadge: string | null;
-};
+const SupplementModal = dynamic(
+  () => import('@/components/(public)/carte/supplement-modal'),
+  { ssr: false }
+);
 
 type Props = {
-  items: FeaturedProduct[];
-  whatsapp: string;
+  items: Product[];
 };
 
-const FALLBACK_IMAGE = '/assets/examples/accueil/eba-hero.webp';
+function FeaturedCard({ product }: { product: Product }) {
+  const { hasOptions, justAdded, isModalOpen, closeModal, handleAdd } =
+    useQuickAdd(product);
+  const badge = productBadgeLabel(product);
 
-const badgeColorMap: Record<string, 'primary' | 'secondary' | 'success'> = {
-  'Best-seller': 'primary',
-  'Coup de cœur': 'secondary',
-  Nouveau: 'success',
-};
+  return (
+    <>
+      <Card
+        className="group h-full overflow-hidden border border-default-200 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+        shadow="none"
+      >
+        <div className="relative h-72 w-full overflow-hidden md:h-80">
+          <ProductMedia
+            product={product}
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="transition-transform duration-500 group-hover:scale-105"
+            monogramClassName="text-6xl"
+          />
+        </div>
 
-const priceFormatter = new Intl.NumberFormat('fr-FR');
+        <CardBody className="gap-2 px-5 py-4">
+          {/* Badge dans le bloc texte et non en overlay : voir la note de
+              `ProductBadge` — sur la photo il masquait le produit et sa
+              lisibilité dépendait du visuel dessous. */}
+          {badge && <ProductBadge label={badge} className="mb-1 self-start" />}
+          <h3 className="text-lg font-semibold">{product.name}</h3>
+          <p className="text-sm text-foreground/70">{product.description}</p>
+          <p className="mt-1 text-base font-semibold text-primary">
+            {priceFormatter.format(product.price)}
+            <span className="ml-1 text-xs font-medium text-foreground/60">
+              FCFA
+            </span>
+          </p>
+        </CardBody>
 
-function IncontournablesSectionClient({ items, whatsapp }: Props) {
+        <CardFooter className="px-5 pb-5 pt-0">
+          <Button
+            color={justAdded ? 'success' : 'primary'}
+            variant="solid"
+            className="w-full font-medium"
+            onPress={handleAdd}
+            startContent={
+              justAdded ? (
+                <Check className="h-4 w-4" aria-hidden />
+              ) : (
+                <Plus className="h-4 w-4" aria-hidden />
+              )
+            }
+            aria-label={
+              hasOptions
+                ? `Choisir les options de ${product.name}`
+                : `Ajouter ${product.name} au panier`
+            }
+          >
+            {justAdded ? 'Ajouté' : 'Ajouter'}
+          </Button>
+        </CardFooter>
+      </Card>
+
+      {hasOptions && (
+        <SupplementModal
+          product={product}
+          isOpen={isModalOpen}
+          onClose={closeModal}
+        />
+      )}
+    </>
+  );
+}
+
+function IncontournablesSectionClient({ items }: Props) {
   const reduceMotion = useReducedMotion();
 
   return (
@@ -63,83 +137,22 @@ function IncontournablesSectionClient({ items, whatsapp }: Props) {
         </motion.div>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((item, index) => {
-            const badgeColor = item.featuredBadge
-              ? (badgeColorMap[item.featuredBadge] ?? 'primary')
-              : null;
-
-            return (
-              <motion.div
-                key={item.id}
-                initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
-                whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.3 }}
-                transition={{
-                  duration: 0.6,
-                  ease: 'easeOut',
-                  delay: index * 0.1,
-                }}
-                className="h-full"
-              >
-                <Card
-                  className="group h-full overflow-hidden border border-default-200 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-                  shadow="none"
-                >
-                  <div className="relative h-72 w-full overflow-hidden md:h-80">
-                    <Image
-                      src={item.imageUrl ?? FALLBACK_IMAGE}
-                      alt={`${item.name} — EBA Coffee Shop Cocody Abidjan`}
-                      fill
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                      className="object-cover object-center transition-transform duration-500 group-hover:scale-105"
-                    />
-                    {item.featuredBadge && badgeColor ? (
-                      <Chip
-                        size="sm"
-                        color={badgeColor}
-                        variant="solid"
-                        className="absolute left-3 top-3 font-semibold shadow-md"
-                      >
-                        {item.featuredBadge}
-                      </Chip>
-                    ) : null}
-                  </div>
-
-                  <CardBody className="gap-2 px-5 py-4">
-                    <h3 className="text-lg font-semibold">{item.name}</h3>
-                    <p className="text-sm text-foreground/70">
-                      {item.description}
-                    </p>
-                    <p className="mt-1 text-base font-semibold text-primary">
-                      {priceFormatter.format(item.price)}
-                      <span className="ml-1 text-xs font-medium text-foreground/60">
-                        FCFA
-                      </span>
-                    </p>
-                  </CardBody>
-
-                  <CardFooter className="px-5 pb-5 pt-0">
-                    <Button
-                      as={Link}
-                      href={
-                        buildWhatsAppLink(
-                          whatsapp,
-                          `Bonjour EBA, je souhaite commander : ${item.name}.`
-                        ) ?? '#'
-                      }
-                      isExternal
-                      color="primary"
-                      variant="solid"
-                      className="w-full font-medium"
-                      aria-label={`Commander ${item.name} sur WhatsApp`}
-                    >
-                      Je commande
-                    </Button>
-                  </CardFooter>
-                </Card>
-              </motion.div>
-            );
-          })}
+          {items.map((product, index) => (
+            <motion.div
+              key={product.id}
+              initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
+              whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{
+                duration: 0.6,
+                ease: 'easeOut',
+                delay: index * 0.1,
+              }}
+              className="h-full"
+            >
+              <FeaturedCard product={product} />
+            </motion.div>
+          ))}
         </div>
 
         <motion.div

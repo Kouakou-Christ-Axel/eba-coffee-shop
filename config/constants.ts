@@ -341,6 +341,15 @@ export const SHOWCASE_MIN_PRODUCTS = 3;
 export const UPSELL_MAX_PRODUCTS = 6;
 
 /**
+ * Vitrine éditoriale « Ce qu'on aime vous servir » de l'accueil : plafond
+ * distinct de `SHOWCASE_MAX_PRODUCTS` parce que la mise en page diffère — une
+ * grille de 3 colonnes, où 8 produits laissent une dernière rangée bancale, là
+ * où la vitrine de la carte est une bande qui défile horizontalement.
+ * Source : components/(public)/accueil/incontournables-section.tsx.
+ */
+export const HOME_FEATURED_MAX_PRODUCTS = 6;
+
+/**
  * Répartitions de parts les plus choisies (« Oreo ×2 · Coco ×1 — 34 fois »),
  * proposées en un appui dans le composeur de boîtes. Agrégées sur la même
  * fenêtre que la preuve sociale (`POPULARITY_WINDOW_DAYS`).

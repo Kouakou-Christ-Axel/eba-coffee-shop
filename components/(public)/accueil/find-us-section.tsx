@@ -3,9 +3,14 @@
 import React from 'react';
 import { Button, Card, CardBody, Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Clock3, MapPin, MessageCircle, Phone } from 'lucide-react';
+import {
+  Clock3,
+  MapPin,
+  MessageCircle,
+  Phone,
+  ShoppingBag,
+} from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
-import { buildWhatsAppLink } from '@/lib/contact-links';
 
 function FindUsSection({
   contact,
@@ -142,18 +147,20 @@ function FindUsSection({
                   : { duration: 0.55, ease: 'easeOut', delay: 0.3 }
               }
             >
+              {/* Le seul bouton « Commander » de la page mène à la carte, pas
+                  à WhatsApp : la commande passe par le panier. Le numéro reste
+                  affiché juste au-dessus (`infoRows`) et dans le footer — on
+                  retire le canal de commande, pas le moyen de contact. */}
               <Button
                 as={Link}
-                href={buildWhatsAppLink(contact.whatsapp) ?? '#'}
-                target="_blank"
-                rel="noopener noreferrer"
+                href="/carte"
                 color="primary"
                 radius="full"
                 startContent={
-                  <MessageCircle aria-hidden="true" className="h-4 w-4" />
+                  <ShoppingBag aria-hidden="true" className="h-4 w-4" />
                 }
               >
-                Commander via WhatsApp
+                Commander
               </Button>
               <Button
                 as={Link}

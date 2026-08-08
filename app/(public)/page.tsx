@@ -64,7 +64,7 @@ export default async function HomePage() {
       <HeroSection />
       <QuickTrustSection />
       <Suspense fallback={<IncontournablesSkeleton />}>
-        <IncontournablesSection contact={contact} />
+        <IncontournablesSection />
       </Suspense>
       <UniversEbaSection />
       <PlaceSection />
