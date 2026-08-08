@@ -19,9 +19,10 @@ const isProduction = process.env.NODE_ENV === 'production';
 //   directement du navigateur vers Cloudinary, sans passer par notre serveur.
 // - En dev, Next ouvre une websocket pour le HMR → on élargit `connect-src`.
 // - TikTok : `embed.js` (chargé par `TiktokEmbedRow`) construit un iframe
-//   `www.tiktok.com/embed/v2/...` et va chercher les miniatures sur les CDN
-//   `*.tiktokcdn.com` / `*.tiktokcdn-us.com` → il faut `script-src`,
-//   `frame-src` et `img-src` élargis en conséquence.
+//   `www.tiktok.com/embed/v2/...`, charge lui-même un second script depuis le
+//   CDN `*.ttwstatic.com` (le bundle "falcon" de l'embed), et va chercher les
+//   miniatures sur les CDN `*.tiktokcdn.com` / `*.tiktokcdn-us.com` → il faut
+//   `script-src`, `frame-src` et `img-src` élargis en conséquence.
 const cspDirectives: Record<string, string[]> = {
   'default-src': ["'self'"],
   'script-src': [
@@ -29,6 +30,7 @@ const cspDirectives: Record<string, string[]> = {
     "'unsafe-inline'",
     'https://static.cloudflareinsights.com',
     'https://www.tiktok.com',
+    'https://*.ttwstatic.com',
     ...(isProduction ? [] : ["'unsafe-eval'"]),
   ],
   'style-src': ["'self'", "'unsafe-inline'"],
