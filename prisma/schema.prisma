@@ -35,6 +35,7 @@ model User {
   restockBatchesCreated     InventoryRestockBatch[] @relation("RestockBatchCreatedBy")
   pushSubscriptions         PushSubscription[]
   createdPolls              Poll[]                  @relation("PollCreatedBy")
+  createdTiktokVideos       TiktokVideo[]           @relation("TiktokVideoCreatedBy")
   moderatedPollSuggestions  PollSuggestion[]        @relation("PollSuggestionModeratedBy")
   purchaseDrafts            PurchaseDraft[]         @relation("PurchaseDraftCreatedBy")
   orderPaymentsCreated      OrderPayment[]          @relation("OrderPaymentCreatedBy")
@@ -539,6 +540,26 @@ model PollOption {
 
   @@index([pollId, deletedAt])
   @@map("poll_option")
+}
+
+model TiktokVideo {
+  id        String  @id @default(cuid())
+  url       String
+  videoId   String
+  caption   String?
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdById String?
+  createdBy   User?   @relation("TiktokVideoCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  // Soft delete pour rester cohérent avec PollOption.
+  deletedAt DateTime?
+
+  @@index([isActive, sortOrder])
+  @@map("tiktok_video")
 }
 
 model PollVote {
