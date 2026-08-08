@@ -6,21 +6,12 @@
 // déjà commandé (historique localStorage non vide). Rendu null au SSR et
 // pendant l'hydratation (snapshot serveur `false`) — pas de mismatch.
 
-import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { Receipt } from 'lucide-react';
-import { readOrderHistory, subscribeOrderHistory } from '@/lib/order-history';
-
-function hasOrdersSnapshot(): boolean {
-  return readOrderHistory().length > 0;
-}
+import { useHasOrderHistory } from '@/lib/hooks/use-order-history';
 
 export function RecentOrdersLink() {
-  const hasOrders = useSyncExternalStore(
-    subscribeOrderHistory,
-    hasOrdersSnapshot,
-    () => false
-  );
+  const hasOrders = useHasOrderHistory();
 
   if (!hasOrders) return null;
 

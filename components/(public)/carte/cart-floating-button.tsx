@@ -4,7 +4,7 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingBag } from 'lucide-react';
-import { useCartStore, useCartHydration } from '@/lib/cart-store';
+import { useCartSummary } from '@/lib/hooks/use-cart-summary';
 import { useHasBottomBanner } from '@/lib/bottom-banner-store';
 import { priceFormatter } from '@/config/menu';
 import { cn } from '@/lib/utils';
@@ -18,14 +18,10 @@ const CartDrawer = dynamic(
 );
 
 function CartFloatingButton() {
-  // Réhydrate le panier persisté : le badge réapparaît après un refresh.
-  useCartHydration();
-  const items = useCartStore((s) => s.items);
-  const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
-  const totalPrice = items.reduce((sum, i) => {
-    const supps = i.supplements.reduce((s, sup) => s + sup.price, 0);
-    return sum + (i.basePrice + supps) * i.quantity;
-  }, 0);
+  // Réhydrate le panier persisté (le badge réapparaît après un refresh) et
+  // calcule le total via `getItemTotal` — même source que le drawer et le
+  // checkout, remises de ligne et suppléments à quantité inclus.
+  const { totalItems, totalPrice } = useCartSummary();
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Les bandeaux "installer l'app" / "carte PDF" sont fixed-bottom, z-50 :
   // on remonte le bouton au-dessus (et on passe devant, z-60) quand l'un
