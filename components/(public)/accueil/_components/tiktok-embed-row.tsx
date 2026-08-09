@@ -28,10 +28,10 @@ function TiktokEmbedRow({ videos }: TiktokEmbedRowProps) {
           <TiktokEmbedLazy key={video.id} video={video} />
         ))}
       </div>
-      {/* Un seul chargement du script d'embed pour toute la rangée, quel que
-          soit le nombre de vidéos : il scanne le DOM une fois chargé, puis
-          observe les mutations pour traiter les embeds montés plus tard
-          (cf. TiktokEmbedLazy). */}
+      {/* Amorce le chargement du script d'embed (mis en cache navigateur) dès
+          la rangée montée, pour que la réinjection faite par chaque
+          `TiktokEmbed` (cf. tiktok-embed.tsx) au clic soit quasi instantanée
+          plutôt que de télécharger le bundle à ce moment-là. */}
       <Script src="https://www.tiktok.com/embed.js" strategy="lazyOnload" />
     </motion.div>
   );
