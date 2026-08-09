@@ -36,6 +36,7 @@ export const listPublicTiktokVideos = cache(async () => {
       caption: true,
       oembedTitle: true,
       authorName: true,
+      thumbnailUrl: true,
     },
   });
 });
