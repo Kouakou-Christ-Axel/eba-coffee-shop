@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { PackageCheck, X } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { CheckCircle2, PackageCheck, X } from 'lucide-react';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
 import type { ContactSettings } from '@/lib/contact-settings';
@@ -94,6 +95,26 @@ export function CaisseView({
   const [readyFlash, setReadyFlash] = useState<number[] | null>(null);
 
   const now = useNowTick(30_000);
+
+  // Confirmation de création : `/dashboard/caisse/new` redirige ici avec
+  // `?cree=<n° du jour>`. Sans ça, valider une commande ne donnait AUCUN retour
+  // au caissier (le n° renvoyé par l'API était jeté).
+  const searchParams = useSearchParams();
+  const createdParam = searchParams.get('cree');
+  const [createdFlash, setCreatedFlash] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!createdParam) return;
+    // Réaction à un paramètre d'URL, pas un dérivé recalculable au rendu.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCreatedFlash(createdParam);
+    // On retire le paramètre pour qu'un rafraîchissement ne rejoue pas la
+    // confirmation. `history.replaceState` plutôt que `router.replace` : pas de
+    // re-rendu RSC de la file pour un simple nettoyage d'URL.
+    window.history.replaceState(null, '', '/dashboard/caisse');
+    const timer = setTimeout(() => setCreatedFlash(null), 8_000);
+    return () => clearTimeout(timer);
+  }, [createdParam]);
 
   const { orders: queue, connState } = useOrdersStream<CashierOrder>({
     endpoint: SSE_URL,
@@ -243,6 +264,23 @@ export function CaisseView({
           soundEnabled={soundEnabled}
           onToggleSound={toggleSound}
         />
+
+        {createdFlash && (
+          <div className="flex items-center gap-3 rounded-xl border-2 border-primary/30 bg-primary/10 px-4 py-3 text-primary shadow-sm">
+            <CheckCircle2 className="h-6 w-6 shrink-0" aria-hidden="true" />
+            <p className="min-w-0 flex-1 text-sm font-bold">
+              Commande #{createdFlash.padStart(3, '0')} créée
+            </p>
+            <button
+              type="button"
+              onClick={() => setCreatedFlash(null)}
+              aria-label="Fermer"
+              className="shrink-0 rounded-full p-1 transition-colors hover:bg-primary/15"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {readyFlash && readyFlash.length > 0 && (
           <div className="flex items-center gap-3 rounded-xl border-2 border-green-300 bg-green-50 px-4 py-3 text-green-900 shadow-sm dark:border-green-800 dark:bg-green-950/40 dark:text-green-100">

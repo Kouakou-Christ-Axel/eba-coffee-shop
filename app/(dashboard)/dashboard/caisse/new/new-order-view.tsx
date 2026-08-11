@@ -50,7 +50,32 @@ export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
       </header>
 
       {o.step === 'catalog' ? (
-        <ProductCatalog menu={menu} onProductTap={o.handleProductTap} />
+        /* Tablette (md+) : le panier reste visible PENDANT la sélection, pour
+           corriger une erreur sans aller-retour vers le récapitulatif.
+           Téléphone : flux en deux étapes inchangé, le panier est atteint par
+           la barre du bas. */
+        <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] [&>*]:min-w-0">
+          <ProductCatalog
+            menu={menu}
+            onProductTap={o.handleProductTap}
+            onOpenOptions={o.openPicker}
+          />
+          <aside className="hidden md:block">
+            <div className="sticky top-4">
+              <CartSummary
+                items={o.items}
+                onQuantityChange={o.handleQuantityChange}
+                onRemove={o.handleRemove}
+                onDiscountChange={o.handleDiscountChange}
+                onDuplicate={handleDuplicate}
+                productsWithOptions={productsWithOptions}
+                loyaltyCard={o.loyaltyCard}
+                loyaltyRewardId={o.loyaltyRewardId}
+                onLoyaltyRewardChange={o.setLoyaltyRewardId}
+              />
+            </div>
+          </aside>
+        </div>
       ) : (
         <div className="grid min-w-0 gap-3 md:grid-cols-2 md:gap-4 [&>*]:min-w-0">
           <CartSummary

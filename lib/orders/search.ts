@@ -36,8 +36,14 @@ export type ParsedSearchTerm = {
   dailyNumber: number | null;
 };
 
-/** Minuscules sans diacritiques : « Kouakou Axèl » → « kouakou axel ». */
-function fold(value: string): string {
+/**
+ * Minuscules sans diacritiques : « Kouakou Axèl » → « kouakou axel ».
+ *
+ * Exporté car la recherche produit de la caisse (`lib/catalog.ts`) a le même
+ * besoin — un caissier tape « creme » pour trouver « Crème ». Un second repli
+ * d'accents ailleurs finirait par diverger de celui-ci.
+ */
+export function fold(value: string): string {
   return value
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
