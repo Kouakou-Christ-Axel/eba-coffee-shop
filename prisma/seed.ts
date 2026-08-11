@@ -38,9 +38,10 @@ export async function seedMenu(prisma: SeedablePrisma) {
                 required: g.required,
                 sortOrder: gi,
                 options: {
-                  create: g.options.map((o) => ({
+                  create: g.options.map((o, oi) => ({
                     name: o.name,
                     price: o.price,
+                    sortOrder: oi,
                   })),
                 },
               })),

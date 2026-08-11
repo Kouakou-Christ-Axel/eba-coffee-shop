@@ -41,6 +41,10 @@ import {
   SupplementsEditor,
   type SupplementGroup,
 } from '@/components/(dashboard)/supplements-editor';
+import {
+  pruneSupplementGroups,
+  validateSupplementGroups,
+} from '@/lib/supplements-form';
 import { ADVANCE_ORDER_DAYS_MAX } from '@/config/constants';
 
 export type ProductFormInitial = {
@@ -235,6 +239,15 @@ export function ProductForm({
   );
   const isDirty = snapshot !== initialSnapshot;
 
+  // Recalculées à chaque frappe, mais affichées seulement après une première
+  // tentative d'enregistrement : les messages s'effacent alors au fil des
+  // corrections, sans qu'il faille re-soumettre pour le vérifier.
+  const supplementIssues = useMemo(
+    () => validateSupplementGroups(groups),
+    [groups]
+  );
+  const [showSupplementErrors, setShowSupplementErrors] = useState(false);
+
   // Garde-fou fermeture d'onglet / rechargement. Le formulaire est long et
   // désormais réparti sur plusieurs onglets : une saisie perdue ne se voit pas.
   useEffect(() => {
@@ -291,6 +304,19 @@ export function ProductForm({
       return;
     }
 
+    // Les suppléments sont validés à part : le repli serveur agrège tous ses
+    // messages Zod en une seule chaîne affichée en bas de page, sans dire quel
+    // groupe est en cause. Ici on sait le rattacher.
+    if (supplementIssues.size > 0) {
+      setShowSupplementErrors(true);
+      changeTab('supplements');
+      pushToast(
+        'Corrigez les suppléments signalés avant d’enregistrer.',
+        'error'
+      );
+      return;
+    }
+
     startTransition(async () => {
       const payload = {
         name: name.trim(),
@@ -299,10 +325,7 @@ export function ProductForm({
         coutMatiere: coutMatiereNum,
         coutEmballage: coutEmballageNum,
         imageUrl,
-        supplementGroups: groups.map((g) => ({
-          ...g,
-          options: g.options.filter((o) => o.name.trim().length > 0),
-        })),
+        supplementGroups: pruneSupplementGroups(groups),
         featured,
         featuredOrder: featured ? Number(featuredOrder) || 0 : 0,
         featuredBadge: featured ? featuredBadge : null,
@@ -345,41 +368,43 @@ export function ProductForm({
     <>
       <form onSubmit={handleSubmit} className="space-y-4">
         <Tabs value={tab} onValueChange={changeTab}>
-          {/* `min-w-0 overflow-x-auto` : la liste d'onglets déborde sinon sur
-              mobile au lieu de défiler (même correctif que la barre d'outils
-              des commandes). */}
-          <div className="min-w-0 max-w-full overflow-x-auto">
-            <TabsList className="w-max">
-              <TabTrigger
-                value="essentiel"
-                hasError={errorTabs.has('essentiel')}
-              >
-                Essentiel
-              </TabTrigger>
-              <TabTrigger value="couts" hasError={errorTabs.has('couts')}>
-                Coûts &amp; stock
-              </TabTrigger>
-              <TabTrigger value="disponibilite" hasError={false}>
-                Disponibilité
-              </TabTrigger>
-              <TabTrigger value="supplements" hasError={false}>
-                Suppléments
-                {groups.length > 0 && (
-                  <span className="text-muted-foreground">
-                    ({groups.length})
-                  </span>
-                )}
-              </TabTrigger>
-              <TabTrigger value="mise-en-avant" hasError={false}>
-                Mise en avant
-              </TabTrigger>
-              {statsSlot && (
-                <TabTrigger value="stats" hasError={false}>
-                  Statistiques
-                </TabTrigger>
+          {/* La barre passe à la ligne au lieu de défiler : six onglets ne
+              tiennent pas sur une ligne étroite, et un defilement horizontal
+              sans barre visible (les navigateurs la masquent au repos) donne
+              exactement l'impression que les onglets manquent.
+              La hauteur doit être levée, sinon `tabsListVariants` garde son
+              `h-9` fixe et rogne la deuxième ligne. L'override reprend le
+              MÊME variant que la base : un `h-auto` nu ne serait pas fusionné
+              par `tailwind-merge` (modificateurs différents = groupes
+              différents) et perdrait à l'ordre de la feuille de style. */}
+          <TabsList className="max-w-full flex-wrap group-data-[orientation=horizontal]/tabs:h-auto">
+            <TabTrigger value="essentiel" hasError={errorTabs.has('essentiel')}>
+              Essentiel
+            </TabTrigger>
+            <TabTrigger value="couts" hasError={errorTabs.has('couts')}>
+              Coûts &amp; stock
+            </TabTrigger>
+            <TabTrigger value="disponibilite" hasError={false}>
+              Disponibilité
+            </TabTrigger>
+            <TabTrigger
+              value="supplements"
+              hasError={showSupplementErrors && supplementIssues.size > 0}
+            >
+              Suppléments
+              {groups.length > 0 && (
+                <span className="text-muted-foreground">({groups.length})</span>
               )}
-            </TabsList>
-          </div>
+            </TabTrigger>
+            <TabTrigger value="mise-en-avant" hasError={false}>
+              Mise en avant
+            </TabTrigger>
+            {statsSlot && (
+              <TabTrigger value="stats" hasError={false}>
+                Statistiques
+              </TabTrigger>
+            )}
+          </TabsList>
 
           <TabsContent value="essentiel" className="space-y-4">
             <Card>
@@ -589,7 +614,11 @@ export function ProductForm({
           </TabsContent>
 
           <TabsContent value="supplements">
-            <SupplementsEditor groups={groups} onChange={setGroups} />
+            <SupplementsEditor
+              groups={groups}
+              onChange={setGroups}
+              issues={showSupplementErrors ? supplementIssues : undefined}
+            />
           </TabsContent>
 
           <TabsContent value="mise-en-avant">
@@ -672,7 +701,9 @@ function TabTrigger({
   children: ReactNode;
 }) {
   return (
-    <TabsTrigger value={value} className="gap-1.5">
+    // `h-8` explicite : la hauteur native (`h-[calc(100%-1px)]`) se résout
+    // contre celle de la liste, devenue `auto` pour permettre le repli.
+    <TabsTrigger value={value} className="h-8 gap-1.5">
       {children}
       {hasError && (
         <span

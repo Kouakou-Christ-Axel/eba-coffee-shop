@@ -793,6 +793,11 @@ model SupplementOption {
   // `0` = épuisé (grisé côté public, mais l'option reste listée). Même sémantique
   // que `Product.stockQuantity`.
   stockQuantity Int?
+  // Ordre d'affichage dans le groupe, tel que saisi dans l'éditeur. Sans lui,
+  // les options remontaient dans l'ordre rendu par Postgres — arbitraire, et
+  // instable dès qu'une ligne était modifiée : le client ne voyait pas deux
+  // fois la même carte dans le même ordre.
+  sortOrder     Int             @default(0)
   groupId       String
   group         SupplementGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 

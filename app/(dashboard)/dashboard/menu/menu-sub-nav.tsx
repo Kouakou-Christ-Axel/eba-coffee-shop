@@ -26,14 +26,12 @@ function isActive(pathname: string, href: string): boolean {
 export function MenuSubNav() {
   const pathname = usePathname();
 
-  // Conteneur à scroll horizontal : sur mobile les 4 liens ne tiennent pas dans
-  // le viewport, sans ça la barre déborde et élargit toute la page.
+  // Les 4 liens ne tiennent pas sur une ligne étroite : la barre passe à la
+  // ligne. Un défilement horizontal élargirait la page ou, une fois borné,
+  // masquerait des liens sans rien laisser paraître.
   return (
-    <nav
-      aria-label="Sections du menu"
-      className="min-w-0 max-w-full overflow-x-auto"
-    >
-      <div className="inline-flex w-fit items-center gap-1 rounded-lg bg-muted p-1">
+    <nav aria-label="Sections du menu">
+      <div className="inline-flex w-fit max-w-full flex-wrap items-center gap-1 rounded-lg bg-muted p-1">
         {LINKS.map(({ href, label }) => {
           const active = isActive(pathname, href);
           return (

@@ -44,7 +44,7 @@ function effectiveAdvanceOrderDays(
 const globalSupplementGroupsInclude = {
   where: { isGlobal: true as const },
   orderBy: { sortOrder: 'asc' as const },
-  include: { options: true },
+  include: { options: { orderBy: { sortOrder: 'asc' as const } } },
 };
 
 export async function getMenu(): Promise<MenuCategory[]> {
@@ -72,7 +72,10 @@ export async function getMenu(): Promise<MenuCategory[]> {
               where: { available: true },
               orderBy: { sortOrder: 'asc' },
               include: {
-                options: { where: { available: true } },
+                options: {
+                  where: { available: true },
+                  orderBy: { sortOrder: 'asc' },
+                },
               },
             },
           },
@@ -82,7 +85,9 @@ export async function getMenu(): Promise<MenuCategory[]> {
     prisma.supplementGroup.findMany({
       where: { isGlobal: true, available: true },
       orderBy: { sortOrder: 'asc' },
-      include: { options: { where: { available: true } } },
+      include: {
+        options: { where: { available: true }, orderBy: { sortOrder: 'asc' } },
+      },
     }),
   ]);
 
@@ -271,7 +276,7 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
             weeklySpecials: { orderBy: { startDate: 'desc' } },
             supplementGroups: {
               orderBy: { sortOrder: 'asc' },
-              include: { options: true },
+              include: { options: { orderBy: { sortOrder: 'asc' } } },
             },
           },
         },
@@ -396,7 +401,7 @@ export async function getGlobalExtras(): Promise<GlobalExtraGroup[]> {
   const groups = await prisma.supplementGroup.findMany({
     where: { isGlobal: true },
     orderBy: { sortOrder: 'asc' },
-    include: { options: true },
+    include: { options: { orderBy: { sortOrder: 'asc' } } },
   });
 
   return groups.map((g) => ({

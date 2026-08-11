@@ -51,11 +51,12 @@ export async function syncSupplementGroups(
           ...groupData,
           ...scope,
           options: {
-            create: g.options.map((o) => ({
+            create: g.options.map((o, oi) => ({
               name: o.name,
               price: o.price,
               available: o.available,
               stockQuantity: o.stockQuantity ?? null,
+              sortOrder: oi,
             })),
           },
         },
@@ -85,13 +86,15 @@ export async function syncSupplementGroups(
       currentOptionsByName.set(o.name, queue);
     }
 
-    for (const o of g.options) {
+    for (const [oi, o] of g.options.entries()) {
       const optionMatch = currentOptionsByName.get(o.name)?.shift();
       const optionData = {
         name: o.name,
         price: o.price,
         available: o.available,
         stockQuantity: o.stockQuantity ?? null,
+        // L'ordre soumis fait foi : c'est celui que le client verra.
+        sortOrder: oi,
       };
       if (optionMatch) {
         await tx.supplementOption.update({

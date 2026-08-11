@@ -291,11 +291,12 @@ export async function createProduct(input: ProductInput) {
           maxSelect: g.maxSelect ?? null,
           sortOrder: gi,
           options: {
-            create: g.options.map((o) => ({
+            create: g.options.map((o, oi) => ({
               name: o.name,
               price: o.price,
               available: o.available,
               stockQuantity: o.stockQuantity ?? null,
+              sortOrder: oi,
             })),
           },
         })),
