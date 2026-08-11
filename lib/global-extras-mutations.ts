@@ -97,12 +97,20 @@ export async function createGlobalExtraOption(input: {
 }) {
   const option = supplementOptionSchema.parse(input.option);
   await requireGlobalGroup(input.groupId);
+  // Ajout en fin de groupe : sans ce calcul, l'option prendrait le `sortOrder`
+  // 0 par défaut et se placerait devant les options existantes.
+  const last = await prisma.supplementOption.findFirst({
+    where: { groupId: input.groupId },
+    orderBy: { sortOrder: 'desc' },
+    select: { sortOrder: true },
+  });
   return prisma.supplementOption.create({
     data: {
       name: option.name,
       price: option.price,
       available: option.available,
       stockQuantity: option.stockQuantity ?? null,
+      sortOrder: last ? last.sortOrder + 1 : 0,
       groupId: input.groupId,
     },
   });

@@ -40,7 +40,7 @@ export default async function EditProductPage({
       include: {
         supplementGroups: {
           orderBy: { sortOrder: 'asc' },
-          include: { options: true },
+          include: { options: { orderBy: { sortOrder: 'asc' } } },
         },
       },
     }),

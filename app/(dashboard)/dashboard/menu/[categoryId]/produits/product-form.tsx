@@ -41,6 +41,10 @@ import {
   SupplementsEditor,
   type SupplementGroup,
 } from '@/components/(dashboard)/supplements-editor';
+import {
+  pruneSupplementGroups,
+  validateSupplementGroups,
+} from '@/lib/supplements-form';
 import { ADVANCE_ORDER_DAYS_MAX } from '@/config/constants';
 
 export type ProductFormInitial = {
@@ -235,6 +239,15 @@ export function ProductForm({
   );
   const isDirty = snapshot !== initialSnapshot;
 
+  // Recalculées à chaque frappe, mais affichées seulement après une première
+  // tentative d'enregistrement : les messages s'effacent alors au fil des
+  // corrections, sans qu'il faille re-soumettre pour le vérifier.
+  const supplementIssues = useMemo(
+    () => validateSupplementGroups(groups),
+    [groups]
+  );
+  const [showSupplementErrors, setShowSupplementErrors] = useState(false);
+
   // Garde-fou fermeture d'onglet / rechargement. Le formulaire est long et
   // désormais réparti sur plusieurs onglets : une saisie perdue ne se voit pas.
   useEffect(() => {
@@ -291,6 +304,19 @@ export function ProductForm({
       return;
     }
 
+    // Les suppléments sont validés à part : le repli serveur agrège tous ses
+    // messages Zod en une seule chaîne affichée en bas de page, sans dire quel
+    // groupe est en cause. Ici on sait le rattacher.
+    if (supplementIssues.size > 0) {
+      setShowSupplementErrors(true);
+      changeTab('supplements');
+      pushToast(
+        'Corrigez les suppléments signalés avant d’enregistrer.',
+        'error'
+      );
+      return;
+    }
+
     startTransition(async () => {
       const payload = {
         name: name.trim(),
@@ -299,10 +325,7 @@ export function ProductForm({
         coutMatiere: coutMatiereNum,
         coutEmballage: coutEmballageNum,
         imageUrl,
-        supplementGroups: groups.map((g) => ({
-          ...g,
-          options: g.options.filter((o) => o.name.trim().length > 0),
-        })),
+        supplementGroups: pruneSupplementGroups(groups),
         featured,
         featuredOrder: featured ? Number(featuredOrder) || 0 : 0,
         featuredBadge: featured ? featuredBadge : null,
@@ -364,7 +387,10 @@ export function ProductForm({
             <TabTrigger value="disponibilite" hasError={false}>
               Disponibilité
             </TabTrigger>
-            <TabTrigger value="supplements" hasError={false}>
+            <TabTrigger
+              value="supplements"
+              hasError={showSupplementErrors && supplementIssues.size > 0}
+            >
               Suppléments
               {groups.length > 0 && (
                 <span className="text-muted-foreground">({groups.length})</span>
@@ -588,7 +614,11 @@ export function ProductForm({
           </TabsContent>
 
           <TabsContent value="supplements">
-            <SupplementsEditor groups={groups} onChange={setGroups} />
+            <SupplementsEditor
+              groups={groups}
+              onChange={setGroups}
+              issues={showSupplementErrors ? supplementIssues : undefined}
+            />
           </TabsContent>
 
           <TabsContent value="mise-en-avant">
