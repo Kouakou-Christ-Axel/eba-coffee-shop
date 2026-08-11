@@ -304,6 +304,16 @@ export const TIKTOK_CAPTION_MAX = 300;
 export const TIKTOK_HOME_DISPLAY_MAX = 4;
 
 /**
+ * Dimensions du lecteur TikTok embarqué. 325 px est la largeur minimale
+ * acceptée par TikTok ; 739 px est la hauteur du lecteur `embed/v2` (vidéo +
+ * en-tête auteur + barre d'actions). La vignette cliquable, elle, garde le
+ * ratio 9/16 de la vidéo seule : le saut de hauteur au clic est déclenché par
+ * le visiteur, donc exclu du calcul CLS (< 500 ms après une interaction).
+ */
+export const TIKTOK_EMBED_WIDTH = 325;
+export const TIKTOK_EMBED_HEIGHT = 739;
+
+/**
  * Liste publique des sondages (`/sondages`) : passée en ISR plutôt qu'en
  * `force-dynamic` pour un TTFB quasi instantané côté public. Trade-off :
  * les compteurs de votes affichés peuvent être périmés jusqu'à cette durée
