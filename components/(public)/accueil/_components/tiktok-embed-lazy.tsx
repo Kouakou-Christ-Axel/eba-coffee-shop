@@ -1,25 +1,28 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { Play } from 'lucide-react';
 import { MediaImage } from '@/components/ui/media-image';
 import type { PublicTiktokVideo } from '@/lib/tiktok';
+import { TIKTOK_EMBED_WIDTH } from '@/config/constants';
 import TiktokEmbed from './tiktok-embed';
 
 type TiktokEmbedLazyProps = {
   video: PublicTiktokVideo;
 };
 
-// Le lecteur TikTok officiel (`embed.js`) déclenche côté TikTok une
-// protection anti-surcharge ("overload protect") quand plusieurs vidéos
-// tentent de démarrer d'affilée sur la même page — les vignettes restent
-// alors bloquées en chargement indéfiniment. On évite donc de monter le
-// blockquote (et donc son iframe) tant que le visiteur n'a pas explicitement
-// demandé la lecture, via la miniature rapatriée à la création (cf.
-// lib/tiktok-oembed.ts) : au plus une vidéo réelle est chargée à la fois,
-// quel que soit le scroll.
+// Le lecteur TikTok déclenche côté TikTok une protection anti-surcharge
+// ("overload protect") quand plusieurs vidéos démarrent d'affilée sur la même
+// page — les vignettes restent alors bloquées en chargement indéfiniment. On
+// ne monte donc l'iframe qu'à la demande explicite du visiteur, derrière la
+// miniature rapatriée à la création (cf. lib/tiktok-oembed.ts) : au chargement
+// de l'accueil, la section ne coûte que ses images locales, aucun iframe.
+//
+// La vignette reste un vrai lien vers TikTok : sans JS (ou en clic milieu /
+// ctrl-clic) elle ouvre la vidéo sur tiktok.com plutôt que de ne rien faire.
 function TiktokEmbedLazy({ video }: TiktokEmbedLazyProps) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const caption = video.caption ?? video.oembedTitle;
 
   if (isPlaying) {
     return (
@@ -29,33 +32,44 @@ function TiktokEmbedLazy({ video }: TiktokEmbedLazyProps) {
     );
   }
 
-  if (!video.thumbnailUrl) {
-    // Repli quand l'oEmbed n'a pas fourni de miniature (best-effort, cf.
-    // lib/tiktok-oembed.ts) : on retombe sur l'ancien chargement automatique
-    // à l'approche du viewport, faute de vignette à afficher.
-    return <ViewportTriggeredEmbed video={video} />;
-  }
-
-  const caption = video.caption ?? video.oembedTitle;
+  const play = (e: MouseEvent<HTMLAnchorElement>) => {
+    // Laisse le navigateur faire son travail sur un clic « ouvrir ailleurs ».
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+      return;
+    }
+    e.preventDefault();
+    setIsPlaying(true);
+  };
 
   return (
     <div className="shrink-0 snap-start">
-      <button
-        type="button"
-        onClick={() => setIsPlaying(true)}
+      <a
+        href={video.url}
+        target="_blank"
+        rel="noreferrer"
+        onClick={play}
         aria-label={
           caption ? `Lire la vidéo TikTok : ${caption}` : 'Lire la vidéo TikTok'
         }
         className="group relative block overflow-hidden rounded-2xl border border-default-200/60 shadow-sm"
-        style={{ width: 325, aspectRatio: '9 / 16' }}
+        style={{ width: TIKTOK_EMBED_WIDTH, aspectRatio: '9 / 16' }}
       >
-        <MediaImage
-          src={video.thumbnailUrl}
-          alt=""
-          fill
-          sizes="325px"
-          className="object-cover"
-        />
+        {video.thumbnailUrl ? (
+          <MediaImage
+            src={video.thumbnailUrl}
+            alt=""
+            fill
+            sizes={`${TIKTOK_EMBED_WIDTH}px`}
+            className="object-cover"
+          />
+        ) : (
+          // Repli quand l'oEmbed n'a pas fourni de miniature (best-effort) :
+          // un visuel maison plutôt qu'un cadre vide qui se lit comme cassé.
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 bg-[linear-gradient(135deg,rgba(247,239,232,1)_0%,rgba(233,220,240,1)_100%)]"
+          />
+        )}
         <span className="absolute inset-0 bg-black/25 transition-colors group-hover:bg-black/35" />
         <span className="absolute inset-0 flex items-center justify-center">
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/90 shadow-md transition-transform group-hover:scale-105">
@@ -72,45 +86,7 @@ function TiktokEmbedLazy({ video }: TiktokEmbedLazyProps) {
             )}
           </span>
         )}
-      </button>
-    </div>
-  );
-}
-
-function ViewportTriggeredEmbed({ video }: TiktokEmbedLazyProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    if (isVisible) return;
-    const node = ref.current;
-    if (!node) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: '200px' }
-    );
-    observer.observe(node);
-
-    return () => observer.disconnect();
-  }, [isVisible]);
-
-  return (
-    <div ref={ref} className="shrink-0 snap-start">
-      {isVisible ? (
-        <TiktokEmbed video={video} />
-      ) : (
-        <div
-          aria-hidden="true"
-          className="animate-pulse rounded-2xl border border-default-200/60 bg-content1"
-          style={{ width: 325, aspectRatio: '9 / 16' }}
-        />
-      )}
+      </a>
     </div>
   );
 }
