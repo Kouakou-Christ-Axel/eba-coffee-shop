@@ -364,6 +364,28 @@ export const UPSELL_MAX_PRODUCTS = 6;
  * de la HAUTEUR MESURÉE de la barre, qui varie avec la barre de recherche.
  */
 export const CARTE_SEARCH_MIN_CHARS = 2;
+
+/**
+ * Dégradés du repli visuel d'un produit sans photo (`ProductMedia`,
+ * components/(public)/carte/_components/product-media.tsx).
+ *
+ * Quatre variantes plutôt qu'une seule : la majorité du catalogue n'est pas
+ * photographiée, et six tuiles rigoureusement identiques côte à côte dans la
+ * grille se lisent comme un bug d'affichage plutôt que comme un parti pris.
+ * Toutes tirées de la palette de marque (crème, violet, orange doré) pour que
+ * la variation reste discrète. Le choix est un hash du `Product.id`, donc
+ * stable entre le rendu serveur et le rendu client.
+ *
+ * Valeurs CSS brutes, appliquées en style inline : une classe Tailwind
+ * arbitraire construite à l'exécution (`bg-[${…}]`) ne serait jamais générée,
+ * le scanner ne voyant que les chaînes littérales du code source.
+ */
+export const MONOGRAM_GRADIENTS = [
+  'linear-gradient(135deg, rgb(247 239 232) 0%, rgb(233 220 240) 100%)',
+  'linear-gradient(135deg, rgb(253 250 246) 0%, rgb(244 214 175) 100%)',
+  'linear-gradient(135deg, rgb(240 229 238) 0%, rgb(214 190 225) 100%)',
+  'linear-gradient(135deg, rgb(250 243 235) 0%, rgb(226 222 240) 100%)',
+] as const;
 export const CARTE_SCROLL_OFFSET_PX = 80;
 export const CARTE_SCROLL_LOCK_MS = 800;
 export const CARTE_SCROLL_SPY_GAP_PX = 24;
