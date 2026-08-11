@@ -10,6 +10,7 @@ import { CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PaymentModal, type PaymentLine } from '../caisse/payment-modal';
 import { payAndCompleteAction } from './actions';
+import { useConfirmDialog } from '../_components/use-confirm-dialog';
 
 type Props = {
   orderId: string;
@@ -36,6 +37,7 @@ export function ExpressCompleteButton({
   const [isOpen, setIsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   function complete(payments: PaymentLine[] | undefined) {
     setError(null);
@@ -53,10 +55,17 @@ export function ExpressCompleteButton({
     });
   }
 
-  function handleClick() {
-    // Déjà payée : payments est ignoré côté serveur, on finalise directement.
+  async function handleClick() {
+    // Déjà payée : `payments` est ignoré côté serveur, il n'y a donc aucune
+    // modale pour rattraper un tap accidentel — et /commandes n'a pas le toast
+    // d'annulation de la caisse. On confirme explicitement.
     if (isPaid) {
-      complete(undefined);
+      const confirmed = await confirm({
+        title: 'Marquer comme récupérée ?',
+        message: `La commande ${orderRef} est déjà payée : elle sera finalisée immédiatement.`,
+        confirmLabel: 'Marquer récupérée',
+      });
+      if (confirmed) complete(undefined);
       return;
     }
     setIsOpen(true);
@@ -76,6 +85,12 @@ export function ExpressCompleteButton({
         {label}
       </Button>
 
+      {error && isPaid && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
       {!isPaid && (
         <PaymentModal
           isOpen={isOpen}
@@ -90,6 +105,8 @@ export function ExpressCompleteButton({
           error={error}
         />
       )}
+
+      {confirmDialog}
     </>
   );
 }

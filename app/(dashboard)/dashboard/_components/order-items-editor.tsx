@@ -200,7 +200,11 @@ export function OrderItemsEditor({
     setError(null);
     startTransition(async () => {
       try {
-        await updateOrderItemsAction(orderId, items);
+        const result = await updateOrderItemsAction(orderId, items);
+        if (result?.error) {
+          setError(result.error);
+          return;
+        }
         onClose();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Erreur');

@@ -107,7 +107,11 @@ export function AssociateCustomer({
     setError(null);
     startTransition(async () => {
       try {
-        await setOrderCustomerAction(orderId, input);
+        const result = await setOrderCustomerAction(orderId, input);
+        if (result?.error) {
+          setError(result.error);
+          return;
+        }
         setIsOpen(false);
         resetState();
       } catch (err) {

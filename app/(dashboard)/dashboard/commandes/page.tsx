@@ -21,6 +21,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EncaisserButton } from './encaisser-button';
 import { ExpressCompleteButton } from './express-complete-button';
+import { AdvanceStatusButton } from './advance-status-button';
+import { OrdersEmptyState } from './orders-empty-state';
 import { OrdersToolbar } from './orders-toolbar';
 import { Pagination } from './pagination';
 
@@ -44,6 +46,55 @@ const STATUS_VARIANTS: Record<
   COMPLETED: 'outline',
   CANCELLED: 'destructive',
 };
+
+// « En cours » et « Prête » partageaient la même variante : la distinction la
+// plus utile sur le terrain (le café attend-il le client ?) était invisible.
+// On sur-colore READY en vert plutôt que d'inventer une variante de Badge.
+const STATUS_EXTRA_CLASS: Partial<Record<OrderStatus, string>> = {
+  READY: 'bg-green-600 hover:bg-green-600/90',
+};
+
+function PaymentBadge({
+  isPaid,
+  status,
+  paymentMode,
+  autoValidatedByAi,
+}: {
+  isPaid: boolean;
+  status: OrderStatus;
+  paymentMode: string | null;
+  autoValidatedByAi: boolean;
+}) {
+  if (isPaid) {
+    return (
+      <Badge
+        variant="default"
+        className="inline-flex items-center gap-1 bg-green-600"
+      >
+        {paymentMode ?? 'Fractionné'}
+        {autoValidatedByAi && (
+          <span title="Encaissement automatique (IA)">
+            <Bot className="h-3 w-3" aria-hidden="true" />
+          </span>
+        )}
+      </Badge>
+    );
+  }
+  if (status !== 'CANCELLED')
+    return <Badge variant="secondary">À encaisser</Badge>;
+  return <Badge variant="outline">—</Badge>;
+}
+
+function StatusBadge({ status }: { status: OrderStatus }) {
+  return (
+    <Badge
+      variant={STATUS_VARIANTS[status]}
+      className={STATUS_EXTRA_CLASS[status]}
+    >
+      {STATUS_LABELS[status]}
+    </Badge>
+  );
+}
 
 const TYPE_ICONS: Record<OrderType, typeof Bike> = {
   DELIVERY: Bike,
@@ -163,6 +214,11 @@ export default async function CommandesPage({
   });
   const totalPages = Math.ceil(total / pageSize);
 
+  // Plage par défaut = la journée en cours. Sert à l'état vide : « rien
+  // aujourd'hui » n'est pas une anomalie, contrairement à « rien alors que j'ai
+  // posé des filtres ».
+  const isDefaultRange = !isAll && fromStr === today && toStr === today;
+
   const rangeLabel = isAll
     ? 'Toutes les commandes (historique complet)'
     : fromStr === toStr
@@ -209,7 +265,7 @@ export default async function CommandesPage({
         exportHref={exportHref}
       />
 
-      <div className="overflow-x-auto">
+      <div className="hidden overflow-x-auto md:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -276,31 +332,22 @@ export default async function CommandesPage({
                     {new Intl.NumberFormat('fr-FR').format(order.total)} F
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    {order.isPaid ? (
-                      <Badge
-                        variant="default"
-                        className="inline-flex items-center gap-1 bg-green-600"
-                      >
-                        {order.paymentMode ?? 'Fractionné'}
-                        {order.paymentAutoValidatedByAi && (
-                          <span title="Encaissement automatique (IA)">
-                            <Bot className="h-3 w-3" aria-hidden="true" />
-                          </span>
-                        )}
-                      </Badge>
-                    ) : order.status !== 'CANCELLED' ? (
-                      <Badge variant="secondary">À encaisser</Badge>
-                    ) : (
-                      <Badge variant="outline">—</Badge>
-                    )}
+                    <PaymentBadge
+                      isPaid={order.isPaid}
+                      status={order.status}
+                      paymentMode={order.paymentMode}
+                      autoValidatedByAi={order.paymentAutoValidatedByAi}
+                    />
                   </TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_VARIANTS[order.status]}>
-                      {STATUS_LABELS[order.status]}
-                    </Badge>
+                    <StatusBadge status={order.status} />
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
+                      <AdvanceStatusButton
+                        orderId={order.id}
+                        status={order.status}
+                      />
                       {!order.isPaid && order.status !== 'CANCELLED' && (
                         <EncaisserButton
                           orderId={order.id}
@@ -331,19 +378,106 @@ export default async function CommandesPage({
                 </TableRow>
               );
             })}
-            {orders.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={10}
-                  className="py-8 text-center text-muted-foreground"
-                >
-                  Aucune commande pour cette sélection.
-                </TableCell>
-              </TableRow>
-            )}
           </TableBody>
         </Table>
       </div>
+
+      {/* Téléphone : le tableau à 10 colonnes ne tient pas — il fallait le
+          faire défiler horizontalement, et la colonne « Paiement » (masquée
+          sous md) était précisément le signal « à encaisser » dont le caissier
+          a besoin sur son propre appareil. */}
+      <div className="flex flex-col gap-3 md:hidden">
+        {orders.map((order) => {
+          const TypeIcon = TYPE_ICONS[order.orderType];
+          const orderRef = `#${String(order.dailyNumber).padStart(3, '0')}`;
+          return (
+            <div
+              key={order.id}
+              className="flex flex-col gap-2 rounded-xl border bg-card p-3"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <Link
+                  href={`/dashboard/commandes/${order.id}`}
+                  className="min-w-0 flex-1"
+                >
+                  <p className="flex flex-wrap items-center gap-1.5 font-mono text-sm font-semibold">
+                    {orderRef}
+                    <span
+                      className="rounded bg-primary/10 px-1 text-xs text-primary"
+                      title={`Code de retrait · ${order.reference}`}
+                    >
+                      {getPickupCode(order.reference)}
+                    </span>
+                    <span className="inline-flex items-center gap-1 font-sans text-xs font-normal text-muted-foreground">
+                      <TypeIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                      {TYPE_LABELS[order.orderType]}
+                    </span>
+                  </p>
+                  <p className="mt-0.5 truncate text-sm">
+                    {order.customerName ?? 'Client non identifié'}
+                    {order.customerPhone && (
+                      <span className="text-muted-foreground">
+                        {' · '}
+                        {order.customerPhone}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatPickupTime(order.pickupTime)}
+                  </p>
+                </Link>
+                <span className="shrink-0 text-right text-base font-bold tabular-nums">
+                  {new Intl.NumberFormat('fr-FR').format(order.total)} F
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <StatusBadge status={order.status} />
+                <PaymentBadge
+                  isPaid={order.isPaid}
+                  status={order.status}
+                  paymentMode={order.paymentMode}
+                  autoValidatedByAi={order.paymentAutoValidatedByAi}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <AdvanceStatusButton orderId={order.id} status={order.status} />
+                {!order.isPaid && order.status !== 'CANCELLED' && (
+                  <EncaisserButton
+                    orderId={order.id}
+                    orderRef={orderRef}
+                    amount={order.total}
+                    variant="outline"
+                    size="sm"
+                  />
+                )}
+                {order.status !== 'CANCELLED' &&
+                  order.status !== 'COMPLETED' && (
+                    <ExpressCompleteButton
+                      orderId={order.id}
+                      orderRef={orderRef}
+                      amount={order.total}
+                      isPaid={order.isPaid}
+                      variant="outline"
+                      size="sm"
+                    />
+                  )}
+                <Button variant="ghost" size="sm" asChild className="ml-auto">
+                  <Link href={`/dashboard/commandes/${order.id}`}>Voir</Link>
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {orders.length === 0 && (
+        <OrdersEmptyState
+          hasSearch={Boolean(search)}
+          hasFilters={Boolean(status || payment) || !isDefaultRange}
+        />
+      )}
 
       {totalPages > 1 && <Pagination page={page} totalPages={totalPages} />}
     </div>

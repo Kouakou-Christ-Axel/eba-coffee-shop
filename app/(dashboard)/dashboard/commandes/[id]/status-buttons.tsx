@@ -1,5 +1,6 @@
 'use client';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { updateOrderStatus } from '../actions';
 import type { OrderStatus } from '@/generated/prisma/client';
@@ -39,6 +40,7 @@ export function StatusButtons({
   isPaid: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   // Une commande annulée APRÈS paiement est un remboursement : la remettre à
   // encaisser n'a pas de sens (miroir du garde-fou serveur dans
   // `setOrderStatus`).
@@ -49,24 +51,41 @@ export function StatusButtons({
   if (actions.length === 0) return null;
 
   const handleClick = (next: OrderStatus) => {
+    setError(null);
     startTransition(async () => {
-      await updateOrderStatus(orderId, next);
+      // L'action renvoie `{ error }` au lieu de lever : Next redacte le message
+      // de toute erreur traversant une Server Action, si bien qu'un refus
+      // (droits, conflit d'édition, rupture de stock) ne s'affichait pas et que
+      // le bouton paraissait sans effet.
+      const result = await updateOrderStatus(orderId, next);
+      if (result?.error) setError(result.error);
     });
   };
 
   return (
-    <div className="flex flex-col gap-2 sm:flex-row">
-      {actions.map(({ label, next, variant = 'default' }) => (
-        <Button
-          key={next}
-          variant={variant}
-          disabled={isPending}
-          onClick={() => handleClick(next)}
-          className="w-full sm:w-auto"
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        {actions.map(({ label, next, variant = 'default' }) => (
+          <Button
+            key={next}
+            variant={variant}
+            disabled={isPending}
+            onClick={() => handleClick(next)}
+            className="w-full sm:w-auto"
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
+      {error && (
+        <p
+          role="alert"
+          className="flex items-center gap-1.5 text-sm text-destructive"
         >
-          {label}
-        </Button>
-      ))}
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {error}
+        </p>
+      )}
     </div>
   );
 }
