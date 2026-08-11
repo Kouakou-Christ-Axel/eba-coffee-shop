@@ -345,41 +345,40 @@ export function ProductForm({
     <>
       <form onSubmit={handleSubmit} className="space-y-4">
         <Tabs value={tab} onValueChange={changeTab}>
-          {/* `min-w-0 overflow-x-auto` : la liste d'onglets déborde sinon sur
-              mobile au lieu de défiler (même correctif que la barre d'outils
-              des commandes). */}
-          <div className="min-w-0 max-w-full overflow-x-auto">
-            <TabsList className="w-max">
-              <TabTrigger
-                value="essentiel"
-                hasError={errorTabs.has('essentiel')}
-              >
-                Essentiel
-              </TabTrigger>
-              <TabTrigger value="couts" hasError={errorTabs.has('couts')}>
-                Coûts &amp; stock
-              </TabTrigger>
-              <TabTrigger value="disponibilite" hasError={false}>
-                Disponibilité
-              </TabTrigger>
-              <TabTrigger value="supplements" hasError={false}>
-                Suppléments
-                {groups.length > 0 && (
-                  <span className="text-muted-foreground">
-                    ({groups.length})
-                  </span>
-                )}
-              </TabTrigger>
-              <TabTrigger value="mise-en-avant" hasError={false}>
-                Mise en avant
-              </TabTrigger>
-              {statsSlot && (
-                <TabTrigger value="stats" hasError={false}>
-                  Statistiques
-                </TabTrigger>
+          {/* La barre passe à la ligne au lieu de défiler : six onglets ne
+              tiennent pas sur une ligne étroite, et un defilement horizontal
+              sans barre visible (les navigateurs la masquent au repos) donne
+              exactement l'impression que les onglets manquent.
+              La hauteur doit être levée, sinon `tabsListVariants` garde son
+              `h-9` fixe et rogne la deuxième ligne. L'override reprend le
+              MÊME variant que la base : un `h-auto` nu ne serait pas fusionné
+              par `tailwind-merge` (modificateurs différents = groupes
+              différents) et perdrait à l'ordre de la feuille de style. */}
+          <TabsList className="max-w-full flex-wrap group-data-[orientation=horizontal]/tabs:h-auto">
+            <TabTrigger value="essentiel" hasError={errorTabs.has('essentiel')}>
+              Essentiel
+            </TabTrigger>
+            <TabTrigger value="couts" hasError={errorTabs.has('couts')}>
+              Coûts &amp; stock
+            </TabTrigger>
+            <TabTrigger value="disponibilite" hasError={false}>
+              Disponibilité
+            </TabTrigger>
+            <TabTrigger value="supplements" hasError={false}>
+              Suppléments
+              {groups.length > 0 && (
+                <span className="text-muted-foreground">({groups.length})</span>
               )}
-            </TabsList>
-          </div>
+            </TabTrigger>
+            <TabTrigger value="mise-en-avant" hasError={false}>
+              Mise en avant
+            </TabTrigger>
+            {statsSlot && (
+              <TabTrigger value="stats" hasError={false}>
+                Statistiques
+              </TabTrigger>
+            )}
+          </TabsList>
 
           <TabsContent value="essentiel" className="space-y-4">
             <Card>
@@ -672,7 +671,9 @@ function TabTrigger({
   children: ReactNode;
 }) {
   return (
-    <TabsTrigger value={value} className="gap-1.5">
+    // `h-8` explicite : la hauteur native (`h-[calc(100%-1px)]`) se résout
+    // contre celle de la liste, devenue `auto` pour permettre le repli.
+    <TabsTrigger value={value} className="h-8 gap-1.5">
       {children}
       {hasError && (
         <span
