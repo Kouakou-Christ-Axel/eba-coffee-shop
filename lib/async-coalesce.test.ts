@@ -1,67 +1,117 @@
-import { describe, expect, it, vi } from 'vitest';
-import { coalesceAsync } from './async-coalesce';
+import { describe, expect, it } from 'vitest';
+import { coalesceAsyncByKey } from './async-coalesce';
 
-// Résout au prochain tick microtask, pour simuler un fetch async réaliste
-// sans dépendre de timers réels.
-function deferred<T>(value: T) {
-  return new Promise<T>((resolve) => queueMicrotask(() => resolve(value)));
+/** Promesse dont on contrôle la résolution depuis le test. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (err: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
-describe('coalesceAsync', () => {
-  it('partage la même promesse entre appels concurrents (un seul appel réel à fn)', async () => {
-    const fn = vi.fn(() => deferred('résultat'));
-    const shared = coalesceAsync(fn);
-
-    // Trois appels lancés AVANT résolution du premier.
-    const [a, b, c] = [shared(), shared(), shared()];
-    expect(fn).toHaveBeenCalledTimes(1);
-
-    const results = await Promise.all([a, b, c]);
-    expect(results).toEqual(['résultat', 'résultat', 'résultat']);
-    expect(fn).toHaveBeenCalledTimes(1);
-  });
-
-  it('relance fn pour un appel POSTÉRIEUR à la résolution (pas de TTL/cache figé)', async () => {
-    let n = 0;
-    const fn = vi.fn(() => deferred(++n));
-    const shared = coalesceAsync(fn);
-
-    const first = await shared();
-    const second = await shared();
-
-    expect(first).toBe(1);
-    expect(second).toBe(2);
-    expect(fn).toHaveBeenCalledTimes(2);
-  });
-
-  it('propage un rejet à tous les appelants concurrents puis libère l’état en vol', async () => {
-    let n = 0;
-    const fn = vi.fn(() =>
-      n++ === 0
-        ? Promise.reject(new Error('échec temporaire'))
-        : deferred('ok')
+describe('coalesceAsyncByKey', () => {
+  it('partage une seule exécution entre appels de même clé', async () => {
+    let calls = 0;
+    const d = deferred<string>();
+    const shared = coalesceAsyncByKey(
+      () => {
+        calls++;
+        return d.promise;
+      },
+      () => 1
     );
-    const shared = coalesceAsync(fn);
 
     const a = shared();
     const b = shared();
-    await expect(a).rejects.toThrow('échec temporaire');
-    await expect(b).rejects.toThrow('échec temporaire');
-    expect(fn).toHaveBeenCalledTimes(1);
+    const c = shared();
+    expect(calls).toBe(1);
 
-    // Après l'échec, un nouvel appel doit retenter (pas bloqué indéfiniment).
-    await expect(shared()).resolves.toBe('ok');
-    expect(fn).toHaveBeenCalledTimes(2);
+    d.resolve('file');
+    await expect(Promise.all([a, b, c])).resolves.toEqual([
+      'file',
+      'file',
+      'file',
+    ]);
   });
 
-  it('des vagues d’appels non chevauchantes déclenchent chacune un appel distinct', async () => {
-    const fn = vi.fn(() => deferred(undefined));
-    const shared = coalesceAsync(fn);
+  it('relance un calcul frais quand la clé a changé, MÊME si un calcul est en vol', async () => {
+    // C'est la propriété critique. Partager naïvement toute promesse en vol
+    // ferait qu'un client réveillé par une commande arrivée APRÈS le début du
+    // calcul recevrait un instantané antérieur à cette commande — qui
+    // n'apparaîtrait alors jamais en caisse.
+    let calls = 0;
+    const pending: ReturnType<typeof deferred<number>>[] = [];
+    let generation = 1;
+    const shared = coalesceAsyncByKey(
+      () => {
+        calls++;
+        const d = deferred<number>();
+        pending.push(d);
+        return d.promise;
+      },
+      () => generation
+    );
 
-    await shared();
-    await shared();
-    await shared();
+    const first = shared(); // génération 1
+    expect(calls).toBe(1);
 
-    expect(fn).toHaveBeenCalledTimes(3);
+    generation = 2; // une nouvelle commande est arrivée entre-temps
+    const second = shared(); // le calcul de la génération 1 tourne toujours
+    expect(calls).toBe(2);
+
+    pending[0]!.resolve(1);
+    pending[1]!.resolve(2);
+    await expect(first).resolves.toBe(1);
+    await expect(second).resolves.toBe(2);
+  });
+
+  it('relance après résolution (aucune mémorisation, pas de TTL)', async () => {
+    let calls = 0;
+    const shared = coalesceAsyncByKey(
+      () => {
+        calls++;
+        return Promise.resolve(calls);
+      },
+      () => 1
+    );
+
+    await expect(shared()).resolves.toBe(1);
+    await expect(shared()).resolves.toBe(2);
+    expect(calls).toBe(2);
+  });
+
+  it('libère l’état en vol après un échec', async () => {
+    let calls = 0;
+    const shared = coalesceAsyncByKey(
+      () => {
+        calls++;
+        return calls === 1
+          ? Promise.reject(new Error('DB injoignable'))
+          : Promise.resolve('ok');
+      },
+      () => 1
+    );
+
+    await expect(shared()).rejects.toThrow('DB injoignable');
+    // Un échec ne doit pas figer la file : l'appel suivant retente.
+    await expect(shared()).resolves.toBe('ok');
+  });
+
+  it('propage l’échec à tous les appels partagés', async () => {
+    const d = deferred<string>();
+    const shared = coalesceAsyncByKey(
+      () => d.promise,
+      () => 1
+    );
+
+    const a = shared();
+    const b = shared();
+    d.reject(new Error('boum'));
+
+    await expect(a).rejects.toThrow('boum');
+    await expect(b).rejects.toThrow('boum');
   });
 });

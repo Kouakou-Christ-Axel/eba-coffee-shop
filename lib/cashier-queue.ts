@@ -17,7 +17,8 @@ import {
   computeOrderItemsAvailability,
 } from '@/lib/orders/availability';
 import { getLoyaltySettings } from '@/lib/loyalty-settings-db';
-import { coalesceAsync } from '@/lib/async-coalesce';
+import { coalesceAsyncByKey } from '@/lib/async-coalesce';
+import { getOrdersGeneration } from '@/lib/postgres-notify';
 import type { LoyaltySettings } from '@/lib/loyalty-settings';
 import type {
   OrderSource,
@@ -291,8 +292,17 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
  * boucle debounce/notify, mais reçoit le même instantané global : sans
  * mutualisation, une seule mutation de commande relançait `fetchCashierQueue()`
  * (≈6 requêtes + un instantané de stock) une fois PAR client connecté. Ici,
- * les appels concurrents (déclenchés par le même NOTIFY Postgres, à quelques
- * millisecondes près) partagent la même exécution — cf. `lib/async-coalesce.ts`.
- * Pas de TTL : dès la réponse obtenue, l'appel suivant relance un calcul frais.
+ * les appels déclenchés par le MÊME NOTIFY Postgres partagent la même
+ * exécution.
+ *
+ * La mutualisation est kéyée sur la génération de notification, et NON sur la
+ * simple présence d'un calcul en vol : un client qui réagit à une notification
+ * plus récente doit obtenir un calcul frais, sinon la mutation qui l'a réveillé
+ * resterait invisible en caisse. Voir la démonstration détaillée en tête de
+ * `lib/async-coalesce.ts`. Pas de TTL, rien n'est mémorisé entre deux
+ * générations.
  */
-export const fetchCashierQueueShared = coalesceAsync(fetchCashierQueue);
+export const fetchCashierQueueShared = coalesceAsyncByKey(
+  fetchCashierQueue,
+  getOrdersGeneration
+);

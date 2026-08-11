@@ -24,14 +24,30 @@ const RECONNECT_DELAY_MS = 3_000;
 const g = global as unknown as {
   ordersNotifier?: EventEmitter;
   ordersListenerStarted?: boolean;
+  ordersGeneration?: { value: number };
 };
 
 const notifier = g.ordersNotifier ?? new EventEmitter();
 // Chaque écran KDS connecté = 1 listener sur cet emitter.
 notifier.setMaxListeners(50);
 
+// Compteur de « générations » : incrémenté à CHAQUE notification Postgres.
+// Sert à mutualiser le recalcul de la file entre clients SSE sans jamais
+// partager un instantané périmé (cf. `coalesceAsyncByKey`, lib/async-coalesce.ts) :
+// deux clients qui réagissent à la MÊME notification portent la même
+// génération et peuvent partager le travail ; un client qui réagit à une
+// notification PLUS RÉCENTE porte une génération différente et doit obtenir un
+// calcul frais, sans quoi la mutation qui l'a réveillé serait invisible.
+const generation = g.ordersGeneration ?? { value: 0 };
+
 if (process.env.NODE_ENV !== 'production') {
   g.ordersNotifier = notifier;
+  g.ordersGeneration = generation;
+}
+
+/** Génération courante : change à chaque notification `orders_changed`. */
+export function getOrdersGeneration(): number {
+  return generation.value;
 }
 
 async function startListener(): Promise<void> {
@@ -39,7 +55,10 @@ async function startListener(): Promise<void> {
     const client = new Client({ connectionString: process.env.DATABASE_URL });
 
     client.on('notification', (msg) => {
-      if (msg.channel === CHANNEL) notifier.emit('change');
+      if (msg.channel === CHANNEL) {
+        generation.value++;
+        notifier.emit('change');
+      }
     });
 
     try {
