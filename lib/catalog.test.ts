@@ -70,7 +70,9 @@ describe('productHasOptions', () => {
   it('distingue « aucune option » de « options globales seulement »', () => {
     expect(productHasOptions(makeProduct())).toBe(false);
     expect(
-      productHasOptions(makeProduct({ supplements: [group({ isGlobal: true })] }))
+      productHasOptions(
+        makeProduct({ supplements: [group({ isGlobal: true })] })
+      )
     ).toBe(true);
   });
 });
@@ -116,9 +118,21 @@ describe('searchProducts', () => {
     },
   ];
 
-  it('renvoie null sur un terme vide (afficher les onglets normaux)', () => {
+  it('renvoie null sur un terme vide ou trop court (afficher les onglets normaux)', () => {
     expect(searchProducts(menu, '')).toBeNull();
     expect(searchProducts(menu, '   ')).toBeNull();
+    // Seuil partagé avec la carte publique (CARTE_SEARCH_MIN_CHARS = 2) : une
+    // seule lettre ne doit pas remplacer le catalogue par une liste au hasard.
+    expect(searchProducts(menu, 'c')).toBeNull();
+  });
+
+  it('cherche aussi dans le nom de la catégorie', () => {
+    // Hérité du moteur de la carte publique : « boissons » ramène la catégorie
+    // entière plutôt que rien.
+    expect(searchProducts(menu, 'boissons')?.map((h) => h.product.id)).toEqual([
+      'a',
+      'b',
+    ]);
   });
 
   it('ignore les accents et la casse', () => {
@@ -132,13 +146,15 @@ describe('searchProducts', () => {
   });
 
   it('exige que tous les mots correspondent', () => {
-    expect(searchProducts(menu, 'choco chaud')?.map((h) => h.product.id)).toEqual(
-      ['b']
-    );
+    expect(
+      searchProducts(menu, 'choco chaud')?.map((h) => h.product.id)
+    ).toEqual(['b']);
     expect(searchProducts(menu, 'chocolat introuvable')).toEqual([]);
   });
 
   it('remonte la catégorie dorigine pour situer le résultat', () => {
-    expect(searchProducts(menu, 'crepe')?.[0]?.categoryName).toBe('Pâtisseries');
+    expect(searchProducts(menu, 'crepe')?.[0]?.categoryName).toBe(
+      'Pâtisseries'
+    );
   });
 });

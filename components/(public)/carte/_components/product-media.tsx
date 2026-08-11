@@ -8,14 +8,31 @@
 
 import { MediaImage } from '@/components/ui/media-image';
 import type { Product } from '@/config/menu';
-import { POPULARITY_RANKED_COUNT } from '@/config/constants';
+import {
+  MONOGRAM_GRADIENTS,
+  POPULARITY_RANKED_COUNT,
+} from '@/config/constants';
 import { isWithinAnyPeriod } from '@/lib/supplements';
+
+/**
+ * Dégradé du repli, choisi par hash du `Product.id`. Déterministe — le serveur
+ * et le client tombent sur la même variante, et un produit garde la sienne d'un
+ * chargement à l'autre. Le hash est volontairement trivial : on répartit quatre
+ * fonds, on ne protège rien.
+ */
+function monogramGradient(productId: string): string {
+  let sum = 0;
+  for (let i = 0; i < productId.length; i++) sum += productId.charCodeAt(i);
+  return MONOGRAM_GRADIENTS[sum % MONOGRAM_GRADIENTS.length];
+}
 
 /**
  * Photo du produit, ou repli de marque quand il n'y en a pas. L'ancien repli
  * (initiale grise sur fond gris) se lisait comme une image cassée ; celui-ci
- * assume un visuel maison — dégradé crème/violet et monogramme traité — pour
- * qu'un produit sans photo reste vendable.
+ * assume un visuel maison — dégradé de marque et monogramme traité — pour
+ * qu'un produit sans photo reste vendable. Le dégradé varie par produit
+ * (`monogramGradient`) : la plupart du catalogue n'est pas photographiée, et
+ * une grille de tuiles identiques ressemblerait à un défaut de chargement.
  *
  * Toujours rendu en `fill` : c'est le conteneur (`relative`, dimensions +
  * `overflow-hidden`) qui décide de la taille, jamais ce composant.
@@ -49,7 +66,8 @@ export function ProductMedia({
   return (
     <div
       aria-hidden="true"
-      className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,rgba(247,239,232,1)_0%,rgba(233,220,240,1)_100%)]"
+      style={{ backgroundImage: monogramGradient(product.id) }}
+      className="flex h-full w-full items-center justify-center"
     >
       <span
         className={`font-semibold tracking-tight text-primary/30 ${monogramClassName}`}

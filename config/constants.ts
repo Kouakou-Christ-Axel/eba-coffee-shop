@@ -349,6 +349,49 @@ export const SHOWCASE_MIN_PRODUCTS = 3;
 export const UPSELL_MAX_PRODUCTS = 6;
 
 /**
+ * Carte publique — recherche et navigation par catégories.
+ * Source : lib/menu-display.ts + components/(public)/carte/.
+ *
+ * `SEARCH_MIN_CHARS` : en dessous, la saisie est ignorée et la carte reste
+ * complète — une seule lettre ne doit pas vider la page dès la première frappe.
+ *
+ * Les quatre suivantes cadrent la nav collante de catégories. `SCROLL_OFFSET`
+ * est la marge de confort laissée au-dessus d'un titre de section après un clic
+ * sur une pilule ; `SCROLL_LOCK_MS` la durée pendant laquelle le scroll-spy
+ * s'efface devant ce défilement (sinon les sections traversées volent la
+ * sélection au passage) ; `SCROLL_SPY_GAP` et `SCROLL_SPY_BOTTOM_MARGIN` le
+ * `rootMargin` de l'IntersectionObserver — la marge haute est calculée à partir
+ * de la HAUTEUR MESURÉE de la barre, qui varie avec la barre de recherche.
+ */
+export const CARTE_SEARCH_MIN_CHARS = 2;
+
+/**
+ * Dégradés du repli visuel d'un produit sans photo (`ProductMedia`,
+ * components/(public)/carte/_components/product-media.tsx).
+ *
+ * Quatre variantes plutôt qu'une seule : la majorité du catalogue n'est pas
+ * photographiée, et six tuiles rigoureusement identiques côte à côte dans la
+ * grille se lisent comme un bug d'affichage plutôt que comme un parti pris.
+ * Toutes tirées de la palette de marque (crème, violet, orange doré) pour que
+ * la variation reste discrète. Le choix est un hash du `Product.id`, donc
+ * stable entre le rendu serveur et le rendu client.
+ *
+ * Valeurs CSS brutes, appliquées en style inline : une classe Tailwind
+ * arbitraire construite à l'exécution (`bg-[${…}]`) ne serait jamais générée,
+ * le scanner ne voyant que les chaînes littérales du code source.
+ */
+export const MONOGRAM_GRADIENTS = [
+  'linear-gradient(135deg, rgb(247 239 232) 0%, rgb(233 220 240) 100%)',
+  'linear-gradient(135deg, rgb(253 250 246) 0%, rgb(244 214 175) 100%)',
+  'linear-gradient(135deg, rgb(240 229 238) 0%, rgb(214 190 225) 100%)',
+  'linear-gradient(135deg, rgb(250 243 235) 0%, rgb(226 222 240) 100%)',
+] as const;
+export const CARTE_SCROLL_OFFSET_PX = 80;
+export const CARTE_SCROLL_LOCK_MS = 800;
+export const CARTE_SCROLL_SPY_GAP_PX = 24;
+export const CARTE_SCROLL_SPY_BOTTOM_MARGIN = '60%';
+
+/**
  * Vitrine éditoriale « Ce qu'on aime vous servir » de l'accueil : plafond
  * distinct de `SHOWCASE_MAX_PRODUCTS` parce que la mise en page diffère — une
  * grille de 3 colonnes, où 8 produits laissent une dernière rangée bancale, là

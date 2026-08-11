@@ -48,6 +48,7 @@ import {
   SHEET_OVERLAY_TOP,
   bottomSheetClassNames,
 } from './_components/bottom-sheet';
+import { ShareProductButton } from './_components/share-product-button';
 
 type SupplementModalProps = {
   product: Product;
@@ -243,19 +244,21 @@ function SupplementModal({
               aria-hidden="true"
               className="absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(0,0,0,0.35)_0%,transparent_100%)]"
             />
-            <Button
-              isIconOnly
-              size="sm"
-              radius="full"
-              aria-label="Fermer"
-              onPress={onClose}
-              className={cn(
-                'absolute right-3 min-h-9 min-w-9 bg-white/90 text-foreground shadow-md',
-                SHEET_OVERLAY_TOP
-              )}
+            <div
+              className={cn('absolute right-3 flex gap-2', SHEET_OVERLAY_TOP)}
             >
-              <X className="h-4 w-4" />
-            </Button>
+              <ShareProductButton product={product} />
+              <Button
+                isIconOnly
+                size="sm"
+                radius="full"
+                aria-label="Fermer"
+                onPress={onClose}
+                className="min-h-9 min-w-9 bg-white/90 text-foreground shadow-md"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Le badge ouvre le bloc texte, sous la photo : en overlay il

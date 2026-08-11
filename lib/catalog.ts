@@ -10,7 +10,7 @@
 //   2. `searchProducts` — retrouver un produit par son nom sans parcourir les
 //      onglets de catégorie.
 
-import { fold } from '@/lib/orders/search';
+import { matchesProductSearch, parseMenuSearchTerm } from '@/lib/menu-display';
 import type { MenuCategory, Product, SupplementGroup } from '@/config/menu';
 
 /**
@@ -60,26 +60,29 @@ export type CatalogSearchHit = {
 
 /**
  * Recherche un produit dans TOUT le menu, insensible à la casse et aux accents
- * (« creme » trouve « Crème »). Chaque mot du terme doit apparaître dans le nom
- * ou la description — « choco chaud » trouve « Chocolat chaud ».
+ * (« creme » trouve « Crème »). Chaque mot doit apparaître, dans n'importe quel
+ * ordre — « choco chaud » trouve « Chocolat chaud ».
  *
- * Retourne `null` quand le terme est vide : l'appelant doit alors afficher les
- * onglets de catégorie normaux plutôt qu'une liste vide.
+ * S'appuie sur le moteur de la carte publique (`lib/menu-display.ts`) plutôt
+ * que d'en réimplémenter un : une recherche qui replierait les accents d'un
+ * côté et pas de l'autre donnerait deux résultats différents pour la même
+ * frappe, selon qu'on est client ou caissier.
+ *
+ * Retourne `null` quand le terme est trop court pour être exploitable
+ * (`CARTE_SEARCH_MIN_CHARS`) : l'appelant affiche alors les onglets de
+ * catégorie normaux, pas une liste vide.
  */
 export function searchProducts(
   menu: MenuCategory[],
   term: string
 ): CatalogSearchHit[] | null {
-  const tokens = fold(term.trim())
-    .split(/\s+/)
-    .filter(Boolean);
-  if (tokens.length === 0) return null;
+  const parsed = parseMenuSearchTerm(term);
+  if (!parsed) return null;
 
   const hits: CatalogSearchHit[] = [];
   for (const category of menu) {
     for (const product of category.products) {
-      const haystack = fold(`${product.name} ${product.description ?? ''}`);
-      if (tokens.every((token) => haystack.includes(token))) {
+      if (matchesProductSearch(product, category.name, parsed)) {
         hits.push({ product, categoryName: category.name });
       }
     }

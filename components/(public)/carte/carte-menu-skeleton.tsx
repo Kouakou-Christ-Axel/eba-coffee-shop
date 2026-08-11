@@ -16,6 +16,15 @@ export default function CarteMenuSkeleton() {
     >
       <div className="sticky top-16 z-30 border-b border-foreground/5 bg-background/90 backdrop-blur-sm">
         <div className="content-container">
+          {/* Mêmes hauteurs que `carte-menu-toolbar.tsx` (champ h-11 + pilule
+              de filtre h-8) : sans elles, le passage du fallback au contenu
+              décalerait toute la page. */}
+          <div className="pt-3">
+            <Skeleton className="h-11 w-full rounded-xl" />
+            <div className="mt-2 flex items-center">
+              <Skeleton className="h-8 w-44 rounded-full" />
+            </div>
+          </div>
           <nav className="flex gap-2 overflow-x-auto py-3">
             {Array.from({ length: CATEGORY_COUNT }).map((_, i) => (
               <Skeleton key={i} className="h-7 w-24 shrink-0 rounded-full" />
