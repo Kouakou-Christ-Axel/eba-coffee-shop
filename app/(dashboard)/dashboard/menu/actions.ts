@@ -25,180 +25,209 @@ import type { SupplementGroupInput } from '@/lib/schemas/menu';
 // (ex. deux options du même nom dans un groupe) est un cas ATTENDU, pas une
 // panne — on l'attrape ici et on la RENVOIE (valeur normale, non redactée)
 // plutôt que de la laisser remonter comme exception.
-function formatMutationError(err: unknown): string {
+//
+// RÈGLE : toute action de ce fichier déclenchable par un clic renvoie
+// `ActionResult`, jamais `void` et jamais un throw pour une erreur métier.
+// L'UI peut ainsi afficher systématiquement un toast de succès ou d'échec
+// (cf. `lib/hooks/use-undo-toast.tsx`). Seul `requireManager()` lance encore —
+// volontairement : il est HORS du `try`, une tentative non autorisée n'est pas
+// un cas attendu à afficher mais une erreur de programmation ou une attaque.
+export type ActionResult = { ok: true } | { ok: false; error: string };
+
+const OK = { ok: true } as const;
+
+function fail(err: unknown): { ok: false; error: string } {
   if (err instanceof ZodError) {
-    return [...new Set(err.issues.map((i) => i.message))].join(' ');
+    return {
+      ok: false,
+      error: [...new Set(err.issues.map((i) => i.message))].join(' '),
+    };
   }
-  return err instanceof Error ? err.message : 'Erreur inattendue';
+  return {
+    ok: false,
+    error: err instanceof Error ? err.message : 'Erreur inattendue',
+  };
 }
 
 function revalidateMenu() {
   revalidatePath('/api/menu');
   revalidatePath('/carte');
   revalidatePath('/');
+  // Le dashboard aussi : une mutation déclenchée depuis `[categoryId]` doit
+  // rafraîchir la liste des catégories (compteur de produits) et les pages
+  // sœurs (plannings, stock par goût), pas seulement la route courante.
+  // `'layout'` couvre toute la section `/dashboard/menu/**` en un appel.
+  revalidatePath('/dashboard/menu', 'layout');
+}
+
+/** Exécute une mutation sous garde d'autorisation et normalise le résultat. */
+async function run(mutate: () => Promise<unknown>): Promise<ActionResult> {
+  await requireManager();
+  try {
+    await mutate();
+  } catch (err) {
+    return fail(err);
+  }
+  revalidateMenu();
+  return OK;
 }
 
 // ── Catégories ──
 
-export async function createCategoryAction(input: CategoryInput) {
-  await requireManager();
-  await menu.createCategory(input);
-  revalidateMenu();
+export async function createCategoryAction(
+  input: CategoryInput
+): Promise<ActionResult> {
+  return run(() => menu.createCategory(input));
 }
 
-export async function updateCategoryAction(id: string, input: CategoryUpdate) {
-  await requireManager();
-  await menu.updateCategory(id, input);
-  revalidateMenu();
+export async function updateCategoryAction(
+  id: string,
+  input: CategoryUpdate
+): Promise<ActionResult> {
+  return run(() => menu.updateCategory(id, input));
 }
 
-export async function deleteCategoryAction(id: string) {
-  await requireManager();
-  await menu.deleteCategory(id);
-  revalidateMenu();
+export async function deleteCategoryAction(id: string): Promise<ActionResult> {
+  return run(() => menu.deleteCategory(id));
 }
 
-export async function toggleCategoryAvailabilityAction(id: string) {
-  await requireManager();
-  await menu.toggleCategoryAvailability(id);
-  revalidateMenu();
+export async function toggleCategoryAvailabilityAction(
+  id: string
+): Promise<ActionResult> {
+  return run(() => menu.toggleCategoryAvailability(id));
 }
 
-export async function moveCategoryAction(id: string, direction: 'up' | 'down') {
-  await requireManager();
-  await menu.moveCategory(id, direction);
-  revalidateMenu();
+export async function moveCategoryAction(
+  id: string,
+  direction: 'up' | 'down'
+): Promise<ActionResult> {
+  return run(() => menu.moveCategory(id, direction));
+}
+
+export async function reorderCategoriesAction(
+  orderedIds: string[]
+): Promise<ActionResult> {
+  return run(() => menu.reorderCategories(orderedIds));
 }
 
 // ── Produits ──
 
 export async function createProductAction(
   input: ProductInput
-): Promise<{ error: string } | undefined> {
-  await requireManager();
-  try {
-    await menu.createProduct(input);
-  } catch (err) {
-    return { error: formatMutationError(err) };
-  }
-  revalidateMenu();
+): Promise<ActionResult> {
+  return run(() => menu.createProduct(input));
 }
 
 export async function updateProductAction(
   id: string,
   input: ProductUpdate
-): Promise<{ error: string } | undefined> {
-  await requireManager();
-  try {
-    await menu.updateProduct(id, input);
-  } catch (err) {
-    return { error: formatMutationError(err) };
-  }
-  revalidateMenu();
+): Promise<ActionResult> {
+  return run(() => menu.updateProduct(id, input));
 }
 
-export async function deleteProductAction(id: string) {
-  await requireManager();
-  await menu.deleteProduct(id);
-  revalidateMenu();
+export async function deleteProductAction(id: string): Promise<ActionResult> {
+  return run(() => menu.deleteProduct(id));
 }
 
-export async function toggleProductAvailabilityAction(id: string) {
-  await requireManager();
-  await menu.toggleProductAvailability(id);
-  revalidateMenu();
+export async function toggleProductAvailabilityAction(
+  id: string
+): Promise<ActionResult> {
+  return run(() => menu.toggleProductAvailability(id));
 }
 
-export async function toggleProductFeaturedAction(id: string) {
-  await requireManager();
-  await menu.toggleProductFeatured(id);
-  revalidateMenu();
+export async function toggleProductFeaturedAction(
+  id: string
+): Promise<ActionResult> {
+  return run(() => menu.toggleProductFeatured(id));
+}
+
+export async function moveProductAction(
+  id: string,
+  direction: 'up' | 'down'
+): Promise<ActionResult> {
+  return run(() => menu.moveProduct(id, direction));
+}
+
+export async function reorderProductsAction(
+  categoryId: string,
+  orderedIds: string[]
+): Promise<ActionResult> {
+  return run(() => menu.reorderProducts(categoryId, orderedIds));
 }
 
 // ── Stock & pause ──
 
-export async function restockProductAction(id: string, delta: number) {
-  await requireManager();
-  if (!Number.isInteger(delta) || delta === 0) {
-    throw new Error('Quantité invalide');
-  }
-  await menu.restockProduct(id, delta);
-  revalidateMenu();
+export async function restockProductAction(
+  id: string,
+  delta: number
+): Promise<ActionResult> {
+  return run(() => {
+    if (!Number.isInteger(delta) || delta === 0) {
+      throw new Error('Quantité invalide');
+    }
+    return menu.restockProduct(id, delta);
+  });
 }
 
-export async function pauseProductAction(id: string, until: string) {
-  await requireManager();
-  const untilDate = new Date(until);
-  if (Number.isNaN(untilDate.getTime()) || untilDate.getTime() <= Date.now()) {
-    throw new Error('Date de reprise invalide (doit être dans le futur)');
-  }
-  await menu.pauseProduct(id, untilDate);
-  revalidateMenu();
+export async function pauseProductAction(
+  id: string,
+  until: string
+): Promise<ActionResult> {
+  return run(() => {
+    const untilDate = new Date(until);
+    if (
+      Number.isNaN(untilDate.getTime()) ||
+      untilDate.getTime() <= Date.now()
+    ) {
+      throw new Error('Date de reprise invalide (doit être dans le futur)');
+    }
+    return menu.pauseProduct(id, untilDate);
+  });
 }
 
-export async function resumeProductAction(id: string) {
-  await requireManager();
-  await menu.resumeProduct(id);
-  revalidateMenu();
+export async function resumeProductAction(id: string): Promise<ActionResult> {
+  return run(() => menu.resumeProduct(id));
 }
 
 export async function setOptionStockAction(
   id: string,
   quantity: number | null
-) {
-  await requireManager();
-  if (quantity !== null && (!Number.isInteger(quantity) || quantity < 0)) {
-    throw new Error('Quantité invalide');
-  }
-  await menu.setOptionStock(id, quantity);
-  revalidateMenu();
+): Promise<ActionResult> {
+  return run(() => {
+    if (quantity !== null && (!Number.isInteger(quantity) || quantity < 0)) {
+      throw new Error('Quantité invalide');
+    }
+    return menu.setOptionStock(id, quantity);
+  });
 }
 
 // ── Extras globaux ──
 
 export async function saveGlobalExtrasAction(
   groups: SupplementGroupInput[]
-): Promise<{ error: string } | undefined> {
-  await requireManager();
-  try {
-    await updateGlobalExtraGroups(groups);
-  } catch (err) {
-    return { error: formatMutationError(err) };
-  }
-  revalidateMenu();
+): Promise<ActionResult> {
+  return run(() => updateGlobalExtraGroups(groups));
 }
 
 // ── Plannings récurrents ──
 
 export async function createProductScheduleAction(
   input: ProductScheduleInput
-): Promise<{ error: string } | undefined> {
-  await requireManager();
-  try {
-    await menu.createProductSchedule(input);
-  } catch (err) {
-    return { error: formatMutationError(err) };
-  }
-  revalidateMenu();
+): Promise<ActionResult> {
+  return run(() => menu.createProductSchedule(input));
 }
 
 export async function updateProductScheduleAction(
   id: string,
   input: ProductScheduleUpdateInput
-): Promise<{ error: string } | undefined> {
-  await requireManager();
-  try {
-    await menu.updateProductSchedule(id, input);
-  } catch (err) {
-    return { error: formatMutationError(err) };
-  }
-  revalidateMenu();
+): Promise<ActionResult> {
+  return run(() => menu.updateProductSchedule(id, input));
 }
 
-export async function deleteProductScheduleAction(id: string) {
-  await requireManager();
-  await menu.deleteProductSchedule(id);
-  revalidateMenu();
+export async function deleteProductScheduleAction(
+  id: string
+): Promise<ActionResult> {
+  return run(() => menu.deleteProductSchedule(id));
 }
 
 // ── Spécialité de la semaine ──
@@ -206,32 +235,26 @@ export async function deleteProductScheduleAction(id: string) {
 export async function createProductWeeklySpecialAction(
   productId: string,
   input: ProductWeeklySpecialInput
-): Promise<{ error: string } | undefined> {
-  await requireManager();
-  try {
-    await menu.createProductWeeklySpecial(productId, input);
-  } catch (err) {
-    return { error: formatMutationError(err) };
-  }
-  revalidateMenu();
+): Promise<ActionResult> {
+  return run(() => menu.createProductWeeklySpecial(productId, input));
 }
 
-export async function deleteProductWeeklySpecialAction(id: string) {
-  await requireManager();
-  await menu.deleteProductWeeklySpecial(id);
-  revalidateMenu();
+export async function deleteProductWeeklySpecialAction(
+  id: string
+): Promise<ActionResult> {
+  return run(() => menu.deleteProductWeeklySpecial(id));
 }
 
 // ── Carte PDF ──
 
 export async function saveMenuPdfUrlAction(
   url: string | null
-): Promise<{ error: string } | undefined> {
-  await requireManager();
-  const parsed = menuSettingsSchema.safeParse({ menuPdfUrl: url });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? 'URL invalide' };
-  }
-  await updateMenuSettings(parsed.data);
-  revalidateMenu();
+): Promise<ActionResult> {
+  return run(() => {
+    const parsed = menuSettingsSchema.safeParse({ menuPdfUrl: url });
+    if (!parsed.success) {
+      throw new Error(parsed.error.issues[0]?.message ?? 'URL invalide');
+    }
+    return updateMenuSettings(parsed.data);
+  });
 }

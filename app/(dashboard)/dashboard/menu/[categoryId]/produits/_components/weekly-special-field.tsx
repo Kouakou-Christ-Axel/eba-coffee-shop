@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/(dashboard)/confirm-dialog';
+import { useUndoToast } from '@/lib/hooks/use-undo-toast';
 import { formatLocalDateOnly } from '@/lib/timezone';
 import {
   createProductWeeklySpecialAction,
@@ -37,6 +39,10 @@ export function WeeklySpecialField({
   initialSpecials: WeeklySpecialRow[];
 }) {
   const router = useRouter();
+  const { pushToast } = useUndoToast();
+  const [pendingDelete, setPendingDelete] = useState<WeeklySpecialRow | null>(
+    null
+  );
   const [specials, setSpecials] = useState(initialSpecials);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -61,23 +67,32 @@ export function WeeklySpecialField({
         endDate,
         note: note.trim() || null,
       });
-      if (result?.error) {
+      if (!result.ok) {
         setError(result.error);
+        pushToast(result.error, 'error');
         return;
       }
       setStartDate('');
       setEndDate('');
       setNote('');
       router.refresh();
+      pushToast('Spécialité de la semaine programmée');
     });
   }
 
-  function handleDelete(id: string) {
-    if (!confirm('Retirer cette fenêtre de l’historique ?')) return;
+  function handleDelete() {
+    const target = pendingDelete;
+    if (!target) return;
     startTransition(async () => {
-      await deleteProductWeeklySpecialAction(id);
-      setSpecials((prev) => prev.filter((s) => s.id !== id));
+      const result = await deleteProductWeeklySpecialAction(target.id);
+      setPendingDelete(null);
+      if (!result.ok) {
+        pushToast(result.error, 'error');
+        return;
+      }
+      setSpecials((prev) => prev.filter((s) => s.id !== target.id));
       router.refresh();
+      pushToast('Fenêtre retirée');
     });
   }
 
@@ -131,7 +146,7 @@ export function WeeklySpecialField({
                     variant="ghost"
                     size="icon-sm"
                     disabled={isPending}
-                    onClick={() => handleDelete(s.id)}
+                    onClick={() => setPendingDelete(s)}
                     aria-label="Retirer cette fenêtre"
                   >
                     <Trash2 className="size-4 text-destructive" />
@@ -195,6 +210,21 @@ export function WeeklySpecialField({
           </Button>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
+
+        <ConfirmDialog
+          open={pendingDelete !== null}
+          onOpenChange={(open) => !open && setPendingDelete(null)}
+          title="Retirer cette fenêtre ?"
+          description={
+            pendingDelete
+              ? `La période ${pendingDelete.startDate} → ${pendingDelete.endDate} sera retirée de l’historique.`
+              : ''
+          }
+          confirmLabel="Retirer"
+          destructive
+          isPending={isPending}
+          onConfirm={handleDelete}
+        />
       </CardContent>
     </Card>
   );

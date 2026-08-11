@@ -1,5 +1,6 @@
 'use client';
 
+import { useId } from 'react';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
 import {
@@ -18,21 +19,28 @@ export function ScheduleField({
   onChange,
   label = 'Planning récurrent',
   helpText = 'Restreint la commande aux jours du planning.',
+  id,
 }: {
   schedules: ScheduleOption[];
   scheduleId: string | null;
   onChange: (id: string | null) => void;
   label?: string;
   helpText?: string;
+  /** Id du select. Généré si absent : plusieurs `ScheduleField` peuvent
+   * cohabiter dans la même page (bloc de création + panneau d'édition). */
+  id?: string;
 }) {
+  const generatedId = useId();
+  const selectId = id ?? generatedId;
+
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="schedule">{label}</Label>
+      <Label htmlFor={selectId}>{label}</Label>
       <Select
         value={scheduleId ?? 'none'}
         onValueChange={(value) => onChange(value === 'none' ? null : value)}
       >
-        <SelectTrigger id="schedule" className="w-full">
+        <SelectTrigger id={selectId} className="w-full">
           <SelectValue placeholder="Aucun (tous les jours)" />
         </SelectTrigger>
         <SelectContent>

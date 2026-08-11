@@ -7,10 +7,12 @@ import {
   ScheduleField,
   type ScheduleOption,
 } from '@/components/(dashboard)/schedule-field';
+import { useUndoToast } from '@/lib/hooks/use-undo-toast';
 import { createCategoryAction } from './actions';
 import { ADVANCE_ORDER_DAYS_MAX } from '@/config/constants';
 
 export function CategoryForm({ schedules }: { schedules: ScheduleOption[] }) {
+  const { pushToast } = useUndoToast();
   const [name, setName] = useState('');
   const [scheduleId, setScheduleId] = useState<string | null>(null);
   const [advanceOrderDays, setAdvanceOrderDays] = useState<number | null>(null);
@@ -21,14 +23,21 @@ export function CategoryForm({ schedules }: { schedules: ScheduleOption[] }) {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      try {
-        await createCategoryAction({ name, scheduleId, advanceOrderDays });
-        setName('');
-        setScheduleId(null);
-        setAdvanceOrderDays(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erreur');
+      const created = name.trim();
+      const result = await createCategoryAction({
+        name,
+        scheduleId,
+        advanceOrderDays,
+      });
+      if (!result.ok) {
+        setError(result.error);
+        pushToast(result.error, 'error');
+        return;
       }
+      setName('');
+      setScheduleId(null);
+      setAdvanceOrderDays(null);
+      pushToast(`Catégorie « ${created} » créée`);
     });
   }
 

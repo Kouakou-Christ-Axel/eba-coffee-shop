@@ -15,6 +15,9 @@ import { WEEKDAY_LABELS } from '@/lib/pickup-settings';
 import { ScheduleForm } from './schedule-form';
 import { ScheduleRowActions } from './schedule-row-actions';
 
+// Page d'administration : données live, jamais prérendue.
+export const dynamic = 'force-dynamic';
+
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 
 function formatDays(days: number[]): string {

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useUndoToast } from '@/lib/hooks/use-undo-toast';
 import {
   createProductAction,
   updateProductAction,
@@ -83,6 +84,7 @@ export function ProductForm({
   schedules: ScheduleOption[];
 }) {
   const router = useRouter();
+  const { pushToast } = useUndoToast();
   const [isPending, startTransition] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -146,13 +148,15 @@ export function ProductForm({
     if (!initial?.id) return;
     setPauseError(null);
     startPauseTransition(async () => {
-      try {
-        await pauseProductAction(initial.id!, until.toISOString());
-        setUnavailableUntil(until);
-        router.refresh();
-      } catch (err) {
-        setPauseError(err instanceof Error ? err.message : 'Erreur');
+      const result = await pauseProductAction(initial.id!, until.toISOString());
+      if (!result.ok) {
+        setPauseError(result.error);
+        pushToast(result.error, 'error');
+        return;
       }
+      setUnavailableUntil(until);
+      router.refresh();
+      pushToast(`En pause jusqu’au ${formatAbidjanDateTime(until)}`);
     });
   }
 
@@ -178,14 +182,16 @@ export function ProductForm({
     if (!initial?.id) return;
     setPauseError(null);
     startPauseTransition(async () => {
-      try {
-        await resumeProductAction(initial.id!);
-        setUnavailableUntil(null);
-        setPauseCustomInput('');
-        router.refresh();
-      } catch (err) {
-        setPauseError(err instanceof Error ? err.message : 'Erreur');
+      const result = await resumeProductAction(initial.id!);
+      if (!result.ok) {
+        setPauseError(result.error);
+        pushToast(result.error, 'error');
+        return;
       }
+      setUnavailableUntil(null);
+      setPauseCustomInput('');
+      router.refresh();
+      pushToast('Produit de nouveau disponible');
     });
   }
 
@@ -193,38 +199,38 @@ export function ProductForm({
     e.preventDefault();
     setSubmitError(null);
     startTransition(async () => {
-      try {
-        const payload = {
-          name: name.trim(),
-          description: description.trim(),
-          price: priceNum,
-          coutMatiere: coutMatiereNum,
-          coutEmballage: coutEmballageNum,
-          imageUrl,
-          supplementGroups: groups.map((g) => ({
-            ...g,
-            options: g.options.filter((o) => o.name.trim().length > 0),
-          })),
-          featured,
-          featuredOrder: featured ? Number(featuredOrder) || 0 : 0,
-          featuredBadge: featured ? featuredBadge : null,
-          stockQuantity,
-          scheduleId,
-          advanceOrderDays,
-        };
-        const result =
-          isEdit && initial?.id
-            ? await updateProductAction(initial.id, payload)
-            : await createProductAction({ ...payload, categoryId });
-        if (result?.error) {
-          setSubmitError(result.error);
-          return;
-        }
-        router.push(`/dashboard/menu/${categoryId}`);
-        router.refresh();
-      } catch (err) {
-        setSubmitError(err instanceof Error ? err.message : 'Erreur');
+      const payload = {
+        name: name.trim(),
+        description: description.trim(),
+        price: priceNum,
+        coutMatiere: coutMatiereNum,
+        coutEmballage: coutEmballageNum,
+        imageUrl,
+        supplementGroups: groups.map((g) => ({
+          ...g,
+          options: g.options.filter((o) => o.name.trim().length > 0),
+        })),
+        featured,
+        featuredOrder: featured ? Number(featuredOrder) || 0 : 0,
+        featuredBadge: featured ? featuredBadge : null,
+        stockQuantity,
+        scheduleId,
+        advanceOrderDays,
+      };
+      const result =
+        isEdit && initial?.id
+          ? await updateProductAction(initial.id, payload)
+          : await createProductAction({ ...payload, categoryId });
+      if (!result.ok) {
+        setSubmitError(result.error);
+        pushToast(result.error, 'error');
+        return;
       }
+      router.push(`/dashboard/menu/${categoryId}`);
+      router.refresh();
+      pushToast(
+        isEdit ? `${payload.name} enregistré` : `${payload.name} créé`
+      );
     });
   }
 

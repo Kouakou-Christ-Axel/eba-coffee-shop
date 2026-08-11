@@ -2,6 +2,10 @@ import { getAllOptionStock } from '@/lib/menu';
 import { getPendingOptionDemand } from '@/lib/orders/pending-demand';
 import { OptionsStockTable } from './options-stock-table';
 
+// Données live + `OptionsStockTable` lit la recherche dans l'URL
+// (`useSearchParams`), ce qui interdit le prérendu statique.
+export const dynamic = 'force-dynamic';
+
 export default async function StockSupplementsPage() {
   const [rows, pendingByOption] = await Promise.all([
     getAllOptionStock(),

@@ -7,6 +7,7 @@ import {
   SupplementsEditor,
   type SupplementGroup,
 } from '@/components/(dashboard)/supplements-editor';
+import { useUndoToast } from '@/lib/hooks/use-undo-toast';
 import { saveGlobalExtrasAction } from '../actions';
 
 type Props = {
@@ -15,6 +16,7 @@ type Props = {
 
 export function GlobalExtrasForm({ initialGroups }: Props) {
   const router = useRouter();
+  const { pushToast } = useUndoToast();
   const [groups, setGroups] = useState<SupplementGroup[]>(initialGroups);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -23,22 +25,20 @@ export function GlobalExtrasForm({ initialGroups }: Props) {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      try {
-        const payload = groups
-          .filter((g) => g.name.trim().length > 0)
-          .map((g) => ({
-            ...g,
-            options: g.options.filter((o) => o.name.trim().length > 0),
-          }));
-        const result = await saveGlobalExtrasAction(payload);
-        if (result?.error) {
-          setError(result.error);
-          return;
-        }
-        router.refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erreur');
+      const payload = groups
+        .filter((g) => g.name.trim().length > 0)
+        .map((g) => ({
+          ...g,
+          options: g.options.filter((o) => o.name.trim().length > 0),
+        }));
+      const result = await saveGlobalExtrasAction(payload);
+      if (!result.ok) {
+        setError(result.error);
+        pushToast(result.error, 'error');
+        return;
       }
+      router.refresh();
+      pushToast('Extras globaux enregistrés');
     });
   }
 

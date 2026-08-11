@@ -33,6 +33,9 @@ vi.mock('@/lib/menu-mutations', () => ({
   restockProduct: vi.fn(),
   pauseProduct: vi.fn(),
   resumeProduct: vi.fn(),
+  moveProduct: vi.fn(),
+  reorderCategories: vi.fn(),
+  reorderProducts: vi.fn(),
 }));
 
 import { ZodError } from 'zod';
@@ -50,6 +53,9 @@ import {
   restockProductAction,
   pauseProductAction,
   resumeProductAction,
+  moveProductAction,
+  reorderCategoriesAction,
+  reorderProductsAction,
 } from './actions';
 
 const mockGetSession = auth.api.getSession as MockedFunction<
@@ -196,6 +202,7 @@ describe('Menu Server Actions — happy path + revalidate', () => {
     } as never);
 
     expect(result).toEqual({
+      ok: false,
       error: 'Deux options ne peuvent pas porter le même nom dans un groupe',
     });
     // Pas de revalidation sur un échec de validation.
@@ -216,7 +223,7 @@ describe('Menu Server Actions — happy path + revalidate', () => {
       supplementGroups: [],
     });
 
-    expect(result).toEqual({ error: 'Produit introuvable' });
+    expect(result).toEqual({ ok: false, error: 'Produit introuvable' });
   });
 
   it('deleteProductAction → mutation + revalidate', async () => {
@@ -231,17 +238,22 @@ describe('Menu Server Actions — happy path + revalidate', () => {
     expect(mockRevalidate).toHaveBeenCalledWith('/api/menu');
   });
 
-  it('restockProductAction delta non entier → throw sans appeler la mutation', async () => {
-    await expect(restockProductAction('p1', 1.5)).rejects.toThrow(
-      'Quantité invalide'
-    );
+  // Une saisie invalide est un cas ATTENDU : l'action la RENVOIE (message
+  // lisible côté admin, non redacté en production) au lieu de la jeter.
+  it('restockProductAction delta non entier → erreur renvoyée sans appeler la mutation', async () => {
+    await expect(restockProductAction('p1', 1.5)).resolves.toEqual({
+      ok: false,
+      error: 'Quantité invalide',
+    });
     expect(mutations.restockProduct).not.toHaveBeenCalled();
+    expect(mockRevalidate).not.toHaveBeenCalled();
   });
 
-  it('restockProductAction delta nul → throw sans appeler la mutation', async () => {
-    await expect(restockProductAction('p1', 0)).rejects.toThrow(
-      'Quantité invalide'
-    );
+  it('restockProductAction delta nul → erreur renvoyée sans appeler la mutation', async () => {
+    await expect(restockProductAction('p1', 0)).resolves.toEqual({
+      ok: false,
+      error: 'Quantité invalide',
+    });
     expect(mutations.restockProduct).not.toHaveBeenCalled();
   });
 
@@ -252,18 +264,20 @@ describe('Menu Server Actions — happy path + revalidate', () => {
     expect(mockRevalidate).toHaveBeenCalledWith('/api/menu');
   });
 
-  it('pauseProductAction date passée → throw sans appeler la mutation', async () => {
+  it('pauseProductAction date passée → erreur renvoyée sans appeler la mutation', async () => {
     const past = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    await expect(pauseProductAction('p1', past)).rejects.toThrow(
-      'Date de reprise invalide (doit être dans le futur)'
-    );
+    await expect(pauseProductAction('p1', past)).resolves.toEqual({
+      ok: false,
+      error: 'Date de reprise invalide (doit être dans le futur)',
+    });
     expect(mutations.pauseProduct).not.toHaveBeenCalled();
   });
 
-  it('pauseProductAction date invalide → throw sans appeler la mutation', async () => {
-    await expect(pauseProductAction('p1', 'pas-une-date')).rejects.toThrow(
-      'Date de reprise invalide (doit être dans le futur)'
-    );
+  it('pauseProductAction date invalide → erreur renvoyée sans appeler la mutation', async () => {
+    await expect(pauseProductAction('p1', 'pas-une-date')).resolves.toEqual({
+      ok: false,
+      error: 'Date de reprise invalide (doit être dans le futur)',
+    });
     expect(mutations.pauseProduct).not.toHaveBeenCalled();
   });
 
@@ -271,5 +285,78 @@ describe('Menu Server Actions — happy path + revalidate', () => {
     await resumeProductAction('p1');
     expect(mutations.resumeProduct).toHaveBeenCalledWith('p1');
     expect(mockRevalidate).toHaveBeenCalledWith('/api/menu');
+  });
+
+  // Le dashboard doit être revalidé au même titre que les pages publiques :
+  // une mutation faite depuis `[categoryId]` change le compteur de produits
+  // affiché sur la liste des catégories.
+  it('revalideMenu couvre aussi la section dashboard', async () => {
+    await toggleProductAvailabilityAction('p1');
+    expect(mockRevalidate).toHaveBeenCalledWith('/dashboard/menu', 'layout');
+  });
+
+  it('moveProductAction → mutation + revalidate', async () => {
+    await expect(moveProductAction('p1', 'up')).resolves.toEqual({ ok: true });
+    expect(mutations.moveProduct).toHaveBeenCalledWith('p1', 'up');
+    expect(mockRevalidate).toHaveBeenCalledWith('/api/menu');
+  });
+
+  it('reorderCategoriesAction transmet la liste ordonnée', async () => {
+    await expect(reorderCategoriesAction(['c2', 'c1'])).resolves.toEqual({
+      ok: true,
+    });
+    expect(mutations.reorderCategories).toHaveBeenCalledWith(['c2', 'c1']);
+  });
+
+  it('reorderProductsAction transmet la catégorie et la liste ordonnée', async () => {
+    await expect(
+      reorderProductsAction('cat1', ['p2', 'p1'])
+    ).resolves.toEqual({ ok: true });
+    expect(mutations.reorderProducts).toHaveBeenCalledWith('cat1', [
+      'p2',
+      'p1',
+    ]);
+  });
+
+  // Un ordre périmé (une ligne créée/supprimée entre le rendu et le dépôt)
+  // doit remonter comme erreur affichable, pas comme exception redactée.
+  it('reorderProductsAction : un ordre périmé est renvoyé en erreur', async () => {
+    (
+      mutations.reorderProducts as MockedFunction<
+        typeof mutations.reorderProducts
+      >
+    ).mockRejectedValueOnce(new Error('La liste des produits a changé'));
+
+    await expect(reorderProductsAction('cat1', ['p1'])).resolves.toEqual({
+      ok: false,
+      error: 'La liste des produits a changé',
+    });
+    expect(mockRevalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe('Menu Server Actions — garde d’autorisation des nouvelles actions', () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it('reorderProductsAction sans session → throw', async () => {
+    mockGetSession.mockResolvedValue(null);
+    await expect(reorderProductsAction('cat1', ['p1'])).rejects.toThrow(
+      'Non autorisé'
+    );
+    expect(mutations.reorderProducts).not.toHaveBeenCalled();
+  });
+
+  it('reorderCategoriesAction sans session → throw', async () => {
+    mockGetSession.mockResolvedValue(null);
+    await expect(reorderCategoriesAction(['c1'])).rejects.toThrow(
+      'Non autorisé'
+    );
+    expect(mutations.reorderCategories).not.toHaveBeenCalled();
+  });
+
+  it('moveProductAction sans session → throw', async () => {
+    mockGetSession.mockResolvedValue(null);
+    await expect(moveProductAction('p1', 'up')).rejects.toThrow('Non autorisé');
+    expect(mutations.moveProduct).not.toHaveBeenCalled();
   });
 });
