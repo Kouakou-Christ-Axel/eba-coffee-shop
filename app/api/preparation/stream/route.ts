@@ -17,7 +17,7 @@
 
 import { auth } from '@/lib/auth';
 import {
-  fetchPreparationQueue,
+  fetchPreparationQueueShared,
   type PreparationOrder,
 } from '@/lib/preparation-queue';
 import { subscribeOrders } from '@/lib/postgres-notify';
@@ -94,7 +94,10 @@ export async function GET(request: Request) {
 
       const pushSnapshot = async () => {
         try {
-          const fresh = await fetchPreparationQueue();
+          // Mutualisée entre écrans cuisine réagissant à la MÊME notification
+          // Postgres : sans ça, une mutation relançait la requête une fois par
+          // écran connecté (cf. lib/async-coalesce.ts).
+          const fresh = await fetchPreparationQueueShared();
           sendEvent('queue', serializeQueue(fresh));
         } catch (err) {
           console.error('[SSE preparation] fetch échoué :', err);

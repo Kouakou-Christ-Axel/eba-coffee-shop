@@ -11,6 +11,8 @@
 import { endOfDay, startOfDay } from 'date-fns';
 import prisma from '@/lib/prisma';
 import { compareKitchenFifo } from '@/lib/orders/queue-order';
+import { coalesceAsyncByKey } from '@/lib/async-coalesce';
+import { getOrdersGeneration } from '@/lib/postgres-notify';
 import type { CartItem } from '@/lib/cart-store';
 import type { OrderType } from '@/generated/prisma/client';
 
@@ -105,3 +107,21 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
 
   return mapped.sort(compareKitchenFifo);
 }
+
+/**
+ * Variante mutualisée de `fetchPreparationQueue()`, à utiliser par le flux SSE
+ * (`/api/preparation/stream`). Même situation qu'en caisse : chaque écran
+ * cuisine connecté possède sa PROPRE boucle debounce/notify mais reçoit le même
+ * instantané global, si bien qu'une seule mutation de commande relançait la
+ * requête une fois PAR écran connecté.
+ *
+ * Mutualisation kéyée sur la génération de notification, et NON sur la simple
+ * présence d'un calcul en vol : un écran réveillé par une notification plus
+ * récente doit obtenir un calcul frais, sinon la commande qui l'a réveillé
+ * resterait invisible en cuisine. Voir la démonstration détaillée en tête de
+ * `lib/async-coalesce.ts`. Pas de TTL.
+ */
+export const fetchPreparationQueueShared = coalesceAsyncByKey(
+  fetchPreparationQueue,
+  getOrdersGeneration
+);
