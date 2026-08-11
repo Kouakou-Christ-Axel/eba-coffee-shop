@@ -349,6 +349,27 @@ export const SHOWCASE_MIN_PRODUCTS = 3;
 export const UPSELL_MAX_PRODUCTS = 6;
 
 /**
+ * Carte publique — recherche et navigation par catégories.
+ * Source : lib/menu-display.ts + components/(public)/carte/.
+ *
+ * `SEARCH_MIN_CHARS` : en dessous, la saisie est ignorée et la carte reste
+ * complète — une seule lettre ne doit pas vider la page dès la première frappe.
+ *
+ * Les quatre suivantes cadrent la nav collante de catégories. `SCROLL_OFFSET`
+ * est la marge de confort laissée au-dessus d'un titre de section après un clic
+ * sur une pilule ; `SCROLL_LOCK_MS` la durée pendant laquelle le scroll-spy
+ * s'efface devant ce défilement (sinon les sections traversées volent la
+ * sélection au passage) ; `SCROLL_SPY_GAP` et `SCROLL_SPY_BOTTOM_MARGIN` le
+ * `rootMargin` de l'IntersectionObserver — la marge haute est calculée à partir
+ * de la HAUTEUR MESURÉE de la barre, qui varie avec la barre de recherche.
+ */
+export const CARTE_SEARCH_MIN_CHARS = 2;
+export const CARTE_SCROLL_OFFSET_PX = 80;
+export const CARTE_SCROLL_LOCK_MS = 800;
+export const CARTE_SCROLL_SPY_GAP_PX = 24;
+export const CARTE_SCROLL_SPY_BOTTOM_MARGIN = '60%';
+
+/**
  * Vitrine éditoriale « Ce qu'on aime vous servir » de l'accueil : plafond
  * distinct de `SHOWCASE_MAX_PRODUCTS` parce que la mise en page diffère — une
  * grille de 3 colonnes, où 8 produits laissent une dernière rangée bancale, là
