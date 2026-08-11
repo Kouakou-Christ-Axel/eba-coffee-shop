@@ -21,6 +21,7 @@ import {
   getMaxItemDiscount,
 } from '@/lib/orders/totals';
 import { formatSupplementLabel } from '@/lib/orders/format';
+import { productHasOptions, productNeedsPicker } from '@/lib/catalog';
 import { useLiveMenu } from '@/lib/hooks/use-live-menu';
 import { updateOrderItemsAction } from '../commandes/actions';
 import { ProductCatalog } from '../caisse/new/product-catalog';
@@ -144,8 +145,11 @@ export function OrderItemsEditor({
     });
   }
 
+  // Même règle que la saisie caisse : le sélecteur ne s'ouvre que si le produit
+  // impose un choix. Les extras globaux, présents sur TOUS les produits depuis
+  // `getMenu()`, sont atteints par le bouton « Options » de la tuile.
   function handleProductTap(product: Product) {
-    if ((product.supplements?.length ?? 0) > 0) {
+    if (productNeedsPicker(product)) {
       setPicker({ mode: 'add', product });
       return;
     }
@@ -196,7 +200,11 @@ export function OrderItemsEditor({
     setError(null);
     startTransition(async () => {
       try {
-        await updateOrderItemsAction(orderId, items);
+        const result = await updateOrderItemsAction(orderId, items);
+        if (result?.error) {
+          setError(result.error);
+          return;
+        }
         onClose();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Erreur');
@@ -256,7 +264,11 @@ export function OrderItemsEditor({
             Touchez un produit pour l&apos;ajouter
           </span>
         </div>
-        <ProductCatalog menu={menu} onProductTap={handleProductTap} />
+        <ProductCatalog
+          menu={menu}
+          onProductTap={handleProductTap}
+          onOpenOptions={(product) => setPicker({ mode: 'add', product })}
+        />
         {supplementPicker}
       </div>
     );
@@ -288,8 +300,9 @@ export function OrderItemsEditor({
       </div>
 
       {items.map((item) => {
+        const lineProduct = productById.get(item.productId);
         const hasOptions =
-          (productById.get(item.productId)?.supplements?.length ?? 0) > 0;
+          lineProduct !== undefined && productHasOptions(lineProduct);
         const gross = getItemGross(item);
         const net = getItemNet(item);
         const discounted = gross !== net;

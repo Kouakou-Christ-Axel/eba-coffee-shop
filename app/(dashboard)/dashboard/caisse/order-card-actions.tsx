@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { Modal, ModalContent, ModalHeader, ModalBody } from '@heroui/react';
 import {
   Phone,
@@ -17,6 +17,7 @@ import {
   UserCog,
   Gift,
   Bot,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,6 +37,7 @@ import { EditCustomerModal } from './edit-customer-modal';
 import { EditLoyaltyModal } from './edit-loyalty-modal';
 import { CopyRecapButton } from '../_components/copy-recap-button';
 import { OrderItemsEditor } from '../_components/order-items-editor';
+import { useConfirmDialog } from '../_components/use-confirm-dialog';
 
 async function callApi<T = unknown>(
   url: string,
@@ -103,13 +105,29 @@ export function OrderCardActions({
 }) {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  // Quelle mutation est en cours (null = aucune).
+  //
+  // Un `useTransition` unique servait auparavant de drapeau global : la
+  // moindre action grisait les 8+ boutons de la carte, y compris ceux qui ne
+  // font qu'ouvrir une modale. On garde un verrou — deux écritures simultanées
+  // sur la même commande se solderaient par un 409 (concurrence optimistique
+  // côté serveur) — mais on sait désormais QUELLE action tourne, donc seul le
+  // bouton actionné affiche un état d'attente.
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const isPending = pendingAction !== null;
+
+  function runMutation(key: string, fn: () => Promise<void>) {
+    if (pendingAction !== null) return;
+    setPendingAction(key);
+    void fn().finally(() => setPendingAction(null));
+  }
   const [actionError, setActionError] = useState<string | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isEditFulfillmentOpen, setIsEditFulfillmentOpen] = useState(false);
   const [isEditCustomerOpen, setIsEditCustomerOpen] = useState(false);
   const [isEditLoyaltyOpen, setIsEditLoyaltyOpen] = useState(false);
   const { pushUndo } = useUndoToast();
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const canEditItems =
     order.status !== 'COMPLETED' && order.status !== 'CANCELLED';
@@ -183,11 +201,14 @@ export function OrderCardActions({
   // Non bloquant : une confirmation explicite suffit à passer outre (le staff
   // peut avoir déjà proposé un remplacement au client). Si le stock a bougé
   // entre-temps, le serveur retranchera de toute façon (409, message affiché).
-  function confirmDespiteShortage(): boolean {
+  async function confirmDespiteShortage(): Promise<boolean> {
     if (!hasStockShortage) return true;
-    return confirm(
-      `Stock épuisé pour : ${order.unavailableItemNames.join(', ')}.\nProposer un autre produit au client avant de payer.\nContinuer quand même ?`
-    );
+    return confirm({
+      title: 'Stock épuisé',
+      message: `Stock épuisé pour : ${order.unavailableItemNames.join(', ')}.\nProposer un autre produit au client avant de payer.`,
+      confirmLabel: 'Continuer quand même',
+      destructive: true,
+    });
   }
 
   const orderRef = `#${String(order.dailyNumber).padStart(3, '0')}`;
@@ -221,7 +242,7 @@ export function OrderCardActions({
 
   function handlePaymentConfirm(payments: PaymentLine[]) {
     setPaymentError(null);
-    startTransition(async () => {
+    runMutation('payment', async () => {
       const result = await callApi<{ startedPreparation: boolean }>(
         `/api/caisse/orders/${order.id}/payment`,
         'PATCH',
@@ -238,10 +259,10 @@ export function OrderCardActions({
 
   // Raccourci quand le client a envoyé sa preuve Wave depuis la page de suivi :
   // encaissement direct en mode WAVE, sans passer par la modale.
-  function handleValidateWaveProof() {
-    if (!confirmDespiteShortage()) return;
+  async function handleValidateWaveProof() {
+    if (!(await confirmDespiteShortage())) return;
     setActionError(null);
-    startTransition(async () => {
+    runMutation('wave-proof', async () => {
       const result = await callApi<{ startedPreparation: boolean }>(
         `/api/caisse/orders/${order.id}/payment`,
         'PATCH',
@@ -267,7 +288,7 @@ export function OrderCardActions({
     setActionError(null);
     const previousStatus = order.status;
     const wasPaid = order.isPaid;
-    startTransition(async () => {
+    runMutation(`status:${newStatus}`, async () => {
       const result = await callApi(
         `/api/caisse/orders/${order.id}/status`,
         'PATCH',
@@ -298,7 +319,7 @@ export function OrderCardActions({
 
   function handleDismissDriverRequest() {
     setActionError(null);
-    startTransition(async () => {
+    runMutation('driver', async () => {
       const result = await callApi(
         `/api/caisse/orders/${order.id}/driver-request`,
         'PATCH',
@@ -308,19 +329,19 @@ export function OrderCardActions({
     });
   }
 
-  function handleSendToKitchenWithoutPayment() {
+  async function handleSendToKitchenWithoutPayment() {
     // L'entrée en cuisine RÉSERVE désormais le stock : cet envoi peut donc
     // échouer en 409 « stock insuffisant » exactement comme un encaissement.
     // Même garde qu'avant de payer (l'erreur remonte sinon dans
     // `setActionError`, mais autant éviter le clic perdu).
-    if (!confirmDespiteShortage()) return;
-    if (
-      !confirm(
-        'Mettre cette commande sur l’ardoise ?\nElle part en cuisine sans encaissement et reste NON PAYÉE : le montant dû restera visible dans « Ardoise » jusqu’au règlement.'
-      )
-    ) {
-      return;
-    }
+    if (!(await confirmDespiteShortage())) return;
+    const confirmed = await confirm({
+      title: 'Mettre sur l’ardoise ?',
+      message:
+        'La commande part en cuisine sans encaissement et reste NON PAYÉE : le montant dû restera visible dans « Ardoise » jusqu’au règlement.',
+      confirmLabel: 'Mettre sur l’ardoise',
+    });
+    if (!confirmed) return;
     handleStatusChange('PREPARING', { onAccount: true });
   }
 
@@ -331,16 +352,16 @@ export function OrderCardActions({
   // que `paymentAutoValidatedByAi` est vrai — pas de fenêtre de 10 s comme
   // le toast d'annulation d'un encaissement caisse classique, car personne
   // n'était devant l'écran au moment de l'encaissement automatique.
-  function handleUndoAutoValidation() {
-    if (
-      !confirm(
-        `Annuler l'encaissement automatique (IA) de la commande ${orderRef} ?\nElle repassera « non payée ».`
-      )
-    ) {
-      return;
-    }
+  async function handleUndoAutoValidation() {
+    const confirmed = await confirm({
+      title: 'Annuler l’encaissement IA ?',
+      message: `La commande ${orderRef} repassera « non payée ».`,
+      confirmLabel: 'Annuler l’encaissement',
+      destructive: true,
+    });
+    if (!confirmed) return;
     setActionError(null);
-    startTransition(async () => {
+    runMutation('undo-ai', async () => {
       const result = await callApi(
         `/api/caisse/orders/${order.id}/payment`,
         'PATCH',
@@ -351,11 +372,24 @@ export function OrderCardActions({
   }
 
   // Annuler une commande non payée ; rembourser (= annuler) une commande payée.
-  function handleCancelOrRefund() {
-    const message = order.isPaid
-      ? `Rembourser et annuler la commande ${orderRef} ?\nLe montant de ${priceFormatter.format(order.total)} F sera rendu au client.`
-      : `Annuler la commande ${orderRef} ?`;
-    if (!confirm(message)) return;
+  async function handleCancelOrRefund() {
+    const confirmed = await confirm(
+      order.isPaid
+        ? {
+            title: 'Rembourser et annuler ?',
+            message: `Le montant de ${priceFormatter.format(order.total)} F sera rendu au client pour la commande ${orderRef}.`,
+            confirmLabel: 'Rembourser et annuler',
+            destructive: true,
+          }
+        : {
+            title: 'Annuler la commande ?',
+            message: `La commande ${orderRef} sera annulée.`,
+            confirmLabel: 'Annuler la commande',
+            cancelLabel: 'Revenir',
+            destructive: true,
+          }
+    );
+    if (!confirmed) return;
     handleStatusChange('CANCELLED');
   }
 
@@ -427,7 +461,11 @@ export function OrderCardActions({
             disabled={isPending}
             onClick={handleDismissDriverRequest}
           >
-            <BellOff className="mr-1.5 h-4 w-4" />
+            {pendingAction === 'driver' ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <BellOff className="mr-1.5 h-4 w-4" />
+            )}
             Demande livreur gérée
           </Button>
         )}
@@ -456,7 +494,11 @@ export function OrderCardActions({
               disabled={isPending}
               onClick={handleValidateWaveProof}
             >
-              <Check className="mr-1.5 h-4 w-4" />
+              {pendingAction === 'wave-proof' ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="mr-1.5 h-4 w-4" />
+              )}
               Valider le paiement Wave
             </Button>
           )}
@@ -475,7 +517,11 @@ export function OrderCardActions({
               disabled={isPending}
               onClick={handleUndoAutoValidation}
             >
-              <Bot className="mr-1.5 h-4 w-4" />
+              {pendingAction === 'undo-ai' ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Bot className="mr-1.5 h-4 w-4" />
+              )}
               Annuler l&apos;encaissement automatique
             </Button>
           )}
@@ -488,8 +534,8 @@ export function OrderCardActions({
             size="lg"
             className="w-full"
             disabled={isPending}
-            onClick={() => {
-              if (confirmDespiteShortage()) setIsPaymentOpen(true);
+            onClick={async () => {
+              if (await confirmDespiteShortage()) setIsPaymentOpen(true);
             }}
           >
             <Check className="mr-1.5 h-4 w-4" />
@@ -509,7 +555,11 @@ export function OrderCardActions({
             disabled={isPending}
             onClick={handleSendToKitchenWithoutPayment}
           >
-            <ChefHat className="mr-1.5 h-4 w-4" />
+            {pendingAction === 'status:PREPARING' ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <ChefHat className="mr-1.5 h-4 w-4" />
+            )}
             Envoyer en cuisine (ardoise)
           </Button>
         )}
@@ -524,7 +574,11 @@ export function OrderCardActions({
             disabled={isPending}
             onClick={() => handleStatusChange('READY')}
           >
-            <CheckCheck className="mr-1.5 h-4 w-4" />
+            {pendingAction === 'status:READY' ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCheck className="mr-1.5 h-4 w-4" />
+            )}
             Marquer prête
           </Button>
         )}
@@ -549,7 +603,11 @@ export function OrderCardActions({
             disabled={isPending}
             onClick={() => handleStatusChange('COMPLETED')}
           >
-            <CheckCheck className="mr-1.5 h-4 w-4" />
+            {pendingAction === 'status:COMPLETED' ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCheck className="mr-1.5 h-4 w-4" />
+            )}
             Marquer récupérée
           </Button>
         )}
@@ -561,7 +619,6 @@ export function OrderCardActions({
             variant="outline"
             size="lg"
             className="w-full text-muted-foreground"
-            disabled={isPending}
             onClick={() => setIsEditOpen(true)}
           >
             <Pencil className="mr-1.5 h-4 w-4" />
@@ -577,7 +634,6 @@ export function OrderCardActions({
             variant="outline"
             size="lg"
             className="w-full text-muted-foreground"
-            disabled={isPending}
             onClick={() => setIsEditFulfillmentOpen(true)}
           >
             <CalendarClock className="mr-1.5 h-4 w-4" />
@@ -592,7 +648,6 @@ export function OrderCardActions({
           variant="outline"
           size="lg"
           className="w-full text-muted-foreground"
-          disabled={isPending}
           onClick={() => setIsEditCustomerOpen(true)}
         >
           <UserCog className="mr-1.5 h-4 w-4" />
@@ -607,7 +662,6 @@ export function OrderCardActions({
             variant="outline"
             size="lg"
             className="w-full text-muted-foreground"
-            disabled={isPending}
             onClick={() => setIsEditLoyaltyOpen(true)}
           >
             <Gift className="mr-1.5 h-4 w-4" />
@@ -694,6 +748,8 @@ export function OrderCardActions({
         onClose={() => setIsEditLoyaltyOpen(false)}
         order={order}
       />
+
+      {confirmDialog}
     </>
   );
 }

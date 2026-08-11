@@ -19,6 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { computeChange, suggestCashTenders } from '@/lib/cash-tender';
 import type { PaymentMode } from '@/generated/prisma/client';
 
 const priceFormatter = new Intl.NumberFormat('fr-FR');
@@ -67,6 +68,9 @@ export function PaymentModal({
 }: Props) {
   const [lines, setLines] = useState<Line[]>([]);
   const [isSplit, setIsSplit] = useState(false);
+  // Montant remis par le client, pour calculer le rendu. Purement local : ce
+  // n'est PAS envoyé au serveur (le paiement enregistré reste le montant dû).
+  const [tendered, setTendered] = useState<number | null>(null);
 
   const total = lines.reduce((s, l) => s + (l.amount || 0), 0);
   const remaining = amount - total;
@@ -78,6 +82,7 @@ export function PaymentModal({
   function resetState() {
     setLines([]);
     setIsSplit(false);
+    setTendered(null);
   }
 
   function handleClose() {
@@ -95,10 +100,13 @@ export function PaymentModal({
   // unique, couvrant tout le montant.
   function selectSingleMode(mode: PaymentMode) {
     setLines([{ mode, amount }]);
+    // Changer de moyen de paiement invalide un « reçu » saisi pour les espèces.
+    if (mode !== 'CASH') setTendered(null);
   }
 
   function startSplit() {
     setIsSplit(true);
+    setTendered(null);
     setLines((prev) => {
       if (prev.length === 0)
         return [
@@ -126,6 +134,9 @@ export function PaymentModal({
 
   const showSingleGrid = !isSplit;
   const singleSelected = lines[0]?.mode ?? null;
+  // Le rendu de monnaie n'a de sens qu'en espèces, hors paiement fractionné.
+  const showCashTender = !isSplit && singleSelected === 'CASH';
+  const change = tendered === null ? null : computeChange(amount, tendered);
 
   return (
     <Modal
@@ -173,6 +184,77 @@ export function PaymentModal({
             </div>
           )}
 
+          {showCashTender && (
+            <div className="flex flex-col gap-2 rounded-xl border-2 border-border bg-muted/40 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Reçu du client (facultatif)
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setTendered(amount)}
+                  disabled={isSubmitting}
+                  className={cn(
+                    'h-11 rounded-lg border-2 px-3 text-sm font-medium tabular-nums transition-colors',
+                    tendered === amount
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border bg-card hover:bg-muted'
+                  )}
+                >
+                  Appoint
+                </button>
+                {suggestCashTenders(amount).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setTendered(value)}
+                    disabled={isSubmitting}
+                    className={cn(
+                      'h-11 rounded-lg border-2 px-3 text-sm font-medium tabular-nums transition-colors',
+                      tendered === value
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border bg-card hover:bg-muted'
+                    )}
+                  >
+                    {priceFormatter.format(value)}
+                  </button>
+                ))}
+              </div>
+              <Input
+                type="number"
+                inputMode="numeric"
+                size="sm"
+                aria-label="Montant reçu du client"
+                placeholder="Autre montant"
+                value={tendered === null ? '' : String(tendered)}
+                onValueChange={(v) =>
+                  setTendered(
+                    v.trim() === ''
+                      ? null
+                      : Math.max(0, Math.floor(Number(v) || 0))
+                  )
+                }
+                endContent={<span className="text-xs">F</span>}
+                isDisabled={isSubmitting}
+              />
+              {change !== null && (
+                <div className="flex items-baseline justify-between rounded-lg bg-green-50 px-3 py-2 dark:bg-green-950/40">
+                  <span className="text-sm font-medium text-green-900 dark:text-green-100">
+                    Rendre
+                  </span>
+                  <span className="text-2xl font-bold tabular-nums text-green-700 dark:text-green-300">
+                    {priceFormatter.format(change)} F
+                  </span>
+                </div>
+              )}
+              {tendered !== null && change === null && (
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                  Il manque {priceFormatter.format(amount - tendered)} F
+                </p>
+              )}
+            </div>
+          )}
+
           {isSplit && (
             <div className="flex flex-col gap-3">
               {lines.map((line, index) => (
@@ -204,8 +286,10 @@ export function PaymentModal({
                   </div>
                   <Input
                     type="number"
+                    inputMode="numeric"
                     size="sm"
                     className="w-28"
+                    aria-label="Montant de cette ligne"
                     value={String(line.amount)}
                     onValueChange={(v) => updateLineAmount(index, v)}
                     endContent={<span className="text-xs">F</span>}

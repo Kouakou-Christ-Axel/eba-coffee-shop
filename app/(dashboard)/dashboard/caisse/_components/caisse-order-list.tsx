@@ -43,7 +43,11 @@ export function CaisseOrderList({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    /* Deux colonnes sur grand écran seulement : une carte porte jusqu'à 8
+       boutons pleine largeur, donc la file devient très haute. En dessous de
+       `xl`, la barre latérale du dashboard laisse trop peu de largeur pour
+       deux colonnes lisibles. */
+    <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-2">
       {orders.map((o) => (
         <OrderCard
           key={o.id}

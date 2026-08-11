@@ -24,6 +24,8 @@ import {
   type CartItemSupplement,
 } from '@/lib/cart-store';
 import type { OrderType } from '@/generated/prisma/client';
+import { productNeedsPicker } from '@/lib/catalog';
+import { readApiError } from '@/lib/api-error';
 
 export type NewOrderStep = 'catalog' | 'review';
 
@@ -179,12 +181,21 @@ export function useNewOrder() {
     });
   }
 
+  /**
+   * Tap sur une tuile du catalogue. Ajoute directement au panier sauf si le
+   * produit impose un choix (`productNeedsPicker` — voir lib/catalog.ts pour
+   * pourquoi ce n'est PAS « le produit a des suppléments »).
+   */
   function handleProductTap(product: Product) {
-    const hasSupplements = (product.supplements?.length ?? 0) > 0;
-    if (!hasSupplements) {
+    if (!productNeedsPicker(product)) {
       addToCart(product, []);
       return;
     }
+    openPicker(product);
+  }
+
+  /** Ouvre le sélecteur à la demande (bouton « Options » d'une tuile). */
+  function openPicker(product: Product) {
     setPickerCartId(null);
     setPickerProduct(product);
     setIsPickerOpen(true);
@@ -269,18 +280,29 @@ export function useNewOrder() {
           }),
         });
         if (!res.ok) {
-          let msg = `Erreur ${res.status}`;
-          try {
-            const data = (await res.json()) as { error?: string };
-            if (typeof data.error === 'string') msg = data.error;
-          } catch {
-            // ignore
-          }
-          setSubmitError(msg);
+          setSubmitError(await readApiError(res));
           return;
         }
-        router.push('/dashboard/caisse');
-        router.refresh();
+        // Le n° du jour est renvoyé par l'API : on le passe à la file, qui
+        // affiche une confirmation « Commande #012 créée ». Sans ça le caissier
+        // n'a AUCUN retour après avoir validé.
+        let createdNumber: number | null = null;
+        try {
+          const data = (await res.json()) as { dailyNumber?: number };
+          if (typeof data.dailyNumber === 'number')
+            createdNumber = data.dailyNumber;
+        } catch {
+          // Confirmation best-effort : une réponse illisible ne doit pas
+          // transformer une commande créée en erreur.
+        }
+        // Pas de `router.refresh()` ici : la file est alimentée par SSE
+        // (`/api/caisse/stream`) et reçoit la nouvelle commande d'elle-même.
+        // Un refresh forcerait un re-rendu RSC complet pour rien.
+        router.push(
+          createdNumber === null
+            ? '/dashboard/caisse'
+            : `/dashboard/caisse?cree=${createdNumber}`
+        );
       } catch (err) {
         setSubmitError(err instanceof Error ? err.message : 'Erreur réseau');
       }
@@ -323,6 +345,7 @@ export function useNewOrder() {
     // actions panier
     addToCart,
     handleProductTap,
+    openPicker,
     duplicateLineWithOptions,
     handleQuantityChange,
     handleRemove,

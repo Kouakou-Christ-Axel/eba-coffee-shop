@@ -147,10 +147,10 @@ export function CartSummary({
                   <button
                     type="button"
                     onClick={() => onRemove(item.cartId)}
-                    className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
-                    aria-label="Supprimer"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive"
+                    aria-label={`Supprimer ${item.productName}`}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -218,27 +218,28 @@ function QuantityStepper({
 }) {
   return (
     <div className="inline-flex shrink-0 items-center rounded-md border bg-background">
+      {/* Le « − » s'arrête à 1 : descendre à 0 supprimait la ligne en silence,
+          sans confirmation ni annulation. La suppression passe par la corbeille,
+          qui est explicite. */}
       <button
         type="button"
-        onClick={() => onChange(value - 1)}
-        className={cn(
-          'flex h-7 w-7 items-center justify-center rounded-l-md transition-colors',
-          'hover:bg-muted'
-        )}
-        aria-label="Diminuer"
+        onClick={() => onChange(Math.max(1, value - 1))}
+        disabled={value <= 1}
+        className="flex h-11 w-11 items-center justify-center rounded-l-md transition-colors hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent"
+        aria-label="Diminuer la quantité"
       >
-        <Minus className="h-3 w-3" />
+        <Minus className="h-4 w-4" />
       </button>
-      <span className="min-w-6 text-center text-xs font-medium tabular-nums">
+      <span className="min-w-8 text-center text-sm font-medium tabular-nums">
         {value}
       </span>
       <button
         type="button"
         onClick={() => onChange(value + 1)}
-        className="flex h-7 w-7 items-center justify-center rounded-r-md transition-colors hover:bg-muted"
-        aria-label="Augmenter"
+        className="flex h-11 w-11 items-center justify-center rounded-r-md transition-colors hover:bg-muted"
+        aria-label="Augmenter la quantité"
       >
-        <Plus className="h-3 w-3" />
+        <Plus className="h-4 w-4" />
       </button>
     </div>
   );

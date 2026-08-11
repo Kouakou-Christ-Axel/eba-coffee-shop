@@ -92,7 +92,7 @@ export function EditOrderDetails({
     setError(null);
     startTransition(async () => {
       try {
-        await updateOrderDetailsAction(orderId, {
+        const result = await updateOrderDetailsAction(orderId, {
           orderType,
           pickupTime: abidjanDatetimeLocalToISO(pickup),
           paymentMode:
@@ -101,6 +101,10 @@ export function EditOrderDetails({
               : (paymentMode as PaymentMode),
           note: note.trim() ? note.trim() : null,
         });
+        if (result?.error) {
+          setError(result.error);
+          return;
+        }
         setIsOpen(false);
         setError(null);
       } catch (err) {

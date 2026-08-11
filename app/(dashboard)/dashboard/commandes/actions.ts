@@ -35,6 +35,11 @@ function revalidateOrder(id: string): void {
 // (ex. `StockShortageError` — « Stock insuffisant pour « Produit — Option » »).
 // Cf. app/(dashboard)/dashboard/menu/actions.ts pour le même motif appliqué
 // à la sauvegarde d'un produit.
+//
+// Toutes les actions de ce fichier renvoient donc `{ error }` plutôt que de
+// laisser l'erreur traverser : un 403 (rôle), un 409 (« État déjà modifié par
+// un autre caissier ») ou une rupture de stock n'affichaient RIEN au staff, et
+// le bouton semblait simplement inerte.
 function formatMutationError(err: unknown): string {
   return err instanceof Error ? err.message : 'Erreur inattendue';
 }
@@ -51,11 +56,15 @@ function revalidatePublicMenu(): void {
 export async function updateOrderStatus(
   id: string,
   newStatus: OrderStatus
-): Promise<void> {
+): Promise<{ error: string } | undefined> {
   const session = await requireCashier();
   const role = session.user.role as UserRole;
 
-  await setOrderStatus(id, newStatus, role);
+  try {
+    await setOrderStatus(id, newStatus, role);
+  } catch (err) {
+    return { error: formatMutationError(err) };
+  }
   revalidateOrder(id);
 }
 
@@ -102,10 +111,14 @@ export async function payAndCompleteAction(
 export async function updateOrderItemsAction(
   id: string,
   items: CartItem[]
-): Promise<void> {
+): Promise<{ error: string } | undefined> {
   await requireCashier();
 
-  await updateOrderItems(id, items);
+  try {
+    await updateOrderItems(id, items);
+  } catch (err) {
+    return { error: formatMutationError(err) };
+  }
   revalidateOrder(id);
 }
 
@@ -117,10 +130,14 @@ export async function updateOrderItemsAction(
 export async function updateOrderDetailsAction(
   id: string,
   input: UpdateOrderDetailsInput
-): Promise<void> {
+): Promise<{ error: string } | undefined> {
   await requireAdmin();
 
-  await updateOrderDetails(id, input);
+  try {
+    await updateOrderDetails(id, input);
+  } catch (err) {
+    return { error: formatMutationError(err) };
+  }
   revalidateOrder(id);
 }
 
@@ -131,10 +148,15 @@ export async function updateOrderDetailsAction(
 export async function setOrderCustomerAction(
   id: string,
   input: SetOrderCustomerInput
-): Promise<void> {
+): Promise<{ error: string } | undefined> {
   const session = await requireCashier();
 
-  const { customerId } = await setOrderCustomer(id, input, session.user.id);
+  let customerId: string | null;
+  try {
+    ({ customerId } = await setOrderCustomer(id, input, session.user.id));
+  } catch (err) {
+    return { error: formatMutationError(err) };
+  }
   revalidateOrder(id);
   if (customerId) {
     revalidatePath(`/dashboard/clients/${customerId}`);
