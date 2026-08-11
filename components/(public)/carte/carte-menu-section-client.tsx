@@ -8,6 +8,7 @@ import type { MenuCategory } from '@/config/menu';
 import ProductCard from '@/components/(public)/carte/product-card';
 import FeaturedShowcase from '@/components/(public)/carte/featured-showcase';
 import CarteMenuToolbar from '@/components/(public)/carte/carte-menu-toolbar';
+import ReorderBanner from '@/components/(public)/carte/reorder-banner';
 import {
   ProductDeepLink,
   productAnchorId,
@@ -226,9 +227,15 @@ function CarteMenuSectionClient({ menuData }: Props) {
           si le visiteur a déjà un filtre actif. */}
       <ProductDeepLink menuData={menuData} />
 
-      {/* Vitrine nourrie du menu COMPLET : ce n'est pas un résultat de
-          recherche, elle ne doit pas rétrécir avec le filtre. */}
-      {!hasSearchTerm && <FeaturedShowcase menuData={menuData} />}
+      {/* Vitrines nourries du menu COMPLET : ce ne sont pas des résultats de
+          recherche, elles ne doivent pas rétrécir avec le filtre. La vitrine
+          personnelle passe avant la générique. */}
+      {!hasSearchTerm && (
+        <>
+          <ReorderBanner menuData={menuData} />
+          <FeaturedShowcase menuData={menuData} />
+        </>
+      )}
 
       <div
         ref={resultsRef}
