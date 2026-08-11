@@ -1,21 +1,21 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { ChevronUp, ChevronDown, Trash2, Pencil, Check, X } from 'lucide-react';
+import { ChevronUp, ChevronDown, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import {
-  ScheduleField,
-  type ScheduleOption,
-} from '@/components/(dashboard)/schedule-field';
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import type { ScheduleOption } from '@/components/(dashboard)/schedule-field';
+import { CategoryEditSheet } from './category-edit-sheet';
 import {
   toggleCategoryAvailabilityAction,
   moveCategoryAction,
   deleteCategoryAction,
-  updateCategoryAction,
 } from './actions';
-import { ADVANCE_ORDER_DAYS_MAX } from '@/config/constants';
 
 export function CategoryRowActions({
   id,
@@ -23,182 +23,142 @@ export function CategoryRowActions({
   available,
   scheduleId,
   advanceOrderDays,
+  productCount,
   schedules,
   isFirst,
   isLast,
+  reorderDisabledReason,
 }: {
   id: string;
   name: string;
   available: boolean;
   scheduleId: string | null;
   advanceOrderDays: number | null;
+  productCount: number;
   schedules: ScheduleOption[];
   isFirst: boolean;
   isLast: boolean;
+  /** Non vide quand un filtre masque des lignes : l'ordre affiché ≠ ordre réel. */
+  reorderDisabledReason?: string;
 }) {
   const [isPending, startTransition] = useTransition();
-  const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(name);
-  const [editScheduleId, setEditScheduleId] = useState<string | null>(
-    scheduleId
-  );
-  const [editAdvanceOrderDays, setEditAdvanceOrderDays] = useState<
-    number | null
-  >(advanceOrderDays);
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
-  function startEdit() {
-    setEditName(name);
-    setEditScheduleId(scheduleId);
-    setEditAdvanceOrderDays(advanceOrderDays);
-    setIsEditing(true);
-  }
-
-  function cancelEdit() {
-    setEditName(name);
-    setEditScheduleId(scheduleId);
-    setEditAdvanceOrderDays(advanceOrderDays);
-    setIsEditing(false);
-  }
-
-  function confirmRename() {
-    if (!editName.trim()) {
-      cancelEdit();
-      return;
-    }
-    if (
-      editName.trim() === name &&
-      editScheduleId === scheduleId &&
-      editAdvanceOrderDays === advanceOrderDays
-    ) {
-      cancelEdit();
-      return;
-    }
-    startTransition(async () => {
-      await updateCategoryAction(id, {
-        name: editName.trim(),
-        scheduleId: editScheduleId,
-        advanceOrderDays: editAdvanceOrderDays,
-      });
-      setIsEditing(false);
-    });
-  }
-
-  if (isEditing) {
-    return (
-      <div className="space-y-2 rounded-md border bg-background p-3">
-        <div className="flex items-center gap-1">
-          <Input
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') confirmRename();
-              if (e.key === 'Escape') cancelEdit();
-            }}
-            className="h-8 w-40 text-sm"
-            autoFocus
-            disabled={isPending}
-          />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={confirmRename}
-            disabled={isPending || !editName.trim()}
-            aria-label="Confirmer"
-          >
-            <Check className="size-4 text-green-600" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={cancelEdit}
-            disabled={isPending}
-            aria-label="Annuler"
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
-        <ScheduleField
-          schedules={schedules}
-          scheduleId={editScheduleId}
-          onChange={setEditScheduleId}
-          label="Planning récurrent"
-          helpText="Ex. « menu brunch » disponible le week-end seulement."
-        />
-        <div className="space-y-1">
-          <Input
-            type="number"
-            min={1}
-            max={ADVANCE_ORDER_DAYS_MAX}
-            step={1}
-            placeholder="Commande à l'avance (jours)"
-            value={editAdvanceOrderDays ?? ''}
-            onChange={(e) =>
-              setEditAdvanceOrderDays(
-                e.target.value === '' ? null : Number(e.target.value)
-              )
-            }
-            className="h-8 text-sm"
-            disabled={isPending}
-          />
-        </div>
-      </div>
-    );
-  }
+  const reorderLocked = Boolean(reorderDisabledReason);
 
   return (
-    <div className="flex items-center gap-2">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        disabled={isPending}
-        onClick={startEdit}
-        aria-label="Renommer"
-      >
-        <Pencil className="size-4" />
-      </Button>
-      <Switch
-        checked={available}
-        disabled={isPending}
-        onCheckedChange={() =>
-          startTransition(() => toggleCategoryAvailabilityAction(id))
-        }
-        aria-label="Disponibilité"
+    <>
+      <div className="flex items-center justify-end gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              disabled={isPending}
+              onClick={() => setIsEditOpen(true)}
+              aria-label={`Modifier la catégorie ${name}`}
+            >
+              <Pencil className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Modifier</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex px-1">
+              <Switch
+                checked={available}
+                disabled={isPending}
+                onCheckedChange={() =>
+                  startTransition(() => toggleCategoryAvailabilityAction(id))
+                }
+                aria-label={
+                  available
+                    ? `Masquer la catégorie ${name}`
+                    : `Afficher la catégorie ${name}`
+                }
+              />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {available ? 'Masquer de la carte' : 'Afficher sur la carte'}
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={isPending || isFirst || reorderLocked}
+                onClick={() =>
+                  startTransition(() => moveCategoryAction(id, 'up'))
+                }
+                aria-label={`Monter ${name}`}
+              >
+                <ChevronUp className="size-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{reorderDisabledReason ?? 'Monter'}</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={isPending || isLast || reorderLocked}
+                onClick={() =>
+                  startTransition(() => moveCategoryAction(id, 'down'))
+                }
+                aria-label={`Descendre ${name}`}
+              >
+                <ChevronDown className="size-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {reorderDisabledReason ?? 'Descendre'}
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              disabled={isPending}
+              onClick={() => {
+                const warning =
+                  productCount > 0
+                    ? `Supprimer « ${name} » ? Ses ${productCount} produit(s) seront aussi supprimés.`
+                    : `Supprimer « ${name} » ?`;
+                if (confirm(warning)) {
+                  startTransition(() => deleteCategoryAction(id));
+                }
+              }}
+              aria-label={`Supprimer la catégorie ${name}`}
+            >
+              <Trash2 className="size-4 text-destructive" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Supprimer</TooltipContent>
+        </Tooltip>
+      </div>
+
+      <CategoryEditSheet
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        id={id}
+        name={name}
+        scheduleId={scheduleId}
+        advanceOrderDays={advanceOrderDays}
+        schedules={schedules}
       />
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        disabled={isPending || isFirst}
-        onClick={() => startTransition(() => moveCategoryAction(id, 'up'))}
-        aria-label="Monter"
-      >
-        <ChevronUp className="size-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        disabled={isPending || isLast}
-        onClick={() => startTransition(() => moveCategoryAction(id, 'down'))}
-        aria-label="Descendre"
-      >
-        <ChevronDown className="size-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        disabled={isPending}
-        onClick={() => {
-          if (
-            confirm(
-              'Supprimer cette catégorie ? Tous ses produits seront aussi supprimés.'
-            )
-          ) {
-            startTransition(() => deleteCategoryAction(id));
-          }
-        }}
-        aria-label="Supprimer"
-      >
-        <Trash2 className="size-4 text-destructive" />
-      </Button>
-    </div>
+    </>
   );
 }

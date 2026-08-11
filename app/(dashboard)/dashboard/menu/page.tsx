@@ -1,19 +1,10 @@
 import Link from 'next/link';
 import prisma from '@/lib/prisma';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { getMenuSettings } from '@/lib/menu-settings-db';
 import { listProductSchedules } from '@/lib/menu';
 import { CategoryForm } from './category-form';
-import { CategoryRowActions } from './category-row-actions';
+import { CategoriesTable, type CategoryRow } from './categories-table';
 import { MenuPdfField } from './menu-pdf-field';
 
 export default async function MenuPage() {
@@ -30,11 +21,32 @@ export default async function MenuPage() {
     listProductSchedules(),
   ]);
 
+  const rows: CategoryRow[] = categories.map((cat) => ({
+    id: cat.id,
+    name: cat.name,
+    slug: cat.slug,
+    available: cat.available,
+    scheduleId: cat.scheduleId,
+    scheduleName: cat.schedule?.name ?? null,
+    advanceOrderDays: cat.advanceOrderDays,
+    productCount: cat._count.products,
+  }));
+
+  const visibleCount = rows.filter((c) => c.available).length;
+  const productTotal = rows.reduce((sum, c) => sum + c.productCount, 0);
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Menu — Catégories</h1>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Menu — Catégories</h1>
+          <p className="text-sm text-muted-foreground">
+            {rows.length} catégorie{rows.length > 1 ? 's' : ''} · {visibleCount}{' '}
+            visible{visibleCount > 1 ? 's' : ''} sur la carte · {productTotal}{' '}
+            produit{productTotal > 1 ? 's' : ''}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" asChild>
             <Link href="/dashboard/menu/plannings">Plannings récurrents</Link>
           </Button>
@@ -47,83 +59,11 @@ export default async function MenuPage() {
         </div>
       </div>
 
+      <CategoryForm schedules={schedules} />
+
+      <CategoriesTable categories={rows} schedules={schedules} />
+
       <MenuPdfField initialUrl={menuSettings.menuPdfUrl} />
-
-      <div className="rounded-lg border p-4">
-        <h2 className="mb-3 text-sm font-semibold">
-          Ajouter une nouvelle catégorie
-        </h2>
-        <CategoryForm schedules={schedules} />
-      </div>
-
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Nom</TableHead>
-            <TableHead>Slug</TableHead>
-            <TableHead>Produits</TableHead>
-            <TableHead>Statut</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {categories.map((cat, idx) => (
-            <TableRow key={cat.id}>
-              <TableCell className="font-medium">
-                <Link
-                  href={`/dashboard/menu/${cat.id}`}
-                  className="hover:underline"
-                >
-                  {cat.name}
-                </Link>
-              </TableCell>
-              <TableCell className="font-mono text-xs text-muted-foreground">
-                {cat.slug}
-              </TableCell>
-              <TableCell>{cat._count.products}</TableCell>
-              <TableCell>
-                <div className="flex flex-wrap gap-1.5">
-                  <Badge variant={cat.available ? 'default' : 'outline'}>
-                    {cat.available ? 'Visible' : 'Masquée'}
-                  </Badge>
-                  {cat.schedule && (
-                    <Badge variant="outline" title="Planning récurrent">
-                      {cat.schedule.name}
-                    </Badge>
-                  )}
-                </div>
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex items-center justify-end gap-2">
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link href={`/dashboard/menu/${cat.id}`}>Produits →</Link>
-                  </Button>
-                  <CategoryRowActions
-                    id={cat.id}
-                    name={cat.name}
-                    available={cat.available}
-                    scheduleId={cat.scheduleId}
-                    advanceOrderDays={cat.advanceOrderDays}
-                    schedules={schedules}
-                    isFirst={idx === 0}
-                    isLast={idx === categories.length - 1}
-                  />
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-          {categories.length === 0 && (
-            <TableRow>
-              <TableCell
-                colSpan={5}
-                className="py-8 text-center text-sm text-muted-foreground"
-              >
-                Aucune catégorie. Créez-en une ci-dessus.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
     </div>
   );
 }

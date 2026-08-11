@@ -54,6 +54,9 @@ export default async function CategoryProductsPage({
     pending: pendingDemand.products.get(p.id) ?? 0,
   }));
 
+  const visibleCount = products.filter((p) => p.available).length;
+  const outOfStockCount = products.filter((p) => p.stockQuantity === 0).length;
+
   return (
     <div className="space-y-6">
       <div>
@@ -62,8 +65,16 @@ export default async function CategoryProductsPage({
           label="Catégories"
           className="-ml-3 mb-2"
         />
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">{category.name}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">{category.name}</h1>
+            <p className="text-sm text-muted-foreground">
+              {products.length} produit{products.length > 1 ? 's' : ''} ·{' '}
+              {visibleCount} visible{visibleCount > 1 ? 's' : ''}
+              {outOfStockCount > 0 && ` · ${outOfStockCount} épuisé(s)`}
+              {!category.available && ' · catégorie masquée de la carte'}
+            </p>
+          </div>
           <Button asChild>
             <Link href={`/dashboard/menu/${categoryId}/produits/new`}>
               + Nouveau produit

@@ -1,15 +1,22 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { MediaImage as Image } from '@/components/ui/media-image';
-import { Search } from 'lucide-react';
+import { ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -18,14 +25,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { ProductRowActions } from './product-row-actions';
 import { StockBadge } from '@/components/(dashboard)/stock-badge';
+import { moveProductAction } from '../actions';
 import {
   isPausedNow,
   isWithinAnyPeriod,
   nextUpcomingPeriod,
 } from '@/lib/supplements';
 import { formatAbidjanDateTime, formatAbidjanShortDate } from '@/lib/timezone';
+import { LOW_STOCK_THRESHOLD } from '@/config/constants';
 
 export type ProductRow = {
   id: string;
@@ -47,6 +61,28 @@ export type ProductRow = {
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
 type Availability = 'all' | 'visible' | 'hidden';
+type StockFilter = 'all' | 'low';
+type SortKey = 'menu' | 'name' | 'price-desc' | 'margin-asc' | 'stock-asc';
+
+const SORT_LABELS: Record<SortKey, string> = {
+  menu: 'Ordre du menu',
+  name: 'Nom (A→Z)',
+  'price-desc': 'Prix (décroissant)',
+  'margin-asc': 'Marge (croissante)',
+  'stock-asc': 'Stock (croissant)',
+};
+
+/** Marge en pourcentage du prix ; `null` quand elle n'est pas calculable. */
+function marginPct(p: ProductRow): number | null {
+  const couts = p.coutMatiere + p.coutEmballage;
+  if (couts <= 0 || p.price <= 0) return null;
+  return Math.round(((p.price - couts) / p.price) * 100);
+}
+
+/** Stock nul ou sous le seuil d'alerte — `null` (illimité) n'alerte jamais. */
+function isLowStock(p: ProductRow): boolean {
+  return p.stockQuantity !== null && p.stockQuantity <= LOW_STOCK_THRESHOLD;
+}
 
 export function ProductsTable({
   categoryId,
@@ -57,30 +93,99 @@ export function ProductsTable({
 }) {
   const [query, setQuery] = useState('');
   const [availability, setAvailability] = useState<Availability>('all');
+  const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [featuredOnly, setFeaturedOnly] = useState(false);
+  const [sort, setSort] = useState<SortKey>('menu');
+  const [isMoving, startMove] = useTransition();
+
+  const isFiltered =
+    query.trim().length > 0 ||
+    availability !== 'all' ||
+    stockFilter !== 'all' ||
+    featuredOnly;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return products.filter((p) => {
+    const rows = products.filter((p) => {
       if (q && !p.name.toLowerCase().includes(q)) return false;
       if (availability === 'visible' && !p.available) return false;
       if (availability === 'hidden' && p.available) return false;
+      if (stockFilter === 'low' && !isLowStock(p)) return false;
       if (featuredOnly && !p.featured) return false;
       return true;
     });
-  }, [products, query, availability, featuredOnly]);
+
+    if (sort === 'menu') return rows;
+    return [...rows].sort((a, b) => {
+      switch (sort) {
+        case 'name':
+          return a.name.localeCompare(b.name, 'fr');
+        case 'price-desc':
+          return b.price - a.price;
+        case 'margin-asc': {
+          // Les produits sans coût saisi n'ont pas de marge : on les renvoie en
+          // fin de liste plutôt que de les traiter comme une marge de 0 %.
+          const ma = marginPct(a);
+          const mb = marginPct(b);
+          if (ma === null && mb === null) return 0;
+          if (ma === null) return 1;
+          if (mb === null) return -1;
+          return ma - mb;
+        }
+        case 'stock-asc': {
+          // Stock illimité (`null`) en dernier : ce n'est jamais une alerte.
+          const sa = a.stockQuantity;
+          const sb = b.stockQuantity;
+          if (sa === null && sb === null) return 0;
+          if (sa === null) return 1;
+          if (sb === null) return -1;
+          return sa - sb;
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [products, query, availability, stockFilter, featuredOnly, sort]);
+
+  // Le réordonnancement échange le `sortOrder` de deux voisins réels. Sous
+  // filtre ou sous tri alternatif, la ligne voisine à l'écran n'est pas la
+  // voisine en base : on désactive les flèches plutôt que de produire un
+  // déplacement inattendu.
+  const reorderDisabledReason =
+    sort !== 'menu'
+      ? 'Repassez sur « Ordre du menu » pour réordonner'
+      : isFiltered
+        ? 'Réinitialisez les filtres pour réordonner'
+        : undefined;
+
+  const hiddenCount = products.filter((p) => !p.available).length;
+  const lowStockCount = products.filter((p) => isLowStock(p)).length;
+
+  // Position réelle dans la carte, pour désactiver la flèche des extrémités.
+  const positions = useMemo(
+    () => new Map(products.map((p, i) => [p.id, i])),
+    [products]
+  );
+
+  function resetFilters() {
+    setQuery('');
+    setAvailability('all');
+    setStockFilter('all');
+    setFeaturedOnly(false);
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-full sm:w-[260px]">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Rechercher un produit…"
-            className="pl-8 h-9"
+            className="h-9 pl-8"
+            aria-label="Rechercher un produit"
           />
         </div>
 
@@ -95,6 +200,18 @@ export function ProductsTable({
           </TabsList>
         </Tabs>
 
+        <Button
+          variant={stockFilter === 'low' ? 'secondary' : 'outline'}
+          size="sm"
+          onClick={() => setStockFilter((s) => (s === 'low' ? 'all' : 'low'))}
+          aria-pressed={stockFilter === 'low'}
+        >
+          Stock faible
+          {lowStockCount > 0 && (
+            <span className="ml-1.5 tabular-nums">({lowStockCount})</span>
+          )}
+        </Button>
+
         <div className="flex items-center gap-2">
           <Switch
             id="featured-only"
@@ -106,19 +223,46 @@ export function ProductsTable({
           </Label>
         </div>
 
+        <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+          <SelectTrigger size="sm" className="w-[190px]" aria-label="Trier par">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
+              <SelectItem key={key} value={key}>
+                {SORT_LABELS[key]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {isFiltered && (
+          <Button variant="ghost" size="sm" onClick={resetFilters}>
+            Réinitialiser
+          </Button>
+        )}
+
         <span className="ml-auto text-sm text-muted-foreground">
           {filtered.length} / {products.length}
+          {hiddenCount > 0 && ` · ${hiddenCount} masqué(s)`}
         </span>
       </div>
 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Image</TableHead>
+            <TableHead className="w-10">
+              <span className="sr-only">Ordre</span>
+            </TableHead>
+            <TableHead className="hidden sm:table-cell">Image</TableHead>
             <TableHead>Nom</TableHead>
-            <TableHead>Prix</TableHead>
-            <TableHead>Coûts</TableHead>
-            <TableHead>Marge</TableHead>
+            <TableHead className="text-right">Prix</TableHead>
+            <TableHead className="hidden text-right lg:table-cell">
+              Coûts
+            </TableHead>
+            <TableHead className="hidden text-right md:table-cell">
+              Marge
+            </TableHead>
             <TableHead>Stock</TableHead>
             <TableHead>Statut</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -128,10 +272,63 @@ export function ProductsTable({
           {filtered.map((p) => {
             const couts = p.coutMatiere + p.coutEmballage;
             const marge = p.price - couts;
-            const pct = p.price > 0 ? Math.round((marge / p.price) * 100) : 0;
+            const pct = marginPct(p);
+            const position = positions.get(p.id) ?? 0;
             return (
               <TableRow key={p.id}>
-                <TableCell>
+                <TableCell className="pr-0">
+                  <div className="flex flex-col">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            disabled={
+                              isMoving ||
+                              position === 0 ||
+                              Boolean(reorderDisabledReason)
+                            }
+                            onClick={() =>
+                              startMove(() => moveProductAction(p.id, 'up'))
+                            }
+                            aria-label={`Monter ${p.name}`}
+                          >
+                            <ChevronUp className="size-3.5" />
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {reorderDisabledReason ?? 'Monter dans la carte'}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            disabled={
+                              isMoving ||
+                              position === products.length - 1 ||
+                              Boolean(reorderDisabledReason)
+                            }
+                            onClick={() =>
+                              startMove(() => moveProductAction(p.id, 'down'))
+                            }
+                            aria-label={`Descendre ${p.name}`}
+                          >
+                            <ChevronDown className="size-3.5" />
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {reorderDisabledReason ?? 'Descendre dans la carte'}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TableCell>
+                <TableCell className="hidden sm:table-cell">
                   {p.imageUrl ? (
                     <Image
                       src={p.imageUrl}
@@ -141,7 +338,10 @@ export function ProductsTable({
                       className="size-12 rounded-md object-cover"
                     />
                   ) : (
-                    <div className="size-12 rounded-md bg-muted" />
+                    <div
+                      className="size-12 rounded-md bg-muted"
+                      title="Aucune photo"
+                    />
                   )}
                 </TableCell>
                 <TableCell className="font-medium">
@@ -151,24 +351,32 @@ export function ProductsTable({
                   >
                     {p.name}
                   </Link>
+                  {/* Repli mobile : la marge disparaît de sa colonne. */}
+                  {pct !== null && (
+                    <span className="block text-xs font-normal text-muted-foreground md:hidden">
+                      marge {pct}%
+                    </span>
+                  )}
                 </TableCell>
-                <TableCell>{priceFmt.format(p.price)} FCFA</TableCell>
-                <TableCell className="text-sm text-muted-foreground">
+                <TableCell className="text-right tabular-nums">
+                  {priceFmt.format(p.price)} FCFA
+                </TableCell>
+                <TableCell className="hidden text-right text-sm tabular-nums text-muted-foreground lg:table-cell">
                   {couts > 0 ? (
                     <span>{priceFmt.format(couts)} FCFA</span>
                   ) : (
                     <span className="text-xs">—</span>
                   )}
                 </TableCell>
-                <TableCell>
-                  {couts > 0 && p.price > 0 ? (
+                <TableCell className="hidden text-right md:table-cell">
+                  {pct !== null ? (
                     <span
                       className={
                         pct >= 50
-                          ? 'text-sm font-medium text-green-600'
+                          ? 'text-sm font-medium tabular-nums text-green-600'
                           : pct >= 20
-                            ? 'text-sm font-medium text-yellow-600'
-                            : 'text-sm font-medium text-destructive'
+                            ? 'text-sm font-medium tabular-nums text-yellow-600'
+                            : 'text-sm font-medium tabular-nums text-destructive'
                       }
                     >
                       {priceFmt.format(marge)} F ({pct}%)
@@ -247,6 +455,7 @@ export function ProductsTable({
                     </Button>
                     <ProductRowActions
                       id={p.id}
+                      name={p.name}
                       available={p.available}
                       featured={p.featured}
                       stockQuantity={p.stockQuantity}
@@ -259,7 +468,7 @@ export function ProductsTable({
           {filtered.length === 0 && (
             <TableRow>
               <TableCell
-                colSpan={8}
+                colSpan={9}
                 className="py-8 text-center text-sm text-muted-foreground"
               >
                 {products.length === 0

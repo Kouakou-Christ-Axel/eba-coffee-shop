@@ -115,6 +115,12 @@ export async function toggleProductFeaturedAction(id: string) {
   revalidateMenu();
 }
 
+export async function moveProductAction(id: string, direction: 'up' | 'down') {
+  await requireManager();
+  await menu.moveProduct(id, direction);
+  revalidateMenu();
+}
+
 // ── Stock & pause ──
 
 export async function restockProductAction(id: string, delta: number) {

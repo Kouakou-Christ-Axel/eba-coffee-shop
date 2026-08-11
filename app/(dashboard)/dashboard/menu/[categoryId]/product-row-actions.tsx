@@ -14,11 +14,13 @@ import {
 
 export function ProductRowActions({
   id,
+  name,
   available,
   featured,
   stockQuantity,
 }: {
   id: string;
+  name: string;
   available: boolean;
   featured: boolean;
   /** `null` = stock illimité : le réappro (« + fournée ») n'a pas de sens. */
@@ -62,7 +64,11 @@ export function ProductRowActions({
           onCheckedChange={() =>
             startTransition(() => toggleProductFeaturedAction(id))
           }
-          aria-label="Mettre en avant"
+          aria-label={
+            featured
+              ? `Retirer ${name} des incontournables`
+              : `Mettre ${name} en avant sur l’accueil`
+          }
         />
       </div>
       <Switch
@@ -71,7 +77,10 @@ export function ProductRowActions({
         onCheckedChange={() =>
           startTransition(() => toggleProductAvailabilityAction(id))
         }
-        aria-label="Disponibilité"
+        aria-label={
+          available ? `Masquer ${name} de la carte` : `Afficher ${name}`
+        }
+        title={available ? 'Visible sur la carte' : 'Masqué de la carte'}
       />
       {stockQuantity !== null &&
         (isRestockOpen ? (
@@ -129,11 +138,12 @@ export function ProductRowActions({
         size="icon-sm"
         disabled={isPending}
         onClick={() => {
-          if (confirm('Supprimer ce produit ?')) {
+          if (confirm(`Supprimer « ${name} » ?`)) {
             startTransition(() => deleteProductAction(id));
           }
         }}
-        aria-label="Supprimer"
+        aria-label={`Supprimer ${name}`}
+        title="Supprimer"
       >
         <Trash2 className="size-4 text-destructive" />
       </Button>

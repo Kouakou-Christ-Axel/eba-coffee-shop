@@ -30,6 +30,7 @@ vi.mock('@/lib/menu-mutations', () => ({
   updateProduct: vi.fn(),
   deleteProduct: vi.fn(),
   toggleProductAvailability: vi.fn(),
+  moveProduct: vi.fn(),
   restockProduct: vi.fn(),
   pauseProduct: vi.fn(),
   resumeProduct: vi.fn(),
@@ -46,6 +47,7 @@ import {
   createProductAction,
   updateProductAction,
   toggleProductAvailabilityAction,
+  moveProductAction,
   deleteProductAction,
   restockProductAction,
   pauseProductAction,
@@ -124,6 +126,12 @@ describe('Menu Server Actions — auth gate', () => {
     await expect(resumeProductAction('p1')).rejects.toThrow('Non autorisé');
     expect(mutations.resumeProduct).not.toHaveBeenCalled();
   });
+
+  it('moveProductAction sans session → throw', async () => {
+    mockGetSession.mockResolvedValue(null);
+    await expect(moveProductAction('p1', 'up')).rejects.toThrow('Non autorisé');
+    expect(mutations.moveProduct).not.toHaveBeenCalled();
+  });
 });
 
 describe('Menu Server Actions — happy path + revalidate', () => {
@@ -170,6 +178,12 @@ describe('Menu Server Actions — happy path + revalidate', () => {
   it('toggleProductAvailabilityAction → mutation + revalidate', async () => {
     await toggleProductAvailabilityAction('p1');
     expect(mutations.toggleProductAvailability).toHaveBeenCalledWith('p1');
+    expect(mockRevalidate).toHaveBeenCalledWith('/api/menu');
+  });
+
+  it('moveProductAction → mutation + revalidate', async () => {
+    await moveProductAction('p1', 'down');
+    expect(mutations.moveProduct).toHaveBeenCalledWith('p1', 'down');
     expect(mockRevalidate).toHaveBeenCalledWith('/api/menu');
   });
 
