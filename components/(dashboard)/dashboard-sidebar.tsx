@@ -38,6 +38,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { authClient } from '@/lib/auth-client';
+import { ORDERS_VIEW_ROLES } from '@/config/constants';
 import type { UserRole } from '@/generated/prisma/client';
 
 type NavItem = {
@@ -113,7 +114,9 @@ const navItems: NavItem[] = [
     label: 'Commandes',
     href: '/dashboard/commandes',
     icon: ClipboardList,
-    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER', 'ANALYSTE'],
+    // Même liste que la garde serveur (`requireOrdersView`) : une seule source,
+    // pour que l'entrée affichée et l'accès réellement autorisé ne divergent pas.
+    roles: ORDERS_VIEW_ROLES,
   },
   {
     label: 'Clôture',

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Bike, Coffee, ShoppingBag, Globe, Bot } from 'lucide-react';
+import { requireOrdersView, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { listOrders } from '@/lib/orders';
 import type { OrderSort, PaymentFilter } from '@/lib/orders';
 import { getPickupCode } from '@/lib/orders/format';
@@ -175,6 +176,17 @@ export default async function CommandesPage({
     sort?: string;
   }>;
 }) {
+  // Cette page n'avait AUCUNE garde : seul le layout dashboard filtrait, et il
+  // laisse passer les sept rôles staff. KITCHEN et COMPTABLE — à qui la barre
+  // latérale ne montre pourtant pas « Commandes »
+  // (components/(dashboard)/dashboard-sidebar.tsx) — y accédaient donc en
+  // tapant l'URL, avec les noms et téléphones de tous les clients.
+  // `requireOrdersView` consomme ORDERS_VIEW_ROLES, la MÊME liste que celle qui
+  // pilote l'entrée « Commandes » de la barre latérale — c'est leur divergence
+  // qui avait ouvert la brèche.
+  const session = await requireOrdersView();
+  const canCash = ROLE_GROUPS.CASHIER_PLUS.includes(session.user.role);
+
   const params = await searchParams;
   const page = Math.max(1, Number(params.page ?? 1));
   const rawStatus = params.status as OrderStatus | undefined;
@@ -344,20 +356,28 @@ export default async function CommandesPage({
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
-                      <AdvanceStatusButton
-                        orderId={order.id}
-                        status={order.status}
-                      />
-                      {!order.isPaid && order.status !== 'CANCELLED' && (
-                        <EncaisserButton
+                      {/* ANALYSTE a le lien « Commandes » dans la barre
+                          latérale mais est hors CASHIER_ROLES : ces boutons
+                          n'aboutissaient qu'à un refus serveur. */}
+                      {canCash && (
+                        <AdvanceStatusButton
                           orderId={order.id}
-                          orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
-                          amount={order.total}
-                          variant="outline"
-                          size="sm"
+                          status={order.status}
                         />
                       )}
-                      {order.status !== 'CANCELLED' &&
+                      {canCash &&
+                        !order.isPaid &&
+                        order.status !== 'CANCELLED' && (
+                          <EncaisserButton
+                            orderId={order.id}
+                            orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
+                            amount={order.total}
+                            variant="outline"
+                            size="sm"
+                          />
+                        )}
+                      {canCash &&
+                        order.status !== 'CANCELLED' &&
                         order.status !== 'COMPLETED' && (
                           <ExpressCompleteButton
                             orderId={order.id}
@@ -442,8 +462,13 @@ export default async function CommandesPage({
               </div>
 
               <div className="flex flex-wrap items-center gap-1.5">
-                <AdvanceStatusButton orderId={order.id} status={order.status} />
-                {!order.isPaid && order.status !== 'CANCELLED' && (
+                {canCash && (
+                  <AdvanceStatusButton
+                    orderId={order.id}
+                    status={order.status}
+                  />
+                )}
+                {canCash && !order.isPaid && order.status !== 'CANCELLED' && (
                   <EncaisserButton
                     orderId={order.id}
                     orderRef={orderRef}
@@ -452,7 +477,8 @@ export default async function CommandesPage({
                     size="sm"
                   />
                 )}
-                {order.status !== 'CANCELLED' &&
+                {canCash &&
+                  order.status !== 'CANCELLED' &&
                   order.status !== 'COMPLETED' && (
                     <ExpressCompleteButton
                       orderId={order.id}

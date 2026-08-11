@@ -2,7 +2,7 @@ import { cache } from 'react';
 import { headers } from 'next/headers';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
-import { DASHBOARD_ROLES } from '@/config/constants';
+import { DASHBOARD_ROLES, ORDERS_VIEW_ROLES } from '@/config/constants';
 import type { UserRole } from '@/generated/prisma/client';
 
 type SessionUser = {
@@ -191,6 +191,19 @@ export async function requireDashboardAccess(): Promise<AuthorizedSession> {
   return requireRole(DASHBOARD_ROLES);
 }
 
+/**
+ * Consultation des commandes (`/dashboard/commandes` + détail). Même liste que
+ * celle qui pilote l'entrée « Commandes » de la barre latérale
+ * (`ORDERS_VIEW_ROLES`, config/constants.ts) : KITCHEN et COMPTABLE sont exclus.
+ *
+ * Lecture uniquement — ANALYSTE en fait partie. Les mutations restent gardées
+ * par `requireCashier` côté server actions, et les boutons correspondants sont
+ * masqués côté page (`canCash`).
+ */
+export async function requireOrdersView(): Promise<AuthorizedSession> {
+  return requireRole(ORDERS_VIEW_ROLES);
+}
+
 export const ROLE_GROUPS = {
   DASHBOARD: DASHBOARD_ROLES,
   MANAGER_PLUS: MANAGER_ROLES,
@@ -200,4 +213,5 @@ export const ROLE_GROUPS = {
   KITCHEN_PLUS: KITCHEN_ROLES,
   KITCHEN_STAFF: KITCHEN_STAFF_ROLES,
   CLOTURE: CLOTURE_ROLES,
+  ORDERS_VIEW: ORDERS_VIEW_ROLES,
 } as const;

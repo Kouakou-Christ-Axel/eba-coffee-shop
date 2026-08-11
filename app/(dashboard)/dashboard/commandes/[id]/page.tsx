@@ -4,7 +4,7 @@ import { Gift, Bot } from 'lucide-react';
 import { getOrder } from '@/lib/orders';
 import { getMenu } from '@/lib/menu';
 import { getContactSettings } from '@/lib/contact-settings-db';
-import { getCurrentSession } from '@/lib/auth-helpers';
+import { requireOrdersView, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { getLoyaltyCard } from '@/lib/loyalty';
 import { formatAbidjanDateTime } from '@/lib/timezone';
 import type { CartItem } from '@/lib/cart-store';
@@ -81,8 +81,12 @@ export default async function CommandeDetailPage({
     getOrder(id),
     getMenu(),
     getContactSettings(),
-    // Édition des métadonnées (paiement, type, créneau, note) réservée à l'ADMIN.
-    getCurrentSession(),
+    // Garde de page : elle manquait, seul le layout dashboard filtrait et il
+    // laisse passer les sept rôles staff. KITCHEN et COMPTABLE — sans lien vers
+    // « Commandes » dans la barre latérale — atteignaient donc cette page par
+    // l'URL, coûts et marges compris. Renvoie aussi la session, qui sert
+    // ci-dessous (l'édition des métadonnées reste réservée à l'ADMIN).
+    requireOrdersView(),
   ]);
 
   if (!order) {
@@ -90,7 +94,12 @@ export default async function CommandeDetailPage({
   }
 
   const items = order.items as CartItem[];
-  const isAdmin = session?.user.role === 'ADMIN';
+  const isAdmin = session.user.role === 'ADMIN';
+  const canCash = ROLE_GROUPS.CASHIER_PLUS.includes(session.user.role);
+  // Coûts matière/emballage et marges : donnée de gestion, pas d'exploitation.
+  // Un caissier encaisse sans avoir à connaître la marge du produit ; un
+  // ANALYSTE lit les commandes sans accéder à la structure de coûts.
+  const canSeeMargins = ROLE_GROUPS.MANAGER_PLUS.includes(session.user.role);
   // Message incitatif fidélité (récap) : uniquement si un client est associé.
   const loyaltyCard = order.customerId
     ? await getLoyaltyCard(order.customerId)
@@ -138,21 +147,23 @@ export default async function CommandeDetailPage({
           {order.status === 'CANCELLED' && order.isPaid && (
             <Badge variant="destructive">Remboursée</Badge>
           )}
-          {!order.isPaid && order.status !== 'CANCELLED' && (
+          {canCash && !order.isPaid && order.status !== 'CANCELLED' && (
             <EncaisserButton
               orderId={order.id}
               orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
               amount={order.total}
             />
           )}
-          {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && (
-            <ExpressCompleteButton
-              orderId={order.id}
-              orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
-              amount={order.total}
-              isPaid={order.isPaid}
-            />
-          )}
+          {canCash &&
+            order.status !== 'CANCELLED' &&
+            order.status !== 'COMPLETED' && (
+              <ExpressCompleteButton
+                orderId={order.id}
+                orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
+                amount={order.total}
+                isPaid={order.isPaid}
+              />
+            )}
         </div>
       </div>
 
@@ -160,12 +171,14 @@ export default async function CommandeDetailPage({
         <CardHeader>
           <CardTitle className="flex flex-wrap items-center justify-between gap-2">
             <span>Client</span>
-            <AssociateCustomer
-              orderId={order.id}
-              currentCustomerId={order.customerId}
-              currentName={order.customerName}
-              currentPhone={order.customerPhone}
-            />
+            {canCash && (
+              <AssociateCustomer
+                orderId={order.id}
+                currentCustomerId={order.customerId}
+                currentName={order.customerName}
+                currentPhone={order.customerPhone}
+              />
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
@@ -260,12 +273,14 @@ export default async function CommandeDetailPage({
                 size="sm"
                 className="w-auto"
               />
-              <EditOrderItems
-                orderId={order.id}
-                initialItems={items}
-                menu={menu}
-                status={order.status as OrderStatus}
-              />
+              {canCash && (
+                <EditOrderItems
+                  orderId={order.id}
+                  initialItems={items}
+                  menu={menu}
+                  status={order.status as OrderStatus}
+                />
+              )}
             </div>
           </CardTitle>
         </CardHeader>
@@ -321,7 +336,7 @@ export default async function CommandeDetailPage({
                       {item.discountReason ? ` — ${item.discountReason}` : ''}
                     </p>
                   )}
-                  {hasCost && (
+                  {canSeeMargins && hasCost && (
                     <p className="mt-0.5 pl-0 text-xs text-muted-foreground">
                       Coût : {new Intl.NumberFormat('fr-FR').format(lineCost)}{' '}
                       FCFA
@@ -392,7 +407,7 @@ export default async function CommandeDetailPage({
                     {new Intl.NumberFormat('fr-FR').format(order.total)} FCFA
                   </span>
                 </div>
-                {hasAnyCost && (
+                {canSeeMargins && hasAnyCost && (
                   <div className="mt-1 flex justify-between text-sm text-muted-foreground">
                     <span>Marge totale</span>
                     <span>
@@ -413,11 +428,15 @@ export default async function CommandeDetailPage({
         </CardContent>
       </Card>
 
-      <StatusButtons
-        orderId={order.id}
-        currentStatus={order.status as OrderStatus}
-        isPaid={order.isPaid}
-      />
+      {/* ANALYSTE est en lecture seule : le serveur refuse ses transitions,
+          afficher les boutons ne produirait qu'un message d'erreur. */}
+      {canCash && (
+        <StatusButtons
+          orderId={order.id}
+          currentStatus={order.status as OrderStatus}
+          isPaid={order.isPaid}
+        />
+      )}
     </div>
   );
 }

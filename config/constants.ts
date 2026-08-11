@@ -30,6 +30,33 @@ export const DASHBOARD_ROLES: UserRole[] = [
 ];
 
 /**
+ * Rôles autorisés à CONSULTER les commandes (`/dashboard/commandes` et son
+ * détail). Source de vérité UNIQUE, partagée entre la garde serveur
+ * (`requireOrdersView`, lib/auth-helpers.ts) et la barre latérale qui décide
+ * d'afficher l'entrée « Commandes » (`components/(dashboard)/dashboard-sidebar.tsx`).
+ *
+ * Pourquoi ici : ce fichier est pur, alors que `lib/auth-helpers.ts` importe
+ * `next/headers` et reste donc inutilisable depuis un composant client — même
+ * raison que `DASHBOARD_ROLES` ci-dessus.
+ *
+ * Pourquoi une constante partagée plutôt que deux listes : la barre latérale
+ * masquait déjà l'entrée à KITCHEN et COMPTABLE, mais les pages n'appliquaient
+ * AUCUNE garde — l'intention et l'application avaient divergé, et ces rôles
+ * atteignaient la liste des clients (noms, téléphones) et les marges en tapant
+ * l'URL. Une seule liste, consommée des deux côtés, empêche que ça se reproduise.
+ *
+ * = CASHIER_ROLES + ANALYSTE (lecture seule). L'écriture reste gardée
+ * séparément par `CASHIER_ROLES` : voir `canCash` dans les pages concernées.
+ */
+export const ORDERS_VIEW_ROLES: UserRole[] = [
+  'ADMIN',
+  'MANAGER',
+  'ASSISTANT_MANAGER',
+  'CASHIER',
+  'ANALYSTE',
+];
+
+/**
  * Taille maximale d'un upload d'image en octets (25 MB).
  * Cap d'ENTRÉE : on accepte des photos de téléphone lourdes (et du HEIC), qui
  * sont ensuite redimensionnées et ré-encodées en WebP léger côté serveur
