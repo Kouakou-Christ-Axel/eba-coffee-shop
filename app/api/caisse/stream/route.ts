@@ -7,7 +7,10 @@
 // debounce 150 ms, heartbeat 20 s, cleanup propre.
 
 import { auth } from '@/lib/auth';
-import { fetchCashierQueue, type CashierOrder } from '@/lib/cashier-queue';
+import {
+  fetchCashierQueueShared,
+  type CashierOrder,
+} from '@/lib/cashier-queue';
 import { subscribeOrders } from '@/lib/postgres-notify';
 import { ROLE_GROUPS } from '@/lib/auth-helpers';
 import type { UserRole } from '@/generated/prisma/client';
@@ -92,7 +95,11 @@ export async function GET(request: Request) {
 
       const pushSnapshot = async () => {
         try {
-          const fresh = await fetchCashierQueue();
+          // Mutualisée : si un autre client caisse a déclenché le même
+          // recalcul au même instant (même NOTIFY Postgres), on partage son
+          // résultat plutôt que de relancer ~6 requêtes + un snapshot de
+          // stock en double.
+          const fresh = await fetchCashierQueueShared();
           sendEvent('queue', serialize(fresh));
         } catch (err) {
           console.error('[SSE caisse] fetch échoué :', err);

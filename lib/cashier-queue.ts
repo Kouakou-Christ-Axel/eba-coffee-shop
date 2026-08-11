@@ -17,6 +17,7 @@ import {
   computeOrderItemsAvailability,
 } from '@/lib/orders/availability';
 import { getLoyaltySettings } from '@/lib/loyalty-settings-db';
+import { coalesceAsync } from '@/lib/async-coalesce';
 import type { LoyaltySettings } from '@/lib/loyalty-settings';
 import type {
   OrderSource,
@@ -283,3 +284,15 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
     };
   });
 }
+
+/**
+ * Variante mutualisée de `fetchCashierQueue()`, à utiliser par le flux SSE
+ * (`/api/caisse/stream`). Chaque client caisse connecté possède sa PROPRE
+ * boucle debounce/notify, mais reçoit le même instantané global : sans
+ * mutualisation, une seule mutation de commande relançait `fetchCashierQueue()`
+ * (≈6 requêtes + un instantané de stock) une fois PAR client connecté. Ici,
+ * les appels concurrents (déclenchés par le même NOTIFY Postgres, à quelques
+ * millisecondes près) partagent la même exécution — cf. `lib/async-coalesce.ts`.
+ * Pas de TTL : dès la réponse obtenue, l'appel suivant relance un calcul frais.
+ */
+export const fetchCashierQueueShared = coalesceAsync(fetchCashierQueue);
