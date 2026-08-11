@@ -147,7 +147,12 @@ export function filterMenu(
   const isFiltered = parsed !== null || filter.onlyAvailable;
 
   if (!isFiltered) {
-    return { categories: menu, isFiltered: false, resultCount: totalCount, totalCount };
+    return {
+      categories: menu,
+      isFiltered: false,
+      resultCount: totalCount,
+      totalCount,
+    };
   }
 
   const categories: MenuCategory[] = [];

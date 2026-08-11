@@ -185,7 +185,11 @@ describe('matchesProductSearch', () => {
 
   it('cherche aussi dans le nom de la catégorie', () => {
     expect(
-      matchesProductSearch(product('mousse'), 'Tout chocolat', parse('chocolat'))
+      matchesProductSearch(
+        product('mousse'),
+        'Tout chocolat',
+        parse('chocolat')
+      )
     ).toBe(true);
   });
 
@@ -221,9 +225,9 @@ describe('filterMenu', () => {
   });
 
   it('traite un terme trop court comme aucun terme', () => {
-    expect(filterMenu(menu, { term: 'c', onlyAvailable: false }).categories).toBe(
-      menu
-    );
+    expect(
+      filterMenu(menu, { term: 'c', onlyAvailable: false }).categories
+    ).toBe(menu);
   });
 
   it('écarte les produits non commandables', () => {
@@ -250,10 +254,9 @@ describe('filterMenu', () => {
     // « eclair-cafe » (description) et « cafe-glace » (nom) matchent tous deux,
     // et sont tous deux commandables.
     expect(view.resultCount).toBe(2);
-    expect(view.categories.flatMap((c) => c.products.map((p) => p.id))).toEqual([
-      'eclair-cafe',
-      'cafe-glace',
-    ]);
+    expect(view.categories.flatMap((c) => c.products.map((p) => p.id))).toEqual(
+      ['eclair-cafe', 'cafe-glace']
+    );
   });
 
   it('conserve la référence d’une catégorie que le filtre laisse entière', () => {

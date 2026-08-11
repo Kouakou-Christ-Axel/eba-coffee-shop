@@ -8,6 +8,10 @@ import type { MenuCategory } from '@/config/menu';
 import ProductCard from '@/components/(public)/carte/product-card';
 import FeaturedShowcase from '@/components/(public)/carte/featured-showcase';
 import CarteMenuToolbar from '@/components/(public)/carte/carte-menu-toolbar';
+import {
+  ProductDeepLink,
+  productAnchorId,
+} from '@/components/(public)/carte/_components/product-deep-link';
 import { filterMenu, parseMenuSearchTerm } from '@/lib/menu-display';
 import { isAvailableToday } from '@/lib/supplements';
 import { formatAvailableDaysLabel } from '@/components/(public)/carte/_components/availability-labels';
@@ -218,6 +222,10 @@ function CarteMenuSectionClient({ menuData }: Props) {
         </div>
       </div>
 
+      {/* Cible le menu COMPLET : un lien partagé doit ouvrir son produit même
+          si le visiteur a déjà un filtre actif. */}
+      <ProductDeepLink menuData={menuData} />
+
       {/* Vitrine nourrie du menu COMPLET : ce n'est pas un résultat de
           recherche, elle ne doit pas rétrécir avec le filtre. */}
       {!hasSearchTerm && <FeaturedShowcase menuData={menuData} />}
@@ -311,6 +319,12 @@ function CarteMenuSectionClient({ menuData }: Props) {
                   // échelonnée donnerait des résultats qui clignotent.
                   <motion.div
                     key={product.id}
+                    id={productAnchorId(product.id)}
+                    // Cible d'un lien `/carte?p=<id>` : focusable au clavier
+                    // pour que la fermeture de la modale rende le focus ici
+                    // plutôt qu'en haut du document.
+                    tabIndex={-1}
+                    className="scroll-mt-40 outline-none focus-visible:rounded-2xl focus-visible:ring-2 focus-visible:ring-secondary"
                     initial={{ opacity: 0, y: 16 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true, amount: 0.15 }}
