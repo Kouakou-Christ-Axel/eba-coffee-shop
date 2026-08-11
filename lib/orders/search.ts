@@ -14,6 +14,7 @@
 
 import { PHONE_SEARCH_MIN_DIGITS } from '@/config/constants';
 import { getPickupCode } from '@/lib/orders/format';
+import { foldText as fold } from '@/lib/text';
 
 /** Forme minimale d'une commande pour la recherche terrain. */
 export type SearchableOrder = {
@@ -35,14 +36,6 @@ export type ParsedSearchTerm = {
   /** N° du jour quand le terme est purement numérique et plausible. */
   dailyNumber: number | null;
 };
-
-/** Minuscules sans diacritiques : « Kouakou Axèl » → « kouakou axel ». */
-function fold(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase();
-}
 
 /**
  * Prépare un terme de recherche. Retourne `null` quand il n'y a rien

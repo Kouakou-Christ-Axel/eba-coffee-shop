@@ -8,7 +8,11 @@
 // premier rendu client, donc aucun mismatch d'hydratation.
 
 import { useSyncExternalStore } from 'react';
-import { readOrderHistory, subscribeOrderHistory } from '@/lib/order-history';
+import {
+  readOrderHistory,
+  subscribeOrderHistory,
+  type StoredOrder,
+} from '@/lib/order-history';
 
 function hasOrdersSnapshot(): boolean {
   return readOrderHistory().length > 0;
@@ -24,5 +28,25 @@ export function useHasOrderHistory(): boolean {
     subscribeOrderHistory,
     hasOrdersSnapshot,
     serverSnapshot
+  );
+}
+
+// `readOrderHistory` met en cache le tableau parsé tant que la chaîne brute
+// n'a pas changé : l'identité de `[0]` est donc stable d'un snapshot à
+// l'autre, comme `useSyncExternalStore` l'exige.
+function lastOrderSnapshot(): StoredOrder | null {
+  return readOrderHistory()[0] ?? null;
+}
+
+function lastOrderServerSnapshot(): StoredOrder | null {
+  return null;
+}
+
+/** Commande la plus récente passée depuis cet appareil, `null` au SSR. */
+export function useLastOrder(): StoredOrder | null {
+  return useSyncExternalStore(
+    subscribeOrderHistory,
+    lastOrderSnapshot,
+    lastOrderServerSnapshot
   );
 }
