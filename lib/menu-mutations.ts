@@ -212,6 +212,45 @@ export async function moveCategory(id: string, direction: 'up' | 'down') {
   });
 }
 
+// Vérifie qu'un ordre reçu du client décrit EXACTEMENT l'ensemble courant.
+// Un glisser-déposer part d'une liste rendue il y a quelques secondes : entre
+// temps un autre admin (ou un outil MCP) a pu créer ou supprimer une ligne.
+// Réindexer sur une liste périmée effacerait silencieusement sa modification —
+// on refuse, l'UI restaure l'ordre affiché et signale le conflit.
+function assertSameSet(orderedIds: string[], currentIds: string[], what: string) {
+  const ordered = new Set(orderedIds);
+  if (
+    ordered.size !== orderedIds.length ||
+    ordered.size !== currentIds.length ||
+    currentIds.some((id) => !ordered.has(id))
+  ) {
+    throw new Error(
+      `La liste des ${what} a changé entre-temps. Rechargez la page avant de réordonner.`
+    );
+  }
+}
+
+// Réordonnancement complet (glisser-déposer) : réindexe `sortOrder` sur la
+// position dans `orderedIds`. Complémentaire de `moveCategory`, qui échange
+// deux voisins et reste utilisé par l'outil MCP `move_category`.
+export async function reorderCategories(orderedIds: string[]) {
+  const current = await prisma.menuCategory.findMany({
+    where: { deletedAt: null },
+    select: { id: true },
+  });
+  assertSameSet(
+    orderedIds,
+    current.map((c) => c.id),
+    'catégories'
+  );
+
+  return prisma.$transaction(async (tx) => {
+    for (const [index, id] of orderedIds.entries()) {
+      await tx.menuCategory.update({ where: { id }, data: { sortOrder: index } });
+    }
+  });
+}
+
 // ─── Produits ─────────────────────────────────────────────────────────────────
 
 export type ProductInput = z.infer<typeof productInputSchema>;
@@ -355,6 +394,30 @@ export async function moveProduct(id: string, direction: 'up' | 'down') {
   await prisma.product.update({
     where: { id: b.id },
     data: { sortOrder: a.sortOrder },
+  });
+}
+
+// Réordonnancement complet (glisser-déposer) DANS une catégorie. Complémentaire
+// de `moveProduct`, qui échange deux voisins et reste utilisé par l'outil MCP
+// `move_product`.
+export async function reorderProducts(
+  categoryId: string,
+  orderedIds: string[]
+) {
+  const current = await prisma.product.findMany({
+    where: { categoryId, deletedAt: null },
+    select: { id: true },
+  });
+  assertSameSet(
+    orderedIds,
+    current.map((p) => p.id),
+    'produits'
+  );
+
+  return prisma.$transaction(async (tx) => {
+    for (const [index, id] of orderedIds.entries()) {
+      await tx.product.update({ where: { id }, data: { sortOrder: index } });
+    }
   });
 }
 

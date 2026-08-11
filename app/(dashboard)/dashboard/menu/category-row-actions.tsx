@@ -1,7 +1,15 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { ChevronUp, ChevronDown, Trash2, Pencil, Check, X } from 'lucide-react';
+import {
+  ChevronUp,
+  ChevronDown,
+  Loader2,
+  Trash2,
+  Pencil,
+  Check,
+  X,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -9,6 +17,9 @@ import {
   ScheduleField,
   type ScheduleOption,
 } from '@/components/(dashboard)/schedule-field';
+import { ConfirmDialog } from '@/components/(dashboard)/confirm-dialog';
+import { useUndoToast } from '@/lib/hooks/use-undo-toast';
+import { useResettableState } from '@/lib/hooks/use-resettable-state';
 import {
   toggleCategoryAvailabilityAction,
   moveCategoryAction,
@@ -23,6 +34,7 @@ export function CategoryRowActions({
   available,
   scheduleId,
   advanceOrderDays,
+  productCount,
   schedules,
   isFirst,
   isLast,
@@ -32,12 +44,16 @@ export function CategoryRowActions({
   available: boolean;
   scheduleId: string | null;
   advanceOrderDays: number | null;
+  /** Affiché dans la confirmation : la suppression emporte les produits. */
+  productCount: number;
   schedules: ScheduleOption[];
   isFirst: boolean;
   isLast: boolean;
 }) {
+  const { pushToast } = useUndoToast();
   const [isPending, startTransition] = useTransition();
   const [isEditing, setIsEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [editName, setEditName] = useState(name);
   const [editScheduleId, setEditScheduleId] = useState<string | null>(
     scheduleId
@@ -45,6 +61,15 @@ export function CategoryRowActions({
   const [editAdvanceOrderDays, setEditAdvanceOrderDays] = useState<
     number | null
   >(advanceOrderDays);
+
+  // Miroir optimiste : l'interrupteur bascule tout de suite et revient en
+  // arrière si le serveur refuse, au lieu de rester silencieusement faux.
+  // Resynchronisé sur la prop sans `useEffect` (pattern « Adjusting state when
+  // a prop changes »).
+  const [optimisticAvailable, setOptimisticAvailable] = useResettableState(
+    String(available),
+    () => available
+  );
 
   function startEdit() {
     setEditName(name);
@@ -74,18 +99,54 @@ export function CategoryRowActions({
       return;
     }
     startTransition(async () => {
-      await updateCategoryAction(id, {
+      const result = await updateCategoryAction(id, {
         name: editName.trim(),
         scheduleId: editScheduleId,
         advanceOrderDays: editAdvanceOrderDays,
       });
+      if (!result.ok) {
+        pushToast(result.error, 'error');
+        return;
+      }
       setIsEditing(false);
+      pushToast('Catégorie enregistrée');
+    });
+  }
+
+  function handleToggle(next: boolean) {
+    setOptimisticAvailable(() => next);
+    startTransition(async () => {
+      const result = await toggleCategoryAvailabilityAction(id);
+      if (result.ok) {
+        pushToast(next ? `${name} visible` : `${name} masquée`);
+        return;
+      }
+      setOptimisticAvailable(() => !next);
+      pushToast(result.error, 'error');
+    });
+  }
+
+  function handleMove(direction: 'up' | 'down') {
+    startTransition(async () => {
+      const result = await moveCategoryAction(id, direction);
+      if (!result.ok) pushToast(result.error, 'error');
+    });
+  }
+
+  function handleDelete() {
+    startTransition(async () => {
+      const result = await deleteCategoryAction(id);
+      setConfirmDelete(false);
+      pushToast(
+        result.ok ? `${name} supprimée` : result.error,
+        result.ok ? 'success' : 'error'
+      );
     });
   }
 
   if (isEditing) {
     return (
-      <div className="space-y-2 rounded-md border bg-background p-3">
+      <div className="space-y-2 rounded-md border bg-background p-3 text-left">
         <div className="flex items-center gap-1">
           <Input
             value={editName}
@@ -97,6 +158,7 @@ export function CategoryRowActions({
             className="h-8 w-40 text-sm"
             autoFocus
             disabled={isPending}
+            aria-label="Nom de la catégorie"
           />
           <Button
             variant="ghost"
@@ -105,7 +167,11 @@ export function CategoryRowActions({
             disabled={isPending || !editName.trim()}
             aria-label="Confirmer"
           >
-            <Check className="size-4 text-green-600" />
+            {isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Check className="size-4 text-green-600" />
+            )}
           </Button>
           <Button
             variant="ghost"
@@ -139,6 +205,7 @@ export function CategoryRowActions({
             }
             className="h-8 text-sm"
             disabled={isPending}
+            aria-label="Commande à l'avance (jours)"
           />
         </div>
       </div>
@@ -146,39 +213,47 @@ export function CategoryRowActions({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center justify-end gap-1 sm:gap-2">
       <Button
         variant="ghost"
         size="icon-sm"
         disabled={isPending}
         onClick={startEdit}
-        aria-label="Renommer"
+        aria-label={`Renommer ${name}`}
       >
         <Pencil className="size-4" />
       </Button>
       <Switch
-        checked={available}
+        checked={optimisticAvailable}
         disabled={isPending}
-        onCheckedChange={() =>
-          startTransition(() => toggleCategoryAvailabilityAction(id))
-        }
+        onCheckedChange={handleToggle}
         aria-label="Disponibilité"
       />
+      {isPending ? (
+        <Loader2
+          className="size-4 shrink-0 animate-spin text-muted-foreground"
+          aria-hidden="true"
+        />
+      ) : (
+        <span className="size-4 shrink-0" aria-hidden="true" />
+      )}
       <Button
         variant="ghost"
         size="icon-sm"
+        className="hidden sm:inline-flex"
         disabled={isPending || isFirst}
-        onClick={() => startTransition(() => moveCategoryAction(id, 'up'))}
-        aria-label="Monter"
+        onClick={() => handleMove('up')}
+        aria-label={`Monter ${name}`}
       >
         <ChevronUp className="size-4" />
       </Button>
       <Button
         variant="ghost"
         size="icon-sm"
+        className="hidden sm:inline-flex"
         disabled={isPending || isLast}
-        onClick={() => startTransition(() => moveCategoryAction(id, 'down'))}
-        aria-label="Descendre"
+        onClick={() => handleMove('down')}
+        aria-label={`Descendre ${name}`}
       >
         <ChevronDown className="size-4" />
       </Button>
@@ -186,19 +261,26 @@ export function CategoryRowActions({
         variant="ghost"
         size="icon-sm"
         disabled={isPending}
-        onClick={() => {
-          if (
-            confirm(
-              'Supprimer cette catégorie ? Tous ses produits seront aussi supprimés.'
-            )
-          ) {
-            startTransition(() => deleteCategoryAction(id));
-          }
-        }}
-        aria-label="Supprimer"
+        onClick={() => setConfirmDelete(true)}
+        aria-label={`Supprimer ${name}`}
       >
         <Trash2 className="size-4 text-destructive" />
       </Button>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Supprimer « ${name} » ?`}
+        description={
+          productCount > 0
+            ? `Ses ${productCount} produit${productCount > 1 ? 's' : ''} seront supprimés aussi et disparaîtront de la carte.`
+            : 'Cette catégorie ne contient aucun produit.'
+        }
+        confirmLabel="Supprimer"
+        destructive
+        isPending={isPending}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

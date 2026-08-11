@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { WeekdayToggle } from './weekday-toggle';
+import { useUndoToast } from '@/lib/hooks/use-undo-toast';
 import { createProductScheduleAction } from '../actions';
 
 export function ScheduleForm() {
   const router = useRouter();
+  const { pushToast } = useUndoToast();
   const [name, setName] = useState('');
   const [days, setDays] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -18,17 +20,17 @@ export function ScheduleForm() {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await createProductScheduleAction({
-        name: name.trim(),
-        days,
-      });
-      if (result?.error) {
+      const created = name.trim();
+      const result = await createProductScheduleAction({ name: created, days });
+      if (!result.ok) {
         setError(result.error);
+        pushToast(result.error, 'error');
         return;
       }
       setName('');
       setDays([]);
       router.refresh();
+      pushToast(`Planning « ${created} » créé`);
     });
   }
 

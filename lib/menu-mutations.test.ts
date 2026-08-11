@@ -65,6 +65,8 @@ import {
   deleteProduct,
   toggleProductAvailability,
   moveProduct,
+  reorderProducts,
+  reorderCategories,
   slugify,
   createProductSchedule,
   updateProductSchedule,
@@ -658,6 +660,93 @@ describe('moveProduct', () => {
   it("rejette si le produit n'existe pas", async () => {
     mockProdFindUnique.mockResolvedValue(null);
     await expect(moveProduct('x', 'up')).rejects.toThrow('Produit introuvable');
+  });
+});
+
+describe('reorderProducts', () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it('réindexe sortOrder sur la position dans la liste reçue', async () => {
+    mockProdFindMany.mockResolvedValue([
+      { id: 'a' },
+      { id: 'b' },
+      { id: 'c' },
+    ] as never);
+    mockProdUpdate.mockResolvedValue({} as never);
+
+    await reorderProducts('cat1', ['c', 'a', 'b']);
+
+    expect(mockProdUpdate).toHaveBeenCalledWith({
+      where: { id: 'c' },
+      data: { sortOrder: 0 },
+    });
+    expect(mockProdUpdate).toHaveBeenCalledWith({
+      where: { id: 'a' },
+      data: { sortOrder: 1 },
+    });
+    expect(mockProdUpdate).toHaveBeenCalledWith({
+      where: { id: 'b' },
+      data: { sortOrder: 2 },
+    });
+  });
+
+  // Garde-fou contre l'écrasement silencieux : la liste rendue au client peut
+  // être périmée (produit créé ou supprimé entre-temps par un autre admin ou
+  // par un outil MCP). Réindexer dessus effacerait sa modification.
+  it('rejette un ordre incomplet sans rien écrire', async () => {
+    mockProdFindMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }] as never);
+
+    await expect(reorderProducts('cat1', ['a'])).rejects.toThrow(
+      'La liste des produits a changé'
+    );
+    expect(mockProdUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejette un ordre contenant un id inconnu', async () => {
+    mockProdFindMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }] as never);
+
+    await expect(reorderProducts('cat1', ['a', 'z'])).rejects.toThrow(
+      'La liste des produits a changé'
+    );
+    expect(mockProdUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejette un ordre contenant un doublon', async () => {
+    mockProdFindMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }] as never);
+
+    await expect(reorderProducts('cat1', ['a', 'a'])).rejects.toThrow(
+      'La liste des produits a changé'
+    );
+    expect(mockProdUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('reorderCategories', () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it('réindexe sortOrder sur la position dans la liste reçue', async () => {
+    mockCatFindMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }] as never);
+    mockCatUpdate.mockResolvedValue({} as never);
+
+    await reorderCategories(['b', 'a']);
+
+    expect(mockCatUpdate).toHaveBeenCalledWith({
+      where: { id: 'b' },
+      data: { sortOrder: 0 },
+    });
+    expect(mockCatUpdate).toHaveBeenCalledWith({
+      where: { id: 'a' },
+      data: { sortOrder: 1 },
+    });
+  });
+
+  it('rejette un ordre périmé sans rien écrire', async () => {
+    mockCatFindMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }] as never);
+
+    await expect(reorderCategories(['a'])).rejects.toThrow(
+      'La liste des catégories a changé'
+    );
+    expect(mockCatUpdate).not.toHaveBeenCalled();
   });
 });
 

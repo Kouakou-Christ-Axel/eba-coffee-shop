@@ -4,8 +4,13 @@ import prisma from '@/lib/prisma';
 import { Button } from '@/components/ui/button';
 import { ProductsTable } from './products-table';
 import { BackButton } from '@/components/(dashboard)/back-button';
+import { MenuBreadcrumb } from '@/components/(dashboard)/menu-breadcrumb';
 import { getPendingDemand } from '@/lib/orders/pending-demand';
 import { formatLocalDateOnly } from '@/lib/timezone';
+
+// Données live + `ProductsTable` lit les filtres dans l'URL (`useSearchParams`),
+// ce qui interdit le prérendu statique. Même convention que `commandes`.
+export const dynamic = 'force-dynamic';
 
 export default async function CategoryProductsPage({
   params,
@@ -57,10 +62,11 @@ export default async function CategoryProductsPage({
   return (
     <div className="space-y-6">
       <div>
+        <MenuBreadcrumb items={[{ label: category.name }]} />
         <BackButton
           fallbackHref="/dashboard/menu"
           label="Catégories"
-          className="-ml-3 mb-2"
+          className="-ml-3 mb-2 mt-2"
         />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">{category.name}</h1>

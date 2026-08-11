@@ -1,6 +1,9 @@
 import { getGlobalExtras } from '@/lib/menu';
 import { GlobalExtrasForm } from './global-extras-form';
 
+// Page d'administration : données live, jamais prérendue.
+export const dynamic = 'force-dynamic';
+
 export default async function GlobalExtrasPage() {
   const groups = await getGlobalExtras();
 

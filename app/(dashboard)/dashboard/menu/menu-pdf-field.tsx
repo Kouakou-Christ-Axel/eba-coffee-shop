@@ -10,6 +10,7 @@ import {
   isAllowedDocumentMimeType,
 } from '@/lib/schemas/upload';
 import { uploadRawToCloudinary } from '@/lib/cloudinary-client';
+import { useUndoToast } from '@/lib/hooks/use-undo-toast';
 import { saveMenuPdfUrlAction } from './actions';
 
 const ACCEPT = ALLOWED_DOCUMENT_MIME_TYPES.join(',');
@@ -20,6 +21,7 @@ type Props = {
 };
 
 export function MenuPdfField({ initialUrl }: Props) {
+  const { pushToast } = useUndoToast();
   const [pdfUrl, setPdfUrl] = useState(initialUrl);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,11 +45,13 @@ export function MenuPdfField({ initialUrl }: Props) {
       );
       startTransition(async () => {
         const res = await saveMenuPdfUrlAction(url);
-        if (res?.error) {
+        if (!res.ok) {
           setError(res.error);
+          pushToast(res.error, 'error');
           return;
         }
         setPdfUrl(url);
+        pushToast('Carte PDF mise en ligne');
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur upload');
@@ -60,11 +64,13 @@ export function MenuPdfField({ initialUrl }: Props) {
     setError(null);
     startTransition(async () => {
       const res = await saveMenuPdfUrlAction(null);
-      if (res?.error) {
+      if (!res.ok) {
         setError(res.error);
+        pushToast(res.error, 'error');
         return;
       }
       setPdfUrl(null);
+      pushToast('Carte PDF retirée');
     });
   }
 

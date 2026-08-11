@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
-import { Search } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Search, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +15,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { StockBadge } from '@/components/(dashboard)/stock-badge';
+import { useUndoToast } from '@/lib/hooks/use-undo-toast';
 import { setOptionStockAction } from '../actions';
+
+const SEARCH_DEBOUNCE_MS = 350;
 
 export type OptionStockRowWithPending = {
   id: string;
@@ -36,10 +40,38 @@ export function OptionsStockTable({
 }: {
   rows: OptionStockRowWithPending[];
 }) {
-  const [query, setQuery] = useState('');
+  const searchParams = useSearchParams();
+  // Recherche reflétée dans l'URL (`history.replaceState`, filtrage 100 %
+  // client) : elle survit à un aller-retour et se partage par lien.
+  const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(
+      () => setDebouncedQuery(query),
+      SEARCH_DEBOUNCE_MS
+    );
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [query]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (debouncedQuery.trim()) params.set('q', debouncedQuery.trim());
+    else params.delete('q');
+    const qs = params.toString();
+    window.history.replaceState(
+      null,
+      '',
+      qs ? `${window.location.pathname}?${qs}` : window.location.pathname
+    );
+  }, [debouncedQuery]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter(
       (r) =>
@@ -47,7 +79,7 @@ export function OptionsStockTable({
         r.groupName.toLowerCase().includes(q) ||
         (r.productName ?? '').toLowerCase().includes(q)
     );
-  }, [rows, query]);
+  }, [rows, debouncedQuery]);
 
   return (
     <div className="space-y-4">
@@ -58,26 +90,38 @@ export function OptionsStockTable({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Rechercher un goût, un groupe, un produit…"
-          className="pl-8 h-9"
+          className="h-9 pl-8 pr-8"
         />
+        {query && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setQuery('')}
+            aria-label="Effacer la recherche"
+            className="absolute right-0.5 top-1/2 h-7 w-7 -translate-y-1/2"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Produit</TableHead>
-            <TableHead>Groupe</TableHead>
+            <TableHead className="hidden md:table-cell">Produit</TableHead>
+            <TableHead className="hidden lg:table-cell">Groupe</TableHead>
             <TableHead>Goût / option</TableHead>
-            <TableHead>Prix</TableHead>
+            <TableHead className="hidden sm:table-cell">Prix</TableHead>
             <TableHead>Stock</TableHead>
-            <TableHead>En attente</TableHead>
+            <TableHead className="hidden sm:table-cell">En attente</TableHead>
             <TableHead className="text-right">Modifier</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {filtered.map((r) => (
             <TableRow key={r.id}>
-              <TableCell className="font-medium">
+              <TableCell className="hidden font-medium md:table-cell">
                 {r.isGlobal ? (
                   <Badge variant="secondary">Extra global</Badge>
                 ) : (
@@ -91,15 +135,23 @@ export function OptionsStockTable({
                   </span>
                 )}
               </TableCell>
-              <TableCell className="text-sm text-muted-foreground">
+              <TableCell className="hidden text-sm text-muted-foreground lg:table-cell">
                 {r.groupName}
               </TableCell>
-              <TableCell>{r.optionName}</TableCell>
-              <TableCell>{priceFmt.format(r.price)} FCFA</TableCell>
+              <TableCell>
+                {r.optionName}
+                {/* Le produit disparaît sous md : on le rappelle ici. */}
+                <span className="block text-xs text-muted-foreground md:hidden">
+                  {r.isGlobal ? 'Extra global' : r.productName}
+                </span>
+              </TableCell>
+              <TableCell className="hidden sm:table-cell">
+                {priceFmt.format(r.price)} FCFA
+              </TableCell>
               <TableCell>
                 <StockBadge stockQuantity={r.stockQuantity} />
               </TableCell>
-              <TableCell>
+              <TableCell className="hidden sm:table-cell">
                 {r.pending > 0 ? (
                   <span
                     className="text-sm text-amber-700 dark:text-amber-400"
@@ -114,6 +166,7 @@ export function OptionsStockTable({
               <TableCell className="text-right">
                 <StockQuickEdit
                   optionId={r.id}
+                  optionName={r.optionName}
                   stockQuantity={r.stockQuantity}
                 />
               </TableCell>
@@ -139,11 +192,14 @@ export function OptionsStockTable({
 
 function StockQuickEdit({
   optionId,
+  optionName,
   stockQuantity,
 }: {
   optionId: string;
+  optionName: string;
   stockQuantity: number | null;
 }) {
+  const { pushToast } = useUndoToast();
   const [value, setValue] = useState(String(stockQuantity ?? 0));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -156,11 +212,13 @@ function StockQuickEdit({
       return;
     }
     startTransition(async () => {
-      try {
-        await setOptionStockAction(optionId, quantity);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erreur');
+      const result = await setOptionStockAction(optionId, quantity);
+      if (!result.ok) {
+        setError('Erreur');
+        pushToast(result.error, 'error');
+        return;
       }
+      pushToast(`${optionName} : stock à ${quantity}`);
     });
   }
 
@@ -172,8 +230,12 @@ function StockQuickEdit({
         step={1}
         value={value}
         onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') save();
+        }}
         disabled={isPending}
         className="h-8 w-20 text-right"
+        aria-label={`Stock de ${optionName}`}
       />
       <Button size="sm" variant="outline" disabled={isPending} onClick={save}>
         {isPending ? '…' : 'OK'}

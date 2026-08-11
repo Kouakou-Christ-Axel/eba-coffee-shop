@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { listProductSchedules, listProductWeeklySpecials } from '@/lib/menu';
 import { ProductForm, type ProductFormInitial } from '../product-form';
 import { BackButton } from '@/components/(dashboard)/back-button';
+import { MenuBreadcrumb } from '@/components/(dashboard)/menu-breadcrumb';
 
 export default async function EditProductPage({
   params,
@@ -74,10 +75,16 @@ export default async function EditProductPage({
   return (
     <div className="space-y-6">
       <div>
+        <MenuBreadcrumb
+          items={[
+            { label: category.name, href: `/dashboard/menu/${categoryId}` },
+            { label: product.name },
+          ]}
+        />
         <BackButton
           fallbackHref={`/dashboard/menu/${categoryId}`}
           label={category.name}
-          className="-ml-3 mb-2"
+          className="-ml-3 mb-2 mt-2"
         />
         <h1 className="text-2xl font-bold">Modifier {product.name}</h1>
       </div>

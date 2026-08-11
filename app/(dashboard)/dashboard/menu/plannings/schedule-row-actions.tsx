@@ -6,6 +6,8 @@ import { Pencil, Trash2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { WeekdayToggle } from './weekday-toggle';
+import { ConfirmDialog } from '@/components/(dashboard)/confirm-dialog';
+import { useUndoToast } from '@/lib/hooks/use-undo-toast';
 import {
   updateProductScheduleAction,
   deleteProductScheduleAction,
@@ -23,8 +25,10 @@ export function ScheduleRowActions({
   inUse: boolean;
 }) {
   const router = useRouter();
+  const { pushToast } = useUndoToast();
   const [isPending, startTransition] = useTransition();
   const [isEditing, setIsEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [editName, setEditName] = useState(name);
   const [editDays, setEditDays] = useState<number[]>(days);
   const [error, setError] = useState<string | null>(null);
@@ -48,12 +52,26 @@ export function ScheduleRowActions({
         name: editName.trim(),
         days: editDays,
       });
-      if (result?.error) {
+      if (!result.ok) {
         setError(result.error);
         return;
       }
       setIsEditing(false);
       router.refresh();
+      pushToast('Planning enregistré');
+    });
+  }
+
+  function handleDelete() {
+    startTransition(async () => {
+      const result = await deleteProductScheduleAction(id);
+      setConfirmDelete(false);
+      if (!result.ok) {
+        pushToast(result.error, 'error');
+        return;
+      }
+      router.refresh();
+      pushToast(`Planning « ${name} » supprimé`);
     });
   }
 
@@ -112,21 +130,26 @@ export function ScheduleRowActions({
         variant="ghost"
         size="icon-sm"
         disabled={isPending}
-        onClick={() => {
-          const message = inUse
-            ? 'Supprimer ce planning ? Les produits et catégories qui l’utilisent redeviendront disponibles tous les jours.'
-            : 'Supprimer ce planning ?';
-          if (confirm(message)) {
-            startTransition(async () => {
-              await deleteProductScheduleAction(id);
-              router.refresh();
-            });
-          }
-        }}
+        onClick={() => setConfirmDelete(true)}
         aria-label="Supprimer"
       >
         <Trash2 className="size-4 text-destructive" />
       </Button>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Supprimer « ${name} » ?`}
+        description={
+          inUse
+            ? 'Les produits et catégories qui l’utilisent redeviendront disponibles tous les jours.'
+            : 'Ce planning n’est utilisé par aucun produit ni aucune catégorie.'
+        }
+        confirmLabel="Supprimer"
+        destructive
+        isPending={isPending}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
