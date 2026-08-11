@@ -49,12 +49,14 @@ export function CaisseHeader({
           )}
         </button>
         <CancelledSheet />
+        {/* Action la plus fréquente de l'écran : elle mérite un libellé et une
+            cible tactile pleine, pas une pastille de 32 px. */}
         <Link
           href="/dashboard/caisse/new"
-          aria-label="Nouvelle commande"
-          className="rounded-full bg-primary p-2 text-primary-foreground transition-colors hover:bg-primary/90"
+          className="inline-flex h-11 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Nouvelle commande
         </Link>
       </div>
     </header>

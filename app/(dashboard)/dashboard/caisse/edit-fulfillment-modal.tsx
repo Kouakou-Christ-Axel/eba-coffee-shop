@@ -45,6 +45,10 @@ export function EditFulfillmentModal({ isOpen, onClose, order }: Props) {
   const [driverName, setDriverName] = useState(order.driverName ?? '');
   const [driverPhone, setDriverPhone] = useState(order.driverPhone ?? '');
   const [error, setError] = useState<string | null>(null);
+  // Préset de créneau choisi, pour l'afficher comme actif. On ne peut PAS le
+  // déduire de `pickupTime` : `presetPickupTime` part de l'heure courante, donc
+  // la valeur stockée ne correspond plus au préset dès la minute suivante.
+  const [activePreset, setActivePreset] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function resetState() {
@@ -53,6 +57,7 @@ export function EditFulfillmentModal({ isOpen, onClose, order }: Props) {
     setDriverName(order.driverName ?? '');
     setDriverPhone(order.driverPhone ?? '');
     setError(null);
+    setActivePreset(null);
   }
 
   function handleClose() {
@@ -63,6 +68,7 @@ export function EditFulfillmentModal({ isOpen, onClose, order }: Props) {
 
   function applyPreset(minutes: number) {
     setPickupTime(presetPickupTime(minutes));
+    setActivePreset(minutes);
   }
 
   function handleSubmit() {
@@ -138,8 +144,10 @@ export function EditFulfillmentModal({ isOpen, onClose, order }: Props) {
                   type="button"
                   onClick={() => applyPreset(minutes)}
                   className={cn(
-                    'rounded-full border-2 px-3 py-1.5 text-xs font-medium transition-colors',
-                    'border-border bg-card hover:bg-muted'
+                    'h-11 rounded-full border-2 px-4 text-sm font-medium transition-colors',
+                    activePreset === minutes
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border bg-card hover:bg-muted'
                   )}
                 >
                   {minutes < 60
@@ -149,9 +157,12 @@ export function EditFulfillmentModal({ isOpen, onClose, order }: Props) {
               ))}
               <button
                 type="button"
-                onClick={() => setPickupTime(null)}
+                onClick={() => {
+                  setPickupTime(null);
+                  setActivePreset(null);
+                }}
                 className={cn(
-                  'rounded-full border-2 px-3 py-1.5 text-xs font-medium transition-colors',
+                  'h-11 rounded-full border-2 px-4 text-sm font-medium transition-colors',
                   pickupTime === null
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border bg-card hover:bg-muted'
@@ -165,7 +176,10 @@ export function EditFulfillmentModal({ isOpen, onClose, order }: Props) {
               label="Ou date/heure précise"
               className="mt-2"
               value={isoToAbidjanDatetimeLocal(pickupTime)}
-              onValueChange={(v) => setPickupTime(abidjanDatetimeLocalToISO(v))}
+              onValueChange={(v) => {
+                setPickupTime(abidjanDatetimeLocalToISO(v));
+                setActivePreset(null);
+              }}
             />
           </div>
 
