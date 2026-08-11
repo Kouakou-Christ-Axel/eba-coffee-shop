@@ -1,16 +1,34 @@
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import { listProductSchedules, listProductWeeklySpecials } from '@/lib/menu';
 import { ProductForm, type ProductFormInitial } from '../product-form';
+import { ProductStatsSection } from '../_components/product-stats-section';
 import { BackButton } from '@/components/(dashboard)/back-button';
 import { MenuBreadcrumb } from '@/components/(dashboard)/menu-breadcrumb';
+import { DateRangeFilter } from '@/components/(dashboard)/date-range-filter';
+import { KpiGridSkeleton } from '@/components/(dashboard)/skeletons';
+import {
+  parseDateOnlyToUTC,
+  shiftDateString,
+  todayDateString,
+} from '@/lib/timezone';
+
+// Données live + le filtre de dates de l'onglet Statistiques lit l'URL
+// (`useSearchParams`), ce qui interdit le prérendu statique.
+export const dynamic = 'force-dynamic';
+
+const DEFAULT_RANGE_DAYS = 30;
 
 export default async function EditProductPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ categoryId: string; productId: string }>;
+  searchParams: Promise<{ from?: string; to?: string; onglet?: string }>;
 }) {
   const { categoryId, productId } = await params;
+  const query = await searchParams;
 
   const [category, product, schedules, weeklySpecials] = await Promise.all([
     prisma.menuCategory.findUnique({
@@ -39,6 +57,12 @@ export default async function EditProductPage({
   ) {
     notFound();
   }
+
+  const today = todayDateString();
+  const defaultFrom = shiftDateString(today, -(DEFAULT_RANGE_DAYS - 1));
+  let fromStr = parseDateOnlyToUTC(query.from) ? query.from! : defaultFrom;
+  let toStr = parseDateOnlyToUTC(query.to) ? query.to! : today;
+  if (fromStr > toStr) [fromStr, toStr] = [toStr, fromStr];
 
   const initial: ProductFormInitial = {
     id: product.id,
@@ -72,6 +96,36 @@ export default async function EditProductPage({
     })),
   };
 
+  // Rendu côté serveur et passé en prop au formulaire (client) : les stats
+  // restent une lecture serveur, streamée pour ne pas retarder le formulaire.
+  const statsSlot = (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          Du {fromStr} au {toStr}
+        </p>
+        <DateRangeFilter
+          from={fromStr}
+          to={toStr}
+          isAll={false}
+          allowAll={false}
+          presets={[
+            { label: '7 jours', days: 7 },
+            { label: '30 jours', days: 30 },
+            { label: '90 jours', days: 90 },
+          ]}
+        />
+      </div>
+      <Suspense key={`${fromStr}-${toStr}`} fallback={<KpiGridSkeleton />}>
+        <ProductStatsSection
+          productId={product.id}
+          from={parseDateOnlyToUTC(fromStr)!}
+          to={parseDateOnlyToUTC(toStr)!}
+        />
+      </Suspense>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div>
@@ -92,6 +146,8 @@ export default async function EditProductPage({
         categoryId={categoryId}
         initial={initial}
         schedules={schedules}
+        defaultTab={query.onglet}
+        statsSlot={statsSlot}
       />
     </div>
   );
