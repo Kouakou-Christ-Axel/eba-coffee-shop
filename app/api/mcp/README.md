@@ -186,6 +186,7 @@ réduite, voire vide, ce n'est pas une erreur.
 | `get_range_stats`                | stats      | lecture  | KPIs sur une plage (`from`/`to`, `YYYY-MM-DD`)                     |
 | `get_daily_series`               | stats      | lecture  | Série jour par jour (commandes + CA) sur plage                     |
 | `get_top_products`               | stats      | lecture  | Top produits vendus sur une plage (`limit?`)                       |
+| `get_product_stats`              | stats      | lecture  | Ventes d’un produit : unités, CA, marge, rang, série, suppléments  |
 | `get_stats_comparison`           | stats      | lecture  | KPIs de la plage vs période précédente de même durée               |
 | `get_hourly_stats`               | stats      | lecture  | Heures de pointe : commandes + CA par heure (0–23)                 |
 | `get_kitchen_performance`        | stats      | lecture  | Temps de préparation / d’attente (moyenne, médiane, série)         |

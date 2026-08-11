@@ -29,6 +29,7 @@ import {
   getDailySeries,
   getTopProducts,
 } from '@/lib/stats';
+import { getProductStats } from '@/lib/product-stats';
 import { compareRanges } from '@/lib/stats-compare';
 import {
   getHourlyDistribution,
@@ -463,6 +464,28 @@ export const tools: McpTool[] = [
       const { from, to } = toRange(args);
       const { limit } = args as { limit?: number };
       return getTopProducts(from, to, limit);
+    },
+  },
+  {
+    name: 'get_product_stats',
+    toolset: 'stats',
+    scope: 'finance',
+    title: 'Statistiques d’un produit',
+    description:
+      'Détaille les ventes d’UN produit sur la plage (hors commandes ' +
+      'annulées, encaissées ou non) : unités vendues, commandes, chiffre ' +
+      'd’affaires net de remise, coût de revient figé sur les lignes de ' +
+      'commande et marge, part du CA, rang par quantité, série jour par ' +
+      'jour et suppléments les plus choisis. `productId` s’obtient via ' +
+      '`get_menu`.',
+    inputSchema: rangeSchema.extend({
+      productId: z.string().min(1).describe('Identifiant du produit.'),
+    }),
+    readOnly: true,
+    handler: (args) => {
+      const { from, to } = toRange(args);
+      const { productId } = args as { productId: string };
+      return getProductStats(productId, from, to);
     },
   },
   {

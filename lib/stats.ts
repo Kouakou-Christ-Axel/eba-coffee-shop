@@ -11,6 +11,7 @@ import type {
 } from '@/generated/prisma/client';
 import type { CartItemInput } from '@/lib/schemas/order';
 import { todayDailyDate } from '@/lib/daily-numbering';
+import { getSupplementsPrice } from '@/lib/supplements';
 import { formatLocalDateOnly } from '@/lib/timezone';
 import {
   sumAdjustmentsByMode,
@@ -288,7 +289,10 @@ export async function getTopProducts(
   for (const r of rows) {
     const items = (r.items as unknown as CartItemInput[]) ?? [];
     for (const it of items) {
-      const suppl = it.supplements.reduce((s, x) => s + x.price, 0);
+      // Les suppléments se valorisent prix × quantité d'option : une option de
+      // groupe 'quantity' choisie 3 fois compte 3 fois (cf.
+      // `getSupplementsPrice`, source unique partagée avec le total commande).
+      const suppl = getSupplementsPrice(it.supplements);
       const lineRevenue =
         (it.basePrice + suppl) * it.quantity - (it.discount ?? 0);
       const cur = agg.get(it.productId) ?? {

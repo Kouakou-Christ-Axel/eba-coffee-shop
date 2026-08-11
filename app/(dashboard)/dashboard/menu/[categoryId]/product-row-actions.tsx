@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import {
+  BarChart3,
   Check,
   ChevronDown,
   ChevronUp,
@@ -43,6 +45,7 @@ export function ProductRowActions({
   /** Le tri par flèches porte sur la liste COMPLÈTE : le proposer sur une liste
    * filtrée ferait déplacer le produit par rapport à des voisins invisibles. */
   canReorder,
+  statsHref,
 }: {
   id: string;
   name: string;
@@ -53,6 +56,8 @@ export function ProductRowActions({
   isFirst: boolean;
   isLast: boolean;
   canReorder: boolean;
+  /** Fiche produit ouverte directement sur l'onglet « Statistiques ». */
+  statsHref: string;
 }) {
   const { pushToast } = useUndoToast();
   const [isPending, startTransition] = useTransition();
@@ -121,7 +126,10 @@ export function ProductRowActions({
     startTransition(async () => {
       const result = await deleteProductAction(id);
       setConfirmDelete(false);
-      pushToast(result.ok ? `${name} supprimé` : result.error, result.ok ? 'success' : 'error');
+      pushToast(
+        result.ok ? `${name} supprimé` : result.error,
+        result.ok ? 'success' : 'error'
+      );
     });
   }
 
@@ -138,10 +146,15 @@ export function ProductRowActions({
           checked={optimisticFeatured}
           disabled={isPending}
           onCheckedChange={(v) =>
-            toggle(v, setOptimisticFeatured, () => toggleProductFeaturedAction(id), {
-              on: `${name} mis en avant`,
-              off: `${name} retiré des incontournables`,
-            })
+            toggle(
+              v,
+              setOptimisticFeatured,
+              () => toggleProductFeaturedAction(id),
+              {
+                on: `${name} mis en avant`,
+                off: `${name} retiré des incontournables`,
+              }
+            )
           }
           aria-label="Mettre en avant"
         />
@@ -151,10 +164,15 @@ export function ProductRowActions({
         checked={optimisticAvailable}
         disabled={isPending}
         onCheckedChange={(v) =>
-          toggle(v, setOptimisticAvailable, () => toggleProductAvailabilityAction(id), {
-            on: `${name} visible`,
-            off: `${name} masqué`,
-          })
+          toggle(
+            v,
+            setOptimisticAvailable,
+            () => toggleProductAvailabilityAction(id),
+            {
+              on: `${name} visible`,
+              off: `${name} masqué`,
+            }
+          )
         }
         aria-label="Disponibilité"
       />
@@ -221,6 +239,12 @@ export function ProductRowActions({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link href={statsHref}>
+                <BarChart3 className="size-4" />
+                Statistiques
+              </Link>
+            </DropdownMenuItem>
             {stockQuantity !== null && (
               <DropdownMenuItem onSelect={() => setIsRestockOpen(true)}>
                 <Package className="size-4" />
@@ -257,7 +281,9 @@ export function ProductRowActions({
               }
             >
               <Star className="size-4" />
-              {optimisticFeatured ? 'Retirer des incontournables' : 'Mettre en avant'}
+              {optimisticFeatured
+                ? 'Retirer des incontournables'
+                : 'Mettre en avant'}
             </DropdownMenuItem>
             <DropdownMenuItem
               variant="destructive"

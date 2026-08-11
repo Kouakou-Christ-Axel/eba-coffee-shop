@@ -257,9 +257,7 @@ export function ProductsTable({
           // est actif : `filtered` est alors la liste complète. La garde évite
           // qu'un futur changement ne fasse silencieusement perdre les lignes
           // masquées en écrasant `order` avec une sous-liste.
-          onReorder={(next: ProductRow[]) =>
-            canReorder && setOrder(() => next)
-          }
+          onReorder={(next: ProductRow[]) => canReorder && setOrder(() => next)}
           layoutScroll
           className="[&_tr:last-child]:border-0"
         >
@@ -450,6 +448,7 @@ function ProductTableRow({
             isFirst={isFirst}
             isLast={isLast}
             canReorder={canReorder}
+            statsHref={`/dashboard/menu/${categoryId}/produits/${p.id}?onglet=stats`}
           />
         </div>
       </TableCell>

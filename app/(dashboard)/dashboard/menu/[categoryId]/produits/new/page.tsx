@@ -4,12 +4,18 @@ import { listProductSchedules } from '@/lib/menu';
 import { ProductForm } from '../product-form';
 import { BackButton } from '@/components/(dashboard)/back-button';
 
+// Page d'administration : données live, jamais prérendue.
+export const dynamic = 'force-dynamic';
+
 export default async function NewProductPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ categoryId: string }>;
+  searchParams: Promise<{ onglet?: string }>;
 }) {
   const { categoryId } = await params;
+  const { onglet } = await searchParams;
   const [category, schedules] = await Promise.all([
     prisma.menuCategory.findUnique({
       where: { id: categoryId },
@@ -29,7 +35,11 @@ export default async function NewProductPage({
         />
         <h1 className="text-2xl font-bold">Nouveau produit</h1>
       </div>
-      <ProductForm categoryId={categoryId} schedules={schedules} />
+      <ProductForm
+        categoryId={categoryId}
+        schedules={schedules}
+        defaultTab={onglet}
+      />
     </div>
   );
 }
