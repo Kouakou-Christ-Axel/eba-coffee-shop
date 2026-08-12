@@ -20,12 +20,12 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Pagination } from '@/components/(dashboard)/pagination';
 import { EncaisserButton } from './encaisser-button';
 import { ExpressCompleteButton } from './express-complete-button';
 import { AdvanceStatusButton } from './advance-status-button';
 import { OrdersEmptyState } from './orders-empty-state';
 import { OrdersToolbar } from './orders-toolbar';
-import { OrdersPagination } from './pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -505,9 +505,7 @@ export default async function CommandesPage({
         />
       )}
 
-      {totalPages > 1 && (
-        <OrdersPagination page={page} totalPages={totalPages} />
-      )}
+      {totalPages > 1 && <Pagination page={page} totalPages={totalPages} />}
     </div>
   );
 }
