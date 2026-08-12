@@ -1,70 +1,16 @@
 'use client';
 
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
-import { useReducedMotion } from 'framer-motion';
-import type { OrderStatus } from '@/generated/prisma/client';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from '@/components/ui/chart';
+import dynamic from 'next/dynamic';
+import { ChartSkeleton } from './chart-skeleton';
 
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  NEW: 'Nouvelle',
-  PREPARING: 'En cours',
-  READY: 'Prête',
-  COMPLETED: 'Récupérée',
-  CANCELLED: 'Annulée',
-};
-
-const ORDER: OrderStatus[] = [
-  'NEW',
-  'PREPARING',
-  'READY',
-  'COMPLETED',
-  'CANCELLED',
-];
-
-const config = {
-  value: { label: 'Commandes', color: 'var(--chart-1)' },
-} satisfies ChartConfig;
-
-export function StatusBreakdownChart({
-  counts,
-}: {
-  counts: Record<OrderStatus, number>;
-}) {
-  const reduced = useReducedMotion();
-  const data = ORDER.map((s) => ({
-    status: STATUS_LABELS[s],
-    value: counts[s],
-  }));
-
-  return (
-    <ChartContainer config={config} className="aspect-auto h-[240px] w-full">
-      <BarChart data={data} margin={{ top: 8 }}>
-        <CartesianGrid vertical={false} />
-        <XAxis
-          dataKey="status"
-          tickLine={false}
-          axisLine={false}
-          tickMargin={8}
-        />
-        <YAxis
-          allowDecimals={false}
-          tickLine={false}
-          axisLine={false}
-          width={28}
-        />
-        <ChartTooltip content={<ChartTooltipContent hideLabel />} />
-        <Bar
-          dataKey="value"
-          fill="var(--color-value)"
-          radius={[6, 6, 0, 0]}
-          isAnimationActive={!reduced}
-        />
-      </BarChart>
-    </ChartContainer>
-  );
-}
+/**
+ * `recharts` pèse ~367 Ko (105 Ko gzip) : il est chargé après l'hydratation
+ * plutôt que dans le payload initial de la route. Cf. `chart-skeleton.tsx`.
+ */
+export const StatusBreakdownChart = dynamic(
+  () =>
+    import('./status-breakdown-chart.client').then(
+      (m) => m.StatusBreakdownChart
+    ),
+  { ssr: false, loading: () => <ChartSkeleton className="h-[240px]" /> }
+);
