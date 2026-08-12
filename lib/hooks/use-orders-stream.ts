@@ -13,8 +13,14 @@
 // Note : `EventSource` ne reconnecte pas tout seul après un CLOSED
 // (ex. 401 transitoire ou hot-reload du dev server) — on gère donc la
 // reconnexion à la main.
+//
+// Dédoublonnage multi-onglets : `startSseLeader` (sse-leader.ts) élit un seul
+// onglet "leader" par endpoint pour porter la vraie connexion réseau — voir
+// ce fichier pour le détail (Web Locks API + BroadcastChannel, fallback
+// gracieux si absents).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { startSseLeader, type OpenSseConnection } from './sse-leader';
 
 export type ConnState =
   | 'connecting'
@@ -39,26 +45,65 @@ export type UseOrdersStreamOptions<T> = {
    * snapshot précédent. Utile pour déclencher un son ou une notification.
    */
   onNewOrders?: (newOrders: T[]) => void;
+  /**
+   * Durée sans connexion active à partir de laquelle `isStale` passe à `true`
+   * (voir `computeIsStale`). Défaut : `DEFAULT_STALE_AFTER_MS`.
+   */
+  staleAfterMs?: number;
 };
 
 export type UseOrdersStreamResult<T> = {
   orders: T[];
   connState: ConnState;
   lastSync: Date | null;
+  /**
+   * `true` quand la connexion est coupée depuis au moins `staleAfterMs` : les
+   * données affichées peuvent être obsolètes, au-delà d'un simple hoquet
+   * réseau déjà couvert par le premier cycle de reconnexion.
+   */
+  isStale: boolean;
 };
+
+export const DEFAULT_STALE_AFTER_MS = 30_000;
+
+/**
+ * Fonction pure (testable sans monter le hook, cf. `use-orders-stream.test.ts`) :
+ * calcule si la donnée doit être considérée périmée à partir de l'instant de
+ * la dernière coupure connue (`null` = connecté ou jamais déconnecté).
+ */
+export function computeIsStale(
+  disconnectedSinceMs: number | null,
+  nowMs: number,
+  staleAfterMs: number = DEFAULT_STALE_AFTER_MS
+): boolean {
+  return (
+    disconnectedSinceMs !== null && nowMs - disconnectedSinceMs >= staleAfterMs
+  );
+}
 
 export function useOrdersStream<T>(
   options: UseOrdersStreamOptions<T>
 ): UseOrdersStreamResult<T> {
-  const { endpoint, initialOrders, normalize, getId, onNewOrders } = options;
+  const {
+    endpoint,
+    initialOrders,
+    normalize,
+    getId,
+    onNewOrders,
+    staleAfterMs = DEFAULT_STALE_AFTER_MS,
+  } = options;
 
   const [orders, setOrders] = useState<T[]>(initialOrders);
   const [connState, setConnState] = useState<ConnState>('connecting');
   const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [isStale, setIsStale] = useState(false);
 
   const knownIdsRef = useRef<Set<string>>(
     new Set(initialOrders.map((o) => getId(o)))
   );
+  // Instant (epoch ms) depuis lequel la connexion est coupée sans interruption ;
+  // `null` = connecté (ou pas encore déconnecté depuis le montage).
+  const disconnectedSinceRef = useRef<number | null>(null);
 
   // Refs pour stabiliser les callbacks dans l'effet "monter une fois".
   const normalizeRef = useRef(normalize);
@@ -72,20 +117,11 @@ export function useOrdersStream<T>(
   }, [normalize, getId, onNewOrders]);
 
   useEffect(() => {
-    let currentEs: EventSource | null = null;
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    let retryAttempt = 0;
-    let cancelled = false;
-
-    const handleQueue = (e: MessageEvent) => {
-      let raw: unknown[];
-      try {
-        const parsed = JSON.parse(e.data);
-        if (!Array.isArray(parsed)) return;
-        raw = parsed;
-      } catch {
-        return;
-      }
+    // Reçoit un snapshot déjà désérialisé (JSON.parse fait une seule fois,
+    // dans `openConnection` — sur l'onglet leader uniquement ; les followers
+    // reçoivent l'array déjà structuré via `BroadcastChannel`, pas une chaîne
+    // à re-parser).
+    const handleSnapshot = (raw: unknown[]) => {
       const fresh = raw.map((r) => normalizeRef.current(r));
 
       const known = knownIdsRef.current;
@@ -100,47 +136,115 @@ export function useOrdersStream<T>(
       }
     };
 
-    const connect = () => {
-      if (cancelled) return;
-      const es = new EventSource(endpoint);
-      currentEs = es;
-
-      es.addEventListener('open', () => {
-        if (cancelled) return;
-        retryAttempt = 0;
-        setConnState('connected');
-      });
-
-      es.addEventListener('queue', handleQueue);
-
-      es.addEventListener('error', () => {
-        if (cancelled) return;
-        if (es.readyState === EventSource.CLOSED) {
-          setConnState('disconnected');
-          es.close();
-          // Backoff exponentiel borné : 1s, 2s, 4s, 8s, 15s max
-          const delay = Math.min(1000 * Math.pow(2, retryAttempt), 15_000);
-          retryAttempt += 1;
-          retryTimer = setTimeout(() => {
-            setConnState('reconnecting');
-            connect();
-          }, delay);
-        } else {
-          setConnState('reconnecting');
-        }
-      });
+    // Appelé aussi bien pour l'état de connexion RÉEL (onglet leader) que
+    // pour l'état RELAYÉ par le leader (onglet follower, cf. `sse-leader.ts`)
+    // — un follower ne doit jamais afficher "connecté" pendant que le leader
+    // se reconnecte.
+    const handleConnState = (state: ConnState) => {
+      setConnState(state);
+      if (state === 'connected') {
+        disconnectedSinceRef.current = null;
+        setIsStale(false);
+      } else if (
+        state === 'disconnected' &&
+        disconnectedSinceRef.current === null
+      ) {
+        disconnectedSinceRef.current = Date.now();
+      }
     };
 
-    connect();
+    // Ouvre la vraie connexion réseau — appelé UNIQUEMENT sur l'onglet élu
+    // leader par `startSseLeader` (ou sur tous les onglets en fallback si la
+    // Web Locks API est absente, cf. `sse-leader.ts`).
+    const openConnection: OpenSseConnection = (onSnapshot, onConnState) => {
+      let currentEs: EventSource | null = null;
+      let retryTimer: ReturnType<typeof setTimeout> | undefined;
+      let retryAttempt = 0;
+      let cancelled = false;
+
+      const connect = () => {
+        if (cancelled) return;
+        const es = new EventSource(endpoint);
+        currentEs = es;
+
+        es.addEventListener('open', () => {
+          if (cancelled) return;
+          retryAttempt = 0;
+          onConnState('connected');
+        });
+
+        es.addEventListener('queue', (e: MessageEvent) => {
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(e.data);
+          } catch {
+            return;
+          }
+          if (!Array.isArray(parsed)) return;
+          onSnapshot(parsed);
+        });
+
+        es.addEventListener('error', () => {
+          if (cancelled) return;
+          if (es.readyState === EventSource.CLOSED) {
+            onConnState('disconnected');
+            es.close();
+            // Backoff exponentiel borné : 1s, 2s, 4s, 8s, 15s max — PAS de
+            // limite au nombre de tentatives, un poste de caisse doit
+            // continuer à réessayer indéfiniment (ne jamais abandonner
+            // silencieusement).
+            const delay = Math.min(1000 * Math.pow(2, retryAttempt), 15_000);
+            retryAttempt += 1;
+            retryTimer = setTimeout(() => {
+              onConnState('reconnecting');
+              connect();
+            }, delay);
+          } else {
+            onConnState('reconnecting');
+          }
+        });
+      };
+
+      connect();
+
+      return () => {
+        cancelled = true;
+        if (retryTimer) clearTimeout(retryTimer);
+        currentEs?.close();
+      };
+    };
+
+    const cleanupLeader = startSseLeader(
+      endpoint,
+      openConnection,
+      handleSnapshot,
+      handleConnState
+    );
+
+    // Vérifie régulièrement si la coupure en cours dépasse `staleAfterMs` —
+    // notion temporelle dérivée de la connexion, distincte de `connState`
+    // (cf. `computeIsStale`). Coût négligeable même quand `connState ===
+    // 'connected'` (une comparaison entière toutes les 5s) ; à ne pas
+    // confondre avec le heartbeat serveur anti-buffering proxy (20s, côté
+    // route SSE), mécanisme totalement différent.
+    const staleCheckTimer = setInterval(() => {
+      setIsStale((prev) => {
+        const next = computeIsStale(
+          disconnectedSinceRef.current,
+          Date.now(),
+          staleAfterMs
+        );
+        return next === prev ? prev : next;
+      });
+    }, 5_000);
 
     return () => {
-      cancelled = true;
-      if (retryTimer) clearTimeout(retryTimer);
-      currentEs?.close();
+      clearInterval(staleCheckTimer);
+      cleanupLeader();
     };
-  }, [endpoint]);
+  }, [endpoint, staleAfterMs]);
 
-  return { orders, connState, lastSync };
+  return { orders, connState, lastSync, isStale };
 }
 
 /**

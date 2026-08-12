@@ -64,18 +64,19 @@ export function PreparationView({
     useSoundPreference(SOUND_STORAGE_KEY);
   const now = useNowTick(15_000);
 
-  const { orders, connState, lastSync } = useOrdersStream<PreparationOrder>({
-    endpoint: SSE_URL,
-    initialOrders: initialQueue,
-    normalize,
-    getId: (o) => o.id,
-    onNewOrders: (newOrders) => {
-      // Ne carillonner que pour les NOUVELLES commandes en préparation (pas les
-      // prêtes, qui apparaissent aussi dans le flux mais ne sont pas du travail).
-      const hasPreparing = newOrders.some((o) => o.status === 'PREPARING');
-      if (hasPreparing && soundEnabledRef.current) playNewOrderChime();
-    },
-  });
+  const { orders, connState, isStale, lastSync } =
+    useOrdersStream<PreparationOrder>({
+      endpoint: SSE_URL,
+      initialOrders: initialQueue,
+      normalize,
+      getId: (o) => o.id,
+      onNewOrders: (newOrders) => {
+        // Ne carillonner que pour les NOUVELLES commandes en préparation (pas les
+        // prêtes, qui apparaissent aussi dans le flux mais ne sont pas du travail).
+        const hasPreparing = newOrders.some((o) => o.status === 'PREPARING');
+        if (hasPreparing && soundEnabledRef.current) playNewOrderChime();
+      },
+    });
 
   const visible = useMemo(
     () => orders.filter((o) => !optimisticHidden.has(o.id)),
@@ -209,6 +210,7 @@ export function PreparationView({
         }}
         readyAlert={readyAlert}
         connState={connState}
+        isStale={isStale}
         lastSync={lastSync}
         soundEnabled={soundEnabled}
         onToggleSound={toggleSound}
