@@ -17,6 +17,7 @@ import {
   isWithinAnyPeriod,
 } from '@/lib/supplements';
 import { LOW_STOCK_THRESHOLD } from '@/config/constants';
+import { trackAddToCart } from '@/lib/analytics';
 import type { Product } from '@/config/menu';
 
 /** Durée de l'accusé de réception visuel (✓) après un ajout direct. */
@@ -77,6 +78,18 @@ export function useQuickAdd(product: Product) {
         product.remaining ?? undefined
       );
     }
+    // UN seul événement pour le geste, avec la quantité — pas un par tour de
+    // boucle, sinon GA4 compte N ajouts distincts pour un seul clic.
+    // Pas d'`item_category` : `Product` ne porte pas sa catégorie et les
+    // vitrines l'ont déjà aplatie (voir featured-showcase.tsx).
+    trackAddToCart([
+      {
+        item_id: product.id,
+        item_name: product.name,
+        price: product.price,
+        quantity,
+      },
+    ]);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), ADDED_FEEDBACK_MS);
   }

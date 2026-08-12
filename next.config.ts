@@ -24,12 +24,22 @@ const isProduction = process.env.NODE_ENV === 'production';
 //   page (les miniatures sont rapatriées en local, cf. lib/uploads.ts), donc
 //   `script-src`/`img-src` n'ont plus à whitelister TikTok. Ce que l'iframe
 //   charge en interne relève de la CSP de tiktok.com, pas de la nôtre.
+// - Google Tag Manager (site public uniquement, cf. app/(public)/layout.tsx) :
+//   `googletagmanager.com` sert gtm.js ET gtag/js ; GA4 collecte sur
+//   `google-analytics.com` (+ sous-domaines régionaux `*.analytics.google.com`)
+//   et pose des pixels de repli sur `img-src`. Le script d'amorçage Consent
+//   Mode est inline — déjà couvert par `'unsafe-inline'` ci-dessus.
+//   ⚠️ ATTENTION EXPLOITANT : cette CSP borne aussi ce que le conteneur GTM a le
+//   droit de charger. Ajouter un tag tiers depuis l'interface web de GTM (Meta
+//   Pixel, Google Ads, TikTok Pixel…) ne suffira PAS : son domaine doit être
+//   ajouté ici, puis l'app redéployée, sinon le navigateur le bloque.
 const cspDirectives: Record<string, string[]> = {
   'default-src': ["'self'"],
   'script-src': [
     "'self'",
     "'unsafe-inline'",
     'https://static.cloudflareinsights.com',
+    'https://www.googletagmanager.com',
     ...(isProduction ? [] : ["'unsafe-eval'"]),
   ],
   'style-src': ["'self'", "'unsafe-inline'"],
@@ -39,15 +49,27 @@ const cspDirectives: Record<string, string[]> = {
     'blob:',
     'https://*.public.blob.vercel-storage.com',
     'https://res.cloudinary.com',
+    'https://www.googletagmanager.com',
+    'https://www.google-analytics.com',
+    'https://*.google-analytics.com',
   ],
   'font-src': ["'self'", 'data:'],
   'connect-src': [
     "'self'",
     'https://cloudflareinsights.com',
     'https://api.cloudinary.com',
+    'https://www.googletagmanager.com',
+    'https://www.google-analytics.com',
+    'https://*.google-analytics.com',
+    'https://*.analytics.google.com',
     ...(isProduction ? [] : ['ws:', 'wss:']),
   ],
-  'frame-src': ['https://www.google.com', 'https://www.tiktok.com'],
+  'frame-src': [
+    'https://www.google.com',
+    'https://www.tiktok.com',
+    // Mode Aperçu de GTM (Tag Assistant) — hors production uniquement.
+    ...(isProduction ? [] : ['https://tagassistant.google.com']),
+  ],
   'frame-ancestors': ["'none'"],
   'base-uri': ["'self'"],
   'form-action': ["'self'"],

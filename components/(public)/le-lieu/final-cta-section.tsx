@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { Button, Link } from '@heroui/react';
 import { Compass, Clock3 } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
+import { trackContactClick } from '@/lib/analytics';
 
 function FinalCtaSection({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
@@ -44,6 +45,7 @@ function FinalCtaSection({ contact }: { contact: ContactSettings }) {
                 href={contact.mapsDirectionsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                onPress={() => trackContactClick('maps', 'le-lieu-cta-final')}
                 radius="full"
                 color="primary"
                 className="font-medium"

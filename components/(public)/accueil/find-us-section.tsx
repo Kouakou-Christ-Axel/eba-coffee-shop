@@ -11,6 +11,7 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
+import { trackContactClick } from '@/lib/analytics';
 
 function FindUsSection({
   contact,
@@ -167,6 +168,7 @@ function FindUsSection({
                 href={contact.mapsDirectionsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                onPress={() => trackContactClick('maps', 'accueil-find-us')}
                 variant="bordered"
                 color="secondary"
                 radius="full"

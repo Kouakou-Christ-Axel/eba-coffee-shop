@@ -45,6 +45,12 @@ function staticEntries(now: Date): MetadataRoute.Sitemap {
       changeFrequency: 'daily',
       priority: 0.6,
     },
+    {
+      url: `${siteUrl}/cookies`,
+      lastModified: now,
+      changeFrequency: 'yearly',
+      priority: 0.2,
+    },
   ];
 }
 
