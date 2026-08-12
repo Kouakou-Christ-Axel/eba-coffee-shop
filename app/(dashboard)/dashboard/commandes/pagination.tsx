@@ -3,8 +3,8 @@
 // Pagination de la liste des commandes : navigue via la transition partagée
 // (UI réactive, scroll figé) en conservant tous les filtres et le tri courants.
 
+import { Pagination as HeroPagination } from '@heroui/react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { useOrdersNavValue } from './use-orders-nav';
 
 export function Pagination({
@@ -23,23 +23,17 @@ export function Pagination({
     <div
       aria-busy={isPending}
       className={cn(
-        'flex items-center gap-3 transition-opacity',
+        'transition-opacity',
         isPending && 'pointer-events-none opacity-60'
       )}
     >
-      {page > 1 && (
-        <Button variant="outline" size="sm" onClick={() => goTo(page - 1)}>
-          Précédent
-        </Button>
-      )}
-      <span className="text-sm text-muted-foreground">
-        Page {page} / {totalPages}
-      </span>
-      {page < totalPages && (
-        <Button variant="outline" size="sm" onClick={() => goTo(page + 1)}>
-          Suivant
-        </Button>
-      )}
+      <HeroPagination
+        page={page}
+        total={totalPages}
+        onChange={goTo}
+        color="primary"
+        showControls
+      />
     </div>
   );
 }
