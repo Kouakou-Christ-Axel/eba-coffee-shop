@@ -1,5 +1,5 @@
 'use client';
-import React, { useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Button,
   Link,
@@ -11,8 +11,7 @@ import {
   NavbarMenuItem,
   NavbarMenuToggle,
 } from '@heroui/react';
-import { useGSAP } from '@gsap/react';
-import gsap from 'gsap';
+import { useReducedMotion } from 'framer-motion';
 import Image from 'next/image';
 import NextLink from 'next/link';
 import { Receipt, ShoppingBag } from 'lucide-react';
@@ -27,70 +26,77 @@ import NavbarOrdersButton from '@/components/layouts/navbar-orders-button';
 const HOME_SCROLL_TRIGGER_PX = 140;
 const HOME_NARROW_MAX_WIDTH = '75rem';
 
+// Équivalent CSS de `power3.out` (quart out) et de la durée GSAP d'origine.
+const NAVBAR_EASE = 'cubic-bezier(0.165, 0.84, 0.44, 1)';
+const NAVBAR_DURATION_MS = 650;
+const NAVBAR_ANIMATED_PROPS = [
+  'max-width',
+  'margin-top',
+  'border-radius',
+  'transform',
+];
+
+// La navbar bascule entre deux états figés — « pilule » étroite en haut de
+// l'accueil, pleine largeur une fois la page défilée. GSAP n'apportait rien
+// ici (pas de timeline, pas de scrub) mais tirait son cœur (~69 Ko) dans le
+// chunk du layout public, donc sur TOUTES les pages du site. Une transition
+// CSS entre deux jeux de valeurs donne le même rendu à coût nul ; GSAP ne
+// reste chargé que là où il sert vraiment (les scrubs de `/a-propos`).
 function Navbar() {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const isHome = pathname === '/';
-  const navbarRef = useRef<HTMLElement | null>(null);
   const { data: session } = authClient.useSession();
   const userRole = (session?.user as { role?: string } | undefined)?.role;
   const hasDashboardAccess =
     !!userRole && (DASHBOARD_ROLES as string[]).includes(userRole);
   const hasOrders = useHasOrderHistory();
 
-  useGSAP(
-    () => {
-      const navbarElement = navbarRef.current;
-      if (!navbarElement) {
-        return;
-      }
+  // Seul le défilement de l'accueil est un état ; hors accueil la navbar est
+  // pleine largeur par construction, donc `isExpanded` s'en déduit au lieu
+  // d'être stocké (et resynchronisé) à chaque changement de page.
+  const [isScrolledPast, setIsScrolledPast] = useState(false);
+  const isExpanded = !isHome || isScrolledPast;
+  // La transition reste coupée le temps de la synchro initiale : arriver sur
+  // une page déjà défilée (ancre, restauration de scroll) doit poser l'état
+  // final d'emblée, comme le faisait le `gsap.set` d'origine, sans animer.
+  const [isTransitionEnabled, setIsTransitionEnabled] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
-      if (!isHome) {
-        gsap.set(navbarElement, {
-          maxWidth: '100%',
-          marginTop: 0,
-          borderRadius: 0,
-          y: 0,
-        });
-        return;
-      }
+  useEffect(() => {
+    if (!isHome) {
+      return;
+    }
 
-      let isExpanded = window.scrollY > HOME_SCROLL_TRIGGER_PX;
+    const syncToScroll = () => {
+      setIsScrolledPast(window.scrollY > HOME_SCROLL_TRIGGER_PX);
+    };
 
-      gsap.set(navbarElement, {
-        maxWidth: isExpanded ? '100%' : HOME_NARROW_MAX_WIDTH,
-        marginTop: isExpanded ? 0 : 10,
-        borderRadius: isExpanded ? 0 : 9999,
-        y: isExpanded ? 0 : 8,
-      });
+    syncToScroll();
+    const frame = window.requestAnimationFrame(() => {
+      setIsTransitionEnabled(true);
+    });
+    window.addEventListener('scroll', syncToScroll, { passive: true });
 
-      const onScroll = () => {
-        const shouldExpand = window.scrollY > HOME_SCROLL_TRIGGER_PX;
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', syncToScroll);
+      setIsTransitionEnabled(false);
+    };
+  }, [isHome]);
 
-        if (shouldExpand === isExpanded) {
-          return;
-        }
-
-        isExpanded = shouldExpand;
-        gsap.to(navbarElement, {
-          maxWidth: shouldExpand ? '100%' : HOME_NARROW_MAX_WIDTH,
-          marginTop: shouldExpand ? 0 : 10,
-          borderRadius: shouldExpand ? 0 : 9999,
-          y: shouldExpand ? 0 : 8,
-          duration: 0.65,
-          ease: 'power3.out',
-          overwrite: 'auto',
-        });
-      };
-
-      window.addEventListener('scroll', onScroll, { passive: true });
-
-      return () => {
-        window.removeEventListener('scroll', onScroll);
-      };
-    },
-    { dependencies: [isHome], scope: navbarRef }
-  );
+  const navbarStyle: React.CSSProperties = {
+    maxWidth: isExpanded ? '100%' : HOME_NARROW_MAX_WIDTH,
+    marginTop: isExpanded ? 0 : 10,
+    borderRadius: isExpanded ? 0 : 9999,
+    transform: `translateY(${isExpanded ? 0 : 8}px)`,
+    transition:
+      isTransitionEnabled && !prefersReducedMotion
+        ? NAVBAR_ANIMATED_PROPS.map(
+            (prop) => `${prop} ${NAVBAR_DURATION_MS}ms ${NAVBAR_EASE}`
+          ).join(', ')
+        : undefined,
+  };
 
   const isActive = (href: string) => {
     return href === '/'
@@ -100,7 +106,7 @@ function Navbar() {
 
   return (
     <UINavbar
-      ref={navbarRef}
+      style={navbarStyle}
       isBordered
       // Menu mobile CONTRÔLÉ : sans ces deux props, les `onPress` des liens ne
       // referment pas le panneau et il reste ouvert par-dessus la page après
