@@ -1,55 +1,28 @@
 'use client';
 
-import { Bar, BarChart, XAxis, YAxis } from 'recharts';
-import { useReducedMotion } from 'framer-motion';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from '@/components/ui/chart';
+import dynamic from 'next/dynamic';
+import { barListHeight } from './chart-layout';
+import { ChartEmpty } from './chart-empty';
+import { ChartSkeleton } from './chart-skeleton';
+import type { TopProduct } from './top-products-chart.client';
 
-type Product = { name: string; quantity: number; revenue: number };
+const Chart = dynamic(
+  () => import('./top-products-chart.client').then((m) => m.TopProductsChart),
+  { ssr: false, loading: () => <ChartSkeleton className="h-full" /> }
+);
 
-const config = {
-  quantity: { label: 'Quantité', color: 'var(--chart-1)' },
-} satisfies ChartConfig;
-
-export function TopProductsChart({ data }: { data: Product[] }) {
-  const reduced = useReducedMotion();
-
+export function TopProductsChart({ data }: { data: TopProduct[] }) {
   if (data.length === 0) {
     return (
-      <div className="flex h-[240px] items-center justify-center text-sm text-muted-foreground">
+      <ChartEmpty className="h-[240px]">
         Aucune vente sur la période.
-      </div>
+      </ChartEmpty>
     );
   }
 
   return (
-    <ChartContainer
-      config={config}
-      className="aspect-auto w-full"
-      style={{ height: Math.max(200, data.length * 40) }}
-    >
-      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 16 }}>
-        <XAxis type="number" dataKey="quantity" hide />
-        <YAxis
-          type="category"
-          dataKey="name"
-          tickLine={false}
-          axisLine={false}
-          width={140}
-          tickMargin={8}
-        />
-        <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
-        <Bar
-          dataKey="quantity"
-          fill="var(--color-quantity)"
-          radius={[0, 6, 6, 0]}
-          isAnimationActive={!reduced}
-        />
-      </BarChart>
-    </ChartContainer>
+    <div style={{ height: barListHeight(data.length, { min: 200, step: 40 }) }}>
+      <Chart data={data} />
+    </div>
   );
 }
