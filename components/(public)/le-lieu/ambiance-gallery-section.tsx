@@ -13,7 +13,7 @@ type GalleryItem = {
 
 const galleryItems: GalleryItem[] = [
   {
-    src: '/assets/examples/accueil/eba-hero-2.png',
+    src: '/assets/examples/accueil/eba-hero-2.webp',
     alt: 'Salle principale du coffee shop EBA a Abidjan',
     desktopClassName: 'md:col-span-7 md:h-[27rem]',
     objectPositionClassName: 'object-center',
@@ -31,7 +31,7 @@ const galleryItems: GalleryItem[] = [
     objectPositionClassName: 'object-right',
   },
   {
-    src: '/assets/examples/accueil/eba-hero-2.png',
+    src: '/assets/examples/accueil/eba-hero-2.webp',
     alt: 'Cafe servi a table dans une ambiance conviviale',
     desktopClassName: 'md:col-span-8 md:h-[19rem]',
     objectPositionClassName: 'object-center',

@@ -153,7 +153,7 @@ export const menu: MenuCategory[] = [
         description:
           'Notre espresso maison, mousse de lait soyeuse et une touche de cacao torréfié.',
         price: 3500,
-        image: '/assets/examples/accueil/eba-hero-2.png',
+        image: '/assets/examples/accueil/eba-hero-2.webp',
         featured: true,
         featuredOrder: 1,
         featuredBadge: 'Best-seller',
@@ -165,7 +165,7 @@ export const menu: MenuCategory[] = [
         description:
           'Espresso doux, lait vapeur et sirop de vanille de Madagascar, servi chaud.',
         price: 4000,
-        image: '/assets/examples/accueil/eba-hero-2.png',
+        image: '/assets/examples/accueil/eba-hero-2.webp',
         featured: true,
         featuredOrder: 2,
         featuredBadge: 'Coup de cœur',

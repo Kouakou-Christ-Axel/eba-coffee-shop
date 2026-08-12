@@ -6,7 +6,7 @@ import { useScrollAnimation } from '@/lib/animations/use-scroll-animation';
 
 const atelierImages = [
   {
-    src: '/assets/examples/accueil/eba-hero-2.png',
+    src: '/assets/examples/accueil/eba-hero-2.webp',
     alt: 'Préparation de la pâte dans l’atelier EBA',
     caption: 'La préparation',
   },
@@ -16,7 +16,7 @@ const atelierImages = [
     caption: 'Le dressage',
   },
   {
-    src: '/assets/examples/accueil/eba-hero-2.png',
+    src: '/assets/examples/accueil/eba-hero-2.webp',
     alt: 'Sélection des ingrédients frais du marché',
     caption: 'Les ingrédients',
   },

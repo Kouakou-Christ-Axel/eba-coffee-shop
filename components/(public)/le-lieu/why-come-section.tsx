@@ -58,7 +58,7 @@ function WhyComeSection() {
           >
             <div className="relative h-80 lg:h-full lg:min-h-128">
               <Image
-                src="/assets/examples/accueil/eba-hero-2.png"
+                src="/assets/examples/accueil/eba-hero-2.webp"
                 alt="Ambiance chaleureuse du lieu EBA pour une pause cafe a Abidjan"
                 fill
                 sizes="(max-width: 1024px) 100vw, 42vw"
