@@ -7,11 +7,20 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { MapPin, MessageCircle, Phone } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
 import { buildTelLink, buildWhatsAppLink } from '@/lib/contact-links';
+import { trackContactClick, type ContactChannel } from '@/lib/analytics';
 
 function ContactHeroSection({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
 
-  const contactCards = [
+  const contactCards: {
+    label: string;
+    value: string;
+    icon: typeof MessageCircle;
+    href: string;
+    external: boolean;
+    color: string;
+    channel: ContactChannel;
+  }[] = [
     {
       label: 'WhatsApp',
       value: contact.whatsapp,
@@ -19,6 +28,7 @@ function ContactHeroSection({ contact }: { contact: ContactSettings }) {
       href: buildWhatsAppLink(contact.whatsapp) ?? '#',
       external: true,
       color: 'bg-primary/10 text-primary',
+      channel: 'whatsapp',
     },
     {
       label: 'Téléphone',
@@ -27,6 +37,7 @@ function ContactHeroSection({ contact }: { contact: ContactSettings }) {
       href: buildTelLink(contact.phone) ?? '#',
       external: false,
       color: 'bg-secondary/10 text-secondary',
+      channel: 'phone',
     },
     {
       label: 'Nous trouver',
@@ -35,6 +46,7 @@ function ContactHeroSection({ contact }: { contact: ContactSettings }) {
       href: contact.mapsDirectionsUrl,
       external: true,
       color: 'bg-primary/10 text-primary',
+      channel: 'maps',
     },
   ];
 
@@ -130,6 +142,9 @@ function ContactHeroSection({ contact }: { contact: ContactSettings }) {
                   >
                     <Link
                       href={card.href}
+                      onClick={() =>
+                        trackContactClick(card.channel, 'contact-hero')
+                      }
                       {...(card.external
                         ? { target: '_blank', rel: 'noopener noreferrer' }
                         : {})}

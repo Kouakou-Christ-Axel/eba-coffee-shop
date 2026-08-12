@@ -14,6 +14,11 @@ import { useRouter } from 'next/navigation';
 import { useCartStore, getItemTotal, type CartItem } from '@/lib/cart-store';
 import { priceFormatter, type MenuCategory, type Product } from '@/config/menu';
 import { formatSupplementLabel } from '@/lib/orders/format';
+import {
+  cartItemToAnalyticsItem,
+  trackBeginCheckout,
+  trackRemoveFromCart,
+} from '@/lib/analytics';
 import SupplementModal from './supplement-modal';
 import { ProductMedia } from './_components/product-media';
 import { CartUpsell, selectUpsellProducts } from './_components/cart-upsell';
@@ -78,7 +83,27 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
       )
     : [];
 
+  /** Retrait d'une ligne, par la corbeille ou par un décrément qui atteint 0. */
+  function removeLine(item: CartItem) {
+    trackRemoveFromCart([cartItemToAnalyticsItem(item)]);
+    removeItem(item.cartId);
+  }
+
+  function decrementLine(item: CartItem) {
+    if (item.quantity <= 1) {
+      removeLine(item);
+      return;
+    }
+    // Une unité retirée sur N : on ne remonte que celle-là, pas la ligne entière.
+    trackRemoveFromCart([{ ...cartItemToAnalyticsItem(item), quantity: 1 }]);
+    updateQuantity(item.cartId, item.quantity - 1);
+  }
+
   function goToCheckout() {
+    // `begin_checkout` est posé sur l'intention (le clic), et non au montage de
+    // /carte/commande : pas de garde StrictMode à prévoir, et un rechargement
+    // de la page de commande ne recompte pas un nouveau départ de tunnel.
+    trackBeginCheckout(items.map(cartItemToAnalyticsItem));
     onClose();
     router.push('/carte/commande');
   }
@@ -158,7 +183,7 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                             radius="full"
                             color="danger"
                             aria-label={`Supprimer ${item.productName}`}
-                            onPress={() => removeItem(item.cartId)}
+                            onPress={() => removeLine(item)}
                             className="shrink-0"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -173,9 +198,7 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                               variant="flat"
                               radius="full"
                               aria-label={`Retirer un ${item.productName}`}
-                              onPress={() =>
-                                updateQuantity(item.cartId, item.quantity - 1)
-                              }
+                              onPress={() => decrementLine(item)}
                             >
                               <Minus className="h-3.5 w-3.5" />
                             </Button>

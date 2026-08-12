@@ -19,6 +19,7 @@ import {
 } from '@tabler/icons-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useBottomBannerStore } from '@/lib/bottom-banner-store';
+import { useIsConsentPrompting } from '@/lib/consent-store';
 
 // Événement non standard exposé par Chromium pour l'installation des PWA.
 interface BeforeInstallPromptEvent extends Event {
@@ -70,6 +71,10 @@ export default function InstallPwa() {
   const [platform, setPlatform] = React.useState<Platform>('unknown');
   const [showBanner, setShowBanner] = React.useState(false);
   const deferredPromptRef = React.useRef<BeforeInstallPromptEvent | null>(null);
+  // La bannière cookies occupe le même bas d'écran et passe en premier : deux
+  // bandeaux superposés seraient illisibles. On ne perd rien — la capture de
+  // `beforeinstallprompt` continue en arrière-plan, seul l'affichage attend.
+  const consentPrompting = useIsConsentPrompting();
 
   // Enregistrement du service worker (une seule fois).
   React.useEffect(() => {
@@ -139,13 +144,15 @@ export default function InstallPwa() {
     }
   }, []);
 
+  const isBannerVisible = showBanner && !consentPrompting;
+
   // Signale au bouton panier flottant (/carte) qu'un bandeau occupe le bas
   // de l'écran, pour qu'il se décale au-dessus au lieu d'être recouvert.
   React.useEffect(() => {
-    useBottomBannerStore.getState().setVisible('pwa-install', showBanner);
+    useBottomBannerStore.getState().setVisible('pwa-install', isBannerVisible);
     return () =>
       useBottomBannerStore.getState().setVisible('pwa-install', false);
-  }, [showBanner]);
+  }, [isBannerVisible]);
 
   const handleInstallClick = React.useCallback(async () => {
     // iOS : pas d'API d'installation → on ouvre le tutoriel.
@@ -174,7 +181,7 @@ export default function InstallPwa() {
   return (
     <>
       <AnimatePresence>
-        {showBanner && (
+        {isBannerVisible && (
           <motion.div
             initial={initial}
             animate={animate}

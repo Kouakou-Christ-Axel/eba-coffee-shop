@@ -1,12 +1,12 @@
 // lib/bottom-banner-store.ts
 //
-// Coordonne les bandeaux flottants "fixed bottom" (install PWA, carte PDF)
-// avec le bouton panier flottant de /carte, qui doit toujours rester
-// cliquable même quand un bandeau est affiché par-dessus lui.
+// Coordonne les bandeaux flottants "fixed bottom" (install PWA, carte PDF,
+// consentement cookies) avec le bouton panier flottant de /carte, qui doit
+// toujours rester cliquable même quand un bandeau est affiché par-dessus lui.
 
 import { create } from 'zustand';
 
-type BannerId = 'pwa-install' | 'menu-pdf';
+type BannerId = 'pwa-install' | 'menu-pdf' | 'cookie-consent';
 
 type BottomBannerState = {
   visible: Set<BannerId>;

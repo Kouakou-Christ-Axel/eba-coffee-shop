@@ -11,6 +11,7 @@ import { DASHBOARD_ROLES } from '@/config/constants';
 import { authClient } from '@/lib/auth-client';
 import type { ContactSettings } from '@/lib/contact-settings';
 import { buildWhatsAppLink } from '@/lib/contact-links';
+import { trackContactClick } from '@/lib/analytics';
 
 function SiteFooter({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
@@ -152,6 +153,7 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
                 <Link
                   isExternal
                   href={whatsappHref}
+                  onPress={() => trackContactClick('whatsapp', 'footer')}
                   className="hover:text-primary"
                 >
                   {contact.whatsapp}
@@ -184,7 +186,16 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
               : { duration: 0.5, ease: 'easeOut', delay: 0.3 }
           }
         >
-          <p>&copy; {new Date().getFullYear()} EBA. Tous droits réservés.</p>
+          <p>
+            &copy; {new Date().getFullYear()} EBA. Tous droits réservés.
+            {' · '}
+            <Link
+              href="/cookies"
+              className="text-sm text-white/60 underline underline-offset-2 hover:text-primary"
+            >
+              Cookies
+            </Link>
+          </p>
         </motion.div>
       </div>
     </footer>

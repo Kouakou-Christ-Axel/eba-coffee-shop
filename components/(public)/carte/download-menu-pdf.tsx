@@ -5,6 +5,7 @@ import { Button, Link } from '@heroui/react';
 import { IconDownload, IconFileTypePdf, IconX } from '@tabler/icons-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useBottomBannerStore } from '@/lib/bottom-banner-store';
+import { useIsConsentPrompting } from '@/lib/consent-store';
 
 // Même principe que components/pwa/install-pwa.tsx : bannière flottante
 // proposant une action, avec mémorisation du rejet (localStorage + TTL) pour
@@ -32,6 +33,9 @@ type Props = {
 export default function DownloadMenuPdf({ pdfUrl }: Props) {
   const reduceMotion = useReducedMotion();
   const [showBanner, setShowBanner] = React.useState(false);
+  // La bannière cookies passe avant : tant qu'aucun choix n'est fait, on
+  // laisse le bas de l'écran libre (cf. components/analytics/cookie-consent.tsx).
+  const consentPrompting = useIsConsentPrompting();
 
   React.useEffect(() => {
     if (wasRecentlyDismissed()) return;
@@ -48,12 +52,14 @@ export default function DownloadMenuPdf({ pdfUrl }: Props) {
     }
   }, []);
 
+  const isBannerVisible = showBanner && !consentPrompting;
+
   // Signale au bouton panier flottant qu'un bandeau occupe le bas de
   // l'écran, pour qu'il se décale au-dessus au lieu d'être recouvert.
   React.useEffect(() => {
-    useBottomBannerStore.getState().setVisible('menu-pdf', showBanner);
+    useBottomBannerStore.getState().setVisible('menu-pdf', isBannerVisible);
     return () => useBottomBannerStore.getState().setVisible('menu-pdf', false);
-  }, [showBanner]);
+  }, [isBannerVisible]);
 
   const initial = reduceMotion ? false : { y: 120, opacity: 0 };
   const animate = reduceMotion ? {} : { y: 0, opacity: 1 };
@@ -61,7 +67,7 @@ export default function DownloadMenuPdf({ pdfUrl }: Props) {
 
   return (
     <AnimatePresence>
-      {showBanner && (
+      {isBannerVisible && (
         <motion.div
           initial={initial}
           animate={animate}

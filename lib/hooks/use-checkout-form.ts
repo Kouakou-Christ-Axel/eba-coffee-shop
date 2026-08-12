@@ -19,6 +19,7 @@ import {
   ORDER_NOTE_MAX,
 } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
+import { cartItemToAnalyticsItem, trackPurchase } from '@/lib/analytics';
 import {
   addOrderToHistory,
   readLastContact,
@@ -388,14 +389,23 @@ export function useCheckoutForm({
       if (!outcome.ok) {
         setErrors({ submit: outcome.error });
       } else {
+        // Total réellement dû (le serveur a déduit la récompense).
+        const netTotal = total - Math.min(loyaltyReward?.capAmount ?? 0, total);
+        // Conversion GA4. `transaction_id` = la référence de commande, seule
+        // clé stable et lisible côté caisse pour rapprocher un chiffre GA4
+        // d'une commande réelle.
+        trackPurchase({
+          transactionId: outcome.reference,
+          value: netTotal,
+          items: items.map(cartItemToAnalyticsItem),
+        });
         // Historique local « mes commandes » + coordonnées pour le prochain
         // checkout — l'effet « compte » sans compte (best-effort, jamais
         // bloquant : les helpers avalent un localStorage indisponible).
         addOrderToHistory({
           id: outcome.orderId,
           reference: outcome.reference,
-          // Total réellement dû (le serveur a déduit la récompense).
-          total: total - Math.min(loyaltyReward?.capAmount ?? 0, total),
+          total: netTotal,
           createdAt: new Date().toISOString(),
         });
         saveLastContact({

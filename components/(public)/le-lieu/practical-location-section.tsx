@@ -6,6 +6,7 @@ import { Button, Link } from '@heroui/react';
 import { Clock3, MapPin, MessageCircle } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
 import { buildWhatsAppLink } from '@/lib/contact-links';
+import { trackContactClick } from '@/lib/analytics';
 
 function PracticalLocationSection({
   contact,
@@ -117,6 +118,7 @@ function PracticalLocationSection({
                 href={contact.mapsDirectionsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                onPress={() => trackContactClick('maps', 'le-lieu-pratique')}
                 radius="full"
                 color="primary"
                 startContent={<MapPin aria-hidden="true" className="h-4 w-4" />}
@@ -128,6 +130,9 @@ function PracticalLocationSection({
                 href={buildWhatsAppLink(contact.whatsapp) ?? '#'}
                 target="_blank"
                 rel="noopener noreferrer"
+                onPress={() =>
+                  trackContactClick('whatsapp', 'le-lieu-pratique')
+                }
                 radius="full"
                 variant="bordered"
                 color="secondary"
