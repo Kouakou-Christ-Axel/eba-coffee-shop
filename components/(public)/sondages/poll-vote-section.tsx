@@ -178,7 +178,12 @@ function PollVoteSection({
               }}
             >
               {options.map((o) => (
-                <Radio key={o.id} value={o.id} className="mb-2">
+                <Radio
+                  key={o.id}
+                  value={o.id}
+                  className="mb-2"
+                  classNames={{ wrapper: 'border-default-300' }}
+                >
                   <div className="flex items-center gap-3">
                     {o.imageUrl && (
                       <Image

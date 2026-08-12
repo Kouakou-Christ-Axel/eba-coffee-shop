@@ -469,6 +469,12 @@ function SupplementModal({
                     key={opt.name}
                     value={opt.name}
                     isDisabled={opt.soldOut}
+                    // Le thème définit `default.DEFAULT` très clair (quasi
+                    // blanc) pour les fonds — mais HeroUI réutilise cette
+                    // même couleur pour la bordure non sélectionnée du
+                    // Radio/Checkbox, qui devient alors quasi invisible sur
+                    // le fond crème du site. On force une teinte plus foncée.
+                    classNames={{ wrapper: 'border-default-300' }}
                   >
                     <span className="flex items-center justify-between gap-4">
                       <span className="text-sm">
@@ -511,6 +517,7 @@ function SupplementModal({
                       isSelected={isChecked}
                       isDisabled={isDisabled}
                       onValueChange={() => toggleMultiple(group.name, opt.name)}
+                      classNames={{ wrapper: 'before:border-default-300' }}
                     >
                       <span className="flex items-center justify-between gap-4">
                         <span className="text-sm">

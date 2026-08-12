@@ -266,7 +266,10 @@ export function SupplementPicker({
                 {/* Option de désélection pour les groupes facultatifs :
                         permet de revenir à « aucun choix ». */}
                 {!group.required && (
-                  <Radio value="">
+                  <Radio
+                    value=""
+                    classNames={{ wrapper: 'border-default-300' }}
+                  >
                     <span className="text-sm text-foreground/60">Aucun</span>
                   </Radio>
                 )}
@@ -275,6 +278,9 @@ export function SupplementPicker({
                     key={opt.name}
                     value={opt.name}
                     isDisabled={opt.soldOut}
+                    // border-default (couleur quasi blanche du thème) est
+                    // invisible sur le fond crème : on fonce la bordure.
+                    classNames={{ wrapper: 'border-default-300' }}
                   >
                     <span className="flex items-center justify-between gap-4">
                       <span className="text-sm">
@@ -309,6 +315,7 @@ export function SupplementPicker({
                       isSelected={isChecked}
                       isDisabled={isDisabled}
                       onValueChange={() => toggleMultiple(group.name, opt.name)}
+                      classNames={{ wrapper: 'before:border-default-300' }}
                     >
                       <span className="flex items-center justify-between gap-4">
                         <span className="text-sm">
