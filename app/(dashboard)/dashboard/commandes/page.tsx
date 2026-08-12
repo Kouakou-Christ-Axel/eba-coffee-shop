@@ -20,12 +20,12 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Pagination } from '@/components/(dashboard)/pagination';
 import { EncaisserButton } from './encaisser-button';
 import { ExpressCompleteButton } from './express-complete-button';
 import { AdvanceStatusButton } from './advance-status-button';
 import { OrdersEmptyState } from './orders-empty-state';
 import { OrdersToolbar } from './orders-toolbar';
-import { Pagination } from './pagination';
 
 export const dynamic = 'force-dynamic';
 
