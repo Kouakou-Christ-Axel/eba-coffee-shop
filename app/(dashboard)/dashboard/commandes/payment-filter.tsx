@@ -18,6 +18,7 @@ export function PaymentFilter({ value }: { value?: string }) {
 
   return (
     <Select
+      id="orders-payment-filter"
       aria-label="Filtrer par paiement"
       size="sm"
       variant="bordered"
