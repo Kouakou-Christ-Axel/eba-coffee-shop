@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CustomerSearch } from './customer-search';
 import { CustomerFormSheet } from './customer-form';
-import { Pagination } from './pagination';
+import { ClientsPagination } from './pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,7 +127,9 @@ export default async function ClientsPage({
         </Table>
       </div>
 
-      {totalPages > 1 && <Pagination page={page} totalPages={totalPages} />}
+      {totalPages > 1 && (
+        <ClientsPagination page={page} totalPages={totalPages} />
+      )}
     </div>
   );
 }

@@ -25,7 +25,7 @@ import { ExpressCompleteButton } from './express-complete-button';
 import { AdvanceStatusButton } from './advance-status-button';
 import { OrdersEmptyState } from './orders-empty-state';
 import { OrdersToolbar } from './orders-toolbar';
-import { Pagination } from './pagination';
+import { OrdersPagination } from './pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -505,7 +505,9 @@ export default async function CommandesPage({
         />
       )}
 
-      {totalPages > 1 && <Pagination page={page} totalPages={totalPages} />}
+      {totalPages > 1 && (
+        <OrdersPagination page={page} totalPages={totalPages} />
+      )}
     </div>
   );
 }

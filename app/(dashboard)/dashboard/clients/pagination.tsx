@@ -4,9 +4,9 @@
 // (`search`) tout en changeant de page.
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Pagination as HeroPagination } from '@heroui/react';
+import { Pagination } from '@/components/(dashboard)/pagination';
 
-export function Pagination({
+export function ClientsPagination({
   page,
   totalPages,
 }: {
@@ -22,13 +22,5 @@ export function Pagination({
     router.push(`?${params.toString()}`);
   }
 
-  return (
-    <HeroPagination
-      page={page}
-      total={totalPages}
-      onChange={goTo}
-      color="primary"
-      showControls
-    />
-  );
+  return <Pagination page={page} totalPages={totalPages} onChange={goTo} />;
 }
