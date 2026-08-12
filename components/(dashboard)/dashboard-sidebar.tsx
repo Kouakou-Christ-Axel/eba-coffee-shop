@@ -210,7 +210,7 @@ export function DashboardSidebar({ user, role }: DashboardSidebarProps) {
           className="flex items-center gap-2 px-2 py-1.5 hover:opacity-75 transition-opacity"
         >
           <Image
-            src="/assets/logos/eba_n.svg"
+            src="/assets/logos/eba_n.webp"
             alt="EBA Coffee Shop"
             width={36}
             height={36}

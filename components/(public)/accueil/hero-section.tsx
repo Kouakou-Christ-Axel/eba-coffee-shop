@@ -13,7 +13,7 @@ function HeroSection() {
   return (
     <section className="relative min-h-svh w-full overflow-hidden">
       <Image
-        src="/assets/examples/accueil/eba-hero-2.png"
+        src="/assets/examples/accueil/eba-hero-2.webp"
         alt="EBA Coffee Shop — intérieur chaleureux du coffee shop à Cocody, Abidjan"
         fill
         priority

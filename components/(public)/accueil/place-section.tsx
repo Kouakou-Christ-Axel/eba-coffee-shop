@@ -13,7 +13,7 @@ type PlaceImage = {
 
 const placeImages: PlaceImage[] = [
   {
-    src: '/assets/examples/accueil/eba-hero-2.png',
+    src: '/assets/examples/accueil/eba-hero-2.webp',
     alt: 'Comptoir cafe soigne avec service de patisserie dans une ambiance chaleureuse a Abidjan',
     objectPositionClassName: 'object-center',
   },
@@ -23,7 +23,7 @@ const placeImages: PlaceImage[] = [
     objectPositionClassName: 'object-left',
   },
   {
-    src: '/assets/examples/accueil/eba-hero-2.png',
+    src: '/assets/examples/accueil/eba-hero-2.webp',
     alt: 'Detail deco premium du lieu EBA entre matieres chaudes et ambiance elegante',
     objectPositionClassName: 'object-right',
   },

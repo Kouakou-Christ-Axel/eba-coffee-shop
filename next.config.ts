@@ -75,6 +75,11 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['eba.otw.ci'],
+  // NB : pas d'`experimental.optimizePackageImports` ici. Le réflexe serait de
+  // l'activer pour `@heroui/react` (barrel importé par 72 fichiers), mais la
+  // mesure donne un bundle identique à l'octet près : Turbopack, utilisé par
+  // défaut depuis Next 16, optimise déjà les barrels nativement. L'option
+  // reste valide et silencieuse — donc trompeuse si on la laisse traîner.
   images: {
     dangerouslyAllowLocalIP: true,
     remotePatterns: [
@@ -93,6 +98,28 @@ const nextConfig: NextConfig = {
       {
         source: '/:path*',
         headers: securityHeaders,
+      },
+      // Les fichiers de `public/` sortent sans `Cache-Control` : Next leur
+      // applique `max-age=0`, donc chaque navigation les revalide. Sur les
+      // assets de marque (logos de la navbar et du footer, présents sur
+      // TOUTES les pages), ça fait un aller-retour par page pour un contenu
+      // qui ne bouge jamais — coûteux sur une connexion mobile ivoirienne où
+      // le RTT pèse plus que les octets.
+      //
+      // Un jour de fraîcheur plutôt qu'`immutable` : les noms de fichiers ne
+      // sont pas hashés (contrairement à `/_next/static/*`), donc `immutable`
+      // piégerait un logo remplacé dans les caches pendant un an. Le
+      // `stale-while-revalidate` d'une semaine absorbe le reste : le visiteur
+      // reçoit l'ancienne version instantanément pendant que le navigateur
+      // rafraîchit en arrière-plan.
+      {
+        source: '/assets/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800',
+          },
+        ],
       },
     ];
   },

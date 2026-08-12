@@ -115,7 +115,7 @@ function Navbar() {
       <NavbarBrand>
         <NextLink href="/" aria-label="EBA Coffee Shop — accueil">
           <Image
-            src="/assets/logos/eba_n.svg"
+            src="/assets/logos/eba_n.webp"
             alt="EBA Coffee Shop — café et pâtisserie à Abidjan"
             width={60}
             height={60}

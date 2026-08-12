@@ -12,7 +12,7 @@ function AboutHeroSection() {
       className="relative min-h-svh w-full overflow-hidden"
     >
       <Image
-        src="/assets/examples/accueil/eba-hero-2.png"
+        src="/assets/examples/accueil/eba-hero-2.webp"
         alt="Intérieur du coffee shop EBA — pâtisserie artisanale à Cocody, Abidjan"
         fill
         priority

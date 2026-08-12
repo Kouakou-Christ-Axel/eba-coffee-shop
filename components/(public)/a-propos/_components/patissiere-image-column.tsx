@@ -20,7 +20,7 @@ function PatissiereImageColumn({ ref }: PatissiereImageColumnProps) {
       <div className="relative h-80 overflow-hidden rounded-4xl shadow-2xl sm:h-104 lg:h-[calc(100%-5rem)]">
         <Image
           data-main-image
-          src="/assets/examples/accueil/eba-hero-2.png"
+          src="/assets/examples/accueil/eba-hero-2.webp"
           alt="La pâtissière d'EBA en pleine préparation dans son atelier"
           fill
           sizes="(max-width: 1024px) 100vw, 40vw"
