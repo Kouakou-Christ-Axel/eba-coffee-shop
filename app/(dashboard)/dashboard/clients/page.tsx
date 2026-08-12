@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CustomerSearch } from './customer-search';
 import { CustomerFormSheet } from './customer-form';
+import { Pagination } from './pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,13 +38,6 @@ export default async function ClientsPage({
 
   const { customers, total, pageSize } = await listCustomers({ search, page });
   const totalPages = Math.ceil(total / pageSize);
-
-  function pageHref(p: number): string {
-    const sp = new URLSearchParams();
-    if (search) sp.set('search', search);
-    sp.set('page', String(p));
-    return `?${sp.toString()}`;
-  }
 
   return (
     <div className="space-y-6">
@@ -133,23 +127,7 @@ export default async function ClientsPage({
         </Table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center gap-3">
-          {page > 1 && (
-            <Button variant="outline" size="sm" asChild>
-              <Link href={pageHref(page - 1)}>Précédent</Link>
-            </Button>
-          )}
-          <span className="text-sm text-muted-foreground">
-            Page {page} / {totalPages}
-          </span>
-          {page < totalPages && (
-            <Button variant="outline" size="sm" asChild>
-              <Link href={pageHref(page + 1)}>Suivant</Link>
-            </Button>
-          )}
-        </div>
-      )}
+      {totalPages > 1 && <Pagination page={page} totalPages={totalPages} />}
     </div>
   );
 }
