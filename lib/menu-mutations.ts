@@ -521,7 +521,8 @@ export async function restockOption(id: string, delta: number) {
 // nombre disponible (valeur absolue), pas un ajout. Le panier/menu ne connaît
 // que les NOMS (produit → groupe → option), jamais l'id interne — on résout
 // donc l'id (option la plus ancienne portant ce nom dans ce groupe, comme le
-// décrément au paiement) avant d'écrire le stock. Renvoie le nouveau stock.
+// décrément à l'entrée en cuisine) avant d'écrire le stock. Renvoie le nouveau
+// stock.
 export async function setOptionStockByRef(input: {
   productId: string;
   groupName: string;

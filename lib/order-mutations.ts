@@ -169,8 +169,17 @@ export class StockShortageError extends OrderMutationError {
 // *disponible* (déterministe, la plus ancienne) avant de décrémenter cet id
 // précis — la garde atomique et la sérialisation de concurrence restent
 // intactes, seule l'ambiguïté du nom est levée en amont.
+// Logs temporaires de diagnostic (bug « le stock ne bouge pas à l'entrée en
+// cuisine ») : à retirer une fois la cause confirmée en conditions réelles —
+// `lib/order-mutations.test.ts` mocke Prisma et ne peut pas révéler un
+// décalage au niveau SQL/données réelles, d'où le besoin de logs serveur.
+function logStock(orderId: string, message: string, extra?: object): void {
+  console.info(`[stock] ${orderId} ${message}`, extra ?? '');
+}
+
 async function decrementStockForOrderItems(
   tx: Prisma.TransactionClient,
+  orderId: string,
   items: CartItem[]
 ): Promise<void> {
   for (const item of items) {
@@ -183,6 +192,12 @@ async function decrementStockForOrderItems(
         ],
       },
       data: { stockQuantity: { decrement: item.quantity } },
+    });
+    logStock(orderId, 'décrément produit', {
+      productId: item.productId,
+      productName: item.productName,
+      quantity: item.quantity,
+      matchedRows: productResult.count,
     });
     if (productResult.count !== 1) {
       throw new StockShortageError(
@@ -217,6 +232,12 @@ async function decrementStockForOrderItems(
           OR: [{ stockQuantity: null }, { stockQuantity: { gte: needed } }],
         },
         data: { stockQuantity: { decrement: needed } },
+      });
+      logStock(orderId, 'décrément option', {
+        optionId: option.id,
+        optionName: supplement.optionName,
+        needed,
+        matchedRows: optionResult.count,
       });
       if (optionResult.count !== 1) {
         throw new StockShortageError(
@@ -261,9 +282,10 @@ async function reserveStockOnce(
     where: { id: orderId, stockReservedAt: null },
     data: { stockReservedAt: new Date() },
   });
+  logStock(orderId, 'revendication du verrou', { claimed: claim.count === 1 });
   if (claim.count === 0) return false;
 
-  await decrementStockForOrderItems(tx, items);
+  await decrementStockForOrderItems(tx, orderId, items);
   return true;
 }
 
