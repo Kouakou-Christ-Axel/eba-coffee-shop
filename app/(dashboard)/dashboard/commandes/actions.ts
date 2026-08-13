@@ -120,6 +120,9 @@ export async function updateOrderItemsAction(
     return { error: formatMutationError(err) };
   }
   revalidateOrder(id);
+  // Une hausse de quantité sur une commande déjà en cuisine peut avoir
+  // décrémenté du stock (cf. `decrementStockDelta` dans `updateOrderItems`).
+  revalidatePublicMenu();
 }
 
 /**
