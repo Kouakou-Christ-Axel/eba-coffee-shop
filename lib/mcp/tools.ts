@@ -2179,11 +2179,12 @@ export const tools: McpTool[] = [
       'Définit la quantité vendable ACTUELLE d’un produit (« définir le matin »). ' +
       '`quantity` = nombre entier ≥ 0 (quantité restante suivie, `0` = épuisé), ' +
       'ou `null`/absent pour repasser le produit en stock illimité (comportement ' +
-      'par défaut, aucun suivi). Le stock est DÉCRÉMENTÉ AU PAIEMENT (validé par ' +
-      'le staff), jamais à la simple création d’une commande — une commande non ' +
-      'payée ne réserve rien. `id` provient de `get_menu`. Pour ajouter une ' +
-      'nouvelle fournée sans écraser la valeur courante, utilise plutôt ' +
-      '`restock_product`.',
+      'par défaut, aucun suivi). Le stock est DÉCRÉMENTÉ À L’ENTRÉE EN CUISINE ' +
+      '(passage `NEW → PREPARING` : encaissement, envoi manuel ou ardoise), ' +
+      'jamais à la simple création d’une commande — une commande non payée et ' +
+      'jamais envoyée en cuisine ne réserve rien. `id` provient de `get_menu`. ' +
+      'Pour ajouter une nouvelle fournée sans écraser la valeur courante, ' +
+      'utilise plutôt `restock_product`.',
     inputSchema: z.object({
       id: idSchema,
       quantity: z
@@ -2207,10 +2208,10 @@ export const tools: McpTool[] = [
     description:
       'Définit la quantité vendable ACTUELLE d’une option de supplément (un ' +
       '« goût »). Mêmes règles que `set_product_stock` : `quantity` entier ≥ 0, ' +
-      'ou `null`/absent pour repasser l’option en stock illimité. Décrémenté au ' +
-      'PAIEMENT (pas à la création). `id` (id d’option, pas de produit) provient ' +
-      'de `get_menu` — attention, les noms d’option peuvent être dupliqués entre ' +
-      'produits, cible toujours par `id`.',
+      'ou `null`/absent pour repasser l’option en stock illimité. Décrémenté à ' +
+      'L’ENTRÉE EN CUISINE (pas à la création). `id` (id d’option, pas de ' +
+      'produit) provient de `get_menu` — attention, les noms d’option peuvent ' +
+      'être dupliqués entre produits, cible toujours par `id`.',
     inputSchema: z.object({
       id: idSchema,
       quantity: z
