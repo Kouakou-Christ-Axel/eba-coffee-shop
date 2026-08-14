@@ -22,9 +22,11 @@ import {
   abidjanDatetimeLocalToISO,
   isoToAbidjanDatetimeLocal,
 } from '@/lib/timezone';
-import { cn } from '@/lib/utils';
+import { isPickupAt, pickupISOAt } from '@/lib/orders/scheduling';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import { OrderTypePicker } from './new/_components/order-type-picker';
+import { TimeChip } from '../_components/time-chip';
+import { useNextOpenPickup } from '../_components/use-next-open-pickup';
 
 type Props = {
   isOpen: boolean;
@@ -69,6 +71,18 @@ export function EditFulfillmentModal({ isOpen, onClose, order }: Props) {
   function applyPreset(minutes: number) {
     setPickupTime(presetPickupTime(minutes));
     setActivePreset(minutes);
+  }
+
+  // Raccourci « jour ouvert suivant » (typiquement « Demain 11h ») : ne charge
+  // les horaires qu'à l'ouverture de la modale (`enabled: isOpen`).
+  const nextOpenPickup = useNextOpenPickup(isOpen);
+
+  function applyNextOpenPickup() {
+    if (!nextOpenPickup) return;
+    setPickupTime(
+      pickupISOAt(nextOpenPickup.target.date, nextOpenPickup.target.time)
+    );
+    setActivePreset(null);
   }
 
   function handleSubmit() {
@@ -138,38 +152,52 @@ export function EditFulfillmentModal({ isOpen, onClose, order }: Props) {
               Créneau de retrait / arrivée du livreur
             </p>
             <div className="flex flex-wrap gap-2">
+              {/*
+                Deux régimes d'état actif cohabitent ici :
+                - les présets minute (« Dans 2h ») restent un état STOCKÉ
+                  (`activePreset`) : `presetPickupTime` part de `Date.now()`,
+                  donc la valeur soumise ne correspond plus au préset dès la
+                  minute suivante — rien à dériver ;
+                - le raccourci « jour ouvert suivant » vise un instant ABSOLU
+                  (tel jour, telle heure) : son état est DÉRIVÉ de `pickupTime`
+                  via `isPickupAt`, donc encore allumé si on rouvre la modale
+                  sans rien changer — contrairement aux présets minute.
+              */}
               {PICKUP_QUICK_PRESETS_MINUTES.map((minutes) => (
-                <button
+                <TimeChip
                   key={minutes}
-                  type="button"
-                  onClick={() => applyPreset(minutes)}
-                  className={cn(
-                    'h-11 rounded-full border-2 px-4 text-sm font-medium transition-colors',
-                    activePreset === minutes
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border bg-card hover:bg-muted'
-                  )}
+                  size="md"
+                  isActive={activePreset === minutes}
+                  onPress={() => applyPreset(minutes)}
                 >
                   {minutes < 60
                     ? `Dans ${minutes} min`
                     : `Dans ${minutes / 60}h`}
-                </button>
+                </TimeChip>
               ))}
-              <button
-                type="button"
-                onClick={() => {
+              {nextOpenPickup && (
+                <TimeChip
+                  size="md"
+                  isActive={isPickupAt(
+                    pickupTime,
+                    nextOpenPickup.target.date,
+                    nextOpenPickup.target.time
+                  )}
+                  onPress={applyNextOpenPickup}
+                >
+                  {nextOpenPickup.label}
+                </TimeChip>
+              )}
+              <TimeChip
+                size="md"
+                isActive={pickupTime === null}
+                onPress={() => {
                   setPickupTime(null);
                   setActivePreset(null);
                 }}
-                className={cn(
-                  'h-11 rounded-full border-2 px-4 text-sm font-medium transition-colors',
-                  pickupTime === null
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border bg-card hover:bg-muted'
-                )}
               >
                 Pas de créneau
-              </button>
+              </TimeChip>
             </div>
             <Input
               type="datetime-local"

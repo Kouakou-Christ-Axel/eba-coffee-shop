@@ -28,8 +28,18 @@ type Props = {
    * reconnaissable après coup et garde un état explicite.
    */
   isActive: boolean;
-  /** Action serveur en vol : le bouton se met en retrait et n'est plus cliquable. */
+  /**
+   * CE bouton a déclenché une action serveur encore en vol : il se met en
+   * retrait (curseur d'attente) et n'est plus cliquable.
+   */
   isPending?: boolean;
+  /**
+   * Bouton inerte sans être celui qu'on attend. Distinct de `isPending` :
+   * quand une rangée déclenche des actions serveur, TOUS les boutons doivent
+   * se verrouiller le temps de l'appel (sinon un second clic lance une action
+   * concurrente), mais un seul doit porter la marque d'attente.
+   */
+  isDisabled?: boolean;
   /** `sm` (h-9) pour cohabiter avec des boutons shadcn `sm` ; `md` (h-11) pour le tactile. */
   size?: 'sm' | 'md';
   className?: string;
@@ -40,6 +50,7 @@ export function TimeChip({
   onPress,
   isActive,
   isPending = false,
+  isDisabled = false,
   size = 'md',
   className,
 }: Props) {
@@ -47,7 +58,7 @@ export function TimeChip({
     <button
       type="button"
       onClick={onPress}
-      disabled={isPending}
+      disabled={isPending || isDisabled}
       aria-pressed={isActive}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-full border-2 font-semibold transition-colors',
