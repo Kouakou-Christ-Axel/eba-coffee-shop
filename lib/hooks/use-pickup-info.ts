@@ -37,8 +37,14 @@ export type PickupInfoState =
  * `Product.advanceOrderDays`, lib/menu.ts) — étend l'horizon de créneaux
  * au-delà du réglage global si besoin (voir `/api/pickup-slots?minDays=`).
  * 0/absent = pas de contrainte, comportement inchangé.
+ *
+ * `enabled` : à `false`, aucun appel réseau n'est déclenché et l'état reste
+ * `loading`. Indispensable dans le dashboard, où `EditFulfillmentModal` est
+ * monté pour CHAQUE carte de la file caisse (`isOpen` en prop) : sans ce
+ * garde-fou, afficher vingt commandes déclencherait vingt requêtes. Les
+ * appelants passent `enabled={isOpen}` — un seul appel, à l'ouverture.
  */
-export function usePickupInfo(minDays = 0): PickupInfoState {
+export function usePickupInfo(minDays = 0, enabled = true): PickupInfoState {
   const [state, setState] = useState<PickupInfoState>({ status: 'loading' });
   // Compteur de tentatives : `retry()` relance le fetch sans recharger la
   // page (un reload viderait le contexte du checkout en cours).
@@ -50,6 +56,7 @@ export function usePickupInfo(minDays = 0): PickupInfoState {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     const url =
       minDays > 0
@@ -82,7 +89,7 @@ export function usePickupInfo(minDays = 0): PickupInfoState {
     return () => {
       cancelled = true;
     };
-  }, [attempt, retry, minDays]);
+  }, [attempt, retry, minDays, enabled]);
 
   return state;
 }
