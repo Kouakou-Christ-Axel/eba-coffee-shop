@@ -162,7 +162,8 @@ export async function updateOrderItemsAction(
     return toFailure(id, err);
   }
   revalidateOrder(id);
-  // Le contenu d'une commande déjà réservée réaligne le stock : la carte
+  // Le contenu d'une commande déjà réservée réaligne le stock dans les deux
+  // sens (cf. `resyncStockForItemChange` dans `updateOrderItems`) : la carte
   // publique doit refléter l'ajout comme le retrait.
   revalidatePublicMenu();
 }

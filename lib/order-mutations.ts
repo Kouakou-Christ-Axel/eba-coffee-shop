@@ -1815,25 +1815,6 @@ export async function updateOrderItems(
     );
   }
 
-  const order = await prisma.order.findUnique({
-    where: { id },
-    select: {
-      status: true,
-      loyaltyDiscount: true,
-      items: true,
-      stockReservedAt: true,
-    },
-  });
-  if (!order) {
-    throw new OrderMutationError('Commande introuvable', 404);
-  }
-  if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
-    throw new OrderMutationError(
-      'Impossible de modifier une commande terminée ou annulée',
-      409
-    );
-  }
-
   // Plafond de remise par ligne (sécurité serveur, en plus de la validation UI).
   for (const item of items) {
     if ((item.discount ?? 0) > getMaxItemDiscount(item)) {
@@ -1844,21 +1825,33 @@ export async function updateOrderItems(
     }
   }
 
-  // Total net recalculé côté serveur (après remises), en conservant la
-  // récompense fidélité déjà appliquée à la commande (sinon un simple ajout /
-  // retrait d'article efface silencieusement sa déduction du total, alors que
-  // `loyaltyDiscount`/`loyaltyRewardId` restent inchangés sur la ligne — cf.
-  // `createCashierOrder` pour le même calcul à la création).
-  const total = Math.max(
-    0,
-    computeItemsTotal(items) - (order.loyaltyDiscount ?? 0)
-  );
+  // Lecture DANS la transaction : les articles relus servent de base au delta
+  // de stock, ils doivent donc être ceux sur lesquels on écrit — sinon deux
+  // éditions concurrentes calculeraient leur delta sur le même état d'origine.
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id },
+      select: {
+        status: true,
+        loyaltyDiscount: true,
+        items: true,
+        stockReservedAt: true,
+      },
+    });
+    if (!order) {
+      throw new OrderMutationError('Commande introuvable', 404);
+    }
+    if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
+      throw new OrderMutationError(
+        'Impossible de modifier une commande terminée ou annulée',
+        409
+      );
+    }
 
-  await prisma.$transaction(async (tx) => {
     // Réalignement du stock AVANT l'écriture : une pénurie sur les articles
     // ajoutés fait échouer toute la transaction, la commande reste intacte.
-    // Rien à faire tant que la commande n'a pas réservé — le stock sera
-    // décompté sur le contenu final, à l'entrée en cuisine.
+    // Rien à faire tant que la commande n'a pas réservé — la future entrée en
+    // cuisine décomptera les articles finaux tels quels.
     if (order.stockReservedAt !== null) {
       await resyncStockForItemChange(
         tx,
@@ -1868,13 +1861,23 @@ export async function updateOrderItems(
       );
     }
 
+    // Total net recalculé côté serveur (après remises), en conservant la
+    // récompense fidélité déjà appliquée à la commande (sinon un simple ajout /
+    // retrait d'article efface silencieusement sa déduction du total, alors que
+    // `loyaltyDiscount`/`loyaltyRewardId` restent inchangés sur la ligne — cf.
+    // `createCashierOrder` pour le même calcul à la création).
+    const total = Math.max(
+      0,
+      computeItemsTotal(items) - (order.loyaltyDiscount ?? 0)
+    );
+
     await tx.order.update({
       where: { id },
       data: { items: items as unknown as Prisma.InputJsonValue, total },
     });
-  });
 
-  return { total };
+    return { total };
+  });
 }
 
 // ─── Récompense fidélité sur une commande déjà créée ───────────────────────────
