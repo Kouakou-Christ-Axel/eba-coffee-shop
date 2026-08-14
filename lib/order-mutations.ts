@@ -248,6 +248,130 @@ async function decrementStockForOrderItems(
   }
 }
 
+// Agrège une liste d'articles en demande totale par produit et par option
+// (toutes lignes confondues) — sert de base au calcul de delta de
+// `decrementStockDelta` ci-dessous. Réutilise `optionKey` (même clé que
+// `notifyPendingOrdersOfShortage`) pour désigner une option indépendamment du
+// produit qui la référence (globale ou non).
+type ItemDemand = {
+  products: Map<string, { productName: string; quantity: number }>;
+  options: Map<
+    string,
+    { productId: string; groupName: string; optionName: string; needed: number }
+  >;
+};
+
+function aggregateItemDemand(items: CartItem[]): ItemDemand {
+  const products: ItemDemand['products'] = new Map();
+  const options: ItemDemand['options'] = new Map();
+  for (const item of items) {
+    const p = products.get(item.productId);
+    products.set(item.productId, {
+      productName: item.productName,
+      quantity: (p?.quantity ?? 0) + item.quantity,
+    });
+    for (const s of item.supplements) {
+      const key = optionKey(item.productId, s.groupName, s.optionName);
+      const needed = (s.quantity ?? 1) * item.quantity;
+      const o = options.get(key);
+      options.set(key, {
+        productId: item.productId,
+        groupName: s.groupName,
+        optionName: s.optionName,
+        needed: (o?.needed ?? 0) + needed,
+      });
+    }
+  }
+  return { products, options };
+}
+
+/**
+ * Décrémente le SURPLUS de demande entre deux snapshots d'articles d'une
+ * commande DONT LE STOCK A DÉJÀ ÉTÉ RÉSERVÉ (`Order.stockReservedAt` posé) —
+ * sert à `updateOrderItems` (« Modifier les articles ») quand une quantité
+ * augmente APRÈS l'entrée en cuisine (ex. le client rajoute 2 cafés) : cette
+ * hausse n'a jamais été décomptée par `reserveStockOnce`, qui ne décrémente
+ * qu'une fois, à la toute première réservation.
+ *
+ * Ne restitue JAMAIS de stock côté baisse (delta négatif ignoré) — même
+ * invariant « décrémenté au plus une fois, jamais ré-incrémenté » que
+ * `sendOrderToKitchen` (un plat retiré après être parti en cuisine est de
+ * toute façon potentiellement déjà engagé).
+ */
+async function decrementStockDelta(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  previousItems: CartItem[],
+  nextItems: CartItem[]
+): Promise<void> {
+  const before = aggregateItemDemand(previousItems);
+  const after = aggregateItemDemand(nextItems);
+
+  for (const [productId, { productName, quantity }] of after.products) {
+    const delta = quantity - (before.products.get(productId)?.quantity ?? 0);
+    if (delta <= 0) continue;
+    const result = await tx.product.updateMany({
+      where: {
+        id: productId,
+        OR: [{ stockQuantity: null }, { stockQuantity: { gte: delta } }],
+      },
+      data: { stockQuantity: { decrement: delta } },
+    });
+    logStock(orderId, 'décrément produit (delta édition)', {
+      productId,
+      productName,
+      delta,
+      matchedRows: result.count,
+    });
+    if (result.count !== 1) {
+      throw new StockShortageError(
+        `Stock insuffisant pour « ${productName} »`
+      );
+    }
+  }
+
+  for (const [
+    key,
+    { productId, groupName, optionName, needed },
+  ] of after.options) {
+    const delta = needed - (before.options.get(key)?.needed ?? 0);
+    if (delta <= 0) continue;
+    const option = await tx.supplementOption.findFirst({
+      where: {
+        name: optionName,
+        available: true,
+        group: { name: groupName, OR: [{ productId }, { isGlobal: true }] },
+      },
+      orderBy: { id: 'asc' },
+      select: { id: true },
+    });
+    const productName = after.products.get(productId)?.productName ?? '';
+    if (!option) {
+      throw new StockShortageError(
+        `Option indisponible pour « ${productName} — ${optionName} »`
+      );
+    }
+    const result = await tx.supplementOption.updateMany({
+      where: {
+        id: option.id,
+        OR: [{ stockQuantity: null }, { stockQuantity: { gte: delta } }],
+      },
+      data: { stockQuantity: { decrement: delta } },
+    });
+    logStock(orderId, 'décrément option (delta édition)', {
+      optionId: option.id,
+      optionName,
+      delta,
+      matchedRows: result.count,
+    });
+    if (result.count !== 1) {
+      throw new StockShortageError(
+        `Stock insuffisant pour « ${productName} — ${optionName} »`
+      );
+    }
+  }
+}
+
 /**
  * Réserve (décrémente) le stock d'une commande AU PLUS UNE FOIS, quel que soit
  * le nombre de chemins qui y mènent. Renvoie `true` si CET appel a réellement
@@ -1401,8 +1525,19 @@ export async function setOrderCustomer(
  * remises). Sert à ajouter/retirer des produits ET à appliquer des remises de
  * ligne. Refuse une commande terminée/annulée et plafonne chaque remise.
  *
+ * STOCK : si le stock de la commande est déjà réservé (`stockReservedAt` posé
+ * — entrée en cuisine, ardoise ou paiement déjà passés), toute AUGMENTATION
+ * de quantité par rapport aux articles actuels est décrémentée maintenant
+ * (voir `decrementStockDelta`) : `reserveStockOnce` ne décrémente qu'une
+ * seule fois, à la toute première réservation, donc un rajout après coup
+ * (ex. « encore 2 cafés » une fois la commande déjà en cuisine) ne serait
+ * sinon jamais compté. Une baisse ne restitue rien. Si le stock n'est PAS
+ * encore réservé, aucune action ici : la future entrée en cuisine décomptera
+ * les articles finaux tels quels.
+ *
  * Lève `OrderMutationError` (400 liste vide / remise trop élevée, 404
- * introuvable, 409 commande terminée). Renvoie le nouveau total.
+ * introuvable, 409 commande terminée) ou `StockShortageError` (409, si le
+ * surplus dépasse le stock restant). Renvoie le nouveau total.
  */
 export async function updateOrderItems(
   id: string,
@@ -1412,20 +1547,6 @@ export async function updateOrderItems(
     throw new OrderMutationError(
       'La commande doit avoir au moins un article',
       400
-    );
-  }
-
-  const order = await prisma.order.findUnique({
-    where: { id },
-    select: { status: true, loyaltyDiscount: true },
-  });
-  if (!order) {
-    throw new OrderMutationError('Commande introuvable', 404);
-  }
-  if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
-    throw new OrderMutationError(
-      'Impossible de modifier une commande terminée ou annulée',
-      409
     );
   }
 
@@ -1439,22 +1560,48 @@ export async function updateOrderItems(
     }
   }
 
-  // Total net recalculé côté serveur (après remises), en conservant la
-  // récompense fidélité déjà appliquée à la commande (sinon un simple ajout /
-  // retrait d'article efface silencieusement sa déduction du total, alors que
-  // `loyaltyDiscount`/`loyaltyRewardId` restent inchangés sur la ligne — cf.
-  // `createCashierOrder` pour le même calcul à la création).
-  const total = Math.max(
-    0,
-    computeItemsTotal(items) - (order.loyaltyDiscount ?? 0)
-  );
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id },
+      select: {
+        status: true,
+        loyaltyDiscount: true,
+        items: true,
+        stockReservedAt: true,
+      },
+    });
+    if (!order) {
+      throw new OrderMutationError('Commande introuvable', 404);
+    }
+    if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
+      throw new OrderMutationError(
+        'Impossible de modifier une commande terminée ou annulée',
+        409
+      );
+    }
 
-  await prisma.order.update({
-    where: { id },
-    data: { items: items as unknown as Prisma.InputJsonValue, total },
+    if (order.stockReservedAt) {
+      const previousItems = order.items as unknown as CartItem[];
+      await decrementStockDelta(tx, id, previousItems, items);
+    }
+
+    // Total net recalculé côté serveur (après remises), en conservant la
+    // récompense fidélité déjà appliquée à la commande (sinon un simple ajout /
+    // retrait d'article efface silencieusement sa déduction du total, alors que
+    // `loyaltyDiscount`/`loyaltyRewardId` restent inchangés sur la ligne — cf.
+    // `createCashierOrder` pour le même calcul à la création).
+    const total = Math.max(
+      0,
+      computeItemsTotal(items) - (order.loyaltyDiscount ?? 0)
+    );
+
+    await tx.order.update({
+      where: { id },
+      data: { items: items as unknown as Prisma.InputJsonValue, total },
+    });
+
+    return { total };
   });
-
-  return { total };
 }
 
 // ─── Récompense fidélité sur une commande déjà créée ───────────────────────────
