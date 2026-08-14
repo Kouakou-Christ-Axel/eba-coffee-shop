@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Reorder, useDragControls, useReducedMotion } from 'framer-motion';
 import { MediaImage as Image } from '@/components/ui/media-image';
-import { GripVertical, Search, X } from 'lucide-react';
+import { GripVertical, PackagePlus, Search, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -163,6 +163,14 @@ export function ProductsTable({
     });
   }
 
+  // Catégorie vide : ni tableau ni barre de filtres. Filtrer zéro produit n'a
+  // pas de sens, et la seule chose à faire ici est d'en créer un — l'ancienne
+  // ligne « Aucun produit dans cette catégorie » l'énonçait sans l'offrir,
+  // alors que le bouton vit tout en haut de la page.
+  if (products.length === 0) {
+    return <EmptyProducts categoryId={categoryId} />;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -279,25 +287,46 @@ export function ProductsTable({
                 colSpan={9}
                 className="py-8 text-center text-sm text-muted-foreground"
               >
-                {products.length === 0 ? (
-                  'Aucun produit dans cette catégorie.'
-                ) : (
-                  <>
-                    Aucun produit ne correspond aux filtres.{' '}
-                    <button
-                      type="button"
-                      onClick={resetFilters}
-                      className="underline underline-offset-4"
-                    >
-                      Réinitialiser
-                    </button>
-                  </>
-                )}
+                Aucun produit ne correspond aux filtres.{' '}
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="underline underline-offset-4"
+                >
+                  Réinitialiser
+                </button>
               </TableCell>
             </TableRow>
           )}
         </Reorder.Group>
       </Table>
+    </div>
+  );
+}
+
+/**
+ * Catégorie sans aucun produit. À distinguer du « aucun résultat » des
+ * filtres, qui a sa propre issue (réinitialiser) : ici il n'y a rien à
+ * dévoiler, il y a quelque chose à créer.
+ */
+function EmptyProducts({ categoryId }: { categoryId: string }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-6 py-12 text-center">
+      <div className="rounded-full bg-muted p-3">
+        <PackagePlus className="size-6 text-muted-foreground" />
+      </div>
+      <h2 className="font-semibold">Aucun produit dans cette catégorie</h2>
+      <p className="max-w-md text-sm text-muted-foreground">
+        Un produit, c’est ce que le client commande : un nom, une description et
+        un prix suffisent pour commencer. Le reste — photo, coûts, suppléments —
+        se complète quand vous voulez.
+      </p>
+      <Button asChild className="mt-1">
+        <Link href={`/dashboard/menu/${categoryId}/produits/new`}>
+          <PackagePlus className="size-4" />
+          Créer le premier produit
+        </Link>
+      </Button>
     </div>
   );
 }

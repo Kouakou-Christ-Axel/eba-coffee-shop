@@ -11,7 +11,21 @@ import { useUndoToast } from '@/lib/hooks/use-undo-toast';
 import { createCategoryAction } from './actions';
 import { ADVANCE_ORDER_DAYS_MAX } from '@/config/constants';
 
-export function CategoryForm({ schedules }: { schedules: ScheduleOption[] }) {
+export function CategoryForm({
+  schedules,
+  onCreated,
+  submitLabel = 'Ajouter',
+}: {
+  schedules: ScheduleOption[];
+  /**
+   * Appelé après création réussie, avec la catégorie qui vient de naître. Le
+   * panneau « Nouveau produit » s'en sert pour enchaîner directement sur la
+   * fiche produit de cette catégorie, plutôt que de renvoyer la personne sur
+   * la liste pour qu'elle y retourne à la main.
+   */
+  onCreated?: (category: { id: string; name: string }) => void;
+  submitLabel?: string;
+}) {
   const { pushToast } = useUndoToast();
   const [name, setName] = useState('');
   const [scheduleId, setScheduleId] = useState<string | null>(null);
@@ -38,6 +52,7 @@ export function CategoryForm({ schedules }: { schedules: ScheduleOption[] }) {
       setScheduleId(null);
       setAdvanceOrderDays(null);
       pushToast(`Catégorie « ${created} » créée`);
+      onCreated?.(result.data);
     });
   }
 
@@ -54,7 +69,7 @@ export function CategoryForm({ schedules }: { schedules: ScheduleOption[] }) {
           {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
         <Button type="submit" disabled={isPending || name.trim().length === 0}>
-          {isPending ? 'Ajout…' : 'Ajouter'}
+          {isPending ? 'Ajout…' : submitLabel}
         </Button>
       </div>
       <ScheduleField

@@ -4,7 +4,13 @@ import { useState } from 'react';
 import { MediaImage as Image } from '@/components/ui/media-image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import {
   ALLOWED_IMAGE_MIME_TYPES,
   MAX_UPLOAD_SIZE_BYTES,
@@ -62,7 +68,17 @@ export function ProductImagesField({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Image</CardTitle>
+        <CardTitle className="flex items-baseline gap-2">
+          Image
+          <span className="text-xs font-normal text-muted-foreground">
+            optionnel
+          </span>
+        </CardTitle>
+        <CardDescription>
+          Une photo du produit, telle qu’elle apparaîtra sur la carte. Sans
+          image, le produit reste commandable et s’affiche avec un visuel par
+          défaut.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {imageUrl && (
