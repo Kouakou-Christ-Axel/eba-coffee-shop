@@ -177,17 +177,38 @@ function SupplementModal({
     });
   }
 
-  const canSubmit = canSubmitSelections(product, selections);
+  // Le produit lui-même est épuisé : toute la ligne part « pour un autre
+  // jour », donc ses goûts épuisés le sont aussi. Les goûts épuisés d'un
+  // produit DISPONIBLE, eux, restent sélectionnables pour la même raison —
+  // c'est le sélecteur de créneau qui traduira ça en « pas aujourd'hui ».
+  const rules = { ignoreSoldOut: true };
+
+  const canSubmit = canSubmitSelections(product, selections, rules);
+
+  // La ligne part-elle « pour un autre jour » ? Uniquement si le produit est
+  // épuisé, ou si le client a EFFECTIVEMENT choisi un goût épuisé — pas parce
+  // qu'un goût épuisé existe quelque part dans la carte. Dérivé de la
+  // sélection courante : cocher puis décocher « Vanille » ne doit pas laisser
+  // la commande contrainte à demain.
+  const soldOutForLater =
+    product.soldOut === true ||
+    getSelectedSupplements(product, selections, rules).some((sup) =>
+      (product.supplements ?? []).some(
+        (g) =>
+          g.name === sup.groupName &&
+          g.options.some((o) => o.name === sup.optionName && o.soldOut)
+      )
+    );
   // Premier groupe qui bloque l'envoi : le CTA le nomme, au lieu de rester
   // gris sans dire ce qui manque. Sur une boîte à parts fixes on va plus loin
   // et on chiffre le reste à faire (« Encore 2 parts à choisir »).
-  const blockingGroup = groups.find((g) => !isGroupValid(g, selections));
+  const blockingGroup = groups.find((g) => !isGroupValid(g, selections, rules));
   const blockingLabel = (() => {
     if (!blockingGroup) return 'Choisissez vos options';
     if (isFixedPortionGroup(blockingGroup)) {
       const missing =
         portionCount(blockingGroup) -
-        groupSelectionCount(blockingGroup, selections);
+        groupSelectionCount(blockingGroup, selections, rules);
       return `Encore ${missing} part${missing > 1 ? 's' : ''} à choisir`;
     }
     return `Choisissez : ${stripPortionSuffix(blockingGroup.name)}`;
@@ -195,22 +216,24 @@ function SupplementModal({
 
   const unitPrice =
     product.price +
-    getSupplementsPrice(getSelectedSupplements(product, selections));
+    getSupplementsPrice(getSelectedSupplements(product, selections, rules));
   const runningTotal = unitPrice * quantity;
 
   // Plafond de la ligne : stock restant du produit s'il est suivi, sinon le
   // garde-fou métier général. Le store re-plafonne de toute façon à l'ajout.
+  // Un article commandé « pour un autre jour » n'est pas plafonné par le stock
+  // du jour : il n'existe pas encore, il sera produit.
   const maxQuantity = Math.max(
     1,
     Math.min(
-      product.remaining ?? CART_ITEM_QUANTITY_MAX,
+      soldOutForLater ? CART_ITEM_QUANTITY_MAX : (product.remaining ?? CART_ITEM_QUANTITY_MAX),
       CART_ITEM_QUANTITY_MAX
     )
   );
 
   function handleAdd() {
     if (!canSubmit) return;
-    const supplements = getSelectedSupplements(product, selections);
+    const supplements = getSelectedSupplements(product, selections, rules);
     // `addItem` ajoute une unité et fusionne les lignes strictement identiques :
     // N appels donnent bien UNE ligne à quantité N, tout en conservant le
     // plafond de stock du store. Pas besoin de toucher lib/cart-store.ts.
@@ -226,8 +249,11 @@ function SupplementModal({
           advanceOrderDays: product.advanceOrderDays,
           availableDays: product.availableDays,
           weeklySpecialPeriods: product.weeklySpecialPeriods,
+          soldOutToday: soldOutForLater || undefined,
         },
-        product.remaining ?? undefined
+        // Pas de plafond quand l'article part pour un autre jour : `addItem`
+        // refuse SILENCIEUSEMENT un ajout avec `maxQuantity <= 0`.
+        soldOutForLater ? undefined : (product.remaining ?? undefined)
       );
     }
     // Un seul événement pour le geste, suppléments inclus dans `item_variant`
@@ -468,7 +494,7 @@ function SupplementModal({
                   <Radio
                     key={opt.name}
                     value={opt.name}
-                    isDisabled={opt.soldOut}
+                    isDisabled={false}
                   >
                     <span className="flex items-center justify-between gap-4">
                       <span className="text-sm">
@@ -504,7 +530,7 @@ function SupplementModal({
                   const current = multipleSelection(selections, group.name);
                   const isChecked = current.includes(opt.name);
                   const isDisabled =
-                    opt.soldOut || (!isChecked && count >= max);
+                    !isChecked && count >= max;
                   return (
                     <Checkbox
                       key={opt.name}
@@ -538,9 +564,12 @@ function SupplementModal({
                   // Plafond de l'option : borne du groupe (répartition
                   // totale) ET stock restant de l'option elle-même — la
                   // plus stricte des deux gagne.
-                  const optionCap = opt.remaining ?? Infinity;
+                  // Le stock du jour ne plafonne pas une commande pour plus tard.
+                  const optionCap = opt.soldOut
+                    ? Infinity
+                    : (opt.remaining ?? Infinity);
                   const canIncrement =
-                    !opt.soldOut && count < max && qty < optionCap;
+                    count < max && qty < optionCap;
                   return (
                     <div
                       key={opt.name}

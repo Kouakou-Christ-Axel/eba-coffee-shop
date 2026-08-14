@@ -808,7 +808,11 @@ model PickupSettings {
   id              String   @id @default("singleton")
   slotIntervalMin Int      @default(15)
   leadTimeMin     Int      @default(30)
-  visibleDays     Int      @default(2)
+  // Aligné sur `DEFAULT_SETTINGS.visibleDays` (lib/pickup-settings.ts) et sur
+  // `PICKUP_MIN_VISIBLE_DAYS` (config/constants.ts), qui plancher déjà la
+  // valeur à la lecture : un défaut à 2 laissait croire à un horizon de 2 jours
+  // alors que le code en sert 7.
+  visibleDays     Int      @default(7)
   capacityPerSlot Int?
   weeklyHours     Json     @default("{}")
   dateOverrides   Json     @default("[]")

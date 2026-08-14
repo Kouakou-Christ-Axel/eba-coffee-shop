@@ -38,6 +38,8 @@ import {
   isWithinAnyPeriod,
   minAllowedPickupDateString,
 } from '@/lib/supplements';
+import { pickDefaultSlot } from '@/lib/pickup-slots';
+import { DEFERRED_PICKUP_DEFAULT_TIME } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
 import { cn } from '@/lib/utils';
 
@@ -57,6 +59,12 @@ type SlotPickerProps = {
   /** Délai de commande à l'avance requis par le panier (jours), voir
    * `Product.advanceOrderDays` (lib/menu.ts). 0/absent = pas de contrainte. */
   minAdvanceOrderDays?: number;
+  /**
+   * La contrainte de jour vient d'un article ÉPUISÉ AUJOURD'HUI, pas d'une
+   * règle « commande à l'avance » du produit. Change uniquement le message :
+   * parler de commande à l'avance mentirait au client.
+   */
+  soldOutRestricted?: boolean;
 };
 
 type Period = 'morning' | 'noon' | 'afternoon' | 'evening';
@@ -163,6 +171,7 @@ export function SlotPicker({
   info,
   items,
   minAdvanceOrderDays = 0,
+  soldOutRestricted = false,
 }: SlotPickerProps) {
   const today = todayDateString();
   const [activeDay, setActiveDay] = useState<string | null>(null);
@@ -210,6 +219,27 @@ export function SlotPicker({
     }
   }, [info.status, openNow, timing, onTimingChange]);
 
+  // Panier contraint à un jour ultérieur (article épuisé aujourd'hui, ou délai
+  // de commande à l'avance) : on POSE le créneau par défaut plutôt que de
+  // laisser le client chercher. Il reste libre d'en changer.
+  //
+  // `pickDefaultSlot` garantit qu'on ne pré-sélectionne jamais une heure qui
+  // n'existe pas (fermeture, capacité pleine, pas de créneau) — voir
+  // lib/pickup-slots.ts.
+  const firstDay = days[0]?.date ?? null;
+  useEffect(() => {
+    if (info.status !== 'ready' || value || !minAllowedDate || !firstDay) return;
+    const candidates = days.flatMap((d) => slotsByDay.get(d.date) ?? []);
+    const slot = pickDefaultSlot(
+      candidates,
+      firstDay,
+      DEFERRED_PICKUP_DEFAULT_TIME
+    );
+    if (slot) onChange(slot.toISOString());
+    // `days`/`slotsByDay` sont dérivés de `info` : le suivre suffit et évite de
+    // relancer l'effet à chaque rendu sur des tableaux recréés.
+  }, [info, value, minAllowedDate, firstDay, days, slotsByDay, onChange]);
+
   const selectedDate = value ? new Date(value) : null;
   const selectedLabel =
     timing === 'scheduled' && selectedDate
@@ -248,13 +278,19 @@ export function SlotPicker({
         </div>
       ) : (
         <>
-          {minAdvanceOrderDays > 0 && (
-            <p className="text-xs text-foreground/60">
-              Un article de votre panier doit être commandé au moins{' '}
-              {minAdvanceOrderDays} jour
-              {minAdvanceOrderDays > 1 ? 's' : ''} à l&apos;avance.
-            </p>
-          )}
+          {minAdvanceOrderDays > 0 &&
+            (soldOutRestricted ? (
+              <p className="text-xs text-foreground/60">
+                Un article de votre panier est épuisé aujourd&apos;hui : il sera
+                préparé pour le jour que vous choisissez, à partir de demain.
+              </p>
+            ) : (
+              <p className="text-xs text-foreground/60">
+                Un article de votre panier doit être commandé au moins{' '}
+                {minAdvanceOrderDays} jour
+                {minAdvanceOrderDays > 1 ? 's' : ''} à l&apos;avance.
+              </p>
+            ))}
 
           {scheduleRestricted && (
             <p className="text-xs text-foreground/60">
@@ -298,7 +334,13 @@ export function SlotPicker({
               </span>
               <span className="text-xs text-foreground/50">
                 {minAllowedDate
-                  ? 'Commande à l’avance requise'
+                  ? // Dire la VRAIE raison : « commande à l'avance » ferait
+                    // croire à une règle du produit alors que c'est un simple
+                    // état du jour (et le client se demanderait pourquoi son
+                    // gâteau habituel exige soudain un délai).
+                    soldOutRestricted
+                    ? 'Épuisé aujourd’hui'
+                    : 'Commande à l’avance requise'
                   : !cartAvailableNow
                     ? "Indisponible aujourd'hui"
                     : openNow

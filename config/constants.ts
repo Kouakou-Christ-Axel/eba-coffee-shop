@@ -217,6 +217,25 @@ export const SCHEDULED_LEAD_IN_MINUTES = 60;
 export const SCHEDULED_ALERT_MINUTES = 15;
 
 /**
+ * Commandes différées (retrait un JOUR CIVIL ULTÉRIEUR — cf. `isDeferredPickup`,
+ * lib/orders/scheduling.ts).
+ *
+ * - `PRODUCTION_PLAN_DAYS` : horizon du panneau « À produire » (écran cuisine).
+ *   BORNE DE REQUÊTE uniquement — le panneau n'affiche que les jours réellement
+ *   chargés, jamais une semaine d'onglets vides. Aligné sur
+ *   `PICKUP_MIN_VISIBLE_DAYS` : on ne peut pas commander plus loin que ce que
+ *   le sélecteur de créneau propose.
+ * - `DEFERRED_PICKUP_DEFAULT_TIME` : heure de retrait proposée par défaut pour
+ *   un jour ultérieur. Une seule valeur pour les deux surfaces — pré-sélection
+ *   automatique au checkout client, et heure de la puce « Demain » en caisse.
+ * - `LAUNCH_ALERT_MINUTES` : en deçà de ce délai avant le retrait, une commande
+ *   programmée pas encore lancée en cuisine est signalée « à lancer ».
+ */
+export const PRODUCTION_PLAN_DAYS = 7;
+export const DEFERRED_PICKUP_DEFAULT_TIME = '11:00';
+export const LAUNCH_ALERT_MINUTES = 30;
+
+/**
  * Pré-analyse IA des preuves de paiement (Wave/Orange Money), via OpenRouter
  * (lib/ai/payment-proof.ts). Stratégie à deux étages : le modèle primaire
  * (rapide/économique) traite tous les appels ; le modèle de repli (plus

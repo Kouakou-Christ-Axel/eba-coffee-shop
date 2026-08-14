@@ -537,7 +537,7 @@ export function ProductForm({
                 <Field
                   id="stock-quantity"
                   label="Quantité disponible du jour"
-                  help="Vide = illimité (crêpes, boissons…). Un nombre = suivi et décrémenté au paiement."
+                  help="Vide = illimité (crêpes, boissons…). Un nombre = suivi et décrémenté à l'entrée en cuisine. Une commande pour un autre jour n'y touche pas."
                 >
                   <Input
                     id="stock-quantity"

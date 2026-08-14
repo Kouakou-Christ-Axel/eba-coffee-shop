@@ -14,7 +14,12 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireCashier } from '@/lib/auth-helpers';
 import { orderPaymentsSchema } from '@/lib/schemas/order';
-import { setOrderPayment, OrderMutationError } from '@/lib/order-mutations';
+import {
+  setOrderPayment,
+  buildShortagePayload,
+  OrderMutationError,
+  StockShortageError,
+} from '@/lib/order-mutations';
 
 // Un paiement réussi peut avoir décrémenté du stock (produit/option) : la carte
 // publique (ISR) doit se rafraîchir. Best-effort, jamais bloquant — l'écriture
@@ -35,6 +40,9 @@ const bodySchema = z
   .object({
     isPaid: z.boolean(),
     payments: orderPaymentsSchema.optional(),
+    // Le caissier a confirmé avoir produit la quantité manquante (cf. la
+    // réponse 409 `shortage` ci-dessous). Jamais un défaut.
+    coverShortage: z.boolean().optional(),
   })
   .refine((data) => !data.isPaid || data.payments !== undefined, {
     message: 'payments requis quand isPaid=true',
@@ -71,18 +79,26 @@ export async function PATCH(req: Request, { params }: Params) {
     );
   }
 
-  const { isPaid, payments } = parsed.data;
+  const { isPaid, payments, coverShortage } = parsed.data;
 
   try {
     const { startedPreparation } = await setOrderPayment(
       id,
       isPaid,
       payments,
-      session.user.id
+      session.user.id,
+      { coverShortage }
     );
     if (isPaid) revalidatePublicMenu();
     return NextResponse.json({ ok: true, startedPreparation });
   } catch (err) {
+    // Pénurie : on renvoie la liste des manques pour que la caisse pose la
+    // question au lieu d'afficher une impasse.
+    if (err instanceof StockShortageError) {
+      return NextResponse.json(await buildShortagePayload(id, err), {
+        status: err.httpStatus,
+      });
+    }
     if (err instanceof OrderMutationError) {
       return NextResponse.json(
         { error: err.message },

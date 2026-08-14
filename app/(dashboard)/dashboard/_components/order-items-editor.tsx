@@ -27,11 +27,18 @@ import { updateOrderItemsAction } from '../commandes/actions';
 import { ProductCatalog } from '../caisse/new/product-catalog';
 import { SupplementPicker } from '../caisse/new/supplement-picker';
 import { LineDiscountControl } from './line-discount-control';
+import { useConfirmDialog } from './use-confirm-dialog';
 
 type Props = {
   orderId: string;
   initialItems: CartItem[];
   menu: MenuCategory[];
+  /**
+   * La commande a-t-elle déjà réservé son stock (`Order.stockReservedAt`) ?
+   * Si oui, retirer un article le REND au stock — sauf s'il était déjà
+   * préparé, ce qu'on demande alors explicitement au staff.
+   */
+  stockReserved?: boolean;
   /** Appelé après une sauvegarde réussie ou une annulation. */
   onClose: () => void;
 };
@@ -69,6 +76,7 @@ export function OrderItemsEditor({
   orderId,
   initialItems,
   menu: initialMenu,
+  stockReserved = false,
   onClose,
 }: Props) {
   const [items, setItems] = useState<CartItem[]>(initialItems);
@@ -79,6 +87,7 @@ export function OrderItemsEditor({
   // Menu « live » : une réappro (goût recrédité) faite ici ou ailleurs se
   // reflète dans le catalogue et le sélecteur sans recharger.
   const { menu, applyRestock } = useLiveMenu(initialMenu);
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   // Index produit par id, pour retrouver les groupes de suppléments d'une
   // ligne (les lignes ne stockent que les options choisies, pas les groupes).
@@ -192,15 +201,56 @@ export function OrderItemsEditor({
     setPicker(null);
   }
 
-  function save() {
+  /** Articles/quantités retirés par rapport au contenu d'origine. */
+  function hasRemovedSomething(): boolean {
+    const nextByProduct = new Map<string, number>();
+    for (const i of items) {
+      nextByProduct.set(
+        i.productId,
+        (nextByProduct.get(i.productId) ?? 0) + i.quantity
+      );
+    }
+    const prevByProduct = new Map<string, number>();
+    for (const i of initialItems) {
+      prevByProduct.set(
+        i.productId,
+        (prevByProduct.get(i.productId) ?? 0) + i.quantity
+      );
+    }
+    for (const [productId, before] of prevByProduct) {
+      if ((nextByProduct.get(productId) ?? 0) < before) return true;
+    }
+    return false;
+  }
+
+  async function save() {
     if (items.length === 0) {
       setError('La commande doit contenir au moins un article');
       return;
     }
     setError(null);
+
+    // Un article retiré d'une commande DÉJÀ PARTIE EN CUISINE revient au stock
+    // par défaut : il n'a pas été consommé, le garder décompté ferait mentir le
+    // stock et bloquerait une vente réelle. Mais il a pu être préparé — seule
+    // la personne devant l'écran le sait, on lui demande.
+    let restoreRemovedStock = true;
+    if (stockReserved && hasRemovedSomething()) {
+      restoreRemovedStock = await confirm({
+        title: 'Remettre en stock ?',
+        message:
+          'Cette commande est déjà partie en cuisine. Les articles retirés ont-ils déjà été préparés ?\n\n' +
+          '« Remettre en stock » les rend vendables ; « Déjà préparé » les laisse décomptés.',
+        confirmLabel: 'Remettre en stock',
+        cancelLabel: 'Déjà préparé',
+      });
+    }
+
     startTransition(async () => {
       try {
-        const result = await updateOrderItemsAction(orderId, items);
+        const result = await updateOrderItemsAction(orderId, items, {
+          restoreRemovedStock,
+        });
         if (result?.error) {
           setError(result.error);
           return;
@@ -270,6 +320,7 @@ export function OrderItemsEditor({
           onOpenOptions={(product) => setPicker({ mode: 'add', product })}
         />
         {supplementPicker}
+        {confirmDialog}
       </div>
     );
   }
@@ -438,6 +489,7 @@ export function OrderItemsEditor({
       </div>
 
       {supplementPicker}
+      {confirmDialog}
     </div>
   );
 }

@@ -12,14 +12,26 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireCashier } from '@/lib/auth-helpers';
-import { createOrderSchema, orderTypeSchema } from '@/lib/schemas/order';
+import {
+  createOrderSchema,
+  orderTypeSchema,
+  isBackdateCompatibleWithPickup,
+  BACKDATE_PICKUP_CONFLICT_MESSAGE,
+} from '@/lib/schemas/order';
 import { createCashierOrder, OrderMutationError } from '@/lib/order-mutations';
 
-const bodySchema = createOrderSchema.extend({
-  orderType: orderTypeSchema,
-  // Ardoise forcée par le caissier pour un client non fiché « de confiance ».
-  onAccount: z.boolean().optional(),
-});
+const bodySchema = createOrderSchema
+  .extend({
+    orderType: orderTypeSchema,
+    // Ardoise forcée par le caissier pour un client non fiché « de confiance ».
+    onAccount: z.boolean().optional(),
+  })
+  // Antidater ET planifier un retrait un autre jour est contradictoire —
+  // règle posée EN DERNIER, un `.refine` interdisant tout `.extend` ultérieur.
+  .refine(isBackdateCompatibleWithPickup, {
+    message: BACKDATE_PICKUP_CONFLICT_MESSAGE,
+    path: ['pickupTime'],
+  });
 
 export async function POST(req: Request) {
   let session;

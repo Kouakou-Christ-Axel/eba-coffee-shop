@@ -6,7 +6,9 @@ import {
   markOrderReady,
   markOrderRetrieved,
   requestDriver,
+  startPreparation,
 } from './actions';
+import { useShortageConfirm } from '../_components/use-shortage-confirm';
 import { type PreparationOrder } from '@/lib/preparation-queue';
 import {
   playNewOrderChime,
@@ -15,13 +17,22 @@ import {
 } from '@/lib/hooks/use-orders-stream';
 import { useNowTick } from '@/lib/hooks/use-now-tick';
 import { normalizeOrderDates } from '@/lib/orders/format';
-import { isScheduledAhead } from '@/lib/orders/scheduling';
-import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
+import {
+  isAwaitingKitchenLaunch,
+  isScheduledAhead,
+  minutesUntilPickup,
+} from '@/lib/orders/scheduling';
+import { buildProductionPlan } from '@/lib/orders/production-plan';
+import {
+  LAUNCH_ALERT_MINUTES,
+  READY_WAIT_ALERT_MINUTES,
+} from '@/config/constants';
 import { PreparationHeader } from './_components/preparation-header';
 import { EmptyState } from './_components/empty-state';
 import { PrepOrderCard } from './_components/prep-order-card';
 import { OrderDetailSheet } from './_components/order-detail-sheet';
 import { OrdersListSheet } from './_components/orders-list-sheet';
+import { ProductionSheet } from './_components/production-sheet';
 import { elapsedMinutes } from './_components/elapsed';
 
 const SOUND_STORAGE_KEY = 'eba.preparation.sound-enabled';
@@ -29,12 +40,17 @@ const SSE_URL = '/api/preparation/stream';
 
 type RawPreparationOrder = Omit<
   PreparationOrder,
-  'pickupTime' | 'createdAt' | 'preparingStartedAt' | 'readyAt'
+  | 'pickupTime'
+  | 'createdAt'
+  | 'preparingStartedAt'
+  | 'readyAt'
+  | 'stockReservedAt'
 > & {
   pickupTime: string | null;
   createdAt: string;
   preparingStartedAt: string | null;
   readyAt: string | null;
+  stockReservedAt: string | null;
 };
 
 function normalize(raw: unknown): PreparationOrder {
@@ -56,12 +72,15 @@ export function PreparationView({
   const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
   // Commande agrandie dans le bottom sheet de détail (null = fermé).
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Bottom sheet de liste ouvert (programmées / prêtes), null = aucun.
-  const [openSheet, setOpenSheet] = useState<'scheduled' | 'ready' | null>(
-    null
-  );
+  // Bottom sheet de liste ouvert (programmées / prêtes / à produire), null = aucun.
+  const [openSheet, setOpenSheet] = useState<
+    'scheduled' | 'ready' | 'production' | null
+  >(null);
+  // Échec d'un lancement (stock, concurrence) : affiché, jamais avalé.
+  const [launchError, setLaunchError] = useState<string | null>(null);
   const { soundEnabled, soundEnabledRef, toggleSound } =
     useSoundPreference(SOUND_STORAGE_KEY);
+  const { confirmShortage, shortageDialog } = useShortageConfirm();
   const now = useNowTick(15_000);
 
   const { orders, connState, lastSync } = useOrdersStream<PreparationOrder>({
@@ -89,16 +108,41 @@ export function PreparationView({
       ),
     [visible, now]
   );
-  // Programmées lointaines (retrait > seuil) : déchargées de la grille.
+  // Programmées : déchargées de la grille. Deux populations, même section —
+  //   1. déjà en cuisine mais à retrait lointain (`isScheduledAhead`) ;
+  //   2. PAS ENCORE LANCÉES (`NEW` à créneau) : elles attendent le geste
+  //      « Lancer la préparation ». Sans le second cas, une commande pour
+  //      demain n'apparaîtrait nulle part en cuisine.
   const scheduled = useMemo(
     () =>
       visible
-        .filter((o) => o.status === 'PREPARING' && isScheduledAhead(o, now))
+        .filter(
+          (o) =>
+            (o.status === 'PREPARING' && isScheduledAhead(o, now)) ||
+            isAwaitingKitchenLaunch(o)
+        )
         .sort(
           (a, b) =>
             (a.pickupTime?.getTime() ?? 0) - (b.pickupTime?.getTime() ?? 0)
         ),
     [visible, now]
+  );
+  // « À produire » : dérivé des commandes non encore lancées, groupé par jour.
+  // Aucune requête dédiée — le flux SSE porte déjà tout ce qu'il faut.
+  const productionPlan = useMemo(
+    () => buildProductionPlan(visible),
+    [visible]
+  );
+  // Commandes programmées dont le retrait approche sans qu'elles soient
+  // lancées : c'est le signal « il faut s'y mettre maintenant ».
+  const toLaunchCount = useMemo(
+    () =>
+      scheduled.filter((o) => {
+        if (!isAwaitingKitchenLaunch(o)) return false;
+        const m = minutesUntilPickup(o, now);
+        return m !== null && m <= LAUNCH_ALERT_MINUTES;
+      }).length,
+    [scheduled, now]
   );
   const ready = useMemo(
     () => visible.filter((o) => o.status === 'READY'),
@@ -161,6 +205,37 @@ export function PreparationView({
     [setPending]
   );
 
+  /**
+   * Lance une commande programmée. Si le stock manque, on ne renvoie PAS le
+   * cuisinier dans le menu : on lui montre ce qui manque, et s'il confirme
+   * l'avoir produit, on enregistre la production et on relance. Tout se fait
+   * depuis cet écran.
+   */
+  const handleStartPreparation = useCallback(
+    (id: string) => {
+      setPending(id, true);
+      startTransition(async () => {
+        try {
+          let result = await startPreparation(id);
+          if (
+            result?.shortage?.length &&
+            (await confirmShortage(result.shortage))
+          ) {
+            result = await startPreparation(id, { coverShortage: true });
+          }
+          setLaunchError(result?.error ?? null);
+        } catch (err) {
+          setLaunchError(
+            err instanceof Error ? err.message : 'Erreur inattendue'
+          );
+        } finally {
+          setPending(id, false);
+        }
+      });
+    },
+    [setPending, confirmShortage]
+  );
+
   const handleRequestDriver = useCallback(
     (id: string) => {
       setPending(id, true);
@@ -206,15 +281,29 @@ export function PreparationView({
           cooking: cooking.length,
           scheduled: scheduled.length,
           ready: ready.length,
+          // Le compteur porte sur le premier jour chargé — « ce qu'il y a à
+          // faire là, tout de suite », pas un total de la semaine.
+          production: productionPlan[0]?.totalItems ?? 0,
         }}
         readyAlert={readyAlert}
+        toLaunchCount={toLaunchCount}
         connState={connState}
         lastSync={lastSync}
         soundEnabled={soundEnabled}
         onToggleSound={toggleSound}
         onOpenScheduled={() => setOpenSheet('scheduled')}
         onOpenReady={() => setOpenSheet('ready')}
+        onOpenProduction={() => setOpenSheet('production')}
       />
+
+      {launchError && (
+        <p
+          role="alert"
+          className="mt-3 rounded-lg bg-red-100 px-3 py-2 text-sm font-semibold text-red-900 ring-1 ring-red-300 dark:bg-red-950/40 dark:text-red-100 dark:ring-red-800"
+        >
+          {launchError}
+        </p>
+      )}
 
       {isEmpty ? (
         <div className="flex flex-1 pt-4">
@@ -272,6 +361,12 @@ export function PreparationView({
         onExpand={setSelectedId}
         pendingIds={pendingIds}
         onRetrieve={handleRetrieved}
+        onStartPreparation={handleStartPreparation}
+      />
+      <ProductionSheet
+        plan={productionPlan}
+        open={openSheet === 'production'}
+        onOpenChange={(o) => setOpenSheet(o ? 'production' : null)}
       />
       <OrdersListSheet
         variant="ready"
@@ -283,6 +378,7 @@ export function PreparationView({
         pendingIds={pendingIds}
         onRetrieve={handleRetrieved}
       />
+      {shortageDialog}
     </div>
   );
 }

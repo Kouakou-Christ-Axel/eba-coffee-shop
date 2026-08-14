@@ -204,6 +204,8 @@ import {
   orderTypeSchema,
   orderStatusSchema,
   paymentModeSchema,
+  isBackdateCompatibleWithPickup,
+  BACKDATE_PICKUP_CONFLICT_MESSAGE,
 } from '@/lib/schemas/order';
 import { adjustStamps } from '@/lib/loyalty-mutations';
 import {
@@ -1527,6 +1529,18 @@ export const tools: McpTool[] = [
       customerName: z.string().trim().max(50).nullable().optional(),
       customerPhone: z.string().trim().max(30).nullable().optional(),
       note: z.string().trim().max(500).nullable().optional(),
+      pickupTime: z
+        .string()
+        .datetime()
+        .nullable()
+        .optional()
+        .describe(
+          'Créneau de retrait, ISO 8601. Absent = « dès que possible ». Un ' +
+            'retrait un JOUR ULTÉRIEUR crée une commande DIFFÉRÉE : elle ne ' +
+            'décompte PAS le stock du jour et n’entre en cuisine que sur le ' +
+            'geste « Lancer la préparation », le jour venu. Incompatible avec ' +
+            '`orderDate` (antidatage) sauf pour le même jour civil.'
+        ),
     }),
     readOnly: false,
     handler: async (args) => {
@@ -1537,7 +1551,11 @@ export const tools: McpTool[] = [
         customerName?: string | null;
         customerPhone?: string | null;
         note?: string | null;
+        pickupTime?: string | null;
       };
+      if (!isBackdateCompatibleWithPickup(a)) {
+        throw new Error(BACKDATE_PICKUP_CONFLICT_MESSAGE);
+      }
       const items = await buildOrderItemsFromMenu(a.items);
       const order = await createCashierOrder({
         items,
@@ -1546,6 +1564,7 @@ export const tools: McpTool[] = [
         customerName: a.customerName ?? null,
         customerPhone: a.customerPhone ?? null,
         note: a.note ?? null,
+        pickupTime: a.pickupTime ?? null,
         source: 'MCP',
       });
       return {
@@ -2275,18 +2294,29 @@ export const tools: McpTool[] = [
   {
     name: 'get_pending_demand',
     toolset: 'menu',
-    title: 'Quantité déjà demandée (commandes non payées)',
+    title: 'Quantité restant à produire',
     description:
-      'Renvoie, par produit et par option, la quantité déjà demandée par des ' +
-      'commandes NON payées (statut différent de CANCELLED) — visibilité PURE ' +
-      'LECTURE, n’affecte jamais le stock réel (toujours décrémenté au ' +
-      'PAIEMENT, comportement inchangé). Utile pour anticiper une survente ' +
-      'potentielle avant même l’encaissement (ex. plusieurs commandes en ' +
-      'attente sur le dernier goût disponible).',
-    inputSchema: z.object({}),
+      'Renvoie, par produit et par option, la quantité déjà engagée par des ' +
+      'commandes PAS ENCORE PARTIES EN CUISINE (stock non réservé, statut ' +
+      'différent de CANCELLED) — visibilité PURE LECTURE, n’affecte jamais le ' +
+      'stock réel (décrémenté à l’ENTRÉE EN CUISINE). Utile pour anticiper une ' +
+      'survente (plusieurs commandes en attente sur le dernier goût) et pour ' +
+      'savoir ce qu’il reste à produire. `day` (YYYY-MM-DD, jour civil ' +
+      'Abidjan) restreint au jour de RETRAIT (ou de création si la commande ' +
+      'n’a pas de créneau) : c’est ainsi qu’on lit « que dois-je produire ' +
+      'demain ? ». Omis = toutes dates confondues.',
+    inputSchema: z.object({
+      day: dateOnly
+        .nullable()
+        .optional()
+        .describe('Jour civil Abidjan (YYYY-MM-DD). Omis = toutes dates.'),
+    }),
     readOnly: true,
-    handler: async () => {
-      const { products, options } = await getPendingDemand();
+    handler: async (args) => {
+      const { day } = args as { day?: string | null };
+      const { products, options } = await getPendingDemand(
+        day ? { day } : undefined
+      );
       return {
         products: [...products.entries()].map(([productId, quantity]) => ({
           productId,

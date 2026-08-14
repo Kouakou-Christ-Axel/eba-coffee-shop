@@ -9,13 +9,14 @@
 //
 // Importable par server actions ET route handlers (pas de 'use server').
 
-import { endOfDay, startOfDay } from 'date-fns';
 import prisma from '@/lib/prisma';
 import type { CartItem } from '@/lib/cart-store';
 import {
   fetchStockSnapshot,
   computeOrderItemsAvailability,
 } from '@/lib/orders/availability';
+import { isDeferredPickup } from '@/lib/orders/scheduling';
+import { endOfLocalDay, startOfLocalDay } from '@/lib/timezone';
 import { getLoyaltySettings } from '@/lib/loyalty-settings-db';
 import { coalesceAsyncByKey } from '@/lib/async-coalesce';
 import { getOrdersGeneration } from '@/lib/postgres-notify';
@@ -105,8 +106,12 @@ export type CashierOrder = {
 
 export async function fetchCashierQueue(): Promise<CashierOrder[]> {
   const now = new Date();
-  const dayStart = startOfDay(now);
-  const dayEnd = endOfDay(now);
+  // Bornes ancrées sur Abidjan, PAS sur le fuseau du runtime : `startOfDay` de
+  // date-fns est local à la machine, donc sur un serveur non-UTC la « journée »
+  // dérivait de plusieurs heures et une commande programmée pouvait entrer ou
+  // sortir de la file à tort. Même correctif dans `lib/preparation-queue.ts`.
+  const dayStart = startOfLocalDay(now);
+  const dayEnd = endOfLocalDay(now);
 
   const orders = await prisma.order.findMany({
     where: {
@@ -144,8 +149,19 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
   // pour elle. Le critère est `stockReservedAt` et NON `isPaid` — sinon une
   // commande en cuisine mais non encaissée (ardoise) afficherait un faux
   // « stock épuisé ».
+  //
+  // Les commandes DIFFÉRÉES sont exclues pour la raison inverse : leur
+  // marchandise sera produite le jour du retrait, le stock d'aujourd'hui ne les
+  // concerne pas. Sans ce filtre, une commande pour samedi s'afficherait en
+  // rupture rouge dès aujourd'hui et son bouton « payer » demanderait une
+  // confirmation absurde.
+  const needsAvailability = (o: {
+    stockReservedAt: Date | null;
+    pickupTime: Date | null;
+  }) => o.stockReservedAt === null && !isDeferredPickup(o.pickupTime, now);
+
   const unreservedItemsList = orders
-    .filter((o) => o.stockReservedAt === null)
+    .filter(needsAvailability)
     .map((o) => o.items as CartItem[]);
   const stock = await fetchStockSnapshot(unreservedItemsList);
 
@@ -208,7 +224,7 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
 
     let stockShortage = false;
     let unavailableItemNames: string[] = [];
-    if (o.stockReservedAt === null) {
+    if (needsAvailability(o)) {
       const availability = computeOrderItemsAvailability(items, stock);
       stockShortage = !availability.fulfillable;
       if (stockShortage) {

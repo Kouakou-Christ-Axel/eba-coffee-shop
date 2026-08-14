@@ -8,9 +8,10 @@
 // importables aussi bien par un fichier server action que par un route handler.
 // L'auth est de la responsabilité de l'appelant.
 
-import { endOfDay, startOfDay } from 'date-fns';
 import prisma from '@/lib/prisma';
 import { compareKitchenFifo } from '@/lib/orders/queue-order';
+import { endOfLocalDay, startOfLocalDay } from '@/lib/timezone';
+import { PRODUCTION_PLAN_DAYS } from '@/config/constants';
 import { coalesceAsyncByKey } from '@/lib/async-coalesce';
 import { getOrdersGeneration } from '@/lib/postgres-notify';
 import type { CartItem } from '@/lib/cart-store';
@@ -27,10 +28,15 @@ export type PreparationOrder = {
   items: CartItem[];
   note: string | null;
   total: number;
-  // La cuisine voit désormais les commandes EN cours (PREPARING) ET celles
-  // prêtes en attente de récupération (READY) — pour emballer et suivre les
-  // clients qui tardent à venir chercher.
-  status: 'PREPARING' | 'READY';
+  // La cuisine voit les commandes EN cours (PREPARING), celles prêtes en
+  // attente de récupération (READY) — pour emballer et suivre les clients qui
+  // tardent — ET, depuis les commandes différées, les NEW À CRÉNEAU pas encore
+  // lancées : elles vivent dans « Programmées », alimentent « À produire », et
+  // portent le bouton « Lancer la préparation ».
+  //
+  // Une NEW SANS créneau (walk-in en attente d'encaissement) n'entre jamais
+  // ici : la cuisine ne doit pas produire ce qui n'est pas engagé.
+  status: 'NEW' | 'PREPARING' | 'READY';
   isPaid: boolean;
   driverRequested: boolean;
   driverName: string | null;
@@ -40,6 +46,9 @@ export type PreparationOrder = {
   // commandes créées avant l'ajout des colonnes (repli createdAt côté UI).
   preparingStartedAt: Date | null;
   readyAt: Date | null;
+  /** Instant de réservation du stock. `null` = reste à produire (alimente le
+   * panneau « À produire », cf. lib/orders/production-plan.ts). */
+  stockReservedAt: Date | null;
 };
 
 /**
@@ -60,25 +69,54 @@ export type PreparationOrder = {
  *   - automatiquement quand le caissier la marque payée (NEW → PREPARING)
  *   - explicitement quand le caissier clique "Envoyer en cuisine sans paiement"
  *
- * Les commandes NEW (en attente d'encaissement) ne sont jamais visibles ici.
+ * Une commande NEW n'est visible que si elle porte un CRÉNEAU et n'a pas encore
+ * réservé son stock : c'est une commande programmée en attente de lancement.
+ * Un walk-in NEW (sans créneau, en attente d'encaissement) reste invisible ici.
  * Les READY restent affichées (section « en attente de récupération ») jusqu'à
  * leur passage COMPLETED (récupérée) côté caisse.
  */
 export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
   const now = new Date();
-  const dayStart = startOfDay(now);
-  const dayEnd = endOfDay(now);
+  // Bornes ancrées sur Abidjan, PAS sur le fuseau du runtime (cf. le même
+  // correctif dans `lib/cashier-queue.ts`).
+  const dayStart = startOfLocalDay(now);
+  const dayEnd = endOfLocalDay(now);
+  // Horizon du panneau « À produire » : borne la charge utile du flux SSE, une
+  // commande passée pour dans six mois n'a rien à faire sur l'écran cuisine.
+  const horizonEnd = endOfLocalDay(
+    new Date(dayStart.getTime() + (PRODUCTION_PLAN_DAYS - 1) * 86_400_000)
+  );
 
+  // ⚠️ Une seule clé `OR` par littéral d'objet : deux `OR` frères dans le même
+  // objet JS, la seconde écrase la première EN SILENCE. D'où le `AND` explicite.
   const orders = await prisma.order.findMany({
     where: {
-      status: { in: ['PREPARING', 'READY'] },
-      // Du jour (walk-in) OU programmée pour aujourd'hui/à venir : on inclut ainsi
-      // une commande passée la veille (ou plus tôt) pour un retrait aujourd'hui ou
-      // plus tard — sinon elle disparaît de la cuisine dès le changement de jour
-      // civil, alors qu'elle est déjà PREPARING/READY (cf. `fetchCashierQueue`).
       OR: [
-        { createdAt: { gte: dayStart, lte: dayEnd } },
-        { pickupTime: { gte: dayStart } },
+        {
+          AND: [
+            { status: { in: ['PREPARING', 'READY'] } },
+            // Du jour (walk-in) OU programmée pour aujourd'hui/à venir : on
+            // inclut ainsi une commande passée la veille (ou plus tôt) pour un
+            // retrait aujourd'hui ou plus tard — sinon elle disparaît de la
+            // cuisine dès le changement de jour civil, alors qu'elle est déjà
+            // PREPARING/READY (cf. `fetchCashierQueue`).
+            {
+              OR: [
+                { createdAt: { gte: dayStart, lte: dayEnd } },
+                { pickupTime: { gte: dayStart } },
+              ],
+            },
+          ],
+        },
+        {
+          // Programmées pas encore lancées : « à produire », et lançables d'un
+          // tap depuis l'écran cuisine.
+          AND: [
+            { status: 'NEW' as const },
+            { stockReservedAt: null },
+            { pickupTime: { gte: dayStart, lte: horizonEnd } },
+          ],
+        },
       ],
     },
     orderBy: { createdAt: 'asc' },
@@ -95,7 +133,7 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     items: o.items as CartItem[],
     note: o.note,
     total: o.total,
-    status: o.status as 'PREPARING' | 'READY',
+    status: o.status as 'NEW' | 'PREPARING' | 'READY',
     isPaid: o.isPaid,
     driverRequested: o.driverRequested,
     driverName: o.driverName,
@@ -103,6 +141,7 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     createdAt: o.createdAt,
     preparingStartedAt: o.preparingStartedAt,
     readyAt: o.readyAt,
+    stockReservedAt: o.stockReservedAt,
   }));
 
   return mapped.sort(compareKitchenFifo);

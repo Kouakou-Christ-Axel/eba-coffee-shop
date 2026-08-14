@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { PaymentModal, type PaymentLine } from '../caisse/payment-modal';
 import { payAndCompleteAction } from './actions';
 import { useConfirmDialog } from '../_components/use-confirm-dialog';
+import { useShortageConfirm } from '../_components/use-shortage-confirm';
+import { isDeferredPickup } from '@/lib/orders/scheduling';
 
 type Props = {
   orderId: string;
@@ -18,6 +20,10 @@ type Props = {
   amount: number;
   /** Commande déjà encaissée : pas de modale, finalisation directe. */
   isPaid?: boolean;
+  /** Créneau de retrait de la commande (cf. le masquage ci-dessous). */
+  pickupTime?: Date | string | null;
+  /** La commande a-t-elle déjà réservé son stock (donc été produite) ? */
+  stockReserved?: boolean;
   variant?: 'default' | 'outline' | 'ghost';
   size?: 'default' | 'sm' | 'lg';
   className?: string;
@@ -29,6 +35,8 @@ export function ExpressCompleteButton({
   orderRef,
   amount,
   isPaid = false,
+  pickupTime = null,
+  stockReserved = false,
   variant = 'default',
   size = 'sm',
   className,
@@ -38,12 +46,20 @@ export function ExpressCompleteButton({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const { confirm, confirmDialog } = useConfirmDialog();
+  const { confirmShortage, shortageDialog } = useShortageConfirm();
 
   function complete(payments: PaymentLine[] | undefined) {
     setError(null);
     startTransition(async () => {
       try {
-        const result = await payAndCompleteAction(orderId, payments);
+        let result = await payAndCompleteAction(orderId, payments);
+        // Pénurie : on propose d'enregistrer la production sur place plutôt que
+        // de renvoyer le staff corriger le stock dans le menu.
+        if (result?.shortage?.length && (await confirmShortage(result.shortage))) {
+          result = await payAndCompleteAction(orderId, payments, {
+            coverShortage: true,
+          });
+        }
         if (result?.error) {
           setError(result.error);
           return;
@@ -70,6 +86,15 @@ export function ExpressCompleteButton({
     }
     setIsOpen(true);
   }
+
+  // « Payer & récupérer » affirme que le client emporte la marchandise
+  // maintenant. C'est faux pour un retrait prévu un autre jour : le serveur
+  // refuse (409) et rien n'a encore été produit. On masque donc le bouton
+  // plutôt que d'offrir un clic perdu — sauf si la commande a été PRÉPARÉE EN
+  // AVANCE (stock déjà réservé), auquel cas la remise anticipée est légitime.
+  // Règle tenue ICI, en un seul endroit, plutôt que dupliquée sur les trois
+  // écrans qui affichent ce bouton.
+  if (!stockReserved && isDeferredPickup(pickupTime)) return null;
 
   return (
     <>
@@ -107,6 +132,7 @@ export function ExpressCompleteButton({
       )}
 
       {confirmDialog}
+      {shortageDialog}
     </>
   );
 }

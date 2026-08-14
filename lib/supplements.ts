@@ -85,12 +85,41 @@ export function isWithinAnyPeriod(
  * détaillés pour les libellés — un produit non commandable reste VISIBLE avec
  * son motif — mais la règle « peut-on l'ajouter ? » se lit ici.
  *
- * Garde-fou d'interface uniquement : la vérité stock reste le PAIEMENT
- * (lib/order-mutations.ts).
+ * Garde-fou d'interface uniquement : la vérité stock reste l'ENTRÉE EN CUISINE
+ * (`reserveStockOnce`, lib/order-mutations.ts).
+ *
+ * « Maintenant » est bien le mot : cette règle ne vaut que pour un retrait du
+ * jour. Pour un retrait un jour ultérieur, le stock ne s'applique pas — voir
+ * `canOrderForLaterDay` juste en dessous.
  */
 export function isOrderableNow(product: Product, now: Date = new Date()) {
   return (
     product.soldOut !== true &&
+    !isPausedNow(product.unavailableUntil, now) &&
+    isAvailableToday(product.availableDays, now) &&
+    isWithinAnyPeriod(product.weeklySpecialPeriods, now)
+  );
+}
+
+/**
+ * Le produit peut-il être commandé POUR UN AUTRE JOUR ? Même règle que
+ * `isOrderableNow`, moins le stock : un produit épuisé ce soir sera refait
+ * demain, il n'y a aucune raison de refuser la commande.
+ *
+ * Les autres motifs, eux, continuent de bloquer et ce n'est pas un oubli :
+ *   - `unavailableUntil` (pause) : le patron a explicitement retiré le produit ;
+ *   - `availableDays` (planning) et `weeklySpecialPeriods` : le produit n'est
+ *     pas censé exister à cette date, et `createOrder` les revalide côté
+ *     serveur (`ScheduleUnavailableError`).
+ * Seule la QUANTITÉ du jour est une contrainte qui n'a pas de sens pour demain.
+ *
+ * Note : le planning est évalué à `now`, pas à la date de retrait — le
+ * sélecteur de créneau filtre déjà les jours incompatibles à partir du panier
+ * (cf. `isCartAvailableOn`, slot-picker.tsx), c'est lui qui porte la précision
+ * par date.
+ */
+export function canOrderForLaterDay(product: Product, now: Date = new Date()) {
+  return (
     !isPausedNow(product.unavailableUntil, now) &&
     isAvailableToday(product.availableDays, now) &&
     isWithinAnyPeriod(product.weeklySpecialPeriods, now)
@@ -121,6 +150,22 @@ export function isPickupDateAllowed(
   return (
     pickupStr >= shiftDateString(formatLocalDateOnly(now), advanceOrderDays)
   );
+}
+
+/**
+ * Délai de commande à l'avance EFFECTIF d'une ligne de panier, en jours civils.
+ *
+ * Un article ajouté alors qu'il était épuisé (`soldOutToday`) impose un retrait
+ * à J+1 minimum : il sera produit demain. On le modélise comme un
+ * `advanceOrderDays` de 1 plutôt que comme une seconde règle parallèle — tout
+ * le mécanisme de filtrage des jours du sélecteur de créneau s'y applique alors
+ * sans une ligne de code en plus (cf. slot-picker.tsx).
+ */
+export function effectiveItemAdvanceDays(item: {
+  advanceOrderDays?: number | null;
+  soldOutToday?: boolean;
+}): number {
+  return Math.max(item.advanceOrderDays ?? 0, item.soldOutToday ? 1 : 0);
 }
 
 /** Date civile (YYYY-MM-DD, Abidjan) la plus proche satisfaisant un délai de
@@ -175,27 +220,40 @@ export function buildInitialSelections(
   return out;
 }
 
+/**
+ * Règles de sélection. `ignoreSoldOut` : le stock du JOUR ne s'applique pas —
+ * la commande est pour un jour ultérieur, la marchandise sera produite d'ici
+ * là. Absent = comportement historique, à l'octet près.
+ *
+ * Pourquoi ce paramètre existe : sans lui, un goût épuisé était SILENCIEUSEMENT
+ * retiré de la sélection. Le caissier cochait « Vanille » pour demain et
+ * l'article partait au panier SANS le goût — le pire des cas, une erreur
+ * invisible jusqu'à la remise au client.
+ */
+export type SupplementRules = { ignoreSoldOut?: boolean };
+
 /** Nombre de sélections pour un groupe : options cochées ('multiple') ou
  * somme des quantités ('quantity'). Toujours 0 ou 1 pour 'single'. Une option
  * épuisée (`soldOut`) n'est jamais comptée, même si elle apparaît encore dans
- * `selections` (ex. stock qui s'épuise pendant que le modal est ouvert). */
+ * `selections` (ex. stock qui s'épuise pendant que le modal est ouvert) —
+ * sauf si `rules.ignoreSoldOut`. */
 export function groupSelectionCount(
   group: SupplementGroup,
-  selections: Selections
+  selections: Selections,
+  rules?: SupplementRules
 ): number {
   const sel = selections[group.name];
+  const soldOut = (name: string) => isOptionSoldOut(group, name, rules);
   if (group.type === 'single') {
-    return typeof sel === 'string' && sel !== '' && !isOptionSoldOut(group, sel)
-      ? 1
-      : 0;
+    return typeof sel === 'string' && sel !== '' && !soldOut(sel) ? 1 : 0;
   }
   if (group.type === 'multiple') {
     if (!Array.isArray(sel)) return 0;
-    return sel.filter((name) => !isOptionSoldOut(group, name)).length;
+    return sel.filter((name) => !soldOut(name)).length;
   }
   const qty = (sel as Record<string, number>) ?? {};
   return Object.entries(qty).reduce(
-    (s, [name, n]) => (isOptionSoldOut(group, name) ? s : s + n),
+    (s, [name, n]) => (soldOut(name) ? s : s + n),
     0
   );
 }
@@ -242,13 +300,19 @@ export function effectiveMax(group: SupplementGroup): number {
  * elle apparaît encore sélectionnée dans un état antérieur (ex. stock qui
  * s'épuise pendant que le modal est ouvert). `soldOut` absent = jamais épuisé
  * (illimité ou stock non suivi). */
-function isOptionSoldOut(group: SupplementGroup, optionName: string): boolean {
+function isOptionSoldOut(
+  group: SupplementGroup,
+  optionName: string,
+  rules?: SupplementRules
+): boolean {
+  if (rules?.ignoreSoldOut) return false;
   return group.options.find((o) => o.name === optionName)?.soldOut === true;
 }
 
 export function isGroupValid(
   group: SupplementGroup,
-  selections: Selections
+  selections: Selections,
+  rules?: SupplementRules
 ): boolean {
   if (group.type === 'single') {
     const sel = selections[group.name];
@@ -256,31 +320,37 @@ export function isGroupValid(
     // Une sélection sur une option devenue épuisée ne compte pas : un groupe
     // requis dont le seul choix viable est épuisé reste bloqué par le message
     // « requis » existant (aucune sélection valide n'est retenue).
-    if (hasSelection && isOptionSoldOut(group, sel)) return !group.required;
+    if (hasSelection && isOptionSoldOut(group, sel, rules)) {
+      return !group.required;
+    }
     if (!group.required) return true;
     return hasSelection;
   }
-  const count = groupSelectionCount(group, selections);
+  const count = groupSelectionCount(group, selections, rules);
   return count >= effectiveMin(group) && count <= effectiveMax(group);
 }
 
 export function canSubmitSelections(
   product: Product,
-  selections: Selections
+  selections: Selections,
+  rules?: SupplementRules
 ): boolean {
-  return (product.supplements ?? []).every((g) => isGroupValid(g, selections));
+  return (product.supplements ?? []).every((g) =>
+    isGroupValid(g, selections, rules)
+  );
 }
 
 /** Convertit l'état de sélection en suppléments prêts pour le panier. */
 export function getSelectedSupplements(
   product: Product,
-  selections: Selections
+  selections: Selections,
+  rules?: SupplementRules
 ): CartItemSupplement[] {
   const result: CartItemSupplement[] = [];
   (product.supplements ?? []).forEach((group) => {
     const sel = selections[group.name];
     if (group.type === 'single') {
-      if (typeof sel === 'string' && sel && !isOptionSoldOut(group, sel)) {
+      if (typeof sel === 'string' && sel && !isOptionSoldOut(group, sel, rules)) {
         const opt = group.options.find((o) => o.name === sel);
         if (opt) {
           result.push({
@@ -293,7 +363,7 @@ export function getSelectedSupplements(
     } else if (group.type === 'multiple') {
       if (Array.isArray(sel)) {
         sel.forEach((name) => {
-          if (isOptionSoldOut(group, name)) return;
+          if (isOptionSoldOut(group, name, rules)) return;
           const opt = group.options.find((o) => o.name === name);
           if (opt) {
             result.push({
@@ -307,7 +377,7 @@ export function getSelectedSupplements(
     } else {
       const qty = (sel as Record<string, number>) ?? {};
       group.options.forEach((opt) => {
-        if (opt.soldOut) return;
+        if (opt.soldOut && !rules?.ignoreSoldOut) return;
         const n = qty[opt.name] ?? 0;
         if (n > 0) {
           result.push({

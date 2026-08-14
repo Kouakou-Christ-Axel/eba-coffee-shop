@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarClock, CheckCheck, PackageCheck } from 'lucide-react';
+import { CalendarClock, CheckCheck, ChefHat, PackageCheck } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -9,7 +9,10 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
+import {
+  LAUNCH_ALERT_MINUTES,
+  READY_WAIT_ALERT_MINUTES,
+} from '@/config/constants';
 import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
 import { formatPickup } from '@/lib/orders/scheduling';
 import { TrackingLinkButton } from '@/components/(dashboard)/tracking-link-button';
@@ -25,7 +28,7 @@ const VARIANT_META: Record<
 > = {
   scheduled: {
     title: 'Commandes programmées',
-    description: 'Retrait encore lointain — pas encore à cuisiner',
+    description: 'Retrait à venir — lancer la préparation le moment venu',
     Icon: CalendarClock,
   },
   ready: {
@@ -44,6 +47,8 @@ type Props = {
   onExpand: (id: string) => void;
   pendingIds: Set<string>;
   onRetrieve: (id: string) => void;
+  /** Lance une commande programmée en cuisine (variante `scheduled`). */
+  onStartPreparation?: (id: string) => void;
 };
 
 /**
@@ -61,6 +66,7 @@ export function OrdersListSheet({
   onExpand,
   pendingIds,
   onRetrieve,
+  onStartPreparation,
 }: Props) {
   const meta = VARIANT_META[variant];
   const Icon = meta.Icon;
@@ -97,6 +103,7 @@ export function OrdersListSheet({
                   onExpand={onExpand}
                   pending={pendingIds.has(order.id)}
                   onRetrieve={onRetrieve}
+                  onStartPreparation={onStartPreparation}
                 />
               ))}
             </ul>
@@ -114,6 +121,7 @@ function OrdersListRow({
   onExpand,
   pending,
   onRetrieve,
+  onStartPreparation,
 }: {
   variant: OrdersListVariant;
   order: PreparationOrder;
@@ -121,6 +129,7 @@ function OrdersListRow({
   onExpand: (id: string) => void;
   pending: boolean;
   onRetrieve: (id: string) => void;
+  onStartPreparation?: (id: string) => void;
 }) {
   const TypeIcon = ORDER_TYPE_META[order.orderType].Icon;
   const isReady = variant === 'ready';
@@ -129,6 +138,14 @@ function OrdersListRow({
     : (order.preparingStartedAt ?? order.createdAt);
   const mins = elapsedMinutes(since, now);
   const readyLate = isReady && mins >= READY_WAIT_ALERT_MINUTES;
+  // Encore NEW : elle attend le geste humain. C'est le seul chemin qui décompte
+  // le stock — jamais d'automatisme, pour qu'un manque se voie tout de suite.
+  const awaitingLaunch = order.status === 'NEW';
+  const untilPickup = order.pickupTime
+    ? Math.round((order.pickupTime.getTime() - now.getTime()) / 60_000)
+    : null;
+  const launchNow =
+    awaitingLaunch && untilPickup !== null && untilPickup <= LAUNCH_ALERT_MINUTES;
 
   return (
     <li
@@ -138,7 +155,9 @@ function OrdersListRow({
           ? readyLate
             ? 'border-red-300 dark:border-red-800'
             : 'border-green-300 dark:border-green-800'
-          : 'border-border'
+          : launchNow
+            ? 'border-red-300 dark:border-red-800'
+            : 'border-border'
       )}
     >
       <button
@@ -212,7 +231,36 @@ function OrdersListRow({
             Le client tarde — relancer via le lien de suivi
           </p>
         )}
+        {awaitingLaunch && (
+          <p
+            className={cn(
+              'text-sm font-semibold',
+              launchNow
+                ? 'text-red-700 dark:text-red-300'
+                : 'text-muted-foreground'
+            )}
+          >
+            {launchNow
+              ? 'À lancer maintenant'
+              : 'Pas encore en cuisine — le stock sera décompté au lancement'}
+            {!order.isPaid && ' · non encaissée'}
+          </p>
+        )}
       </button>
+
+      {awaitingLaunch && onStartPreparation && (
+        <div className="px-4 pb-4">
+          <button
+            type="button"
+            onClick={() => onStartPreparation(order.id)}
+            disabled={pending}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2.5 text-base font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 active:bg-primary/80 disabled:opacity-50"
+          >
+            <ChefHat className="h-4 w-4" strokeWidth={2.5} />
+            Lancer la préparation
+          </button>
+        </div>
+      )}
 
       {isReady && (
         <div className="flex items-center gap-2 px-4 pb-4">

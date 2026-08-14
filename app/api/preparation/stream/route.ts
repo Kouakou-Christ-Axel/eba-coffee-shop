@@ -33,12 +33,17 @@ const DEBOUNCE_MS = 150;
 // Types sérialisables : Date → string ISO (ou null) pour traverser JSON.
 type SerializedOrder = Omit<
   PreparationOrder,
-  'pickupTime' | 'createdAt' | 'preparingStartedAt' | 'readyAt'
+  | 'pickupTime'
+  | 'createdAt'
+  | 'preparingStartedAt'
+  | 'readyAt'
+  | 'stockReservedAt'
 > & {
   pickupTime: string | null;
   createdAt: string;
   preparingStartedAt: string | null;
   readyAt: string | null;
+  stockReservedAt: string | null;
 };
 
 function serializeQueue(orders: PreparationOrder[]): SerializedOrder[] {
@@ -50,6 +55,10 @@ function serializeQueue(orders: PreparationOrder[]): SerializedOrder[] {
       ? o.preparingStartedAt.toISOString()
       : null,
     readyAt: o.readyAt ? o.readyAt.toISOString() : null,
+    // Alimente le panneau « À produire » côté client : `null` = reste à faire.
+    stockReservedAt: o.stockReservedAt
+      ? o.stockReservedAt.toISOString()
+      : null,
   }));
 }
 
