@@ -13,11 +13,17 @@ import { SCHEDULED_ALERT_MINUTES } from '@/config/constants';
 // préserver les imports existants depuis `./urgency`.
 import {
   formatPickup,
+  isAwaitingKitchenLaunch,
   isScheduledAhead,
   minutesUntilPickup,
 } from '@/lib/orders/scheduling';
 
-export { formatPickup, isScheduledAhead, minutesUntilPickup };
+export {
+  formatPickup,
+  isAwaitingKitchenLaunch,
+  isScheduledAhead,
+  minutesUntilPickup,
+};
 
 export type UrgencyLevel = 'normal' | 'attention' | 'alert' | 'critical';
 

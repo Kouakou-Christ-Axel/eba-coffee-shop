@@ -48,6 +48,14 @@ export type CartItem = {
   // Absent/vide = pas de restriction. Même rôle « confort » que
   // `availableDays` ci-dessus.
   weeklySpecialPeriods?: { startDate: string; endDate: string }[];
+  // L'article était ÉPUISÉ au moment de l'ajout (produit ou goût choisi). Il
+  // reste commandable, mais pour un autre jour : la marchandise sera produite
+  // d'ici là. Modélisé comme un `advanceOrderDays` de 1 par
+  // `effectiveItemAdvanceDays` (lib/supplements.ts), pour réutiliser le
+  // mécanisme de filtrage des jours du sélecteur de créneau plutôt que d'en
+  // créer un second. Confort UI : la vérité reste revérifiée côté serveur
+  // (`createOrder`, lib/orders.ts).
+  soldOutToday?: boolean;
 };
 
 /** Total net d'une ligne (après remise). Voir lib/orders/totals.ts. */

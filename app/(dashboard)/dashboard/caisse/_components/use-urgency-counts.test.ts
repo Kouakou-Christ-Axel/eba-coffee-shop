@@ -190,18 +190,39 @@ describe('urgence — l’ardoise n’escalade plus sur le non-paiement', () => 
 });
 
 describe('filterScheduledAhead', () => {
-  it("ne garde que les programmées NEW/PREPARING à plus d'1 h, triées par retrait", () => {
+  it('garde les PREPARING à retrait lointain et TOUTE commande à créneau pas encore lancée, triées par retrait', () => {
     const orders = [
       makeOrder('far', 'PREPARING', true, pickupIn(180)),
-      makeOrder('soon', 'NEW', false, pickupIn(45)), // <1 h → flux normal
+      // NEW à créneau proche : PAS encore lancée en cuisine, donc toujours
+      // dans « Programmées » — c'est le moment où il faut la lancer.
+      makeOrder('soon', 'NEW', false, pickupIn(45)),
       makeOrder('ready', 'READY', true, pickupIn(200)), // prête → onglet Prête
       makeOrder('walkin', 'PREPARING', true), // pas de créneau
       makeOrder('mid', 'NEW', false, pickupIn(90)),
     ];
-    // Triées par pickupTime croissant : mid (90) puis far (180).
+    // Triées par pickupTime croissant : soon (45), mid (90), far (180).
     expect(filterScheduledAhead(orders, NOW).map((o) => o.id)).toEqual([
+      'soon',
       'mid',
       'far',
     ]);
+  });
+
+  it('une commande différée PAYÉE ne disparaît jamais de tous les écrans', () => {
+    // Elle reste NEW (l'encaissement d'une différée est purement financier),
+    // donc absente de « à encaisser » ET de « en cours ». Sans sa présence dans
+    // « Programmées », elle serait invisible à l'instant précis où il faut la
+    // lancer — c'est le trou que ce filtre comble.
+    const paidScheduled = makeOrder('paid', 'NEW', true, pickupIn(20));
+    expect(filterByTab([paidScheduled], 'to-pay', NOW)).toHaveLength(0);
+    expect(filterByTab([paidScheduled], 'in-progress', NOW)).toHaveLength(0);
+    expect(filterScheduledAhead([paidScheduled], NOW).map((o) => o.id)).toEqual(
+      ['paid']
+    );
+  });
+
+  it('un walk-in NEW sans créneau reste hors de « Programmées »', () => {
+    const walkin = makeOrder('walkin', 'NEW', false, null);
+    expect(filterScheduledAhead([walkin], NOW)).toHaveLength(0);
   });
 });

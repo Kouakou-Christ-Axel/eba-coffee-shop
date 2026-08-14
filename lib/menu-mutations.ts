@@ -455,8 +455,9 @@ export async function toggleProductFeatured(id: string) {
 // (`unavailableUntil`) : cf. `scalar` dans `updateProduct` / `optionData` dans
 // `updateSupplementGroups`. Les fonctions ci-dessous couvrent les gestes
 // complémentaires — incrément relatif (« + fournée ») et bascule pause — pour
-// le dashboard et les outils MCP, sans dupliquer la logique de décrément au
-// paiement (qui vit dans `lib/order-mutations.ts`, hors périmètre de ce fichier).
+// le dashboard et les outils MCP, sans dupliquer la logique de décrément à
+// l'entrée en cuisine (qui vit dans `lib/order-mutations.ts`, hors périmètre de
+// ce fichier).
 
 // Définit ABSOLUMENT le stock d'un produit (« définir le matin »), par
 // opposition à l'incrément relatif de `restockProduct` (« + nouvelle fournée »

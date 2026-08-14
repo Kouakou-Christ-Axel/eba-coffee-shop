@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@heroui/react';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import type { CartItem } from '@/lib/cart-store';
+import { effectiveItemAdvanceDays } from '@/lib/supplements';
 import { useCheckoutForm } from '@/lib/hooks/use-checkout-form';
 import { usePickupInfo } from '@/lib/hooks/use-pickup-info';
 import { useLoyaltyReward } from '@/lib/hooks/use-loyalty-reward';
@@ -53,10 +54,17 @@ export function CheckoutForm({
   // Plus grand délai de commande à l'avance requis par le panier (voir
   // `CartItem.advanceOrderDays`, lib/cart-store.ts) : étend l'horizon de
   // créneaux et contraint le sélecteur (voir SlotPicker).
+  //
+  // `effectiveItemAdvanceDays` intègre aussi les articles ÉPUISÉS AUJOURD'HUI
+  // (J+1 minimum) : un seul mécanisme de contrainte de jour, pas deux.
   const minAdvanceOrderDays = items.reduce(
-    (max, i) => Math.max(max, i.advanceOrderDays ?? 0),
+    (max, i) => Math.max(max, effectiveItemAdvanceDays(i)),
     0
   );
+  // Un article épuisé aujourd'hui mérite un message dédié : « commande à
+  // l'avance » serait faux, ce n'est pas une règle du produit mais un état du
+  // jour.
+  const soldOutRestricted = items.some((i) => i.soldOutToday === true);
   const pickupInfo = usePickupInfo(minAdvanceOrderDays);
   // Recherche débouncée de la récompense du numéro saisi.
   const reward = useLoyaltyReward(values.customerPhone);
@@ -149,6 +157,7 @@ export function CheckoutForm({
         info={pickupInfo}
         items={items}
         minAdvanceOrderDays={minAdvanceOrderDays}
+        soldOutRestricted={soldOutRestricted}
       />
 
       <NoteField

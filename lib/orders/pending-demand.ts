@@ -17,6 +17,7 @@
 
 import prisma from '@/lib/prisma';
 import type { CartItem } from '@/lib/cart-store';
+import { parseDateOnlyToUTC } from '@/lib/timezone';
 
 export type PendingDemand = {
   /** Quantité en attente par `productId`. */
@@ -25,10 +26,40 @@ export type PendingDemand = {
   options: Map<string, number>;
 };
 
-export async function getPendingDemand(): Promise<PendingDemand> {
+export type PendingDemandOptions = {
+  /**
+   * Jour civil Abidjan (YYYY-MM-DD) : ne compte que les commandes à produire
+   * CE jour-là — jour de retrait s'il existe, sinon jour de création. Absent =
+   * toutes dates confondues (comportement historique, inchangé pour les écrans
+   * de stock qui ne raisonnent pas par date).
+   */
+  day?: string;
+};
+
+export async function getPendingDemand(
+  options_?: PendingDemandOptions
+): Promise<PendingDemand> {
+  // Abidjan étant à UTC+0, `parseDateOnlyToUTC` donne exactement la borne du
+  // jour civil. Le `OR` traduit « jour de retrait, sinon jour de création ».
+  const start = options_?.day ? parseDateOnlyToUTC(options_.day) : null;
+  const end = start ? new Date(start.getTime() + 86_400_000) : null;
+  const dayFilter =
+    start && end
+      ? {
+          OR: [
+            { pickupTime: { gte: start, lt: end } },
+            { pickupTime: null, createdAt: { gte: start, lt: end } },
+          ],
+        }
+      : {};
+
   const [orders, options] = await Promise.all([
     prisma.order.findMany({
-      where: { stockReservedAt: null, status: { not: 'CANCELLED' } },
+      where: {
+        stockReservedAt: null,
+        status: { not: 'CANCELLED' },
+        ...dayFilter,
+      },
       select: { items: true },
     }),
     prisma.supplementOption.findMany({
@@ -87,7 +118,9 @@ export async function getPendingDemand(): Promise<PendingDemand> {
 }
 
 /** Raccourci pratique quand seule la demande par option est nécessaire. */
-export async function getPendingOptionDemand(): Promise<Map<string, number>> {
-  const { options } = await getPendingDemand();
+export async function getPendingOptionDemand(
+  options_?: PendingDemandOptions
+): Promise<Map<string, number>> {
+  const { options } = await getPendingDemand(options_);
   return options;
 }

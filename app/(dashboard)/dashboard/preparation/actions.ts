@@ -8,12 +8,60 @@ import {
   type PreparationOrder,
 } from '@/lib/preparation-queue';
 import { canRequestDriver } from '@/lib/order-permissions';
-import { setOrderStatus } from '@/lib/order-mutations';
+import {
+  setOrderStatus,
+  getOrderShortage,
+  StockShortageError,
+} from '@/lib/order-mutations';
+import type { ShortageLine } from '@/lib/orders/shortage';
 import type { UserRole } from '@/generated/prisma/client';
 
 export async function getPreparationQueue(): Promise<PreparationOrder[]> {
   await requireKitchen();
   return fetchPreparationQueue();
+}
+
+/**
+ * Lance une commande programmée en cuisine (`NEW → PREPARING`), ce qui réserve
+ * son stock. C'est LE geste du jour J : une commande différée n'entre jamais en
+ * cuisine toute seule, précisément pour qu'un éventuel échec de stock se
+ * produise devant quelqu'un.
+ *
+ * En cas de pénurie, on ne renvoie pas le cuisinier corriger le stock dans le
+ * menu : la réponse porte la liste CHIFFRÉE des manques, l'écran demande « vous
+ * les avez produits ? », et un second appel avec `coverShortage` enregistre la
+ * production puis lance (effet net nul sur le stock).
+ *
+ * `canTransition('NEW', 'PREPARING', KITCHEN)` passe déjà — cf.
+ * lib/order-permissions.ts.
+ */
+export async function startPreparation(
+  id: string,
+  opts?: { coverShortage?: boolean }
+): Promise<{ error: string; shortage?: ShortageLine[] } | undefined> {
+  const session = await requireKitchen();
+
+  try {
+    await setOrderStatus(id, 'PREPARING', session.user.role as UserRole, {
+      coverShortage: opts?.coverShortage,
+    });
+  } catch (err) {
+    // Jamais un `console.error` muet : le cuisinier doit voir POURQUOI son
+    // geste n'a pas abouti.
+    const error = err instanceof Error ? err.message : 'Erreur inattendue';
+    if (err instanceof StockShortageError) {
+      return { error, shortage: await getOrderShortage(id) };
+    }
+    return { error };
+  }
+
+  revalidatePath('/dashboard/preparation');
+  revalidatePath('/dashboard/caisse');
+  revalidatePath('/dashboard/commandes');
+  // L'entrée en cuisine a décompté du stock : la carte publique doit suivre.
+  revalidatePath('/api/menu');
+  revalidatePath('/carte');
+  revalidatePath('/');
 }
 
 /**

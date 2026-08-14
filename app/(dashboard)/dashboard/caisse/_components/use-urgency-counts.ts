@@ -5,6 +5,7 @@ import type { CashierOrder } from '@/lib/cashier-queue';
 import { compareKitchenFifo } from '@/lib/orders/queue-order';
 import {
   getUrgencyLevel,
+  isAwaitingKitchenLaunch,
   isScheduledAhead,
   type TabKey,
   type UrgencyLevel,
@@ -108,15 +109,23 @@ export function filterByTab(
 }
 
 /**
- * Commandes programmées encore en avance (section « Programmées »), triées par heure de
- * retrait croissante (le prochain retrait en haut).
+ * Section « Programmées », triée par heure de retrait croissante (le prochain
+ * retrait en haut). Deux populations :
+ *   1. `isScheduledAhead` — retrait encore lointain (> SCHEDULED_LEAD_IN_MINUTES) ;
+ *   2. `isAwaitingKitchenLaunch` — commande à créneau PAS ENCORE LANCÉE en
+ *      cuisine, quel que soit le délai restant.
+ *
+ * Le second cas n'est pas un doublon du premier : une commande différée PAYÉE
+ * reste `NEW`, donc absente de « à encaisser » comme de « en cours ». Sans lui,
+ * elle quittait « Programmées » en passant sous le seuil et disparaissait de
+ * TOUS les écrans — exactement au moment où il fallait la lancer.
  */
 export function filterScheduledAhead(
   orders: CashierOrder[],
   now: Date
 ): CashierOrder[] {
   return orders
-    .filter((o) => isScheduledAhead(o, now))
+    .filter((o) => isScheduledAhead(o, now) || isAwaitingKitchenLaunch(o))
     .sort(
       (a, b) => (a.pickupTime?.getTime() ?? 0) - (b.pickupTime?.getTime() ?? 0)
     );

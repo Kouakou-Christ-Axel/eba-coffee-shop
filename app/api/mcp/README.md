@@ -238,7 +238,7 @@ réduite, voire vide, ce n'est pas une erreur.
 | `get_cash_closing`               | finance    | lecture  | Lire la clôture d’un jour                                          |
 | `list_cash_closings`             | finance    | lecture  | Historique des clôtures sur une plage                              |
 | `save_cash_closing`              | finance    | écriture | Créer / mettre à jour la clôture d’un jour                         |
-| `create_order`                   | commandes  | écriture | Enregistrer une commande (antidatage possible)                     |
+| `create_order`                   | commandes  | écriture | Enregistrer une commande (antidatage ou retrait différé possible)  |
 | `list_orders`                    | commandes  | lecture  | Lister les commandes (filtres statut/date/texte)                   |
 | `set_order_status`               | commandes  | écriture | Changer le statut (récupérée, annulée, …)                          |
 | `mark_order_paid`                | commandes  | écriture | Encaisser une commande (CASH/WAVE/ORANGE_MONEY/OTHER)              |
@@ -279,7 +279,7 @@ réduite, voire vide, ce n'est pas une erreur.
 | `create_product_weekly_special`  | menu       | écriture | Programmer une fenêtre « spécialité de la semaine »                |
 | `update_product_weekly_special`  | menu       | écriture | Corriger une fenêtre existante (mise à jour **partielle**)         |
 | `delete_product_weekly_special`  | menu       | écriture | Retirer une fenêtre de l’historique                                |
-| `get_pending_demand`             | menu       | lecture  | Quantité déjà demandée (commandes non payées)                      |
+| `get_pending_demand`             | menu       | lecture  | Quantité restant à produire (option. par jour de retrait)          |
 | `list_global_extras`             | menu       | lecture  | Lister les extras globaux                                          |
 | `create_global_extra_group`      | menu       | écriture | Créer un groupe d’extras global                                    |
 | `update_global_extra_group`      | menu       | écriture | Modifier un groupe d’extras global                                 |
@@ -491,6 +491,14 @@ remises). `orderType` ∈ `DELIVERY`/`DINE_IN`/`TAKEAWAY` (défaut `TAKEAWAY`) ;
 `customerName`, `customerPhone` (normalisé, rattache la fidélité) et `note`
 sont optionnels.
 
+`pickupTime` (ISO 8601) fixe le **créneau de retrait**. S'il tombe un **jour
+civil ultérieur**, la commande est **différée** : elle ne décompte pas le stock
+d'aujourd'hui, son encaissement reste purement financier, et elle n'entre en
+cuisine que sur le geste « Lancer la préparation », le jour venu. C'est ce qui
+permet de vendre pour demain un produit épuisé ce soir. Antidatage et retrait
+différé sont **incompatibles** (une commande ne peut pas être enregistrée sur un
+jour passé et retirée un autre jour).
+
 Le **suivi des commandes** : `list_orders` retrouve les commandes (filtres
 statut / plage de jours / recherche, 20 par page) et renvoie leur `id` ;
 `set_order_status` change le statut (NEW → PREPARING → READY → COMPLETED, ou
@@ -609,10 +617,20 @@ Trois mécanismes de disponibilité, distincts et complémentaires : **illimité
 (+ `id`, désormais exposé) pour chaque option de supplément — indispensable
 pour cibler une option précise, les noms pouvant être dupliqués entre produits.
 
-Le stock est **décrémenté au paiement** (validé par le staff, `mark_order_paid`
-/ `set_order_status`), jamais à la simple création d'une commande : une
-commande non payée ne réserve rien. Deux gestes distincts par cible
-(produit/option) :
+Le stock est **décrémenté à l'entrée en cuisine** (passage `NEW → PREPARING` :
+encaissement d'une commande du jour, envoi manuel ou ardoise), jamais à la
+simple création d'une commande. Le verrou d'idempotence est
+`Order.stockReservedAt` : une commande ne peut décompter qu'une seule fois,
+quel que soit le chemin emprunté.
+
+**Commande différée** (retrait un *jour civil ultérieur*) : elle ne touche
+**pas** au stock d'aujourd'hui. Sa marchandise sera produite le jour du
+retrait, donc ni la création ni l'encaissement ne décomptent quoi que ce soit —
+l'encaissement d'une commande différée est purement financier et la laisse
+« Programmée ». Le décompte a lieu le jour J, quand le staff la lance en
+cuisine. C'est ce qui permet de vendre pour demain un produit épuisé ce soir.
+
+Deux gestes distincts par cible (produit/option) :
 
 - **Définir (absolu)** — `set_product_stock` / `set_option_stock` : pose la
   quantité restante du jour. `quantity: null` (ou absent) repasse la cible en

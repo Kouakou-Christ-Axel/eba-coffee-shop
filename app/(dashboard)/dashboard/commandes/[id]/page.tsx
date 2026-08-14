@@ -162,6 +162,8 @@ export default async function CommandeDetailPage({
                 orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
                 amount={order.total}
                 isPaid={order.isPaid}
+                pickupTime={order.pickupTime}
+                stockReserved={order.stockReservedAt !== null}
               />
             )}
         </div>
@@ -279,6 +281,7 @@ export default async function CommandeDetailPage({
                   initialItems={items}
                   menu={menu}
                   status={order.status as OrderStatus}
+                  stockReserved={order.stockReservedAt !== null}
                 />
               )}
             </div>

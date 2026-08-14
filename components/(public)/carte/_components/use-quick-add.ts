@@ -13,7 +13,7 @@ import { useCartStore } from '@/lib/cart-store';
 import {
   isPausedNow,
   isAvailableToday,
-  isOrderableNow,
+  canOrderForLaterDay,
   isWithinAnyPeriod,
 } from '@/lib/supplements';
 import { LOW_STOCK_THRESHOLD } from '@/config/constants';
@@ -54,7 +54,13 @@ export function useQuickAdd(product: Product) {
   // Les drapeaux ci-dessus restent nécessaires aux LIBELLÉS (chacun a son
   // message) ; la décision « peut-on ajouter ? » se lit, elle, à la source
   // partagée avec les vitrines qui filtrent leur sélection.
-  const isUnorderable = !isOrderableNow(product);
+  //
+  // Le STOCK n'en fait plus partie : un produit épuisé ce soir sera refait
+  // demain, il est donc commandable pour un autre jour (`canOrderForLaterDay`).
+  // La pause, le planning et les fenêtres « spécialité » continuent de bloquer :
+  // ce ne sont pas des problèmes de quantité, et `createOrder` les revalide
+  // côté serveur.
+  const isUnorderable = !canOrderForLaterDay(product);
 
   /**
    * Ajoute `quantity` exemplaires SANS supplément. Le store plafonne lui-même
@@ -74,8 +80,12 @@ export function useQuickAdd(product: Product) {
           advanceOrderDays: product.advanceOrderDays,
           availableDays: product.availableDays,
           weeklySpecialPeriods: product.weeklySpecialPeriods,
+          soldOutToday: soldOut || undefined,
         },
-        product.remaining ?? undefined
+        // ⚠️ Pas de plafond pour un article épuisé : `addItem` refuse
+        // SILENCIEUSEMENT l'ajout quand `maxQuantity <= 0` (cf. cart-store.ts).
+        // C'est le stock du jour, il ne s'applique pas à un retrait ultérieur.
+        soldOut ? undefined : (product.remaining ?? undefined)
       );
     }
     // UN seul événement pour le geste, avec la quantité — pas un par tour de

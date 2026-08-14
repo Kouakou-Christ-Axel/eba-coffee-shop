@@ -27,6 +27,7 @@ import {
 } from '@/lib/order-history';
 import { createOrderSchema } from '@/lib/schemas/order';
 import {
+  effectiveItemAdvanceDays,
   isAvailableToday,
   isPickupDateAllowed,
   isWithinAnyPeriod,
@@ -147,17 +148,22 @@ export function validateCheckoutForm(
   // panier peut exiger un délai de commande à l'avance (jours) supérieur à
   // la date de retrait effectivement soumise.
   if (!errors.pickupTime) {
+    // Inclut les articles épuisés aujourd'hui (J+1 minimum) — même canal que
+    // `advanceOrderDays`, voir `effectiveItemAdvanceDays`.
     const requiredAdvanceDays = items.reduce(
-      (max, i) => Math.max(max, i.advanceOrderDays ?? 0),
+      (max, i) => Math.max(max, effectiveItemAdvanceDays(i)),
       0
     );
+    const soldOutDriven = items.some((i) => i.soldOutToday === true);
     const submittedPickupTime =
       values.timing === 'scheduled' ? values.pickupTime : null;
     if (
       requiredAdvanceDays > 0 &&
       !isPickupDateAllowed(requiredAdvanceDays, submittedPickupTime)
     ) {
-      errors.pickupTime = `Cet article doit être commandé au moins ${requiredAdvanceDays} jour(s) à l'avance.`;
+      errors.pickupTime = soldOutDriven
+        ? 'Un article de votre panier est épuisé aujourd’hui : choisissez un jour à partir de demain.'
+        : `Cet article doit être commandé au moins ${requiredAdvanceDays} jour(s) à l'avance.`;
     }
   }
 

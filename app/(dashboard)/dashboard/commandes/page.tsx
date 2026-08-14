@@ -384,6 +384,8 @@ export default async function CommandesPage({
                             orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
                             amount={order.total}
                             isPaid={order.isPaid}
+                            pickupTime={order.pickupTime}
+                            stockReserved={order.stockReservedAt !== null}
                             variant="outline"
                             size="sm"
                           />
@@ -485,6 +487,8 @@ export default async function CommandesPage({
                       orderRef={orderRef}
                       amount={order.total}
                       isPaid={order.isPaid}
+                      pickupTime={order.pickupTime}
+                      stockReserved={order.stockReservedAt !== null}
                       variant="outline"
                       size="sm"
                     />

@@ -9,7 +9,10 @@ import {
   updateOrderItems,
   setOrderCustomer,
   updateOrderDetails,
+  getOrderShortage,
+  StockShortageError,
 } from '@/lib/order-mutations';
+import type { ShortageLine } from '@/lib/orders/shortage';
 import type {
   SetOrderCustomerInput,
   UpdateOrderDetailsInput,
@@ -44,6 +47,26 @@ function formatMutationError(err: unknown): string {
   return err instanceof Error ? err.message : 'Erreur inattendue';
 }
 
+/**
+ * Résultat d'échec d'une mutation. `shortage` n'est renseigné que sur une
+ * pénurie : l'écran peut alors proposer « il manque N × X, vous les avez
+ * produits ? » et rappeler l'action avec `coverShortage`, au lieu de renvoyer
+ * le staff corriger le stock dans /dashboard/menu.
+ */
+export type MutationFailure = { error: string; shortage?: ShortageLine[] };
+
+/** Enrichit l'échec des lignes manquantes quand c'est une pénurie. */
+async function toFailure(
+  id: string,
+  err: unknown
+): Promise<MutationFailure> {
+  const error = formatMutationError(err);
+  if (err instanceof StockShortageError) {
+    return { error, shortage: await getOrderShortage(id) };
+  }
+  return { error };
+}
+
 // Un paiement réussi peut avoir décrémenté du stock (produit/option) : la
 // carte publique (ISR) doit se rafraîchir. Best-effort, jamais bloquant.
 function revalidatePublicMenu(): void {
@@ -55,17 +78,22 @@ function revalidatePublicMenu(): void {
 
 export async function updateOrderStatus(
   id: string,
-  newStatus: OrderStatus
-): Promise<{ error: string } | undefined> {
+  newStatus: OrderStatus,
+  opts?: { coverShortage?: boolean }
+): Promise<MutationFailure | undefined> {
   const session = await requireCashier();
   const role = session.user.role as UserRole;
 
   try {
-    await setOrderStatus(id, newStatus, role);
+    await setOrderStatus(id, newStatus, role, {
+      coverShortage: opts?.coverShortage,
+    });
   } catch (err) {
-    return { error: formatMutationError(err) };
+    return toFailure(id, err);
   }
   revalidateOrder(id);
+  // L'entrée en cuisine décrémente le stock : la carte publique doit suivre.
+  if (newStatus === 'PREPARING') revalidatePublicMenu();
 }
 
 /**
@@ -75,14 +103,17 @@ export async function updateOrderStatus(
  */
 export async function markOrderPaidAction(
   id: string,
-  payments: OrderPaymentLineInput[]
-): Promise<{ error: string } | undefined> {
+  payments: OrderPaymentLineInput[],
+  opts?: { coverShortage?: boolean }
+): Promise<MutationFailure | undefined> {
   const session = await requireCashier();
 
   try {
-    await setOrderPayment(id, true, payments, session.user.id);
+    await setOrderPayment(id, true, payments, session.user.id, {
+      coverShortage: opts?.coverShortage,
+    });
   } catch (err) {
-    return { error: formatMutationError(err) };
+    return toFailure(id, err);
   }
   revalidateOrder(id);
   revalidatePublicMenu();
@@ -94,34 +125,46 @@ export async function markOrderPaidAction(
  */
 export async function payAndCompleteAction(
   id: string,
-  payments: OrderPaymentLineInput[] | undefined
-): Promise<{ error: string } | undefined> {
+  payments: OrderPaymentLineInput[] | undefined,
+  opts?: { coverShortage?: boolean }
+): Promise<MutationFailure | undefined> {
   const session = await requireCashier();
   const role = session.user.role as UserRole;
 
   try {
-    await payAndComplete(id, payments, role, session.user.id);
+    await payAndComplete(id, payments, role, session.user.id, {
+      coverShortage: opts?.coverShortage,
+    });
   } catch (err) {
-    return { error: formatMutationError(err) };
+    return toFailure(id, err);
   }
   revalidateOrder(id);
   revalidatePublicMenu();
 }
 
+/**
+ * `restoreRemovedStock` : un article retiré d'une commande déjà partie en
+ * cuisine revient au stock par défaut (il n'a pas été consommé). Passer `false`
+ * quand le staff indique qu'il était déjà préparé.
+ */
 export async function updateOrderItemsAction(
   id: string,
-  items: CartItem[]
-): Promise<{ error: string } | undefined> {
+  items: CartItem[],
+  opts?: { restoreRemovedStock?: boolean }
+): Promise<MutationFailure | undefined> {
   await requireCashier();
 
   try {
-    await updateOrderItems(id, items);
+    await updateOrderItems(id, items, {
+      restoreRemovedStock: opts?.restoreRemovedStock,
+    });
   } catch (err) {
-    return { error: formatMutationError(err) };
+    return toFailure(id, err);
   }
   revalidateOrder(id);
-  // Une hausse de quantité sur une commande déjà en cuisine peut avoir
-  // décrémenté du stock (cf. `decrementStockDelta` dans `updateOrderItems`).
+  // Le contenu d'une commande déjà réservée réaligne le stock dans les deux
+  // sens (cf. `resyncStockForItemChange` dans `updateOrderItems`) : la carte
+  // publique doit refléter l'ajout comme le retrait.
   revalidatePublicMenu();
 }
 

@@ -14,9 +14,18 @@ type Props = {
   initialItems: CartItem[];
   menu: MenuCategory[];
   status: OrderStatus;
+  /** `Order.stockReservedAt !== null` : la commande a déjà décompté son stock,
+   * donc retirer un article doit le lui rendre (cf. `OrderItemsEditor`). */
+  stockReserved?: boolean;
 };
 
-export function EditOrderItems({ orderId, initialItems, menu, status }: Props) {
+export function EditOrderItems({
+  orderId,
+  initialItems,
+  menu,
+  status,
+  stockReserved = false,
+}: Props) {
   const [isOpen, setIsOpen] = useState(false);
 
   const isLocked = status === 'COMPLETED' || status === 'CANCELLED';
@@ -49,6 +58,7 @@ export function EditOrderItems({ orderId, initialItems, menu, status }: Props) {
               orderId={orderId}
               initialItems={initialItems}
               menu={menu}
+              stockReserved={stockReserved}
               onClose={() => setIsOpen(false)}
             />
           </ModalBody>

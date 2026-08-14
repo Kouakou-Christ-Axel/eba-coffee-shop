@@ -38,12 +38,19 @@ import { EditLoyaltyModal } from './edit-loyalty-modal';
 import { CopyRecapButton } from '../_components/copy-recap-button';
 import { OrderItemsEditor } from '../_components/order-items-editor';
 import { useConfirmDialog } from '../_components/use-confirm-dialog';
+import { useShortageConfirm } from '../_components/use-shortage-confirm';
+import type { ShortageLine } from '@/lib/orders/shortage';
+import { formatPickup, isDeferredPickup } from '@/lib/orders/scheduling';
+import { useNowTick } from './use-now-tick';
 
 async function callApi<T = unknown>(
   url: string,
   method: 'PATCH' | 'POST',
   body: unknown
-): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; data: T }
+  | { ok: false; error: string; shortage?: ShortageLine[] }
+> {
   const res = await fetch(url, {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -51,13 +58,21 @@ async function callApi<T = unknown>(
   });
   if (!res.ok) {
     let msg = `Erreur ${res.status}`;
+    // Une 409 de pénurie porte AUSSI la liste chiffrée des manques : elle
+    // permet de proposer « vous les avez produits ? » plutôt que d'afficher
+    // une impasse (cf. `buildShortagePayload`, lib/order-mutations.ts).
+    let shortage: ShortageLine[] | undefined;
     try {
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        shortage?: ShortageLine[];
+      };
       if (typeof data.error === 'string') msg = data.error;
+      if (Array.isArray(data.shortage)) shortage = data.shortage;
     } catch {
       // ignore
     }
-    return { ok: false, error: msg };
+    return { ok: false, error: msg, shortage };
   }
   const data = (await res.json()) as T;
   return { ok: true, data };
@@ -128,6 +143,11 @@ export function OrderCardActions({
   const [isEditLoyaltyOpen, setIsEditLoyaltyOpen] = useState(false);
   const { pushUndo } = useUndoToast();
   const { confirm, confirmDialog } = useConfirmDialog();
+  const { confirmShortage, shortageDialog } = useShortageConfirm();
+  // Horloge qui tique : le verdict « différée » change au passage de minuit, et
+  // ces boutons doivent suivre sans rechargement (le SSE ne pousse qu'aux
+  // mutations de commandes, il ne réveille rien à 00:00).
+  const tickNow = useNowTick();
 
   const canEditItems =
     order.status !== 'COMPLETED' && order.status !== 'CANCELLED';
@@ -190,26 +210,20 @@ export function OrderCardActions({
       ? 'Encaisser maintenant'
       : 'Marquer payée';
 
+  // Retrait un jour ultérieur : le stock d'aujourd'hui ne la concerne pas.
+  // Recalculé ICI plutôt que porté par le flux SSE (qui ne repousse qu'aux
+  // mutations de commandes) : sans cela, le verdict resterait celui d'avant
+  // minuit sur un écran resté ouvert la nuit.
+  const isDeferred = isDeferredPickup(order.pickupTime, tickNow);
+
   // Stock épuisé signalé par le flux SSE (`lib/cashier-queue.ts`) pour une
   // commande dont le stock n'est PAS encore réservé : le serveur refusera
   // l'envoi en cuisine de toute façon (409), mais on prévient le staff AVANT le
   // clic pour éviter le clic perdu. Critère `stockReservedAt` et non `isPaid` :
   // une commande en cuisine mais non encaissée (ardoise) a déjà son stock.
+  // Double sécurité sur `isDeferred` : cf. le passage de minuit ci-dessus.
   const hasStockShortage =
-    order.stockShortage && order.stockReservedAt === null;
-
-  // Non bloquant : une confirmation explicite suffit à passer outre (le staff
-  // peut avoir déjà proposé un remplacement au client). Si le stock a bougé
-  // entre-temps, le serveur retranchera de toute façon (409, message affiché).
-  async function confirmDespiteShortage(): Promise<boolean> {
-    if (!hasStockShortage) return true;
-    return confirm({
-      title: 'Stock épuisé',
-      message: `Stock épuisé pour : ${order.unavailableItemNames.join(', ')}.\nProposer un autre produit au client avant de payer.`,
-      confirmLabel: 'Continuer quand même',
-      destructive: true,
-    });
-  }
+    order.stockShortage && order.stockReservedAt === null && !isDeferred;
 
   const orderRef = `#${String(order.dailyNumber).padStart(3, '0')}`;
 
@@ -240,13 +254,34 @@ export function OrderCardActions({
     });
   }
 
+  /**
+   * Exécute une mutation qui peut buter sur le stock. En cas de refus pour
+   * pénurie, propose au caissier d'enregistrer la production sur place — « il
+   * manque 3 × Sponge cake (Vanille), vous les avez produits ? » — et réessaie
+   * avec `coverShortage`. Personne n'a plus à ouvrir /dashboard/menu pour
+   * débloquer une commande.
+   */
+  async function withShortageRetry<T>(
+    call: (
+      coverShortage: boolean
+    ) => Promise<Awaited<ReturnType<typeof callApi<T>>>>
+  ) {
+    const first = await call(false);
+    if (first.ok || !first.shortage?.length) return first;
+    if (!(await confirmShortage(first.shortage))) return first;
+    return call(true);
+  }
+
   function handlePaymentConfirm(payments: PaymentLine[]) {
     setPaymentError(null);
     runMutation('payment', async () => {
-      const result = await callApi<{ startedPreparation: boolean }>(
-        `/api/caisse/orders/${order.id}/payment`,
-        'PATCH',
-        { isPaid: true, payments }
+      const result = await withShortageRetry<{ startedPreparation: boolean }>(
+        (coverShortage) =>
+          callApi(`/api/caisse/orders/${order.id}/payment`, 'PATCH', {
+            isPaid: true,
+            payments,
+            ...(coverShortage ? { coverShortage: true } : {}),
+          })
       );
       if (!result.ok) {
         setPaymentError(result.error);
@@ -259,14 +294,16 @@ export function OrderCardActions({
 
   // Raccourci quand le client a envoyé sa preuve Wave depuis la page de suivi :
   // encaissement direct en mode WAVE, sans passer par la modale.
-  async function handleValidateWaveProof() {
-    if (!(await confirmDespiteShortage())) return;
+  function handleValidateWaveProof() {
     setActionError(null);
     runMutation('wave-proof', async () => {
-      const result = await callApi<{ startedPreparation: boolean }>(
-        `/api/caisse/orders/${order.id}/payment`,
-        'PATCH',
-        { isPaid: true, payments: [{ mode: 'WAVE', amount: order.total }] }
+      const result = await withShortageRetry<{ startedPreparation: boolean }>(
+        (coverShortage) =>
+          callApi(`/api/caisse/orders/${order.id}/payment`, 'PATCH', {
+            isPaid: true,
+            payments: [{ mode: 'WAVE', amount: order.total }],
+            ...(coverShortage ? { coverShortage: true } : {}),
+          })
       );
       if (!result.ok) {
         setActionError(result.error);
@@ -289,12 +326,14 @@ export function OrderCardActions({
     const previousStatus = order.status;
     const wasPaid = order.isPaid;
     runMutation(`status:${newStatus}`, async () => {
-      const result = await callApi(
-        `/api/caisse/orders/${order.id}/status`,
-        'PATCH',
-        opts?.onAccount
-          ? { status: newStatus, onAccount: true }
-          : { status: newStatus }
+      // L'entrée en cuisine réserve le stock : elle peut donc buter sur une
+      // pénurie, que le cuisinier/caissier peut couvrir sur place.
+      const result = await withShortageRetry((coverShortage) =>
+        callApi(`/api/caisse/orders/${order.id}/status`, 'PATCH', {
+          status: newStatus,
+          ...(opts?.onAccount ? { onAccount: true } : {}),
+          ...(coverShortage ? { coverShortage: true } : {}),
+        })
       );
       if (!result.ok) {
         setActionError(result.error);
@@ -329,12 +368,28 @@ export function OrderCardActions({
     });
   }
 
+  /**
+   * Lance une commande programmée déjà encaissée. Confirmation quand le retrait
+   * est un autre jour : préparer en avance est légitime (une pâtisserie se fait
+   * la veille), mais c'est le stock d'AUJOURD'HUI qui sera décompté — autant
+   * que ce soit un choix, pas une surprise.
+   */
+  async function handleStartPreparation() {
+    if (isDeferred) {
+      const confirmed = await confirm({
+        title: 'Lancer maintenant ?',
+        message: `Retrait ${formatPickup(order.pickupTime as Date, tickNow)}. La préparation démarre aujourd'hui et le stock du jour sera décompté.`,
+        confirmLabel: 'Lancer la préparation',
+      });
+      if (!confirmed) return;
+    }
+    handleStatusChange('PREPARING');
+  }
+
   async function handleSendToKitchenWithoutPayment() {
-    // L'entrée en cuisine RÉSERVE désormais le stock : cet envoi peut donc
-    // échouer en 409 « stock insuffisant » exactement comme un encaissement.
-    // Même garde qu'avant de payer (l'erreur remonte sinon dans
-    // `setActionError`, mais autant éviter le clic perdu).
-    if (!(await confirmDespiteShortage())) return;
+    // L'entrée en cuisine RÉSERVE le stock : cet envoi peut donc buter sur une
+    // pénurie. Plus besoin de garde ici — `handleStatusChange` propose de la
+    // couvrir sur place si elle se produit.
     const confirmed = await confirm({
       title: 'Mettre sur l’ardoise ?',
       message:
@@ -470,14 +525,15 @@ export function OrderCardActions({
           </Button>
         )}
 
-        {/* Stock épuisé sur un article de cette commande (non payée) : signal
-            rouge + garde sur les boutons de paiement ci-dessous. */}
+        {/* Stock épuisé sur un article de cette commande : signal informatif.
+            Il n'y a plus de garde bloquante — si l'action bute vraiment sur le
+            stock, la feuille « vous les avez produits ? » prend le relais. */}
         {hasStockShortage && (
           <div className="flex items-center gap-2 rounded-lg bg-red-100 px-3 py-2 text-xs font-medium text-red-900 ring-1 ring-red-300 dark:bg-red-950/40 dark:text-red-100 dark:ring-red-800">
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span>
-              Stock épuisé — proposer un autre produit :{' '}
-              {order.unavailableItemNames.join(', ')}
+              Stock épuisé : {order.unavailableItemNames.join(', ')} — produire
+              ou proposer un remplacement.
             </span>
           </div>
         )}
@@ -534,9 +590,7 @@ export function OrderCardActions({
             size="lg"
             className="w-full"
             disabled={isPending}
-            onClick={async () => {
-              if (await confirmDespiteShortage()) setIsPaymentOpen(true);
-            }}
+            onClick={() => setIsPaymentOpen(true)}
           >
             <Check className="mr-1.5 h-4 w-4" />
             {payLabel}
@@ -545,7 +599,9 @@ export function OrderCardActions({
 
         {/* Ardoise : envoyer en cuisine sans encaisser (status NEW seul).
             La commande reste impayée — c'est le suivi de l'ardoise, pas la
-            caisse, qui porte la dette. */}
+            caisse, qui porte la dette. Sur une commande PROGRAMMÉE, c'est le
+            même geste, mais le mot juste est « lancer » : elle attend son jour,
+            elle n'est pas en retard d'encaissement. */}
         {!order.isPaid && order.status === 'NEW' && (
           <Button
             type="button"
@@ -560,7 +616,32 @@ export function OrderCardActions({
             ) : (
               <ChefHat className="mr-1.5 h-4 w-4" />
             )}
-            Envoyer en cuisine (ardoise)
+            {order.pickupTime
+              ? 'Lancer la préparation (ardoise)'
+              : 'Envoyer en cuisine (ardoise)'}
+          </Button>
+        )}
+
+        {/* Commande PROGRAMMÉE DÉJÀ PAYÉE : elle reste NEW jusqu'au jour du
+            retrait — l'encaissement d'une différée est purement financier. Sans
+            ce bouton, elle n'aurait aucun moyen d'entrer en cuisine depuis la
+            caisse. C'est aussi le seul chemin qui décompte son stock, et il est
+            volontairement manuel : un manque doit se voir. */}
+        {order.isPaid && order.status === 'NEW' && order.pickupTime && (
+          <Button
+            type="button"
+            variant="default"
+            size="lg"
+            className="w-full"
+            disabled={isPending}
+            onClick={handleStartPreparation}
+          >
+            {pendingAction === 'status:PREPARING' ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <ChefHat className="mr-1.5 h-4 w-4" />
+            )}
+            Lancer la préparation
           </Button>
         )}
 
@@ -712,6 +793,7 @@ export function OrderCardActions({
               orderId={order.id}
               initialItems={order.items}
               menu={menu}
+              stockReserved={order.stockReservedAt !== null}
               onClose={() => setIsEditOpen(false)}
             />
           </ModalBody>
@@ -750,6 +832,7 @@ export function OrderCardActions({
       />
 
       {confirmDialog}
+      {shortageDialog}
     </>
   );
 }
