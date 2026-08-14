@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@heroui/react';
 import {
   CalendarClock,
+  Check,
   ChevronRight,
   Clock,
   RefreshCw,
@@ -195,16 +196,32 @@ export function SlotPicker({
     minAdvanceOrderDays > 0
       ? minAllowedPickupDateString(minAdvanceOrderDays)
       : null;
-  const allDays: PickupDay[] = info.status === 'ready' ? info.days : [];
+  const allDays: PickupDay[] = useMemo(
+    () => (info.status === 'ready' ? info.days : []),
+    [info]
+  );
   // Planning récurrent / fenêtre « spécialité de la semaine » (voir
   // isCartAvailableOn ci-dessus) : un jour où un article du panier ne serait
   // pas disponible n'a pas lieu d'être proposé, comme pour minAllowedDate.
-  const scheduleFilteredDays = allDays.filter((d) =>
-    isCartAvailableOn(items, new Date(`${d.date}T00:00:00Z`))
+  //
+  // Mémoïsés (et non de simples `const` dérivées à chaque rendu) : `days` sert
+  // de dépendance au `useMemo` de `defaultSlot` ci-dessous, et le compilateur
+  // React refuse de préserver une mémoïsation manuelle dont une dépendance
+  // n'est pas elle-même une valeur stable.
+  const scheduleFilteredDays = useMemo(
+    () =>
+      allDays.filter((d) =>
+        isCartAvailableOn(items, new Date(`${d.date}T00:00:00Z`))
+      ),
+    [allDays, items]
   );
-  const days = minAllowedDate
-    ? scheduleFilteredDays.filter((d) => d.date >= minAllowedDate)
-    : scheduleFilteredDays;
+  const days = useMemo(
+    () =>
+      minAllowedDate
+        ? scheduleFilteredDays.filter((d) => d.date >= minAllowedDate)
+        : scheduleFilteredDays,
+    [scheduleFilteredDays, minAllowedDate]
+  );
   const scheduleRestricted = scheduleFilteredDays.length < allDays.length;
   const todayRanges = allDays.find((d) => d.date === today)?.ranges ?? [];
   const cartAvailableNow = isCartAvailableOn(items);
@@ -226,19 +243,23 @@ export function SlotPicker({
   // `pickDefaultSlot` garantit qu'on ne pré-sélectionne jamais une heure qui
   // n'existe pas (fermeture, capacité pleine, pas de créneau) — voir
   // lib/pickup-slots.ts.
+  //
+  // Mémoïsé et PARTAGÉ entre l'effet de pré-sélection ci-dessous et le bouton
+  // de raccourci affiché au-dessus des jours (cf. rendu) : les deux doivent
+  // s'accorder sur le MÊME créneau, sinon ce que le bouton propose et ce qui
+  // est réellement pré-coché divergent au premier rendu ambigu.
   const firstDay = days[0]?.date ?? null;
-  useEffect(() => {
-    if (info.status !== 'ready' || value || !minAllowedDate || !firstDay) return;
+  const defaultSlot: Date | null = useMemo(() => {
+    if (info.status !== 'ready' || !minAllowedDate || !firstDay) return null;
     const candidates = days.flatMap((d) => slotsByDay.get(d.date) ?? []);
-    const slot = pickDefaultSlot(
-      candidates,
-      firstDay,
-      DEFERRED_PICKUP_DEFAULT_TIME
-    );
-    if (slot) onChange(slot.toISOString());
+    return pickDefaultSlot(candidates, firstDay, DEFERRED_PICKUP_DEFAULT_TIME);
     // `days`/`slotsByDay` sont dérivés de `info` : le suivre suffit et évite de
-    // relancer l'effet à chaque rendu sur des tableaux recréés.
-  }, [info, value, minAllowedDate, firstDay, days, slotsByDay, onChange]);
+    // relancer le calcul à chaque rendu sur des tableaux recréés.
+  }, [info, minAllowedDate, firstDay, days, slotsByDay]);
+
+  useEffect(() => {
+    if (!value && defaultSlot) onChange(defaultSlot.toISOString());
+  }, [value, defaultSlot, onChange]);
 
   const selectedDate = value ? new Date(value) : null;
   const selectedLabel =
@@ -381,6 +402,42 @@ export function SlotPicker({
           {timing === 'scheduled' &&
             (selectedDay ? (
               <div className="flex flex-col gap-2 pt-1">
+                {/* Raccourci vers le créneau pré-sélectionné automatiquement
+                 * (voir l'effet ci-dessus). Il n'existe QUE quand le panier
+                 * impose déjà un jour ultérieur (`minAllowedDate`) : sans
+                 * contrainte, « Dès que possible » reste le défaut et ce
+                 * bouton n'a pas lieu d'être. Ce n'est pas un second chemin de
+                 * sélection : c'est la matérialisation visible et réversible
+                 * de la pré-sélection silencieuse — le client comprend
+                 * pourquoi un créneau est déjà coché, et peut y revenir en un
+                 * geste après être allé voir d'autres jours. */}
+                {minAllowedDate && defaultSlot && (
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      aria-pressed={value === defaultSlot.toISOString()}
+                      onClick={() => {
+                        onChange(defaultSlot.toISOString());
+                        setActiveDay(slotDayKey(defaultSlot));
+                      }}
+                      className={cn(
+                        'flex w-fit items-center gap-1.5 rounded-full border-2 px-3 py-1.5 text-xs font-semibold transition-colors',
+                        value === defaultSlot.toISOString()
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-foreground/10 text-foreground hover:border-primary/40 hover:bg-primary/5'
+                      )}
+                    >
+                      {value === defaultSlot.toISOString() && (
+                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      )}
+                      {dayLabel(slotDayKey(defaultSlot), today)} à{' '}
+                      {formatAbidjanTime(defaultSlot)}
+                    </button>
+                    <p className="text-xs text-foreground/50">
+                      Créneau proposé
+                    </p>
+                  </div>
+                )}
                 <DayChips
                   days={days}
                   today={today}

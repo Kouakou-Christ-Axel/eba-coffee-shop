@@ -1,12 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   formatPickup,
   isAwaitingKitchenLaunch,
   isDeferredPickup,
+  isPickupAt,
   isScheduledAhead,
   minutesUntilPickup,
   orderProductionDay,
   pickupDayOffset,
+  pickupDayString,
+  pickupISOAt,
+  pickupLocalAt,
 } from './scheduling';
 import type { OrderStatus } from '@/generated/prisma/client';
 
@@ -118,5 +122,90 @@ describe('non-régression après refactor de localDayDiff', () => {
     expect(isScheduledAhead(order('2026-06-13T16:00:00Z', 'READY'), NOW)).toBe(
       false
     );
+  });
+});
+
+// ─── Fabrication d'un créneau « jour + heure » ────────────────────────────────
+
+describe('pickupDayString', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function freeze(iso: string) {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(iso));
+  }
+
+  it('renvoie aujourd’hui pour un décalage nul, demain pour 1', () => {
+    freeze('2026-06-13T14:00:00Z');
+    expect(pickupDayString(0)).toBe('2026-06-13');
+    expect(pickupDayString(1)).toBe('2026-06-14');
+    expect(pickupDayString(2)).toBe('2026-06-15');
+  });
+
+  it('franchit le mois et l’année', () => {
+    freeze('2026-06-30T22:00:00Z');
+    expect(pickupDayString(1)).toBe('2026-07-01');
+    freeze('2026-12-31T09:00:00Z');
+    expect(pickupDayString(1)).toBe('2027-01-01');
+  });
+
+  it('reste sur le jour civil Abidjan en fin de journée', () => {
+    // 23h50 à Abidjan : on est encore le 13, demain est bien le 14.
+    freeze('2026-06-13T23:50:00Z');
+    expect(pickupDayString(0)).toBe('2026-06-13');
+    expect(pickupDayString(1)).toBe('2026-06-14');
+  });
+});
+
+describe('pickupLocalAt / pickupISOAt', () => {
+  it('compose la valeur datetime-local avec l’heure par défaut', () => {
+    expect(pickupLocalAt('2026-06-14')).toBe('2026-06-14T11:00');
+    expect(pickupLocalAt('2026-06-14', '14:30')).toBe('2026-06-14T14:30');
+  });
+
+  it('produit un ISO ancré Abidjan (UTC), relisible à l’identique', () => {
+    expect(pickupISOAt('2026-06-14')).toBe('2026-06-14T11:00:00.000Z');
+    expect(pickupISOAt('2026-06-14', '14:30')).toBe(
+      '2026-06-14T14:30:00.000Z'
+    );
+  });
+
+  it('renvoie null sur une entrée invalide plutôt qu’une date NaN', () => {
+    expect(pickupISOAt('pas-une-date')).toBeNull();
+    expect(pickupISOAt('2026-06-14', 'midi')).toBeNull();
+  });
+});
+
+describe('isPickupAt', () => {
+  it('est vrai à la minute exacte, faux une minute à côté', () => {
+    expect(isPickupAt('2026-06-14T11:00:00.000Z', '2026-06-14')).toBe(true);
+    expect(isPickupAt('2026-06-14T11:01:00.000Z', '2026-06-14')).toBe(false);
+    expect(isPickupAt('2026-06-15T11:00:00.000Z', '2026-06-14')).toBe(false);
+  });
+
+  it('accepte une Date comme une chaîne ISO', () => {
+    expect(isPickupAt(new Date('2026-06-14T11:00:00Z'), '2026-06-14')).toBe(
+      true
+    );
+  });
+
+  it('honore une heure personnalisée', () => {
+    expect(isPickupAt('2026-06-14T14:30:00Z', '2026-06-14', '14:30')).toBe(
+      true
+    );
+    expect(isPickupAt('2026-06-14T14:30:00Z', '2026-06-14')).toBe(false);
+  });
+
+  it('est faux sans créneau — un raccourci ne s’allume pas sur du vide', () => {
+    expect(isPickupAt(null, '2026-06-14')).toBe(false);
+    expect(isPickupAt(undefined, '2026-06-14')).toBe(false);
+  });
+
+  it('ignore les secondes de la valeur stockée', () => {
+    // `isoToAbidjanDatetimeLocal` tronque à la minute : une commande posée avec
+    // des secondes non nulles reste reconnue comme « demain 11h ».
+    expect(isPickupAt('2026-06-14T11:00:45.000Z', '2026-06-14')).toBe(true);
   });
 });

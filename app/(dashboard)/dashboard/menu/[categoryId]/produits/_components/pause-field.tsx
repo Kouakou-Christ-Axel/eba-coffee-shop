@@ -19,6 +19,7 @@ import {
   formatAbidjanDateTime,
 } from '@/lib/timezone';
 import { isPausedNow } from '@/lib/supplements';
+import { TimeChip } from '@/app/(dashboard)/dashboard/_components/time-chip';
 
 export function PauseField({
   productId,
@@ -35,6 +36,15 @@ export function PauseField({
   const [customInput, setCustomInput] = useState('');
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Dernier raccourci +Nh cliqué — PAS un état « sélectionné » au sens des
+  // présets de créneau : c'est le compte-rendu d'une action serveur déjà
+  // exécutée, transitoire par nature. Après un rechargement de page, rien ne
+  // dit quel bouton a produit la pause en cours (elle a pu être posée hier),
+  // et « +2h » ne veut plus rien dire une heure plus tard — donc pas de calcul
+  // dérivé de `unavailableUntil` ici, contrairement aux raccourcis de créneau.
+  const [lastShortcutHours, setLastShortcutHours] = useState<number | null>(
+    null
+  );
 
   const isPaused = isPausedNow(unavailableUntil);
 
@@ -45,6 +55,7 @@ export function PauseField({
       if (!result.ok) {
         setError(result.error);
         pushToast(result.error, 'error');
+        setLastShortcutHours(null);
         return;
       }
       setUnavailableUntil(until);
@@ -54,10 +65,12 @@ export function PauseField({
   }
 
   function handlePauseHours(hours: number) {
+    setLastShortcutHours(hours);
     applyPause(new Date(Date.now() + hours * 60 * 60 * 1000));
   }
 
   function handlePauseCustom() {
+    setLastShortcutHours(null);
     const iso = abidjanDatetimeLocalToISO(customInput);
     if (!iso) {
       setError('Date/heure invalide');
@@ -73,6 +86,7 @@ export function PauseField({
 
   function handleResume() {
     setError(null);
+    setLastShortcutHours(null);
     startTransition(async () => {
       const result = await resumeProductAction(productId);
       if (!result.ok) {
@@ -105,24 +119,27 @@ export function PauseField({
           )}
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
+          {/* `isDisabled={isPending}` verrouille TOUTE la rangée pendant l'appel
+              — comme le faisait le `disabled={isPending}` d'origine — tandis que
+              `isPending` ne marque que le bouton réellement cliqué. */}
+          <TimeChip
             size="sm"
-            disabled={isPending}
-            onClick={() => handlePauseHours(1)}
+            isActive={lastShortcutHours === 1}
+            isPending={isPending && lastShortcutHours === 1}
+            isDisabled={isPending}
+            onPress={() => handlePauseHours(1)}
           >
             +1h
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
+          </TimeChip>
+          <TimeChip
             size="sm"
-            disabled={isPending}
-            onClick={() => handlePauseHours(2)}
+            isActive={lastShortcutHours === 2}
+            isPending={isPending && lastShortcutHours === 2}
+            isDisabled={isPending}
+            onPress={() => handlePauseHours(2)}
           >
             +2h
-          </Button>
+          </TimeChip>
           <Input
             type="datetime-local"
             value={customInput}

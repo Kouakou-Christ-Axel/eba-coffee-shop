@@ -19,13 +19,10 @@ import { CalendarClock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import {
-  abidjanDatetimeLocalToISO,
-  isoToAbidjanDatetimeLocal,
-  shiftDateString,
-  todayDateString,
-} from '@/lib/timezone';
+import { isoToAbidjanDatetimeLocal, shiftDateString } from '@/lib/timezone';
+import { pickupDayString, pickupISOAt } from '@/lib/orders/scheduling';
 import { DEFERRED_PICKUP_DEFAULT_TIME } from '@/config/constants';
+import { TimeChip } from '../../../_components/time-chip';
 
 /** Créneau par défaut d'un retrait « plus tard aujourd'hui » : maintenant + 1 h. */
 const TODAY_LATER_OFFSET_MIN = 60;
@@ -40,15 +37,10 @@ export type PickupChip = 'now' | 'today-later' | 'tomorrow' | 'other';
 export function resolvePickupChip(pickupTime: string | null): PickupChip {
   if (!pickupTime) return 'now';
   const day = isoToAbidjanDatetimeLocal(pickupTime).slice(0, 10);
-  const today = todayDateString();
+  const today = pickupDayString(0);
   if (day === today) return 'today-later';
   if (day === shiftDateString(today, 1)) return 'tomorrow';
   return 'other';
-}
-
-/** ISO du jour `day` (YYYY-MM-DD) à l'heure `hhmm`, ancré sur Abidjan. */
-function isoAt(day: string, hhmm: string): string | null {
-  return abidjanDatetimeLocalToISO(`${day}T${hhmm}`);
 }
 
 type Props = {
@@ -68,7 +60,7 @@ export function PickupDayBar({
   variant = 'compact',
   className,
 }: Props) {
-  const today = todayDateString();
+  const today = pickupDayString(0);
   const chip = resolvePickupChip(pickupTime);
   const currentLocal = isoToAbidjanDatetimeLocal(pickupTime);
   const currentDay = currentLocal.slice(0, 10);
@@ -88,7 +80,7 @@ export function PickupDayBar({
             new Date(Date.now() + TODAY_LATER_OFFSET_MIN * 60_000)
           ).slice(11, 16)
         : currentTime;
-    onChange(isoAt(day, time));
+    onChange(pickupISOAt(day, time));
   }
 
   const chips: { key: PickupChip; label: string; onSelect: () => void }[] = [
@@ -121,20 +113,14 @@ export function PickupDayBar({
 
       <div className="flex flex-wrap gap-2" role="group" aria-label="Jour de retrait">
         {chips.map((c) => (
-          <button
+          <TimeChip
             key={c.key}
-            type="button"
-            onClick={c.onSelect}
-            aria-pressed={chip === c.key}
-            className={cn(
-              'rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors',
-              chip === c.key
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border bg-background hover:bg-muted'
-            )}
+            size="sm"
+            onPress={c.onSelect}
+            isActive={chip === c.key}
           >
             {c.label}
-          </button>
+          </TimeChip>
         ))}
       </div>
 
@@ -170,7 +156,7 @@ export function PickupDayBar({
                 type="time"
                 value={currentTime}
                 onChange={(e) => {
-                  const iso = isoAt(currentDay, e.target.value);
+                  const iso = pickupISOAt(currentDay, e.target.value);
                   if (iso) onChange(iso);
                 }}
               />

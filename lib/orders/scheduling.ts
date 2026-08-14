@@ -6,11 +6,18 @@
 // lisent que `pickupTime` et `status`, donc s'appliquent à `CashierOrder` comme
 // à `PreparationOrder`.
 
-import { SCHEDULED_LEAD_IN_MINUTES } from '@/config/constants';
 import {
+  DEFERRED_PICKUP_DEFAULT_TIME,
+  SCHEDULED_LEAD_IN_MINUTES,
+} from '@/config/constants';
+import {
+  abidjanDatetimeLocalToISO,
   formatAbidjanTime,
   formatLocalDateOnly,
+  isoToAbidjanDatetimeLocal,
+  shiftDateString,
   startOfLocalDay,
+  todayDateString,
 } from '@/lib/timezone';
 import type { OrderStatus } from '@/generated/prisma/client';
 
@@ -82,6 +89,56 @@ export function isDeferredPickup(
 ): boolean {
   const offset = pickupDayOffset(pickupTime, now);
   return offset !== null && offset > 0;
+}
+
+// ─── Fabriquer un créneau « jour + heure » ────────────────────────────────────
+//
+// Tous les raccourcis de temps de l'app (« Demain 11h » en caisse, chez l'admin
+// et sur la carte publique) posent la MÊME valeur : un jour civil Abidjan à une
+// heure murale. Quatre fonctions d'une ligne, mais une seule façon de la
+// construire — quatre écrans qui recomposeraient la chaîne à la main
+// finiraient par diverger sur un fuseau ou un zéro non complété.
+
+/** Jour civil Abidjan à J+`dayOffset` (YYYY-MM-DD). `0` = aujourd'hui. */
+export function pickupDayString(dayOffset: number): string {
+  return shiftDateString(todayDateString(), dayOffset);
+}
+
+/**
+ * Valeur `datetime-local` (heure murale Abidjan) : « 2026-08-15T11:00 ».
+ * C'est la forme qu'attendent les `<input type="datetime-local">`.
+ */
+export function pickupLocalAt(
+  day: string,
+  time: string = DEFERRED_PICKUP_DEFAULT_TIME
+): string {
+  return `${day}T${time}`;
+}
+
+/** Même créneau en ISO 8601 (UTC), ancré Abidjan. `null` si entrée invalide. */
+export function pickupISOAt(
+  day: string,
+  time: string = DEFERRED_PICKUP_DEFAULT_TIME
+): string | null {
+  return abidjanDatetimeLocalToISO(pickupLocalAt(day, time));
+}
+
+/**
+ * Ce créneau tombe-t-il EXACTEMENT ce jour-là à cette heure-là ?
+ *
+ * Sert à allumer un raccourci : son état actif est ainsi DÉRIVÉ de la valeur
+ * réellement soumise, jamais stocké en parallèle (un état dupliqué se
+ * désynchronise, et c'est la valeur soumise qui compte). Ne marche que pour un
+ * raccourci visant un instant ABSOLU — un préset relatif (« dans 2h ») n'est
+ * pas reconnaissable après coup, il lui faut un état explicite.
+ */
+export function isPickupAt(
+  pickupTime: Date | string | null | undefined,
+  day: string,
+  time: string = DEFERRED_PICKUP_DEFAULT_TIME
+): boolean {
+  if (!pickupTime) return false;
+  return isoToAbidjanDatetimeLocal(pickupTime) === pickupLocalAt(day, time);
 }
 
 /**

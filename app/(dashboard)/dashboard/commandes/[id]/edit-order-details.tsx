@@ -26,7 +26,10 @@ import {
   abidjanDatetimeLocalToISO,
   isoToAbidjanDatetimeLocal,
 } from '@/lib/timezone';
+import { pickupLocalAt } from '@/lib/orders/scheduling';
 import { updateOrderDetailsAction } from '../actions';
+import { TimeChip } from '../../_components/time-chip';
+import { useNextOpenPickup } from '../../_components/use-next-open-pickup';
 
 const ORDER_TYPE_OPTIONS: { key: OrderType; label: string }[] = [
   { key: 'TAKEAWAY', label: 'À emporter' },
@@ -73,6 +76,10 @@ export function EditOrderDetails({
   const [note, setNote] = useState(initialNote ?? '');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Raccourci « jour ouvert suivant » (typiquement « Demain 11h ») : ne charge
+  // les horaires qu'à l'ouverture de la modale.
+  const nextOpenPickup = useNextOpenPickup(isOpen);
 
   function resetState() {
     setOrderType(initialOrderType);
@@ -155,6 +162,46 @@ export function EditOrderDetails({
                 <SelectItem key={o.key}>{o.label}</SelectItem>
               ))}
             </Select>
+
+            {/* Rangée annoncée : sans intitulé, deux puces flottant entre le
+                type de commande et le champ date ne se rattachent visuellement
+                à rien. */}
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium text-default-500">
+                Raccourcis de créneau
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {nextOpenPickup && (
+                  <TimeChip
+                    size="sm"
+                    isActive={
+                      pickup ===
+                      pickupLocalAt(
+                        nextOpenPickup.target.date,
+                        nextOpenPickup.target.time
+                      )
+                    }
+                    onPress={() =>
+                      setPickup(
+                        pickupLocalAt(
+                          nextOpenPickup.target.date,
+                          nextOpenPickup.target.time
+                        )
+                      )
+                    }
+                  >
+                    {nextOpenPickup.label}
+                  </TimeChip>
+                )}
+                <TimeChip
+                  size="sm"
+                  isActive={pickup === ''}
+                  onPress={() => setPickup('')}
+                >
+                  Sans créneau
+                </TimeChip>
+              </div>
+            </div>
 
             <Input
               type="datetime-local"
