@@ -11,7 +11,7 @@ import {
 } from '@/lib/schemas/upload';
 import { uploadRawToCloudinary } from '@/lib/cloudinary-client';
 import { useUndoToast } from '@/lib/hooks/use-undo-toast';
-import { saveMenuPdfUrlAction } from './actions';
+import { saveMenuPdfUrlAction } from '../actions';
 
 const ACCEPT = ALLOWED_DOCUMENT_MIME_TYPES.join(',');
 const MAX_MB = Math.round(MENU_PDF_MAX_SIZE_BYTES / (1024 * 1024));

@@ -12,11 +12,23 @@
 // bloque la soumission SANS message visible (« invalid control is not
 // focusable »). La validation est donc faite en JS, et l'onglet fautif est
 // ouvert automatiquement.
+//
+// Trois signaux distincts cohabitent ici, et les confondre casse l'écran :
+//   • le RAPPEL (barre du bas) annonce en permanence ce qui reste à remplir ;
+//     il n'a jamais l'air de reprocher quoi que ce soit ;
+//   • l'ERREUR (rouge) interdit d'enregistrer et n'apparaît qu'après une
+//     tentative — on ne reproche pas un champ vide à qui est en train de le
+//     remplir ;
+//   • l'AVERTISSEMENT (ambre) n'interdit rien : les coûts à zéro faussent la
+//     marge, mais certains produits n'en ont réellement aucun de saisi.
+// La logique des trois vit dans `lib/menu/product-form-completeness.ts`,
+// testable hors JSX.
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { useReducedMotion } from 'framer-motion';
+import { AlertCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -45,6 +57,21 @@ import {
   pruneSupplementGroups,
   validateSupplementGroups,
 } from '@/lib/supplements-form';
+import {
+  amountOrZero,
+  costWarning,
+  FIELD_IDS,
+  FIELD_TAB,
+  firstFaultyField,
+  isTabValue,
+  listMissingRequired,
+  validateProductDraft,
+  VALIDATED_FIELDS,
+  type FieldErrors,
+  type ProductDraft,
+  type TabValue,
+  type ValidatedField,
+} from '@/lib/menu/product-form-completeness';
 import { ADVANCE_ORDER_DAYS_MAX } from '@/config/constants';
 
 export type ProductFormInitial = {
@@ -86,42 +113,17 @@ const EMPTY: ProductFormInitial = {
   weeklySpecials: [],
 };
 
-const TAB_VALUES = [
-  'essentiel',
-  'couts',
-  'disponibilite',
-  'supplements',
-  'mise-en-avant',
-  'stats',
-] as const;
-type TabValue = (typeof TAB_VALUES)[number];
-
-// Champs validés côté client, dans l'ordre où l'onglet fautif est choisi.
-const VALIDATED_FIELDS = [
-  'name',
-  'description',
-  'price',
-  'coutMatiere',
-  'coutEmballage',
-] as const;
-type ValidatedField = (typeof VALIDATED_FIELDS)[number];
-type FieldErrors = Partial<Record<ValidatedField, string>>;
-
-const FIELD_TAB: Record<ValidatedField, TabValue> = {
-  name: 'essentiel',
-  description: 'essentiel',
-  price: 'essentiel',
-  coutMatiere: 'couts',
-  coutEmballage: 'couts',
-};
-
 const priceFormatter = new Intl.NumberFormat('fr-FR');
 
-/** Entier positif saisi dans un `<input type="number">`, ou `null` si invalide. */
-function parseAmount(raw: string): number | null {
-  if (raw.trim() === '') return null;
-  const n = Number(raw);
-  return Number.isInteger(n) && n >= 0 ? n : null;
+/**
+ * Montant initial d'un `<input type="number">`.
+ *
+ * En CRÉATION, on rend `''` et non `'0'` : un prix affichant « 0 » a l'air
+ * rempli, et le produit partait à 0 FCFA sans que personne ne s'en aperçoive.
+ * En ÉDITION on montre la valeur réelle, y compris un vrai `0` saisi.
+ */
+function initialAmount(value: number | undefined): string {
+  return value === undefined ? '' : String(value);
 }
 
 export function ProductForm({
@@ -144,16 +146,19 @@ export function ProductForm({
 }) {
   const router = useRouter();
   const { pushToast } = useUndoToast();
+  const reduceMotion = useReducedMotion();
   const [isPending, startTransition] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [confirmLeave, setConfirmLeave] = useState(false);
+  /** `id` du champ à atteindre au prochain rendu, et son réveil — `goToField`. */
+  const focusRequest = useRef<string | null>(null);
+  const [focusNonce, setFocusNonce] = useState(0);
 
   const [tab, setTab] = useState<TabValue>(() =>
-    TAB_VALUES.includes(defaultTab as TabValue) &&
-    (defaultTab !== 'stats' || statsSlot)
-      ? (defaultTab as TabValue)
+    isTabValue(defaultTab) && (defaultTab !== 'stats' || statsSlot)
+      ? defaultTab
       : 'essentiel'
   );
 
@@ -161,14 +166,14 @@ export function ProductForm({
   const [description, setDescription] = useState(
     initial?.description ?? EMPTY.description
   );
-  const [price, setPrice] = useState<string>(
-    String(initial?.price ?? EMPTY.price)
+  const [price, setPrice] = useState<string>(() =>
+    initialAmount(initial?.price)
   );
-  const [coutMatiere, setCoutMatiere] = useState<string>(
-    String(initial?.coutMatiere ?? EMPTY.coutMatiere)
+  const [coutMatiere, setCoutMatiere] = useState<string>(() =>
+    initialAmount(initial?.coutMatiere)
   );
-  const [coutEmballage, setCoutEmballage] = useState<string>(
-    String(initial?.coutEmballage ?? EMPTY.coutEmballage)
+  const [coutEmballage, setCoutEmballage] = useState<string>(() =>
+    initialAmount(initial?.coutEmballage)
   );
   const [imageUrl, setImageUrl] = useState<string | null>(
     initial?.imageUrl ?? null
@@ -195,10 +200,22 @@ export function ProductForm({
     initial?.advanceOrderDays ?? EMPTY.advanceOrderDays
   );
 
-  const priceNum = parseAmount(price) ?? 0;
-  const coutMatiereNum = parseAmount(coutMatiere) ?? 0;
-  const coutEmballageNum = parseAmount(coutEmballage) ?? 0;
+  const priceNum = amountOrZero(price);
+  const coutMatiereNum = amountOrZero(coutMatiere);
+  const coutEmballageNum = amountOrZero(coutEmballage);
   const isEdit = Boolean(initial?.id);
+
+  const draft: ProductDraft = {
+    name,
+    description,
+    price,
+    coutMatiere,
+    coutEmballage,
+  };
+  // Rappel permanent, sans reproche : il ne regarde que le vide. Un nom trop
+  // long est saisi — c'est l'affaire des erreurs, pas du rappel.
+  const missing = listMissingRequired(draft);
+  const costHint = costWarning(draft);
 
   // Marqueur « modifications non enregistrées » : compare l'état courant à
   // l'état initial. Ne couvre QUE les champs du payload — la pause et les
@@ -270,36 +287,52 @@ export function ProductForm({
     window.history.replaceState(null, '', url);
   }
 
-  function validate(): FieldErrors {
-    const next: FieldErrors = {};
-    if (name.trim().length === 0) next.name = 'Le nom est obligatoire.';
-    else if (name.trim().length > 120)
-      next.name = 'Nom trop long (max 120 caractères).';
-
-    if (description.trim().length === 0)
-      next.description = 'La description est obligatoire.';
-    else if (description.trim().length > 500)
-      next.description = 'Description trop longue (max 500 caractères).';
-
-    if (parseAmount(price) === null)
-      next.price = 'Indiquez un prix entier, en francs CFA (0 minimum).';
-    if (parseAmount(coutMatiere) === null)
-      next.coutMatiere = 'Coût invalide (entier, 0 minimum).';
-    if (parseAmount(coutEmballage) === null)
-      next.coutEmballage = 'Coût invalide (entier, 0 minimum).';
-
-    return next;
+  /**
+   * Ouvre l'onglet du champ ET y place le curseur.
+   *
+   * Changer d'onglet ne suffisait pas : sur un onglet qui dépasse la hauteur de
+   * l'écran, le message rouge pouvait rester hors de vue, et l'écran donnait
+   * l'impression de n'avoir rien fait.
+   *
+   * Le focus ne peut pas être posé ici : Radix ne monte pas le contenu d'un
+   * onglet masqué, donc au moment du `setTab` le champ visé n'existe pas encore
+   * dans le DOM. On enregistre la demande (ref) et on réveille l'effet
+   * (compteur), qui s'exécutera après le rendu ayant monté le champ. La cible
+   * vit dans une ref et non dans un state pour que l'effet puisse la consommer
+   * sans déclencher un rendu de plus — le compteur, lui, doit être un state
+   * pour que deux demandes successives sur le MÊME champ relancent l'effet.
+   */
+  function goToField(field: ValidatedField) {
+    changeTab(FIELD_TAB[field]);
+    focusRequest.current = FIELD_IDS[field];
+    setFocusNonce((n) => n + 1);
   }
+
+  useEffect(() => {
+    const id = focusRequest.current;
+    if (!id) return;
+    focusRequest.current = null;
+    const el = document.getElementById(id);
+    if (!el) return;
+    // `preventScroll` puis `scrollIntoView` : le défilement natif du focus
+    // colle le champ en haut ou en bas de la fenêtre, souvent sous la barre
+    // d'action collante. On veut le champ au centre, avec son libellé.
+    el.focus({ preventScroll: true });
+    el.scrollIntoView({
+      block: 'center',
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    });
+  }, [focusNonce, reduceMotion]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitError(null);
 
-    const found = validate();
+    const found = validateProductDraft(draft);
     setErrors(found);
-    const firstField = VALIDATED_FIELDS.find((f) => found[f]);
+    const firstField = firstFaultyField(found);
     if (firstField) {
-      changeTab(FIELD_TAB[firstField]);
+      goToField(firstField);
       pushToast('Corrigez les champs signalés avant d’enregistrer.', 'error');
       return;
     }
@@ -381,22 +414,27 @@ export function ProductForm({
             <TabTrigger value="essentiel" hasError={errorTabs.has('essentiel')}>
               Essentiel
             </TabTrigger>
-            <TabTrigger value="couts" hasError={errorTabs.has('couts')}>
+            <TabTrigger
+              value="couts"
+              hasError={errorTabs.has('couts')}
+              hasWarning={Boolean(costHint)}
+            >
               Coûts &amp; stock
             </TabTrigger>
-            <TabTrigger value="disponibilite" hasError={false}>
+            <TabTrigger value="disponibilite" hasError={false} optional>
               Disponibilité
             </TabTrigger>
             <TabTrigger
               value="supplements"
               hasError={showSupplementErrors && supplementIssues.size > 0}
+              optional={groups.length === 0}
             >
               Suppléments
               {groups.length > 0 && (
                 <span className="text-muted-foreground">({groups.length})</span>
               )}
             </TabTrigger>
-            <TabTrigger value="mise-en-avant" hasError={false}>
+            <TabTrigger value="mise-en-avant" hasError={false} optional>
               Mise en avant
             </TabTrigger>
             {statsSlot && (
@@ -407,6 +445,23 @@ export function ProductForm({
           </TabsList>
 
           <TabsContent value="essentiel" className="space-y-4">
+            {/* En création seulement : quelqu'un qui découvre l'écran voit six
+                onglets et croit devoir tous les remplir. On lui dit d'entrée
+                que trois champs suffisent. En édition, la personne connaît
+                déjà sa fiche — le bandeau ne serait que du bruit. */}
+            {!isEdit && (
+              <p className="rounded-lg border border-dashed px-3 py-2.5 text-sm text-muted-foreground">
+                Trois champs suffisent pour créer le produit :{' '}
+                <span className="font-medium text-foreground">nom</span>,{' '}
+                <span className="font-medium text-foreground">description</span>{' '}
+                et{' '}
+                <span className="font-medium text-foreground">
+                  prix de vente
+                </span>
+                . Photo, coûts, suppléments et mise en avant se complètent quand
+                vous voulez.
+              </p>
+            )}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Identité du produit</CardTitle>
@@ -415,8 +470,10 @@ export function ProductForm({
                 <Field
                   id="name"
                   label="Nom"
+                  required
                   error={errors.name}
                   hint={`${name.trim().length}/120`}
+                  help="Le nom vu par le client sur la carte. Ex. « Café latte »."
                 >
                   <Input
                     id="name"
@@ -428,6 +485,8 @@ export function ProductForm({
                 <Field
                   id="desc"
                   label="Description"
+                  required
+                  help="Une phrase courte, affichée sous le nom sur la carte."
                   error={errors.description}
                   hint={`${description.trim().length}/500`}
                 >
@@ -441,6 +500,8 @@ export function ProductForm({
                 <Field
                   id="price"
                   label="Prix de vente (FCFA)"
+                  required
+                  help="Ce que paie le client pour une unité."
                   error={errors.price}
                 >
                   <Input
@@ -448,6 +509,10 @@ export function ProductForm({
                     type="number"
                     min={0}
                     step={1}
+                    // Vide plutôt que « 0 » à la création : un champ affichant
+                    // zéro a l'air rempli, et des produits sont partis à
+                    // 0 FCFA sans que personne ne le remarque.
+                    placeholder="Ex. 2000"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     aria-invalid={Boolean(errors.price)}
@@ -476,6 +541,7 @@ export function ProductForm({
                   <Field
                     id="cout-matiere"
                     label="Coût matière (FCFA)"
+                    help="Ce que vous coûtent les ingrédients pour une unité."
                     error={errors.coutMatiere}
                   >
                     <Input
@@ -483,6 +549,7 @@ export function ProductForm({
                       type="number"
                       min={0}
                       step={1}
+                      placeholder="Ex. 600"
                       value={coutMatiere}
                       onChange={(e) => setCoutMatiere(e.target.value)}
                       aria-invalid={Boolean(errors.coutMatiere)}
@@ -491,6 +558,7 @@ export function ProductForm({
                   <Field
                     id="cout-emballage"
                     label="Coût emballage (FCFA)"
+                    help="Gobelet, boîte, couvercle, serviette… pour une unité."
                     error={errors.coutEmballage}
                   >
                     <Input
@@ -498,6 +566,7 @@ export function ProductForm({
                       type="number"
                       min={0}
                       step={1}
+                      placeholder="Ex. 150"
                       value={coutEmballage}
                       onChange={(e) => setCoutEmballage(e.target.value)}
                       aria-invalid={Boolean(errors.coutEmballage)}
@@ -525,6 +594,16 @@ export function ProductForm({
                       %)
                     </span>
                   </div>
+                )}
+                {/* Avertissement, pas erreur : on n'interdit rien. Certains
+                    produits n'ont réellement aucun coût saisi, et forcer une
+                    valeur inventée serait pire que l'absence — mais laisser
+                    croire à 100 % de marge fausse tout le suivi. */}
+                {costHint && (
+                  <p className="flex items-start gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                    <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                    {costHint}
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -667,6 +746,38 @@ export function ProductForm({
               </span>
             )}
           </div>
+
+          {/* Rappel de ce qui reste à remplir. Affiché en permanence, y compris
+              avant toute tentative : il ANNONCE, il ne reproche pas — d'où le
+              ton neutre et l'absence de rouge. Chaque libellé mène à son
+              champ, ce qui évite de chercher dans quel onglet il se trouve. */}
+          {!isPending && missing.length > 0 && (
+            <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
+              <span>
+                Il reste {missing.length} champ
+                {missing.length > 1 ? 's' : ''} obligatoire
+                {missing.length > 1 ? 's' : ''} :
+              </span>
+              {missing.map((m, i) => (
+                <span key={m.field}>
+                  <button
+                    type="button"
+                    onClick={() => goToField(m.field)}
+                    className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
+                  >
+                    {m.label}
+                  </button>
+                  {i < missing.length - 1 && ','}
+                </span>
+              ))}
+            </p>
+          )}
+          {!isPending && missing.length === 0 && !isEdit && !submitError && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Prêt à créer. Le reste peut se compléter plus tard.
+            </p>
+          )}
+
           {submitError && (
             <p className="mt-2 flex items-center gap-1.5 text-sm text-destructive">
               <AlertCircle className="size-4 shrink-0" />
@@ -690,14 +801,24 @@ export function ProductForm({
   );
 }
 
-/** Déclencheur d'onglet avec pastille d'erreur. */
+/**
+ * Déclencheur d'onglet, avec pastille d'erreur (rouge, bloquant) ou
+ * d'avertissement (ambre, informatif) et mention « optionnel ».
+ *
+ * La mention n'est pas décorative : six onglets laissent croire à six étapes
+ * obligatoires, alors que trois champs d'un seul onglet suffisent.
+ */
 function TabTrigger({
   value,
   hasError,
+  hasWarning = false,
+  optional = false,
   children,
 }: {
   value: TabValue;
   hasError: boolean;
+  hasWarning?: boolean;
+  optional?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -705,11 +826,23 @@ function TabTrigger({
     // contre celle de la liste, devenue `auto` pour permettre le repli.
     <TabsTrigger value={value} className="h-8 gap-1.5">
       {children}
-      {hasError && (
+      {optional && (
+        <span className="text-xs font-normal text-muted-foreground">
+          optionnel
+        </span>
+      )}
+      {hasError ? (
         <span
           aria-label="contient une erreur"
           className="size-1.5 rounded-full bg-destructive"
         />
+      ) : (
+        hasWarning && (
+          <span
+            aria-label="contient un avertissement"
+            className="size-1.5 rounded-full bg-amber-500"
+          />
+        )
       )}
     </TabsTrigger>
   );
@@ -722,6 +855,7 @@ function Field({
   help,
   hint,
   error,
+  required = false,
   children,
 }: {
   id: string;
@@ -730,12 +864,29 @@ function Field({
   /** Compteur discret aligné à droite du libellé (ex. « 42/120 »). */
   hint?: string;
   error?: string;
+  /**
+   * Marque le champ comme requis par le serveur. Écrit en toutes lettres
+   * plutôt qu'avec un astérisque : la convention de l'astérisque suppose une
+   * légende, qui n'existe nulle part ici.
+   */
+  required?: boolean;
   children: ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-2">
-        <Label htmlFor={id}>{label}</Label>
+        <Label htmlFor={id} className="gap-1.5">
+          {label}
+          <span
+            className={
+              required
+                ? 'text-xs font-normal text-destructive'
+                : 'text-xs font-normal text-muted-foreground'
+            }
+          >
+            {required ? 'obligatoire' : 'optionnel'}
+          </span>
+        </Label>
         {hint && (
           <span className="text-xs tabular-nums text-muted-foreground">
             {hint}

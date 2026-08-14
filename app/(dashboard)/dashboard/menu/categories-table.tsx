@@ -30,6 +30,10 @@ export type CategoryRow = {
   productCount: number;
 };
 
+/** Le cas « aucune catégorie » est traité en amont par `MenuCategoriesView`,
+ * qui affiche un état vide porteur d'une action à la place du tableau : une
+ * ligne vide dans un tableau ne dit ni ce qu'est une catégorie ni comment en
+ * créer une. */
 export function CategoriesTable({
   categories,
   schedules,
@@ -96,16 +100,6 @@ export function CategoriesTable({
             onDrop={() => persist(order)}
           />
         ))}
-        {order.length === 0 && (
-          <TableRow>
-            <TableCell
-              colSpan={6}
-              className="py-8 text-center text-sm text-muted-foreground"
-            >
-              Aucune catégorie. Créez-en une ci-dessus.
-            </TableCell>
-          </TableRow>
-        )}
       </Reorder.Group>
     </Table>
   );
