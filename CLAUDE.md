@@ -70,6 +70,7 @@ Pre-commit hooks (Husky + lint-staged) run ESLint and Prettier on staged files a
 - **Zod schemas** : `lib/schemas/{order,menu,upload,expense,cash-closing}.ts` (+ réglages : `lib/loyalty-settings.ts`, `lib/pickup-settings.ts`) — utilise-les depuis les routes API ; les routes peuvent durcir via `.extend()` mais ne **redéclarent pas** inline.
 - **Types métier partagés** : `lib/types/index.ts` (re-exports les types depuis les schémas).
 - **Constantes** : `config/constants.ts` (`MAX_UPLOAD_SIZE_BYTES`, `SLOT_DURATION_MINUTES`, `OTP_TIMEOUT_SECONDS`, `ORDERS_PAGE_SIZE`, `ORDER_*_MAX`, etc.). Pas de magic numbers en doublon dans le code applicatif.
+- **Recherche floue** : `lib/fuzzy-search.ts` (`createFuzzyIndex`, au-dessus de [Fuse.js](https://fusejs.io)) est le point d'entrée **unique** de toute recherche en mémoire. Il impose la normalisation `foldText` (`lib/text.ts`), `ignoreLocation`, et une recherche en **deux passes** : ET entre tokens via la syntaxe étendue (indépendance à l'ordre des mots), puis repli flou (tolérance aux fautes de frappe). N'écris **jamais** un `filter(...toLowerCase().includes(...))` dans un composant — c'est systématiquement sensible aux accents et à l'ordre des mots. Indexe via `useMemo` sur la référence du tableau, jamais à chaque frappe. Exemple d'usage métier : `lib/expense-article-search.ts` (tri par usage + tie-break stable sur score arrondi). Surfaces restant à migrer : `lib/menu-display.ts`, `InventoryRefCombobox` (`articles-table.tsx`), le filtrage en mémoire de `lib/orders/search.ts`.
 
 ## Stock & commandes différées
 

@@ -1,13 +1,13 @@
 'use client';
 
 import { Fragment, useMemo, useState, useTransition } from 'react';
+import Link from 'next/link';
 import {
   ChevronDown,
   ChevronRight,
   Copy,
   Loader2,
   Pencil,
-  Plus,
   Receipt,
   Settings2,
   Trash2,
@@ -29,17 +29,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { todayDateString } from '@/lib/timezone';
 import { deleteExpenseAction } from './actions';
-import {
-  ExpenseForm,
-  emptyExpense,
-  type ArticleOption,
-  type ExpenseFormValues,
-} from './expense-form';
 import { CategoryManager, type CategoryRow } from './category-manager';
-
-type Category = { id: string; name: string };
 
 export type ExpenseItemRow = {
   id: string;
@@ -74,44 +65,13 @@ export type ExpenseRow = {
 const priceFmt = new Intl.NumberFormat('fr-FR');
 const qtyFmt = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 });
 
-function rowToValues(
-  r: ExpenseRow,
-  mode: 'edit' | 'duplicate'
-): ExpenseFormValues {
-  return {
-    id: mode === 'edit' ? r.id : undefined,
-    date: mode === 'duplicate' ? todayDateString() : r.date,
-    amount: String(r.amount),
-    categoryId: r.categoryId,
-    paymentMethod: r.paymentMethod,
-    supplier: r.supplier ?? '',
-    note: r.note ?? '',
-    receiptUrl: mode === 'duplicate' ? null : r.receiptUrl,
-    // La duplication recopie aussi le détail : re-saisir le même panier du
-    // marché = 2 clics.
-    items: r.items.map((i) => ({
-      articleId: i.articleId,
-      rawLabel: i.rawLabel,
-      label: i.label ?? '',
-      formatQty: i.formatQty != null ? String(i.formatQty) : '',
-      formatSize: i.formatSize != null ? String(i.formatSize) : '',
-      unit: i.unit ?? '',
-      unitPrice: i.unitPrice != null ? String(i.unitPrice) : '',
-      amount: String(i.amount),
-      pendingQuantity: i.pendingQuantity,
-    })),
-  };
-}
-
 export function ExpensesTable({
   expenses,
   categories,
-  articles,
   total,
 }: {
   expenses: ExpenseRow[];
   categories: CategoryRow[];
-  articles: ArticleOption[];
   total: number;
 }) {
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -119,20 +79,8 @@ export function ExpensesTable({
   const [, startTransition] = useTransition();
   // Lignes dépliées (détail par article visible).
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-
-  // Sheet de saisie (création / édition / duplication).
-  const [formOpen, setFormOpen] = useState(false);
-  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
-  const [formInitial, setFormInitial] = useState<ExpenseFormValues>(() =>
-    emptyExpense(categories)
-  );
   // Sheet de gestion des catégories.
   const [categoriesOpen, setCategoriesOpen] = useState(false);
-
-  const plainCategories: Category[] = categories.map((c) => ({
-    id: c.id,
-    name: c.name,
-  }));
 
   // Sous-totaux par mode de paiement sur la sélection courante.
   const byPaymentMethod = useMemo(() => {
@@ -150,24 +98,6 @@ export function ExpensesTable({
       else next.add(id);
       return next;
     });
-  }
-
-  function openCreate() {
-    setFormMode('create');
-    setFormInitial(emptyExpense(categories));
-    setFormOpen(true);
-  }
-
-  function openEdit(r: ExpenseRow) {
-    setFormMode('edit');
-    setFormInitial(rowToValues(r, 'edit'));
-    setFormOpen(true);
-  }
-
-  function openDuplicate(r: ExpenseRow) {
-    setFormMode('create');
-    setFormInitial(rowToValues(r, 'duplicate'));
-    setFormOpen(true);
   }
 
   function remove(id: string) {
@@ -190,10 +120,6 @@ export function ExpensesTable({
         >
           <Settings2 className="mr-1.5 h-4 w-4" />
           Gérer les catégories
-        </Button>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          Nouvelle dépense
         </Button>
       </div>
 
@@ -287,20 +213,26 @@ export function ExpensesTable({
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end">
                       <Button
+                        asChild
                         size="icon"
                         variant="ghost"
-                        onClick={() => openEdit(e)}
                         aria-label="Modifier la dépense"
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Link href={`/dashboard/depenses/${e.id}`}>
+                          <Pencil className="h-4 w-4" />
+                        </Link>
                       </Button>
                       <Button
+                        asChild
                         size="icon"
                         variant="ghost"
-                        onClick={() => openDuplicate(e)}
                         aria-label="Dupliquer la dépense"
                       >
-                        <Copy className="h-4 w-4" />
+                        <Link
+                          href={`/dashboard/depenses/nouvelle?dupliquer=${e.id}`}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Link>
                       </Button>
                       <Button
                         size="icon"
@@ -397,32 +329,6 @@ export function ExpensesTable({
           </span>
         </div>
       </div>
-
-      {/* Sheet de saisie */}
-      <Sheet open={formOpen} onOpenChange={setFormOpen}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-          <SheetHeader>
-            <SheetTitle>
-              {formMode === 'edit' ? 'Modifier la dépense' : 'Nouvelle dépense'}
-            </SheetTitle>
-            <SheetDescription>
-              Dépense d’exploitation catégorisée — détaille les articles pour
-              alimenter les statistiques de fréquence.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="px-4 pb-4">
-            <ExpenseForm
-              // Remonte le formulaire à chaque ouverture (reset des champs).
-              key={`${formMode}-${formInitial.id ?? 'new'}-${formOpen}`}
-              categories={plainCategories}
-              articles={articles}
-              mode={formMode}
-              initial={formInitial}
-              onSuccess={() => setFormOpen(false)}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
 
       {/* Sheet de gestion des catégories */}
       <Sheet open={categoriesOpen} onOpenChange={setCategoriesOpen}>

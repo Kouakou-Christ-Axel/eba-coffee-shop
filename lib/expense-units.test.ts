@@ -1,6 +1,6 @@
 // lib/expense-units.test.ts
 import { describe, it, expect } from 'vitest';
-import { toBaseQty, BASE_UNITS } from '@/lib/expense-units';
+import { toBaseQty, convertUnitPrice, BASE_UNITS } from '@/lib/expense-units';
 
 describe('BASE_UNITS', () => {
   it('expose les 5 unités de base attendues', () => {
@@ -118,5 +118,86 @@ describe('toBaseQty', () => {
         baseUnit: 'kg',
       })
     ).toBe(1);
+  });
+});
+
+describe('convertUnitPrice', () => {
+  it('identité quand les unités sont les mêmes', () => {
+    expect(convertUnitPrice({ price: 900, fromUnit: 'kg', toUnit: 'kg' })).toBe(
+      900
+    );
+  });
+
+  it('identité quand une unité manque des deux côtés', () => {
+    expect(convertUnitPrice({ price: 900, fromUnit: null, toUnit: 'kg' })).toBe(
+      900
+    );
+    expect(convertUnitPrice({ price: 900, fromUnit: 'kg', toUnit: null })).toBe(
+      900
+    );
+  });
+
+  it('un prix par kg vaut 1000× moins par g (sous 1 F ⇒ null)', () => {
+    // 900 F/kg = 0,9 F/g : inexprimable en entier sans fausser le montant.
+    expect(convertUnitPrice({ price: 900, fromUnit: 'kg', toUnit: 'g' })).toBe(
+      null
+    );
+  });
+
+  it('un prix par kg reste exploitable par g quand il est assez élevé', () => {
+    expect(
+      convertUnitPrice({ price: 12000, fromUnit: 'kg', toUnit: 'g' })
+    ).toBe(12);
+  });
+
+  it('un prix par g vaut 1000× plus par kg', () => {
+    expect(convertUnitPrice({ price: 2, fromUnit: 'g', toUnit: 'kg' })).toBe(
+      2000
+    );
+  });
+
+  it('convertit dans la famille volume', () => {
+    expect(convertUnitPrice({ price: 3, fromUnit: 'mL', toUnit: 'L' })).toBe(
+      3000
+    );
+    expect(convertUnitPrice({ price: 4000, fromUnit: 'L', toUnit: 'mL' })).toBe(
+      4
+    );
+  });
+
+  it('refuse une conversion entre familles incompatibles', () => {
+    expect(
+      convertUnitPrice({ price: 900, fromUnit: 'kg', toUnit: 'unite' })
+    ).toBe(null);
+    expect(convertUnitPrice({ price: 900, fromUnit: 'L', toUnit: 'kg' })).toBe(
+      null
+    );
+  });
+
+  it('refuse une unité inconnue', () => {
+    expect(
+      convertUnitPrice({ price: 900, fromUnit: 'sac', toUnit: 'kg' })
+    ).toBe(null);
+  });
+
+  it('refuse un prix absent, non fini ou négatif', () => {
+    expect(
+      convertUnitPrice({ price: null, fromUnit: 'kg', toUnit: 'kg' })
+    ).toBe(null);
+    expect(
+      convertUnitPrice({ price: undefined, fromUnit: 'kg', toUnit: 'kg' })
+    ).toBe(null);
+    expect(convertUnitPrice({ price: NaN, fromUnit: 'kg', toUnit: 'kg' })).toBe(
+      null
+    );
+    expect(convertUnitPrice({ price: -5, fromUnit: 'kg', toUnit: 'kg' })).toBe(
+      null
+    );
+  });
+
+  it('refuse un prix qui s’arrondirait à 0 F', () => {
+    expect(convertUnitPrice({ price: 0, fromUnit: 'kg', toUnit: 'kg' })).toBe(
+      null
+    );
   });
 });
