@@ -1,48 +1,50 @@
 'use client';
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  useTransition,
-  type KeyboardEvent,
-} from 'react';
+// Formulaire de saisie d'une dépense, hébergé par une PAGE (pas un Sheet) :
+// `depenses/nouvelle` et `depenses/[expenseId]`. Le détail par article n'est
+// plus replié derrière un bouton — c'est le cas d'usage principal, il est
+// visible d'emblée.
+//
+// La logique de calcul et de validation des lignes vit dans
+// `lib/expense-item-draft.ts` (pure et testée) : ce composant ne fait
+// qu'orchestrer l'état et la navigation.
+
+import { useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { MediaImage as Image } from '@/components/ui/media-image';
-import { ListPlus, Loader2, Paperclip, Plus, Trash2, X } from 'lucide-react';
+import { Loader2, Paperclip, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { todayDateString } from '@/lib/timezone';
 import { uploadToCloudinary } from '@/lib/cloudinary-client';
+import { EXPENSE_ITEMS_MAX } from '@/config/constants';
+import {
+  applyDraftPatch,
+  draftFromArticle,
+  draftsToItemsInput,
+  draftsTotal,
+  emptyExpenseItemDraft,
+  isQuantityPending,
+  type ExpenseItemDraft,
+} from '@/lib/expense-item-draft';
+import type { ExpenseItemInput } from '@/lib/schemas/expense';
+import type { ExpenseArticleOption } from '@/lib/expense-article-search';
+import {
+  ArticleCombobox,
+  type ArticlePick,
+} from './_components/article-combobox';
+import { ExpenseItemRow } from './_components/expense-item-row';
 import { createExpenseAction, updateExpenseAction } from './actions';
 
 type Category = { id: string; name: string };
 
-/** Référentiel d'articles pour l'autocomplétion des lignes de détail. */
-export type ArticleOption = {
-  id: string;
-  name: string;
-  baseUnit: string | null;
-  trackInventory: boolean;
-  /** Prix unitaire moyen pondéré connu (aide à la saisie) — pas garanti être
-   * EXACTEMENT le dernier achat, cf. `getExpenseArticleStats`. */
-  lastUnitPrice: number | null;
-};
+/** Référentiel d'articles pour la saisie — type canonique, source unique. */
+export type ArticleOption = ExpenseArticleOption;
 
-/** Ligne de détail en cours de saisie (chaînes brutes des inputs). */
-export type ExpenseItemFormValues = {
-  /** Article rattaché (autocomplétion) — null = texte libre (auto-création). */
-  articleId: string | null;
-  rawLabel: string;
-  label: string;
-  formatQty: string;
-  formatSize: string;
-  unit: string;
-  unitPrice: string;
-  amount: string;
-  pendingQuantity: boolean;
-};
+/** Ligne de détail en cours de saisie. */
+export type ExpenseItemFormValues = ExpenseItemDraft;
 
 export type ExpenseFormValues = {
   id?: string;
@@ -69,24 +71,6 @@ const selectClass =
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
 
-const DEBOUNCE_MS = 150;
-const MIN_QUERY_LENGTH = 2;
-const MAX_SUGGESTIONS = 5;
-
-export function emptyExpenseItem(): ExpenseItemFormValues {
-  return {
-    articleId: null,
-    rawLabel: '',
-    label: '',
-    formatQty: '',
-    formatSize: '',
-    unit: '',
-    unitPrice: '',
-    amount: '',
-    pendingQuantity: false,
-  };
-}
-
 /** Valeurs par défaut d'une nouvelle dépense (formulaire vierge). */
 export function emptyExpense(categories: Category[]): ExpenseFormValues {
   return {
@@ -101,192 +85,22 @@ export function emptyExpense(categories: Category[]): ExpenseFormValues {
   };
 }
 
-/** Somme des montants de lignes saisis (0 si non numérique). */
-function itemsTotal(items: ExpenseItemFormValues[]): number {
-  return items.reduce((s, i) => {
-    const n = Number(i.amount);
-    return s + (Number.isFinite(n) && n >= 0 ? Math.round(n) : 0);
-  }, 0);
-}
-
-/**
- * Champ « article » d'une ligne de détail : saisie libre + autocomplétion
- * (debounce ~150 ms, min 2 caractères, top 5 résultats). L'option « garder en
- * texte libre » reste toujours visible dans la liste — même sans résultat —
- * pour permettre l'auto-création d'un nouvel article sans friction.
- */
-function ArticleField({
-  value,
-  articles,
-  onChangeText,
-  onPick,
-}: {
-  value: string;
-  articles: ArticleOption[];
-  onChangeText: (text: string) => void;
-  onPick: (article: ArticleOption) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [suggestions, setSuggestions] = useState<ArticleOption[]>([]);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-      if (blurTimer.current) clearTimeout(blurTimer.current);
-    };
-  }, []);
-
-  function runSearch(term: string) {
-    const q = term.trim().toLowerCase();
-    if (q.length < MIN_QUERY_LENGTH) {
-      setSuggestions([]);
-      setOpen(false);
-      return;
-    }
-    const hits = articles
-      .filter((a) => a.name.toLowerCase().includes(q))
-      .slice(0, MAX_SUGGESTIONS);
-    setSuggestions(hits);
-    setActiveIndex(-1);
-    // Toujours ouvert dès 2 caractères : l'option « garder en texte libre »
-    // doit rester accessible même sans correspondance.
-    setOpen(true);
-  }
-
-  function handleChange(text: string) {
-    onChangeText(text);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => runSearch(text), DEBOUNCE_MS);
-  }
-
-  function handlePick(article: ArticleOption) {
-    if (timer.current) clearTimeout(timer.current);
-    onPick(article);
-    setSuggestions([]);
-    setOpen(false);
-    setActiveIndex(-1);
-  }
-
-  function keepFreeText() {
-    setOpen(false);
-  }
-
-  const freeTextIndex = suggestions.length;
-  const totalOptions = suggestions.length + 1;
-
-  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (!open) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActiveIndex((i) => (i + 1) % totalOptions);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActiveIndex((i) => (i <= 0 ? totalOptions - 1 : i - 1));
-    } else if (e.key === 'Enter') {
-      if (activeIndex >= 0 && activeIndex < suggestions.length) {
-        e.preventDefault();
-        handlePick(suggestions[activeIndex]);
-      } else if (activeIndex === freeTextIndex) {
-        e.preventDefault();
-        keepFreeText();
-      }
-    } else if (e.key === 'Escape') {
-      setOpen(false);
-    }
-  }
-
-  return (
-    <div className="relative">
-      <Input
-        aria-label="Article"
-        value={value}
-        onChange={(e) => handleChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onFocus={() => {
-          if (value.trim().length >= MIN_QUERY_LENGTH) runSearch(value);
-        }}
-        onBlur={() => {
-          blurTimer.current = setTimeout(() => setOpen(false), 120);
-        }}
-        placeholder="Article (ex. Farine T45)"
-        autoComplete="off"
-        role="combobox"
-        aria-expanded={open}
-        aria-autocomplete="list"
-      />
-      {open && (
-        <ul
-          role="listbox"
-          className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-card py-1 text-sm shadow-md"
-        >
-          {suggestions.map((a, i) => (
-            <li key={a.id} role="option" aria-selected={i === activeIndex}>
-              <button
-                type="button"
-                // onMouseDown : se déclenche avant le blur de l'input.
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handlePick(a);
-                }}
-                onMouseEnter={() => setActiveIndex(i)}
-                className={cn(
-                  'flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left',
-                  i === activeIndex && 'bg-accent'
-                )}
-              >
-                <span className="flex min-w-0 items-center gap-1.5">
-                  {a.trackInventory && <span aria-hidden>📦</span>}
-                  <span className="truncate">{a.name}</span>
-                </span>
-                {a.lastUnitPrice != null && (
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {priceFmt.format(a.lastUnitPrice)} F
-                  </span>
-                )}
-              </button>
-            </li>
-          ))}
-          <li role="option" aria-selected={activeIndex === freeTextIndex}>
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                keepFreeText();
-              }}
-              onMouseEnter={() => setActiveIndex(freeTextIndex)}
-              className={cn(
-                'flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-muted-foreground',
-                activeIndex === freeTextIndex && 'bg-accent'
-              )}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Garder « {value.trim() || '…'} » en texte libre
-            </button>
-          </li>
-        </ul>
-      )}
-    </div>
-  );
-}
-
 export function ExpenseForm({
   categories,
   articles,
   mode,
   initial,
-  onSuccess,
+  cancelHref = '/dashboard/depenses',
 }: {
   categories: Category[];
-  /** Référentiel pour l'autocomplétion des lignes de détail. */
+  /** Référentiel pour le choix d'article. */
   articles: ArticleOption[];
   mode: 'create' | 'edit';
   initial: ExpenseFormValues;
-  /** Appelé après une écriture réussie (fermeture du Sheet par le parent). */
-  onSuccess: () => void;
+  /** Destination du bouton Annuler et du retour après succès. */
+  cancelHref?: string;
 }) {
+  const router = useRouter();
   const [values, setValues] = useState<ExpenseFormValues>(initial);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -295,9 +109,18 @@ export function ExpenseForm({
   // En édition, retirer toutes les lignes doit envoyer `items: null`
   // (dé-itemisation explicite côté serveur).
   const initialHadItems = useRef(initial.items.length > 0);
+  // Ligne fraîchement ajoutée : on lui donne le focus sur la quantité, le seul
+  // champ qu'il reste à saisir.
+  const [lastAddedIndex, setLastAddedIndex] = useState<number | null>(null);
 
   const detailed = values.items.length > 0;
-  const total = itemsTotal(values.items);
+  const total = draftsTotal(values.items);
+  const usedArticleIds = new Set(
+    values.items
+      .map((item) => item.articleId)
+      .filter((id): id is string => id != null)
+  );
+  const atItemsLimit = values.items.length >= EXPENSE_ITEMS_MAX;
 
   function set<K extends keyof ExpenseFormValues>(
     key: K,
@@ -306,44 +129,58 @@ export function ExpenseForm({
     setValues((v) => ({ ...v, [key]: value }));
   }
 
-  function setItem(index: number, patch: Partial<ExpenseItemFormValues>) {
-    setValues((v) => {
-      const items = v.items.map((item, i) => {
-        if (i !== index) return item;
-        const next = { ...item, ...patch };
-        // Ergonomie : le montant de ligne suit qté × format × prix unitaire
-        // dès que qté et PU sont saisis (reste éditable à la main ensuite).
-        if (
-          ('formatQty' in patch ||
-            'formatSize' in patch ||
-            'unitPrice' in patch) &&
-          next.formatQty &&
-          next.unitPrice
-        ) {
-          const q = Number(next.formatQty);
-          const size = next.formatSize ? Number(next.formatSize) : 1;
-          const p = Number(next.unitPrice);
-          if (
-            Number.isFinite(q) &&
-            Number.isFinite(size) &&
-            Number.isFinite(p) &&
-            q > 0 &&
-            p >= 0
-          ) {
-            next.amount = String(Math.round(q * size * p));
-          }
-        }
-        return next;
-      });
-      return { ...v, items };
-    });
+  function setItem(index: number, patch: Partial<ExpenseItemDraft>) {
+    setValues((v) => ({
+      ...v,
+      items: v.items.map((item, i) =>
+        i === index ? applyDraftPatch(item, patch) : item
+      ),
+    }));
   }
 
-  function addItem() {
-    setValues((v) => ({ ...v, items: [...v.items, emptyExpenseItem()] }));
+  function draftFromPick(pick: ArticlePick): ExpenseItemDraft {
+    return pick.kind === 'existing'
+      ? draftFromArticle(pick.article)
+      : { ...emptyExpenseItemDraft(), rawLabel: pick.name };
+  }
+
+  function addFromPick(pick: ArticlePick) {
+    if (atItemsLimit) {
+      setError(`Trop de lignes : ${EXPENSE_ITEMS_MAX} au maximum.`);
+      return;
+    }
+    setError(null);
+    // Index calculé hors de l'updater : un `setState` niché s'y rejouerait en
+    // StrictMode.
+    setLastAddedIndex(values.items.length);
+    setValues((v) => ({ ...v, items: [...v.items, draftFromPick(pick)] }));
+  }
+
+  /** Remplacement de l'article d'une ligne : patch NON destructif — on n'écrase
+   *  ni l'unité ni le prix déjà saisis à la main. */
+  function replaceArticle(index: number, pick: ArticlePick) {
+    setValues((v) => ({
+      ...v,
+      items: v.items.map((item, i) => {
+        if (i !== index) return item;
+        const fresh = draftFromPick(pick);
+        return applyDraftPatch(item, {
+          articleId: fresh.articleId,
+          rawLabel: fresh.rawLabel,
+          unit: item.unit || fresh.unit,
+          ...(item.unitPrice.trim().length === 0
+            ? {
+                unitPrice: fresh.unitPrice,
+                unitPriceIsSuggestion: fresh.unitPriceIsSuggestion,
+              }
+            : {}),
+        });
+      }),
+    }));
   }
 
   function removeItem(index: number) {
+    setLastAddedIndex(null);
     setValues((v) => ({ ...v, items: v.items.filter((_, i) => i !== index) }));
   }
 
@@ -368,52 +205,29 @@ export function ExpenseForm({
     }
 
     let amountInt: number;
-    let itemsPayload:
-      | {
-          articleId?: string;
-          articleName?: string;
-          rawLabel: string;
-          label: string | null;
-          formatQty: number | null;
-          formatSize: number | null;
-          unit: string | null;
-          unitPrice: number | null;
-          amount: number;
-          pendingQuantity?: boolean;
-        }[]
-      | null
-      | undefined;
+    // `undefined` = ne pas toucher au détail · `null` = le retirer ·
+    // tableau = remplacement complet (sémantique de `updateExpense`).
+    let items: ExpenseItemInput[] | null | undefined;
 
     if (detailed) {
-      for (const item of values.items) {
-        if (!item.rawLabel.trim()) {
-          setError('Chaque ligne doit avoir un libellé (ex. « Farine T45 »)');
-          return;
-        }
-        const a = Number(item.amount);
-        if (!Number.isFinite(a) || a < 0) {
-          setError(
-            `Ligne « ${item.rawLabel.trim()} » : montant invalide (saisis une quantité × prix unitaire, ou un montant direct)`
-          );
-          return;
-        }
+      // À la création, une ligne dont le montant est connu sans quantité est
+      // marquée « quantité à compléter ». Pas en édition : une ligne historique
+      // sans quantité basculerait au simple ré-enregistrement.
+      const drafts =
+        mode === 'create'
+          ? values.items.map((item) => ({
+              ...item,
+              pendingQuantity: item.pendingQuantity || isQuantityPending(item),
+            }))
+          : values.items;
+
+      const validation = draftsToItemsInput(drafts);
+      if (!validation.ok) {
+        setError(validation.error);
+        return;
       }
-      itemsPayload = values.items.map((item) => {
-        const rawLabel = item.rawLabel.trim();
-        return {
-          articleId: item.articleId ?? undefined,
-          articleName: item.articleId ? undefined : rawLabel || undefined,
-          rawLabel,
-          label: item.label.trim() || null,
-          formatQty: item.formatQty ? Number(item.formatQty) : null,
-          formatSize: item.formatSize ? Number(item.formatSize) : null,
-          unit: item.unit.trim() || null,
-          unitPrice: item.unitPrice ? Math.round(Number(item.unitPrice)) : null,
-          amount: Math.round(Number(item.amount) || 0),
-          pendingQuantity: item.pendingQuantity || undefined,
-        };
-      });
-      amountInt = total;
+      items = validation.items;
+      amountInt = validation.total;
     } else {
       amountInt = Math.round(Number(values.amount));
       if (!Number.isFinite(amountInt) || amountInt <= 0) {
@@ -421,8 +235,7 @@ export function ExpenseForm({
         return;
       }
       // Dé-itemisation explicite : la dépense avait un détail, il a été retiré.
-      itemsPayload =
-        mode === 'edit' && initialHadItems.current ? null : undefined;
+      items = mode === 'edit' && initialHadItems.current ? null : undefined;
     }
 
     const payload = {
@@ -433,7 +246,7 @@ export function ExpenseForm({
       supplier: values.supplier.trim() || null,
       note: values.note.trim() || null,
       receiptUrl: values.receiptUrl,
-      ...(itemsPayload !== undefined ? { items: itemsPayload } : {}),
+      ...(items !== undefined ? { items } : {}),
     };
 
     startTransition(async () => {
@@ -445,7 +258,8 @@ export function ExpenseForm({
         setError(result.error);
         return;
       }
-      onSuccess();
+      router.push(cancelHref);
+      router.refresh();
     });
   }
 
@@ -460,7 +274,7 @@ export function ExpenseForm({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="max-w-3xl space-y-4 pb-24">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="exp-date">Date</Label>
@@ -536,135 +350,63 @@ export function ExpenseForm({
         </div>
       </div>
 
-      {/* Détail par article (optionnel) : alimente les stats de fréquence. */}
-      {detailed ? (
-        <div className="space-y-2 rounded-lg border p-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Détail des articles</p>
+      {/* Détail par article : visible d'emblée, c'est le cas d'usage principal. */}
+      <div className="space-y-3 rounded-lg border p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-medium">Articles</p>
+          {detailed && (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => set('items', [])}
+              onClick={() => {
+                setLastAddedIndex(null);
+                set('items', []);
+              }}
             >
               <X className="mr-1 h-4 w-4" />
-              Retirer le détail
+              Saisir un montant global sans détail
             </Button>
-          </div>
+          )}
+        </div>
+
+        {articles.length === 0 && !detailed ? (
+          <p className="text-sm text-muted-foreground">
+            Aucun article enregistré pour l’instant — tape un nom pour créer le
+            premier.
+          </p>
+        ) : null}
+
+        <ArticleCombobox
+          articles={articles}
+          onPick={addFromPick}
+          usedArticleIds={usedArticleIds}
+        />
+
+        {atItemsLimit && (
+          <p className="text-xs text-muted-foreground">
+            Limite de {EXPENSE_ITEMS_MAX} lignes atteinte.
+          </p>
+        )}
+
+        {detailed && (
           <div className="space-y-3">
             {values.items.map((item, i) => (
-              <div key={i} className="space-y-2 rounded-md border p-2">
-                <div className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <ArticleField
-                      value={item.rawLabel}
-                      articles={articles}
-                      onChangeText={(text) =>
-                        setItem(i, { rawLabel: text, articleId: null })
-                      }
-                      onPick={(a) =>
-                        setItem(i, {
-                          rawLabel: a.name,
-                          articleId: a.id,
-                          unit: item.unit || a.baseUnit || '',
-                        })
-                      }
-                    />
-                    <Input
-                      aria-label="Précision"
-                      value={item.label}
-                      onChange={(e) => setItem(i, { label: e.target.value })}
-                      placeholder="Précision (optionnel, ex. bio, marque…)"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => removeItem(i)}
-                    aria-label="Retirer la ligne"
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-                  <Input
-                    aria-label="Quantité"
-                    type="number"
-                    min={0}
-                    step="any"
-                    inputMode="decimal"
-                    value={item.formatQty}
-                    onChange={(e) => setItem(i, { formatQty: e.target.value })}
-                    placeholder="Qté"
-                  />
-                  <Input
-                    aria-label="Taille du format"
-                    type="number"
-                    min={0}
-                    step="any"
-                    inputMode="decimal"
-                    value={item.formatSize}
-                    onChange={(e) => setItem(i, { formatSize: e.target.value })}
-                    placeholder="Format (ex. 25 = sac de 25 kg)"
-                  />
-                  <Input
-                    aria-label="Unité"
-                    value={item.unit}
-                    onChange={(e) => setItem(i, { unit: e.target.value })}
-                    placeholder="kg, sac…"
-                  />
-                  <Input
-                    aria-label="Prix unitaire (FCFA)"
-                    type="number"
-                    min={0}
-                    inputMode="numeric"
-                    value={item.unitPrice}
-                    onChange={(e) => setItem(i, { unitPrice: e.target.value })}
-                    placeholder="PU (F)"
-                  />
-                  <Input
-                    aria-label="Montant (FCFA)"
-                    type="number"
-                    min={0}
-                    inputMode="numeric"
-                    value={item.amount}
-                    onChange={(e) => setItem(i, { amount: e.target.value })}
-                    placeholder="Montant"
-                  />
-                </div>
-                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={item.pendingQuantity}
-                    onChange={(e) =>
-                      setItem(i, { pendingQuantity: e.target.checked })
-                    }
-                  />
-                  Quantité à renseigner plus tard (montant connu)
-                </label>
-              </div>
+              <ExpenseItemRow
+                key={i}
+                item={item}
+                index={i}
+                articles={articles}
+                usedArticleIds={usedArticleIds}
+                autoFocusQuantity={i === lastAddedIndex}
+                onPatch={(patch) => setItem(i, patch)}
+                onReplaceArticle={(pick) => replaceArticle(i, pick)}
+                onRemove={() => removeItem(i)}
+              />
             ))}
           </div>
-          <div className="flex items-center justify-between pt-1">
-            <Button type="button" variant="outline" size="sm" onClick={addItem}>
-              <Plus className="mr-1 h-4 w-4" />
-              Ajouter une ligne
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              Total des lignes :{' '}
-              <span className="font-semibold tabular-nums text-foreground">
-                {priceFmt.format(total)} F
-              </span>
-            </p>
-          </div>
-        </div>
-      ) : (
-        <Button type="button" variant="outline" size="sm" onClick={addItem}>
-          <ListPlus className="mr-1.5 h-4 w-4" />
-          Détailler les articles
-        </Button>
-      )}
+        )}
+      </div>
 
       {/* Justificatif */}
       <div className="flex flex-wrap items-center gap-3">
@@ -717,16 +459,40 @@ export function ExpenseForm({
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <Button
-        onClick={submit}
-        disabled={busy}
-        className={cn(busy && 'opacity-70')}
-      >
-        {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-        {mode === 'edit'
-          ? 'Enregistrer les modifications'
-          : 'Enregistrer la dépense'}
-      </Button>
+      {/* Barre collante : le total et l'action restent toujours accessibles. */}
+      <div className="sticky bottom-0 -mx-4 border-t bg-background px-4 py-3 sm:-mx-6 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            {detailed
+              ? `${values.items.length} article${values.items.length > 1 ? 's' : ''} · `
+              : ''}
+            Total{' '}
+            <span className="font-semibold tabular-nums text-foreground">
+              {priceFmt.format(detailed ? total : Number(values.amount) || 0)} F
+            </span>
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => router.push(cancelHref)}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={submit}
+              disabled={busy}
+              className={cn(busy && 'opacity-70')}
+            >
+              {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              {mode === 'edit'
+                ? 'Enregistrer les modifications'
+                : 'Enregistrer la dépense'}
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -4,12 +4,7 @@
 // simplement toutes les dépenses filtrées, sans requête intermédiaire.
 
 import { Download } from 'lucide-react';
-import {
-  listExpenses,
-  listExpenseCategories,
-  listExpenseArticles,
-  getExpenseArticleStats,
-} from '@/lib/expenses';
+import { listExpenses, listExpenseCategories } from '@/lib/expenses';
 import prisma from '@/lib/prisma';
 import { formatLocalDateOnly } from '@/lib/timezone';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,15 +37,10 @@ export async function HistoriqueSection({
   periodLabel: string;
   exportHref: string;
 }) {
-  const [{ expenses, total }, categories, articlesFull, allTimeArticleStats] =
-    await Promise.all([
-      listExpenses({ dateFrom, dateTo, categoryId, paymentMethod, search }),
-      listExpenseCategories(),
-      listExpenseArticles(),
-      // Non filtré (tout l'historique) : sert de repère de prix pour
-      // l'autocomplétion du formulaire, utile même hors période affichée.
-      getExpenseArticleStats({}),
-    ]);
+  const [{ expenses, total }, categories] = await Promise.all([
+    listExpenses({ dateFrom, dateTo, categoryId, paymentMethod, search }),
+    listExpenseCategories(),
+  ]);
 
   // Détail par article (ExpenseItem) des dépenses de la sélection : lib
   // reste volontairement sans `items` — on les charge ici directement, comme
@@ -70,17 +60,6 @@ export async function HistoriqueSection({
     arr.push(it);
     itemsByExpense.set(it.expenseId, arr);
   }
-
-  const priceByArticle = new Map(
-    allTimeArticleStats.map((s) => [s.articleId, s.avgUnitPrice])
-  );
-  const articleOptions = articlesFull.map((a) => ({
-    id: a.id,
-    name: a.name,
-    baseUnit: a.baseUnit,
-    trackInventory: a.trackInventory,
-    lastUnitPrice: priceByArticle.get(a.id) ?? null,
-  }));
 
   const rows: ExpenseRow[] = expenses.map((e) => ({
     id: e.id,
@@ -130,12 +109,7 @@ export async function HistoriqueSection({
         </div>
       </CardHeader>
       <CardContent>
-        <ExpensesTable
-          expenses={rows}
-          categories={categories}
-          articles={articleOptions}
-          total={total}
-        />
+        <ExpensesTable expenses={rows} categories={categories} total={total} />
       </CardContent>
     </Card>
   );
