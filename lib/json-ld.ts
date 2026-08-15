@@ -1,19 +1,12 @@
 import { ENV } from 'varlock/env';
 import { brandConfig } from '@/config/brand.config';
+import { OG_IMAGE } from '@/config/constants';
 import type { MenuCategory } from '@/config/menu';
 import type { ContactSettings } from '@/lib/contact-settings';
 import type { WeeklyHours } from '@/lib/pickup-settings';
 import { buildSameAs } from '@/lib/social-links';
 
 const siteUrl = ENV.NEXT_PUBLIC_SITE_URL;
-
-/** Visuel de référence du commerce. Deux exigences : un fichier RÉELLEMENT
- * servi (un `image` en 404 suffit à faire rejeter la fiche par les validateurs
- * de données structurées — c'était le cas de l'ancien `/og/home-coffee.jpg`,
- * qui n'a jamais existé dans `public/`), et au moins 1200 px de large, seuil
- * des résultats enrichis Google. D'où la photo hero 1920×1080, déjà chargée par
- * la page d'accueil donc déjà en cache. */
-const BUSINESS_IMAGE_PATH = '/assets/examples/accueil/eba-hero-2.webp';
 
 /** Chemin relatif (`/uploads/...`) → URL absolue ; une URL déjà absolue
  * (Cloudinary, http(s)) est renvoyée telle quelle. */
@@ -61,7 +54,8 @@ function buildOpeningHoursSpecification(weeklyHours: WeeklyHours) {
   return specs;
 }
 
-/** JSON-LD `CafeOrCoffeeShop` (schema.org) pour la page d'accueil, rendu dans
+/** JSON-LD `CafeOrCoffeeShop` / `LocalBusiness` (schema.org) pour la page
+ * d'accueil, rendu dans
  * le `<head>` racine (`app/layout.tsx`). Le téléphone/email/adresse/réseaux
  * viennent des réglages de contact en base (`lib/contact-settings-db.ts`) —
  * la localité/région/coordonnées GPS restent statiques (le commerce ne
@@ -85,7 +79,7 @@ export function buildHomeJsonLd(
     name: 'EBA Coffee Shop',
     description:
       'Coffee shop et pâtisserie artisanale à Cocody, Abidjan. Cafés de spécialité, pâtisseries maison, brunch et ambiance chaleureuse.',
-    image: `${siteUrl}${BUSINESS_IMAGE_PATH}`,
+    image: absoluteUrl(OG_IMAGE.url),
     logo: `${siteUrl}/assets/logos/eba_white_n.webp`,
     url: siteUrl,
     telephone: contact.phone,

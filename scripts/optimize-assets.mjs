@@ -52,6 +52,28 @@ const PHOTOS = [
 ];
 
 /**
+ * Vignette de partage (Open Graph / Twitter Card / `image` du JSON-LD).
+ *
+ * Trois contraintes que les photos ci-dessus ne satisfont pas :
+ * - **1200×630.** En dessous de 1200 px de large, Facebook et LinkedIn
+ *   rétrogradent la grande carte en vignette carrée — ce qui contredit le
+ *   `summary_large_image` qu'on déclare. La source est en 16/9 (1,78) et la
+ *   cible en 1,91 : `cover` rogne donc un peu de hauteur, centré.
+ * - **JPEG, pas WebP.** WhatsApp est le premier canal de partage du commerce
+ *   à Abidjan et son générateur d'aperçus reste irrégulier sur WebP. Le JPEG
+ *   est le format que tous les scrapers savent lire.
+ * - **Chemin stable.** Les métadonnées de 7 pages et le JSON-LD pointent
+ *   dessus ; il ne suit pas le renommage d'une photo d'illustration.
+ */
+const OG_IMAGE = {
+  from: 'examples/accueil/eba-hero-2.png',
+  to: 'og/eba-og.jpg',
+  width: 1200,
+  height: 630,
+  quality: 82,
+};
+
+/**
  * `eba.svg` reste vectoriel : c'est le seul logo affiché hors boîte carrée
  * (page `/offline`, 96 px) et il est pré-caché par le service worker
  * (`public/sw.js`). On se contente donc de le nettoyer.
@@ -111,6 +133,17 @@ async function buildPhotos() {
   }
 }
 
+async function buildOgImage() {
+  console.log('Vignette de partage (Open Graph) :');
+  const { from, to, width, height, quality } = OG_IMAGE;
+  const before = await sizeOf(src(from));
+  const buffer = await sharp(src(from))
+    .resize({ width, height, fit: 'cover', position: 'centre' })
+    .jpeg({ quality, mozjpeg: true })
+    .toBuffer();
+  await emit(out(to), buffer, before);
+}
+
 async function buildSvgs() {
   console.log('SVG (nettoyage, vectoriel conservé) :');
   for (const { from, to } of SVGS) {
@@ -126,5 +159,6 @@ async function buildSvgs() {
 
 await buildLogos();
 await buildPhotos();
+await buildOgImage();
 await buildSvgs();
 console.log('\nTerminé. Pense à committer les fichiers générés.');
