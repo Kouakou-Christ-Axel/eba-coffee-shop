@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { listPublicPolls } from '@/lib/polls';
 import { BreadcrumbJsonLd } from '@/components/(public)/breadcrumb-json-ld';
 import PollsListSection from '@/components/(public)/sondages/polls-list-section';
+import { OG_IMAGE } from '@/config/constants';
 
 // ISR : TTFB quasi instantané pour une liste peu volatile. Les actions admin
 // (app/(dashboard)/dashboard/sondages/actions.ts) appellent
@@ -16,25 +17,18 @@ import PollsListSection from '@/components/(public)/sondages/polls-list-section'
 export const revalidate = 60;
 
 export const metadata: Metadata = {
-  title: 'Sondages',
+  title: 'Sondages — votez pour nos créations',
   description:
     'Donne ton avis : vote pour la pâtisserie de la semaine et propose tes idées à EBA Coffee Shop.',
   alternates: {
     canonical: '/sondages',
   },
   openGraph: {
-    title: 'Sondages',
+    title: 'Sondages — votez pour nos créations',
     description:
       'Donne ton avis : vote pour la pâtisserie de la semaine et propose tes idées à EBA Coffee Shop.',
     url: '/sondages',
-    images: [
-      {
-        url: '/assets/examples/accueil/eba-hero.webp',
-        width: 800,
-        height: 449,
-        alt: 'Sondages — EBA Coffee Shop',
-      },
-    ],
+    images: [{ ...OG_IMAGE, alt: 'Sondages — EBA Coffee Shop' }],
   },
 };
 
