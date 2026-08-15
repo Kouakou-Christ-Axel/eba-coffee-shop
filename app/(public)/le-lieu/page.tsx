@@ -11,6 +11,7 @@ import React from 'react';
 import { getContactSettings } from '@/lib/contact-settings-db';
 import { getPickupSettings } from '@/lib/pickup-settings-db';
 import { summarizeWeeklyHours } from '@/lib/pickup-settings';
+import { OG_IMAGE } from '@/config/constants';
 
 export const metadata: Metadata = {
   title: 'Le lieu — Votre coffee shop à Cocody',
@@ -24,14 +25,7 @@ export const metadata: Metadata = {
     description:
       'Visitez EBA Coffee Shop à Cocody, Abidjan : un espace chaleureux et soigné pour savourer café de spécialité, pâtisseries artisanales et brunch. Ouvert 7j/7.',
     url: '/le-lieu',
-    images: [
-      {
-        url: '/assets/examples/accueil/eba-hero.webp',
-        width: 800,
-        height: 449,
-        alt: 'Le lieu — EBA Coffee Shop',
-      },
-    ],
+    images: [{ ...OG_IMAGE, alt: 'Le lieu — EBA Coffee Shop' }],
   },
 };
 

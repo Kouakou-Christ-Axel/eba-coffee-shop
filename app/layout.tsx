@@ -6,6 +6,7 @@ import { ENV } from 'varlock/env';
 import { buildHomeJsonLd } from '@/lib/json-ld';
 import { getContactSettings } from '@/lib/contact-settings-db';
 import { getPickupSettings } from '@/lib/pickup-settings-db';
+import { OG_IMAGE } from '@/config/constants';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -28,28 +29,19 @@ export const metadata: Metadata = {
   alternates: {
     canonical: '/',
   },
-  // TODO: remplacer par un visuel OG dédié 1200x630 (ce placeholder est une
-  // photo hero existante, réutilisée en attendant un vrai shooting).
   openGraph: {
     title: 'EBA Coffee Shop à Abidjan',
     description:
       'Un coffee shop chaleureux à Abidjan pour savourer café, brunch, pâtisseries et moments de détente.',
     url: '/',
-    images: [
-      {
-        url: '/assets/examples/accueil/eba-hero.webp',
-        width: 800,
-        height: 449,
-        alt: 'EBA Coffee Shop à Abidjan',
-      },
-    ],
+    images: [OG_IMAGE],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'EBA Coffee Shop à Abidjan',
     description:
       'Café, brunch, boissons signatures et ambiance cosy chez EBA Coffee Shop.',
-    images: ['/assets/examples/accueil/eba-hero.webp'],
+    images: [OG_IMAGE.url],
   },
   manifest: '/manifest.json',
   icons: {

@@ -1,5 +1,6 @@
 import { ENV } from 'varlock/env';
 import { brandConfig } from '@/config/brand.config';
+import { OG_IMAGE } from '@/config/constants';
 import type { MenuCategory } from '@/config/menu';
 import type { ContactSettings } from '@/lib/contact-settings';
 import type { WeeklyHours } from '@/lib/pickup-settings';
@@ -70,7 +71,7 @@ export function buildHomeJsonLd(
     name: 'EBA Coffee Shop',
     description:
       'Coffee shop et pâtisserie artisanale à Cocody, Abidjan. Cafés de spécialité, pâtisseries maison, brunch et ambiance chaleureuse.',
-    image: `${siteUrl}/og/home-coffee.jpg`,
+    image: absoluteUrl(OG_IMAGE.url),
     url: siteUrl,
     telephone: contact.phone,
     email: contact.email,
