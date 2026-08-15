@@ -15,6 +15,9 @@ import {
   isWithinAnyPeriod,
   nextUpcomingPeriod,
   optionQuantity,
+  canOrderForLaterDay,
+  effectiveItemAdvanceDays,
+  isOrderableNow,
   type Selections,
 } from './supplements';
 
@@ -354,5 +357,148 @@ describe('nextUpcomingPeriod', () => {
         WEDNESDAY
       )
     ).toEqual({ startDate: '2026-08-10', endDate: '2026-08-16' });
+  });
+});
+
+// ─── Retrait un autre jour : le stock du jour ne s'applique plus ─────────────
+//
+// Le piège que ces tests verrouillent : jusqu'ici un goût épuisé était
+// SILENCIEUSEMENT retiré de la sélection. Le caissier cochait « Vanille » pour
+// demain et l'article partait au panier SANS le goût — une erreur invisible
+// jusqu'à la remise au client.
+
+describe('SupplementRules.ignoreSoldOut — commande pour un jour ultérieur', () => {
+  const soldOutFlavour: Product = {
+    id: 'sponge',
+    name: 'Sponge cake',
+    description: '',
+    price: 2500,
+    supplements: [
+      {
+        name: 'Goûts',
+        type: 'single',
+        required: true,
+        options: [
+          { name: 'Vanille', price: 0, remaining: 0, soldOut: true },
+          { name: 'Coco', price: 0, remaining: 5 },
+        ],
+      },
+    ],
+  };
+
+  it('conserve le goût épuisé dans la ligne du panier', () => {
+    expect(
+      getSelectedSupplements(soldOutFlavour, { Goûts: 'Vanille' })
+    ).toEqual([]);
+    expect(
+      getSelectedSupplements(
+        soldOutFlavour,
+        { Goûts: 'Vanille' },
+        {
+          ignoreSoldOut: true,
+        }
+      )
+    ).toEqual([{ groupName: 'Goûts', optionName: 'Vanille', price: 0 }]);
+  });
+
+  it('débloque un groupe requis dont le choix est épuisé', () => {
+    expect(canSubmitSelections(soldOutFlavour, { Goûts: 'Vanille' })).toBe(
+      false
+    );
+    expect(
+      canSubmitSelections(
+        soldOutFlavour,
+        { Goûts: 'Vanille' },
+        {
+          ignoreSoldOut: true,
+        }
+      )
+    ).toBe(true);
+  });
+
+  it('compte les parts épuisées dans un groupe « quantity »', () => {
+    const boxed: Product = {
+      ...soldOutFlavour,
+      supplements: [
+        {
+          name: 'Goûts',
+          type: 'quantity',
+          required: true,
+          minSelect: 3,
+          maxSelect: 3,
+          options: [
+            { name: 'Vanille', price: 0, remaining: 0, soldOut: true },
+            { name: 'Coco', price: 0, remaining: 5 },
+          ],
+        },
+      ],
+    };
+    const selections: Selections = { Goûts: { Vanille: 2, Coco: 1 } };
+    expect(groupSelectionCount(boxed.supplements![0], selections)).toBe(1);
+    expect(
+      groupSelectionCount(boxed.supplements![0], selections, {
+        ignoreSoldOut: true,
+      })
+    ).toBe(3);
+    expect(
+      getSelectedSupplements(boxed, selections, { ignoreSoldOut: true })
+    ).toHaveLength(2);
+  });
+
+  it('sans règles, le comportement historique est strictement inchangé', () => {
+    expect(
+      groupSelectionCount(soldOutFlavour.supplements![0], {
+        Goûts: 'Vanille',
+      })
+    ).toBe(0);
+    expect(
+      isGroupValid(soldOutFlavour.supplements![0], { Goûts: 'Vanille' })
+    ).toBe(false);
+  });
+});
+
+describe('canOrderForLaterDay', () => {
+  const base = { id: 'p1', name: 'X', description: '', price: 100 };
+
+  it('accepte un produit épuisé aujourd’hui — il sera produit d’ici là', () => {
+    const p = { ...base, soldOut: true } as Product;
+    expect(isOrderableNow(p)).toBe(false);
+    expect(canOrderForLaterDay(p)).toBe(true);
+  });
+
+  it('refuse toujours une PAUSE — ce n’est pas un problème de stock', () => {
+    const p = {
+      ...base,
+      unavailableUntil: new Date(Date.now() + 86_400_000).toISOString(),
+    } as Product;
+    expect(canOrderForLaterDay(p)).toBe(false);
+  });
+
+  it('refuse toujours hors fenêtre « spécialité de la semaine »', () => {
+    const p = {
+      ...base,
+      soldOut: true,
+      weeklySpecialPeriods: [
+        { startDate: '2000-01-01', endDate: '2000-01-05' },
+      ],
+    } as Product;
+    expect(canOrderForLaterDay(p)).toBe(false);
+  });
+});
+
+describe('effectiveItemAdvanceDays', () => {
+  it('impose J+1 pour un article épuisé au moment de l’ajout', () => {
+    expect(effectiveItemAdvanceDays({ soldOutToday: true })).toBe(1);
+  });
+
+  it('garde le délai du produit quand il est plus contraignant', () => {
+    expect(
+      effectiveItemAdvanceDays({ advanceOrderDays: 3, soldOutToday: true })
+    ).toBe(3);
+  });
+
+  it('vaut 0 pour un article ordinaire', () => {
+    expect(effectiveItemAdvanceDays({})).toBe(0);
+    expect(effectiveItemAdvanceDays({ advanceOrderDays: null })).toBe(0);
   });
 });

@@ -8,6 +8,7 @@ import CarteMenuSection from '@/components/(public)/carte/carte-menu-section';
 import CarteMenuSkeleton from '@/components/(public)/carte/carte-menu-skeleton';
 import CartFloatingButton from '@/components/(public)/carte/cart-floating-button';
 import DownloadMenuPdf from '@/components/(public)/carte/download-menu-pdf';
+import { OG_IMAGE } from '@/config/constants';
 
 // ISR: regenerate the carte at most every 5 minutes. The menu changes more
 // often than the homepage (prices, availability, supplements). The dashboard
@@ -16,23 +17,16 @@ import DownloadMenuPdf from '@/components/(public)/carte/download-menu-pdf';
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: 'La carte',
+  title: 'La carte — cafés, pâtisseries et brunch',
   description:
     'Découvrez la carte EBA Coffee Shop : cafés de spécialité, pâtisseries artisanales, brunch et boissons signatures à Cocody, Abidjan.',
   alternates: { canonical: '/carte' },
   openGraph: {
-    title: 'La carte',
+    title: 'La carte — cafés, pâtisseries et brunch',
     description:
       'Découvrez la carte EBA Coffee Shop : cafés de spécialité, pâtisseries artisanales, brunch et boissons signatures à Cocody, Abidjan.',
     url: '/carte',
-    images: [
-      {
-        url: '/assets/examples/accueil/eba-hero.webp',
-        width: 800,
-        height: 449,
-        alt: 'La carte EBA Coffee Shop',
-      },
-    ],
+    images: [{ ...OG_IMAGE, alt: 'La carte EBA Coffee Shop' }],
   },
 };
 

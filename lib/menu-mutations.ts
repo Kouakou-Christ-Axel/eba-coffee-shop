@@ -217,7 +217,11 @@ export async function moveCategory(id: string, direction: 'up' | 'down') {
 // temps un autre admin (ou un outil MCP) a pu créer ou supprimer une ligne.
 // Réindexer sur une liste périmée effacerait silencieusement sa modification —
 // on refuse, l'UI restaure l'ordre affiché et signale le conflit.
-function assertSameSet(orderedIds: string[], currentIds: string[], what: string) {
+function assertSameSet(
+  orderedIds: string[],
+  currentIds: string[],
+  what: string
+) {
   const ordered = new Set(orderedIds);
   if (
     ordered.size !== orderedIds.length ||
@@ -246,7 +250,10 @@ export async function reorderCategories(orderedIds: string[]) {
 
   return prisma.$transaction(async (tx) => {
     for (const [index, id] of orderedIds.entries()) {
-      await tx.menuCategory.update({ where: { id }, data: { sortOrder: index } });
+      await tx.menuCategory.update({
+        where: { id },
+        data: { sortOrder: index },
+      });
     }
   });
 }
@@ -455,8 +462,9 @@ export async function toggleProductFeatured(id: string) {
 // (`unavailableUntil`) : cf. `scalar` dans `updateProduct` / `optionData` dans
 // `updateSupplementGroups`. Les fonctions ci-dessous couvrent les gestes
 // complémentaires — incrément relatif (« + fournée ») et bascule pause — pour
-// le dashboard et les outils MCP, sans dupliquer la logique de décrément au
-// paiement (qui vit dans `lib/order-mutations.ts`, hors périmètre de ce fichier).
+// le dashboard et les outils MCP, sans dupliquer la logique de décrément à
+// l'entrée en cuisine (qui vit dans `lib/order-mutations.ts`, hors périmètre de
+// ce fichier).
 
 // Définit ABSOLUMENT le stock d'un produit (« définir le matin »), par
 // opposition à l'incrément relatif de `restockProduct` (« + nouvelle fournée »
@@ -521,7 +529,8 @@ export async function restockOption(id: string, delta: number) {
 // nombre disponible (valeur absolue), pas un ajout. Le panier/menu ne connaît
 // que les NOMS (produit → groupe → option), jamais l'id interne — on résout
 // donc l'id (option la plus ancienne portant ce nom dans ce groupe, comme le
-// décrément au paiement) avant d'écrire le stock. Renvoie le nouveau stock.
+// décrément à l'entrée en cuisine) avant d'écrire le stock. Renvoie le nouveau
+// stock.
 export async function setOptionStockByRef(input: {
   productId: string;
   groupName: string;

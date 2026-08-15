@@ -107,6 +107,69 @@ export async function listExpenses(filters: ExpenseFilters = {}) {
   };
 }
 
+/** Une dépense et son détail, prêts à alimenter le formulaire de saisie. */
+export type ExpenseForEdit = {
+  id: string;
+  date: Date;
+  amount: number;
+  categoryId: string;
+  paymentMethod: string;
+  supplier: string | null;
+  note: string | null;
+  receiptUrl: string | null;
+  items: {
+    articleId: string | null;
+    rawLabel: string;
+    label: string | null;
+    formatQty: number | null;
+    formatSize: number | null;
+    unit: string | null;
+    unitPrice: number | null;
+    amount: number;
+    pendingQuantity: boolean;
+  }[];
+};
+
+/**
+ * Une dépense unique avec son détail, pour l'écran d'édition/duplication.
+ * `listExpenses` ne charge pas les lignes (les écrans de liste les récupèrent
+ * en une requête groupée) : ici on en veut UNE, complète.
+ *
+ * Les `Decimal` sont convertis en `number` avant de franchir la frontière
+ * serveur → client, comme le fait déjà `getExpenseArticleHistory`.
+ */
+export async function getExpenseForEdit(
+  id: string
+): Promise<ExpenseForEdit | null> {
+  const expense = await prisma.expense.findUnique({
+    where: { id },
+    include: { items: { orderBy: { sortOrder: 'asc' } } },
+  });
+  if (!expense) return null;
+
+  return {
+    id: expense.id,
+    date: expense.date,
+    amount: expense.amount,
+    categoryId: expense.categoryId,
+    paymentMethod: expense.paymentMethod,
+    supplier: expense.supplier,
+    note: expense.note,
+    receiptUrl: expense.receiptUrl,
+    items: expense.items.map((item) => ({
+      articleId: item.articleId,
+      rawLabel: item.rawLabel,
+      label: item.label,
+      formatQty: item.formatQty?.toNumber() ?? null,
+      formatSize: item.formatSize?.toNumber() ?? null,
+      unit: item.unit,
+      unitPrice: item.unitPrice,
+      amount: item.amount,
+      pendingQuantity: item.pendingQuantity,
+    })),
+  };
+}
+
 export type ExpenseSummary = {
   total: number;
   /** Sous-totaux par nature de catégorie (fixed + variable == total). */

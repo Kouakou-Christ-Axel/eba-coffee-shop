@@ -2,9 +2,10 @@
 
 import React from 'react';
 import { Button, Link } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { Clock3, MapPin } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
+import { MapEmbed } from '@/components/(public)/_components/map-embed';
 
 function ContactMapSection({
   contact,
@@ -22,15 +23,15 @@ function ContactMapSection({
       </h2>
 
       <div className="relative h-80 w-full md:h-[28rem]">
-        <iframe
+        <MapEmbed
+          embedUrl={contact.mapsEmbedUrl}
+          directionsUrl={contact.mapsDirectionsUrl}
           title="Carte Google Maps EBA a Abidjan"
-          src={contact.mapsEmbedUrl}
-          loading="lazy"
-          referrerPolicy="no-referrer-when-downgrade"
-          className="h-full w-full border-0"
+          caption={contact.address}
+          className="h-full w-full"
         />
 
-        <motion.div
+        <m.div
           className="absolute bottom-4 left-4 right-4 w-auto max-w-xs rounded-xl bg-background/95 p-4 shadow-lg backdrop-blur-md sm:right-auto md:bottom-6 md:left-6 md:p-5"
           initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
           whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -73,7 +74,7 @@ function ContactMapSection({
           >
             Voir l&apos;itineraire
           </Button>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

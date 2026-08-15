@@ -153,9 +153,13 @@ function ProductCard({ product }: ProductCardProps) {
                   Retour {formatResumeLabel(product.unavailableUntil as string)}
                 </Chip>
               )}
+              {/* « Épuisé aujourd'hui », pas « Épuisé » : le produit reste
+                  commandable pour un autre jour, il sera refait. `warning` et
+                  non `danger` — ce n'est plus un refus, c'est une précision de
+                  délai. Le sélecteur de créneau interdira alors aujourd'hui. */}
               {soldOut && (
-                <Chip color="danger" variant="flat" size="sm">
-                  Épuisé
+                <Chip color="warning" variant="flat" size="sm">
+                  Épuisé aujourd’hui · dès demain
                 </Chip>
               )}
               {/* Priorité pause/épuisé déjà garantie par le hook (`weeklyGated`/

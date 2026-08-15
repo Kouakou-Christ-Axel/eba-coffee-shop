@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { generatePickupSlots } from './pickup-slots';
+import {
+  generatePickupSlots,
+  pickDefaultSlot,
+  pickOpenDayTime,
+} from './pickup-slots';
 
 describe('generatePickupSlots', () => {
   it('retourne des créneaux dans la plage 07h30–21h30 (défaut aligné brand)', () => {
@@ -105,5 +109,181 @@ describe('generatePickupSlots', () => {
       (s) => s.getHours() === 9 && s.getMinutes() === 45
     );
     expect(has945).toBe(true);
+  });
+});
+
+// ─── Créneau par défaut d'une commande contrainte à un jour ultérieur ────────
+//
+// Le client dont le panier contient un article épuisé arrive au checkout avec
+// le créneau déjà posé. Encore faut-il que ce créneau EXISTE : 11:00 peut
+// tomber en dehors des horaires, du pas de créneau, ou d'un jour fermé.
+
+describe('pickDefaultSlot', () => {
+  const at = (iso: string) => new Date(iso);
+
+  it('retient l’heure exacte quand elle est proposée', () => {
+    const slots = [
+      at('2026-06-14T10:45:00.000Z'),
+      at('2026-06-14T11:00:00.000Z'),
+      at('2026-06-14T11:15:00.000Z'),
+    ];
+    expect(pickDefaultSlot(slots, '2026-06-14', '11:00')?.toISOString()).toBe(
+      '2026-06-14T11:00:00.000Z'
+    );
+  });
+
+  it('prend le créneau suivant quand l’heure exacte n’existe pas', () => {
+    // On ne fait jamais venir le client PLUS TÔT que l'heure proposée.
+    const slots = [
+      at('2026-06-14T10:50:00.000Z'),
+      at('2026-06-14T11:20:00.000Z'),
+    ];
+    expect(pickDefaultSlot(slots, '2026-06-14', '11:00')?.toISOString()).toBe(
+      '2026-06-14T11:20:00.000Z'
+    );
+  });
+
+  it('retombe sur le créneau le plus proche AVANT si le jour se termine plus tôt', () => {
+    const slots = [
+      at('2026-06-14T08:00:00.000Z'),
+      at('2026-06-14T09:30:00.000Z'),
+    ];
+    expect(pickDefaultSlot(slots, '2026-06-14', '11:00')?.toISOString()).toBe(
+      '2026-06-14T09:30:00.000Z'
+    );
+  });
+
+  it('passe au jour suivant quand le jour demandé n’offre aucun créneau (fermé)', () => {
+    const slots = [at('2026-06-15T11:00:00.000Z')];
+    expect(pickDefaultSlot(slots, '2026-06-14', '11:00')?.toISOString()).toBe(
+      '2026-06-15T11:00:00.000Z'
+    );
+  });
+
+  it('ignore les créneaux antérieurs au jour minimum', () => {
+    const slots = [
+      at('2026-06-13T11:00:00.000Z'),
+      at('2026-06-14T11:00:00.000Z'),
+    ];
+    expect(pickDefaultSlot(slots, '2026-06-14', '11:00')?.toISOString()).toBe(
+      '2026-06-14T11:00:00.000Z'
+    );
+  });
+
+  it('renvoie null quand aucun créneau n’est disponible', () => {
+    expect(pickDefaultSlot([], '2026-06-14', '11:00')).toBeNull();
+    expect(
+      pickDefaultSlot([at('2026-06-10T11:00:00.000Z')], '2026-06-14', '11:00')
+    ).toBeNull();
+  });
+});
+
+// ─── pickOpenDayTime : le raccourci ne propose jamais un jour fermé ───────────
+
+describe('pickOpenDayTime', () => {
+  const OPEN = [{ start: '07:30', end: '21:30' }];
+  const AFTERNOON = [{ start: '14:00', end: '20:00' }];
+  const MORNING = [{ start: '07:00', end: '10:00' }];
+  const SPLIT = [
+    { start: '07:00', end: '10:00' },
+    { start: '14:00', end: '20:00' },
+  ];
+
+  it('garde l’heure voulue quand une plage la contient', () => {
+    const days = [{ date: '2026-06-14', ranges: OPEN }];
+    expect(pickOpenDayTime(days, '2026-06-14', '11:00')).toEqual({
+      date: '2026-06-14',
+      time: '11:00',
+    });
+  });
+
+  it('recale à l’ouverture quand le commerce ouvre plus tard', () => {
+    const days = [{ date: '2026-06-14', ranges: AFTERNOON }];
+    expect(pickOpenDayTime(days, '2026-06-14', '11:00')).toEqual({
+      date: '2026-06-14',
+      time: '14:00',
+    });
+  });
+
+  it('retombe sur la fermeture quand l’heure voulue est déjà passée', () => {
+    const days = [{ date: '2026-06-14', ranges: MORNING }];
+    expect(pickOpenDayTime(days, '2026-06-14', '11:00')).toEqual({
+      date: '2026-06-14',
+      time: '10:00',
+    });
+  });
+
+  it('vise la plage de l’après-midi sur une journée à coupure méridienne', () => {
+    const days = [{ date: '2026-06-14', ranges: SPLIT }];
+    expect(pickOpenDayTime(days, '2026-06-14', '11:00')).toEqual({
+      date: '2026-06-14',
+      time: '14:00',
+    });
+  });
+
+  it('saute un jour fermé (aucune plage) — le cœur de la demande', () => {
+    const days = [
+      { date: '2026-06-14', ranges: [] },
+      { date: '2026-06-15', ranges: OPEN },
+    ];
+    expect(pickOpenDayTime(days, '2026-06-14', '11:00')).toEqual({
+      date: '2026-06-15',
+      time: '11:00',
+    });
+  });
+
+  it('saute plusieurs jours fermés d’affilée', () => {
+    const days = [
+      { date: '2026-06-14', ranges: [] },
+      { date: '2026-06-15', ranges: [] },
+      { date: '2026-06-16', ranges: AFTERNOON },
+    ];
+    expect(pickOpenDayTime(days, '2026-06-14', '11:00')).toEqual({
+      date: '2026-06-16',
+      time: '14:00',
+    });
+  });
+
+  it('ignore les jours antérieurs au jour demandé', () => {
+    const days = [
+      { date: '2026-06-13', ranges: OPEN },
+      { date: '2026-06-14', ranges: OPEN },
+    ];
+    expect(pickOpenDayTime(days, '2026-06-14', '11:00')).toEqual({
+      date: '2026-06-14',
+      time: '11:00',
+    });
+  });
+
+  it('renvoie null quand tout est fermé — l’appelant masque le raccourci', () => {
+    expect(pickOpenDayTime([], '2026-06-14', '11:00')).toBeNull();
+    expect(
+      pickOpenDayTime(
+        [
+          { date: '2026-06-14', ranges: [] },
+          { date: '2026-06-15', ranges: [] },
+        ],
+        '2026-06-14',
+        '11:00'
+      )
+    ).toBeNull();
+  });
+
+  it('ne dépend pas de l’ordre des jours ni des plages reçus', () => {
+    const days = [
+      { date: '2026-06-16', ranges: OPEN },
+      { date: '2026-06-14', ranges: [] },
+      { date: '2026-06-15', ranges: [...SPLIT].reverse() },
+    ];
+    expect(pickOpenDayTime(days, '2026-06-14', '11:00')).toEqual({
+      date: '2026-06-15',
+      time: '14:00',
+    });
+  });
+
+  it('accepte l’heure exactement égale à une borne de plage', () => {
+    const days = [{ date: '2026-06-14', ranges: AFTERNOON }];
+    expect(pickOpenDayTime(days, '2026-06-14', '14:00')?.time).toBe('14:00');
+    expect(pickOpenDayTime(days, '2026-06-14', '20:00')?.time).toBe('20:00');
   });
 });

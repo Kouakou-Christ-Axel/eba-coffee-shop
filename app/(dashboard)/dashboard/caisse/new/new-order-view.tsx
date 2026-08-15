@@ -12,6 +12,8 @@ import { CartSummary } from './cart-summary';
 import { SupplementPicker } from './supplement-picker';
 import { CustomerInfoStep } from './_components/customer-info-step';
 import { OrderBottomBar } from './_components/order-bottom-bar';
+import { PickupDayBar } from './_components/pickup-day-bar';
+import { SoldOutDaySheet } from './_components/sold-out-day-sheet';
 
 export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
   const o = useNewOrder();
@@ -55,11 +57,22 @@ export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
            Téléphone : flux en deux étapes inchangé, le panier est atteint par
            la barre du bas. */
         <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] [&>*]:min-w-0">
-          <ProductCatalog
-            menu={menu}
-            onProductTap={o.handleProductTap}
-            onOpenOptions={o.openPicker}
-          />
+          <div className="flex min-w-0 flex-col gap-3">
+            {/* « Pour quand ? » AVANT le catalogue : sans la date, celui-ci ne
+                peut pas savoir s'il doit bloquer un produit épuisé. Par défaut
+                « Maintenant », donc le walk-in ne perd aucun geste. */}
+            <PickupDayBar
+              pickupTime={o.pickupTime}
+              onChange={o.setPickupTime}
+              variant="compact"
+            />
+            <ProductCatalog
+              menu={menu}
+              forFutureDay={o.isDeferredDay}
+              onProductTap={o.handleProductTap}
+              onOpenOptions={o.openPicker}
+            />
+          </div>
           <aside className="hidden md:block">
             <div className="sticky top-4">
               <CartSummary
@@ -124,6 +137,7 @@ export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
         onAdd={({ product, supplements }) => o.addToCart(product, supplements)}
         initialSupplements={o.pickerInitialSupplements}
         editToken={o.pickerCartId ?? undefined}
+        forFutureDay={o.isDeferredDay}
         onRestocked={(groupName, optionName, stock) => {
           if (!o.pickerProduct) return;
           applyRestock(
@@ -136,6 +150,16 @@ export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
             stock
           );
         }}
+      />
+
+      {/* Filet de rattrapage : le caissier a tapé un produit épuisé alors qu'il
+          est sur « Maintenant ». Plutôt qu'une tuile inerte, on lui demande
+          pour quel jour — et son tap est rejoué après le choix. */}
+      <SoldOutDaySheet
+        product={o.soldOutPrompt}
+        cartHasItems={o.items.length > 0}
+        onSelectDay={o.resolveSoldOutPrompt}
+        onDismiss={o.dismissSoldOutPrompt}
       />
     </div>
   );

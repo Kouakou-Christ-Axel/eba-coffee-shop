@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import React from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 
 type DetailItem = {
   id: string;
@@ -67,7 +67,7 @@ function DetailsSection() {
     >
       <div className="content-container">
         <div className="mb-8 flex flex-col gap-3 md:mb-10 md:items-center md:text-center">
-          <motion.div {...introAnimation}>
+          <m.div {...introAnimation}>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
               Signature du lieu
             </p>
@@ -77,9 +77,9 @@ function DetailsSection() {
             >
               Les petits details qui font la difference
             </h2>
-          </motion.div>
+          </m.div>
 
-          <motion.p
+          <m.p
             className="max-w-2xl text-sm leading-relaxed text-foreground/75"
             {...introAnimation}
             transition={
@@ -89,7 +89,7 @@ function DetailsSection() {
             }
           >
             Une ambiance qui se ressent des les premiers instants.
-          </motion.p>
+          </m.p>
         </div>
 
         <ul
@@ -97,7 +97,7 @@ function DetailsSection() {
           className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 scrollbar-none sm:grid sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-4"
         >
           {detailItems.map((item, index) => (
-            <motion.li
+            <m.li
               key={item.id}
               className="w-[84%] shrink-0 snap-start sm:w-auto sm:shrink"
               initial={prefersReducedMotion ? undefined : { opacity: 0, y: 16 }}
@@ -137,7 +137,7 @@ function DetailsSection() {
                   </p>
                 </figcaption>
               </figure>
-            </motion.li>
+            </m.li>
           ))}
         </ul>
       </div>

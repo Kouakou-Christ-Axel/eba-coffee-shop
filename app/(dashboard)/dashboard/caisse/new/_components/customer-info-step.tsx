@@ -3,16 +3,12 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { ORDER_NOTE_MAX } from '@/config/constants';
-import {
-  todayDateString,
-  abidjanDatetimeLocalToISO,
-  isoToAbidjanDatetimeLocal,
-} from '@/lib/timezone';
+import { todayDateString, isoToAbidjanDatetimeLocal } from '@/lib/timezone';
 import type { OrderType } from '@/generated/prisma/client';
 import { OrderTypePicker } from './order-type-picker';
 import { CustomerSearchSelect } from './customer-search-select';
+import { PickupDayBar } from './pickup-day-bar';
 
 type Props = {
   customerName: string;
@@ -30,12 +26,6 @@ type Props = {
   onOrderDateChange: (value: string | null) => void;
 };
 
-// Créneau par défaut : maintenant + 60 min, exprimé en heure murale Abidjan
-// (cohérent avec l'affichage et la relecture, quel que soit le fuseau navigateur).
-function defaultPickupTime(): string {
-  return isoToAbidjanDatetimeLocal(new Date(Date.now() + 60 * 60_000));
-}
-
 export function CustomerInfoStep({
   customerName,
   customerPhone,
@@ -51,9 +41,20 @@ export function CustomerInfoStep({
   onPickupTimeChange,
   onOrderDateChange,
 }: Props) {
+  // Commande à créneau : le téléphone devient obligatoire (il faut pouvoir
+  // prévenir le client le jour du retrait) — règle appliquée à la soumission
+  // dans `useNewOrder.submit`.
   const isScheduled = pickupTime !== null;
   const today = todayDateString();
   const isBackdated = orderDate !== null && orderDate !== today;
+  // Antidater ET planifier un retrait un autre jour est contradictoire :
+  // « enregistrée mardi dernier, à retirer demain » n'a pas de sens en file.
+  // Signalé ici, et refusé côté serveur (`createCashierOrderSchema`).
+  const pickupDay = pickupTime
+    ? isoToAbidjanDatetimeLocal(pickupTime).slice(0, 10)
+    : null;
+  const conflictsWithPickup =
+    isBackdated && pickupDay !== null && pickupDay !== orderDate;
 
   function handleOrderDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const value = e.target.value;
@@ -61,28 +62,31 @@ export function CustomerInfoStep({
     onOrderDateChange(value && value !== today ? value : null);
   }
 
-  function handleScheduledToggle(checked: boolean) {
-    onPickupTimeChange(checked ? defaultPickupTime() : null);
-  }
-
-  function handleDatetimeChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const iso = abidjanDatetimeLocalToISO(e.target.value);
-    if (!iso) return;
-    onPickupTimeChange(iso);
-  }
-
-  const minDatetime = isoToAbidjanDatetimeLocal(
-    new Date(new Date().getTime() + 5 * 60_000)
-  );
-
   return (
     <div className="space-y-3">
       <OrderTypePicker value={orderType} onChange={onOrderTypeChange} />
 
-      <div className="rounded-xl border bg-card p-3">
-        <div className="grid gap-1">
+      {/* MÊME composant qu'en haut du catalogue, branché sur le MÊME état :
+          les deux vues ne peuvent pas diverger. Variante `full` : l'heure
+          exacte se règle ici, le catalogue n'avait besoin que du jour. */}
+      <PickupDayBar
+        pickupTime={pickupTime}
+        onChange={onPickupTimeChange}
+        variant="full"
+      />
+
+      {/* ANTIDATAGE — à ne pas confondre avec le retrait ci-dessus. Les deux
+          champs sont de sens OPPOSÉ : celui-ci rattache la commande à un jour
+          PASSÉ (saisie de rattrapage, oubli d'encaissement), l'autre planifie
+          un retrait FUTUR. Replié par défaut : c'est un geste rare, il n'a
+          rien à faire au même niveau de lecture que le créneau. */}
+      <details className="rounded-xl border bg-card p-3" open={isBackdated}>
+        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Saisie de rattrapage (antidater)
+        </summary>
+        <div className="mt-2 grid gap-1">
           <Label htmlFor="order-date" className="text-xs text-muted-foreground">
-            Date de la commande
+            Jour d’enregistrement
           </Label>
           <Input
             id="order-date"
@@ -91,43 +95,26 @@ export function CustomerInfoStep({
             onChange={handleOrderDateChange}
             max={today}
           />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Enregistre la commande sur un jour passé. Sans rapport avec la date
+            de retrait.
+          </p>
           {isBackdated && (
             <p className="mt-1 text-xs text-primary">
               Commande antidatée — sera enregistrée au {orderDate}.
             </p>
           )}
-        </div>
-      </div>
-
-      <div className="rounded-xl border bg-card p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Programmer pour plus tard
-          </p>
-          <Switch
-            checked={isScheduled}
-            onCheckedChange={handleScheduledToggle}
-            aria-label="Commande différée"
-          />
-        </div>
-        {isScheduled && (
-          <div className="mt-2 grid gap-1">
-            <Label
-              htmlFor="pickup-time"
-              className="text-xs text-muted-foreground"
+          {conflictsWithPickup && (
+            <p
+              role="alert"
+              className="mt-1 text-xs font-semibold text-destructive"
             >
-              Date et heure de retrait
-            </Label>
-            <Input
-              id="pickup-time"
-              type="datetime-local"
-              value={isoToAbidjanDatetimeLocal(pickupTime)}
-              onChange={handleDatetimeChange}
-              min={minDatetime}
-            />
-          </div>
-        )}
-      </div>
+              Une commande antidatée ne peut pas avoir un retrait un autre jour.
+              Choisissez l’un ou l’autre.
+            </p>
+          )}
+        </div>
+      </details>
 
       <div className="rounded-xl border bg-card p-3">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

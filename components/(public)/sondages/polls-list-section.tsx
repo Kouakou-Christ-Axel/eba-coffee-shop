@@ -3,7 +3,7 @@
 import { MediaImage as Image } from '@/components/ui/media-image';
 import Link from 'next/link';
 import { Card, CardBody, Chip } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { Vote } from 'lucide-react';
 
 type PollSummary = {
@@ -39,7 +39,7 @@ function PollsListSection({
           </p>
         )}
         {open.map((poll, i) => (
-          <motion.div
+          <m.div
             key={poll.id}
             initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
             whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -76,7 +76,7 @@ function PollsListSection({
                 </CardBody>
               </Card>
             </Link>
-          </motion.div>
+          </m.div>
         ))}
       </div>
 

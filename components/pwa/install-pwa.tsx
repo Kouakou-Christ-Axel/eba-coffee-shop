@@ -17,7 +17,7 @@ import {
   IconX,
   IconDeviceMobile,
 } from '@tabler/icons-react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import { useBottomBannerStore } from '@/lib/bottom-banner-store';
 import { useIsConsentPrompting } from '@/lib/consent-store';
 
@@ -182,7 +182,7 @@ export default function InstallPwa() {
     <>
       <AnimatePresence>
         {isBannerVisible && (
-          <motion.div
+          <m.div
             initial={initial}
             animate={animate}
             exit={exit}
@@ -223,7 +223,7 @@ export default function InstallPwa() {
                 <IconX size={16} aria-hidden />
               </Button>
             </div>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 

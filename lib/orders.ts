@@ -33,6 +33,7 @@ import {
   fetchScheduleSnapshot,
   findScheduleBlockedItem,
 } from '@/lib/orders/availability';
+import { isDeferredPickup } from '@/lib/orders/scheduling';
 import { isPickupDateAllowed } from '@/lib/supplements';
 import { ORDERS_PAGE_SIZE, PHONE_SEARCH_MIN_DIGITS } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
@@ -64,6 +65,24 @@ export class ScheduleUnavailableError extends Error {
   constructor(public readonly productName: string) {
     super(`${productName} n'est pas disponible à cette date.`);
     this.name = 'ScheduleUnavailableError';
+  }
+}
+
+/**
+ * Au moins un article du panier est ÉPUISÉ et le retrait demandé tombe
+ * aujourd'hui (ou « dès que possible »).
+ *
+ * Contrepartie serveur du relâchement côté carte : un produit épuisé y est
+ * désormais commandable, mais POUR UN AUTRE JOUR. Sans ce contrôle, un POST
+ * direct sur `/api/commandes` permettrait de commander pour tout de suite ce
+ * qui n'existe plus — le flux public ne vérifiait aucun stock à la création.
+ */
+export class SoldOutTodayError extends Error {
+  constructor(public readonly productNames: string[]) {
+    super(
+      `${productNames.join(', ')} : épuisé aujourd’hui. Choisissez un retrait à partir de demain.`
+    );
+    this.name = 'SoldOutTodayError';
   }
 }
 
@@ -149,6 +168,28 @@ export async function createOrder(input: CreateOrderInput) {
   );
   if (scheduleBlockedItem) {
     throw new ScheduleUnavailableError(scheduleBlockedItem.productName);
+  }
+
+  // Stock : un article épuisé reste commandable, mais jamais pour AUJOURD'HUI.
+  // Ce contrôle n'existait pas — le flux public ne regardait aucun stock à la
+  // création — et il devient nécessaire dès lors que la carte laisse ajouter un
+  // produit épuisé. La réservation réelle, elle, reste à l'entrée en cuisine.
+  if (!isDeferredPickup(input.pickupTime ?? null)) {
+    const stock = await fetchStockSnapshot([items]);
+    const availability = computeOrderItemsAvailability(items, stock);
+    if (!availability.fulfillable) {
+      const unavailableCartIds = new Set(
+        availability.items.filter((a) => !a.available).map((a) => a.cartId)
+      );
+      const names = [
+        ...new Set(
+          items
+            .filter((i) => unavailableCartIds.has(i.cartId))
+            .map((i) => i.productName)
+        ),
+      ];
+      throw new SoldOutTodayError(names);
+    }
   }
 
   for (let attempt = 0; attempt < MAX_DAILY_NUMBER_RETRIES; attempt++) {
@@ -338,6 +379,11 @@ export type PublicOrderView = {
  * Une commande déjà entrée en cuisine a réservé son stock : tout est
  * `available: true` sans requête supplémentaire, même si elle n'est pas encore
  * encaissée (ardoise) — le critère est bien `stockReservedAt` et non `isPaid`.
+ *
+ * Une commande DIFFÉRÉE (retrait un jour ultérieur) est traitée de la même
+ * façon : sa marchandise sera produite le jour du retrait, la comparer au stock
+ * d'aujourd'hui afficherait « article indisponible » à un client dont la
+ * commande n'a aucun problème.
  */
 export async function getPublicOrder(
   id: string
@@ -349,7 +395,7 @@ export async function getPublicOrder(
 
   let itemsView: PublicOrderItemView[];
   let fulfillable: boolean;
-  if (order.stockReservedAt) {
+  if (order.stockReservedAt || isDeferredPickup(order.pickupTime)) {
     itemsView = items.map((item) => ({ ...item, available: true }));
     fulfillable = true;
   } else {

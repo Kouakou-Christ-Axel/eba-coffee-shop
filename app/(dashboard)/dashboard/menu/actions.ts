@@ -34,6 +34,18 @@ import type { SupplementGroupInput } from '@/lib/schemas/menu';
 // un cas attendu à afficher mais une erreur de programmation ou une attaque.
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
+// Variante qui rapporte quelque chose du serveur. Un seul cas aujourd'hui : le
+// panneau « Nouveau produit » enchaîne sur `/dashboard/menu/<id>/produits/new`
+// juste après avoir créé la catégorie, et a donc besoin de l'id qu'il vient de
+// faire naître — sans quoi il faudrait renvoyer la personne sur la liste pour
+// qu'elle recommence, ce que ce panneau existe précisément pour éviter.
+// Type distinct plutôt que paramètre optionnel sur `ActionResult` : les vingt
+// autres actions ne rapportent rien, et un `data` partout les obligerait à
+// prouver son absence.
+export type ActionResultWith<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string };
+
 const OK = { ok: true } as const;
 
 function fail(err: unknown): { ok: false; error: string } {
@@ -72,12 +84,36 @@ async function run(mutate: () => Promise<unknown>): Promise<ActionResult> {
   return OK;
 }
 
+/**
+ * Comme `run`, mais fait remonter au client ce que la mutation a produit.
+ * `select` est obligatoire : il force à choisir explicitement ce qui traverse
+ * la frontière serveur → client, plutôt que de laisser filer un enregistrement
+ * Prisma entier dans le payload de la Server Action.
+ */
+async function runWith<TRaw, TOut>(
+  mutate: () => Promise<TRaw>,
+  select: (raw: TRaw) => TOut
+): Promise<ActionResultWith<TOut>> {
+  await requireManager();
+  let raw: TRaw;
+  try {
+    raw = await mutate();
+  } catch (err) {
+    return fail(err);
+  }
+  revalidateMenu();
+  return { ok: true, data: select(raw) };
+}
+
 // ── Catégories ──
 
 export async function createCategoryAction(
   input: CategoryInput
-): Promise<ActionResult> {
-  return run(() => menu.createCategory(input));
+): Promise<ActionResultWith<{ id: string; name: string }>> {
+  return runWith(
+    () => menu.createCategory(input),
+    (category) => ({ id: category.id, name: category.name })
+  );
 }
 
 export async function updateCategoryAction(

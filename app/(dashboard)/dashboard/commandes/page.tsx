@@ -20,12 +20,12 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Pagination } from '@/components/(dashboard)/pagination';
 import { EncaisserButton } from './encaisser-button';
 import { ExpressCompleteButton } from './express-complete-button';
 import { AdvanceStatusButton } from './advance-status-button';
 import { OrdersEmptyState } from './orders-empty-state';
 import { OrdersToolbar } from './orders-toolbar';
-import { Pagination } from './pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -384,6 +384,8 @@ export default async function CommandesPage({
                             orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
                             amount={order.total}
                             isPaid={order.isPaid}
+                            pickupTime={order.pickupTime}
+                            stockReserved={order.stockReservedAt !== null}
                             variant="outline"
                             size="sm"
                           />
@@ -485,6 +487,8 @@ export default async function CommandesPage({
                       orderRef={orderRef}
                       amount={order.total}
                       isPaid={order.isPaid}
+                      pickupTime={order.pickupTime}
+                      stockReserved={order.stockReservedAt !== null}
                       variant="outline"
                       size="sm"
                     />

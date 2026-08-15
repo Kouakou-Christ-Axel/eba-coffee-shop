@@ -59,6 +59,13 @@ type Props = {
     optionName: string,
     stockQuantity: number | null
   ) => void;
+  /**
+   * La commande est pour un JOUR CIVIL ULTÉRIEUR : le stock d'aujourd'hui ne
+   * s'applique pas. Les goûts épuisés restent marqués mais redeviennent
+   * sélectionnables — et surtout, ils ne sont plus SILENCIEUSEMENT retirés de
+   * la ligne au moment de l'ajout (cf. `SupplementRules`, lib/supplements.ts).
+   */
+  forFutureDay?: boolean;
 };
 
 export function SupplementPicker({
@@ -70,7 +77,13 @@ export function SupplementPicker({
   editToken,
   confirmVerb = 'Ajouter',
   onRestocked,
+  forFutureDay = false,
 }: Props) {
+  // Règles de sélection : une seule valeur, passée à TOUTES les fonctions de
+  // `lib/supplements.ts` — comptage, validation ET conversion en ligne de
+  // panier doivent voir la même chose, sinon un goût validé à l'écran
+  // disparaîtrait à l'ajout.
+  const rules = { ignoreSoldOut: forFutureDay };
   const resetKey = `${product?.id ?? ''}::${editToken ?? ''}`;
 
   const [selections, setSelections] = useResettableState<Selections>(
@@ -144,17 +157,19 @@ export function SupplementPicker({
   }
 
   function handleAdd() {
-    if (!canSubmitSelections(activeProduct, selections)) return;
+    if (!canSubmitSelections(activeProduct, selections, rules)) return;
     onAdd({
       product: activeProduct,
-      supplements: getSelectedSupplements(activeProduct, selections),
+      supplements: getSelectedSupplements(activeProduct, selections, rules),
     });
     onClose();
   }
 
   const runningTotal =
     activeProduct.price +
-    getSupplementsPrice(getSelectedSupplements(activeProduct, selections));
+    getSupplementsPrice(
+      getSelectedSupplements(activeProduct, selections, rules)
+    );
 
   return (
     <Modal
@@ -207,7 +222,7 @@ export function SupplementPicker({
             className="w-full"
             size="lg"
             onPress={handleAdd}
-            isDisabled={!canSubmitSelections(activeProduct, selections)}
+            isDisabled={!canSubmitSelections(activeProduct, selections, rules)}
           >
             {confirmVerb} — {priceFormatter.format(runningTotal)} F
           </Button>
@@ -218,7 +233,7 @@ export function SupplementPicker({
 
   function renderGroup(group: (typeof groups)[number]) {
     const constraint = groupConstraintLabel(group);
-    const count = groupSelectionCount(group, selections);
+    const count = groupSelectionCount(group, selections, rules);
     const max = effectiveMax(group);
     const isOpen = openGroups[group.name] ?? false;
 
@@ -274,14 +289,19 @@ export function SupplementPicker({
                   <Radio
                     key={opt.name}
                     value={opt.name}
-                    isDisabled={opt.soldOut}
+                    isDisabled={opt.soldOut && !forFutureDay}
                   >
                     <span className="flex items-center justify-between gap-4">
                       <span className="text-sm">
                         {opt.name}
                         {opt.soldOut && (
-                          <span className="ml-1.5 text-xs font-medium text-danger">
-                            épuisé
+                          <span
+                            className={cn(
+                              'ml-1.5 text-xs font-medium',
+                              forFutureDay ? 'text-warning' : 'text-danger'
+                            )}
+                          >
+                            {forFutureDay ? 'épuisé aujourd’hui' : 'épuisé'}
                           </span>
                         )}
                       </span>
@@ -302,7 +322,8 @@ export function SupplementPicker({
                   const current = multipleSelection(selections, group.name);
                   const isChecked = current.includes(opt.name);
                   const isDisabled =
-                    opt.soldOut || (!isChecked && count >= max);
+                    (opt.soldOut && !forFutureDay) ||
+                    (!isChecked && count >= max);
                   return (
                     <Checkbox
                       key={opt.name}
@@ -314,8 +335,13 @@ export function SupplementPicker({
                         <span className="text-sm">
                           {opt.name}
                           {opt.soldOut && (
-                            <span className="ml-1.5 text-xs font-medium text-danger">
-                              épuisé
+                            <span
+                              className={cn(
+                                'ml-1.5 text-xs font-medium',
+                                forFutureDay ? 'text-warning' : 'text-danger'
+                              )}
+                            >
+                              {forFutureDay ? 'épuisé aujourd’hui' : 'épuisé'}
                             </span>
                           )}
                         </span>
@@ -340,9 +366,15 @@ export function SupplementPicker({
                   // `groupSelectionCount`) peut afficher « N / N » alors
                   // qu'une option épuisée reste incrémentable en plus —
                   // désynchronisant l'affichage de la sélection réelle.
-                  const optionCap = opt.remaining ?? Infinity;
+                  // Pour un retrait ultérieur, le stock du jour ne plafonne
+                  // rien : la quantité sera produite pour cette date.
+                  const optionCap = forFutureDay
+                    ? Infinity
+                    : (opt.remaining ?? Infinity);
                   const canIncrement =
-                    !opt.soldOut && count < max && qty < optionCap;
+                    (!opt.soldOut || forFutureDay) &&
+                    count < max &&
+                    qty < optionCap;
                   return (
                     <div
                       key={opt.name}
@@ -356,8 +388,13 @@ export function SupplementPicker({
                           </span>
                         )}
                         {opt.soldOut ? (
-                          <span className="ml-1.5 text-xs font-medium text-danger">
-                            épuisé
+                          <span
+                            className={cn(
+                              'ml-1.5 text-xs font-medium',
+                              forFutureDay ? 'text-warning' : 'text-danger'
+                            )}
+                          >
+                            {forFutureDay ? 'épuisé aujourd’hui' : 'épuisé'}
                           </span>
                         ) : (
                           opt.remaining != null && (

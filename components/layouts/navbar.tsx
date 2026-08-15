@@ -16,9 +16,8 @@ import Image from 'next/image';
 import NextLink from 'next/link';
 import { Receipt, ShoppingBag } from 'lucide-react';
 import { brandConfig } from '@/config/brand.config';
-import { DASHBOARD_ROLES } from '@/config/constants';
 import { usePathname } from 'next/navigation';
-import { authClient } from '@/lib/auth-client';
+import { useStaffAccess } from '@/lib/hooks/use-staff-access';
 import { useHasOrderHistory } from '@/lib/hooks/use-order-history';
 import NavbarCartButton from '@/components/layouts/navbar-cart-button';
 import NavbarOrdersButton from '@/components/layouts/navbar-orders-button';
@@ -46,10 +45,8 @@ function Navbar() {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const isHome = pathname === '/';
-  const { data: session } = authClient.useSession();
-  const userRole = (session?.user as { role?: string } | undefined)?.role;
-  const hasDashboardAccess =
-    !!userRole && (DASHBOARD_ROLES as string[]).includes(userRole);
+  // Résolu APRÈS l'hydratation et hors du chunk initial — cf. `useStaffAccess`.
+  const hasDashboardAccess = useStaffAccess();
   const hasOrders = useHasOrderHistory();
 
   // Seul le défilement de l'accueil est un état ; hors accueil la navbar est

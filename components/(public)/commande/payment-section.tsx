@@ -21,7 +21,7 @@
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { MediaImage as Image } from '@/components/ui/media-image';
 import { Button, Chip } from '@heroui/react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import {
   Camera,
   Check,
@@ -219,7 +219,7 @@ export function PaymentSection({
 
       <AnimatePresence mode="wait" initial={false}>
         {uiState === 'validated' ? (
-          <motion.div
+          <m.div
             key="validated"
             initial={reduceMotion ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -230,9 +230,9 @@ export function PaymentSection({
             <p className="text-sm font-medium text-success-700 dark:text-success">
               Paiement validé 🎉 — ta commande part en préparation.
             </p>
-          </motion.div>
+          </m.div>
         ) : uiState === 'nothing_due' ? (
-          <motion.div
+          <m.div
             key="nothing-due"
             initial={reduceMotion ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -243,9 +243,9 @@ export function PaymentSection({
             <p className="text-sm font-medium text-success-700 dark:text-success">
               Rien à payer 🎉 — ta récompense fidélité couvre toute la commande.
             </p>
-          </motion.div>
+          </m.div>
         ) : uiState === 'rejected' ? (
-          <motion.div
+          <m.div
             key="rejected"
             initial={reduceMotion ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -304,9 +304,9 @@ export function PaymentSection({
               </Button>
             )}
             {error && <p className="text-xs text-danger">{error}</p>}
-          </motion.div>
+          </m.div>
         ) : uiState === 'proof_pending' ? (
-          <motion.div
+          <m.div
             key="proof-pending"
             initial={reduceMotion ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -328,7 +328,7 @@ export function PaymentSection({
                   Preuve reçue ✓ — la caisse vérifie ton paiement.
                 </p>
                 <p className="mt-0.5 flex items-center gap-1.5 text-xs text-foreground/60">
-                  <motion.span
+                  <m.span
                     aria-hidden
                     animate={reduceMotion ? {} : { opacity: [1, 0.3, 1] }}
                     transition={{ duration: 1.6, repeat: Infinity }}
@@ -347,9 +347,9 @@ export function PaymentSection({
               </Button>
             </div>
             {error && <p className="text-xs text-danger">{error}</p>}
-          </motion.div>
+          </m.div>
         ) : (
-          <motion.div
+          <m.div
             key="awaiting"
             initial={reduceMotion ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -467,7 +467,7 @@ export function PaymentSection({
             </p>
 
             {error && <p className="text-xs text-danger">{error}</p>}
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>

@@ -204,6 +204,8 @@ import {
   orderTypeSchema,
   orderStatusSchema,
   paymentModeSchema,
+  isBackdateCompatibleWithPickup,
+  BACKDATE_PICKUP_CONFLICT_MESSAGE,
 } from '@/lib/schemas/order';
 import { adjustStamps } from '@/lib/loyalty-mutations';
 import {
@@ -1527,6 +1529,18 @@ export const tools: McpTool[] = [
       customerName: z.string().trim().max(50).nullable().optional(),
       customerPhone: z.string().trim().max(30).nullable().optional(),
       note: z.string().trim().max(500).nullable().optional(),
+      pickupTime: z
+        .string()
+        .datetime()
+        .nullable()
+        .optional()
+        .describe(
+          'Créneau de retrait, ISO 8601. Absent = « dès que possible ». Un ' +
+            'retrait un JOUR ULTÉRIEUR crée une commande DIFFÉRÉE : elle ne ' +
+            'décompte PAS le stock du jour et n’entre en cuisine que sur le ' +
+            'geste « Lancer la préparation », le jour venu. Incompatible avec ' +
+            '`orderDate` (antidatage) sauf pour le même jour civil.'
+        ),
     }),
     readOnly: false,
     handler: async (args) => {
@@ -1537,7 +1551,11 @@ export const tools: McpTool[] = [
         customerName?: string | null;
         customerPhone?: string | null;
         note?: string | null;
+        pickupTime?: string | null;
       };
+      if (!isBackdateCompatibleWithPickup(a)) {
+        throw new Error(BACKDATE_PICKUP_CONFLICT_MESSAGE);
+      }
       const items = await buildOrderItemsFromMenu(a.items);
       const order = await createCashierOrder({
         items,
@@ -1546,6 +1564,7 @@ export const tools: McpTool[] = [
         customerName: a.customerName ?? null,
         customerPhone: a.customerPhone ?? null,
         note: a.note ?? null,
+        pickupTime: a.pickupTime ?? null,
         source: 'MCP',
       });
       return {
@@ -1913,8 +1932,9 @@ export const tools: McpTool[] = [
     description:
       'Renvoie les coordonnées publiques du commerce : adresse, quartier, ' +
       'repère, horaires, téléphone, WhatsApp Business, email, liens Maps ' +
-      '(itinéraire + carte embarquée), réseaux sociaux (Instagram, TikTok) ' +
-      'et hashtag.',
+      '(itinéraire + carte embarquée), réseaux sociaux (Instagram et TikTok ' +
+      'obligatoires ; Facebook, X, LinkedIn et YouTube facultatifs — une ' +
+      'chaîne vide signifie « pas de compte ») et hashtag.',
     inputSchema: z.object({}),
     readOnly: true,
     handler: () => getContactSettings(),
@@ -1927,7 +1947,9 @@ export const tools: McpTool[] = [
       'Met à jour les coordonnées publiques du commerce (adresse, téléphone, ' +
       'WhatsApp Business, email, liens Maps, réseaux sociaux). Le numéro ' +
       'WhatsApp doit être un numéro ivoirien valide — le lien wa.me est ' +
-      'dérivé automatiquement, ne pas le stocker séparément.',
+      'dérivé automatiquement, ne pas le stocker séparément. Les liens ' +
+      'Facebook / X / LinkedIn / YouTube sont facultatifs : envoyer une chaîne ' +
+      'vide retire le réseau du pied de page et du balisage `sameAs`.',
     inputSchema: contactSettingsSchema,
     readOnly: false,
     handler: async (args) => {
@@ -2179,11 +2201,12 @@ export const tools: McpTool[] = [
       'Définit la quantité vendable ACTUELLE d’un produit (« définir le matin »). ' +
       '`quantity` = nombre entier ≥ 0 (quantité restante suivie, `0` = épuisé), ' +
       'ou `null`/absent pour repasser le produit en stock illimité (comportement ' +
-      'par défaut, aucun suivi). Le stock est DÉCRÉMENTÉ AU PAIEMENT (validé par ' +
-      'le staff), jamais à la simple création d’une commande — une commande non ' +
-      'payée ne réserve rien. `id` provient de `get_menu`. Pour ajouter une ' +
-      'nouvelle fournée sans écraser la valeur courante, utilise plutôt ' +
-      '`restock_product`.',
+      'par défaut, aucun suivi). Le stock est DÉCRÉMENTÉ À L’ENTRÉE EN CUISINE ' +
+      '(passage `NEW → PREPARING` : encaissement, envoi manuel ou ardoise), ' +
+      'jamais à la simple création d’une commande — une commande non payée et ' +
+      'jamais envoyée en cuisine ne réserve rien. `id` provient de `get_menu`. ' +
+      'Pour ajouter une nouvelle fournée sans écraser la valeur courante, ' +
+      'utilise plutôt `restock_product`.',
     inputSchema: z.object({
       id: idSchema,
       quantity: z
@@ -2207,10 +2230,10 @@ export const tools: McpTool[] = [
     description:
       'Définit la quantité vendable ACTUELLE d’une option de supplément (un ' +
       '« goût »). Mêmes règles que `set_product_stock` : `quantity` entier ≥ 0, ' +
-      'ou `null`/absent pour repasser l’option en stock illimité. Décrémenté au ' +
-      'PAIEMENT (pas à la création). `id` (id d’option, pas de produit) provient ' +
-      'de `get_menu` — attention, les noms d’option peuvent être dupliqués entre ' +
-      'produits, cible toujours par `id`.',
+      'ou `null`/absent pour repasser l’option en stock illimité. Décrémenté à ' +
+      'L’ENTRÉE EN CUISINE (pas à la création). `id` (id d’option, pas de ' +
+      'produit) provient de `get_menu` — attention, les noms d’option peuvent ' +
+      'être dupliqués entre produits, cible toujours par `id`.',
     inputSchema: z.object({
       id: idSchema,
       quantity: z
@@ -2274,18 +2297,29 @@ export const tools: McpTool[] = [
   {
     name: 'get_pending_demand',
     toolset: 'menu',
-    title: 'Quantité déjà demandée (commandes non payées)',
+    title: 'Quantité restant à produire',
     description:
-      'Renvoie, par produit et par option, la quantité déjà demandée par des ' +
-      'commandes NON payées (statut différent de CANCELLED) — visibilité PURE ' +
-      'LECTURE, n’affecte jamais le stock réel (toujours décrémenté au ' +
-      'PAIEMENT, comportement inchangé). Utile pour anticiper une survente ' +
-      'potentielle avant même l’encaissement (ex. plusieurs commandes en ' +
-      'attente sur le dernier goût disponible).',
-    inputSchema: z.object({}),
+      'Renvoie, par produit et par option, la quantité déjà engagée par des ' +
+      'commandes PAS ENCORE PARTIES EN CUISINE (stock non réservé, statut ' +
+      'différent de CANCELLED) — visibilité PURE LECTURE, n’affecte jamais le ' +
+      'stock réel (décrémenté à l’ENTRÉE EN CUISINE). Utile pour anticiper une ' +
+      'survente (plusieurs commandes en attente sur le dernier goût) et pour ' +
+      'savoir ce qu’il reste à produire. `day` (YYYY-MM-DD, jour civil ' +
+      'Abidjan) restreint au jour de RETRAIT (ou de création si la commande ' +
+      'n’a pas de créneau) : c’est ainsi qu’on lit « que dois-je produire ' +
+      'demain ? ». Omis = toutes dates confondues.',
+    inputSchema: z.object({
+      day: dateOnly
+        .nullable()
+        .optional()
+        .describe('Jour civil Abidjan (YYYY-MM-DD). Omis = toutes dates.'),
+    }),
     readOnly: true,
-    handler: async () => {
-      const { products, options } = await getPendingDemand();
+    handler: async (args) => {
+      const { day } = args as { day?: string | null };
+      const { products, options } = await getPendingDemand(
+        day ? { day } : undefined
+      );
       return {
         products: [...products.entries()].map(([productId, quantity]) => ({
           productId,

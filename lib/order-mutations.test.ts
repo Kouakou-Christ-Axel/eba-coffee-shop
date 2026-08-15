@@ -28,11 +28,14 @@ vi.mock('@/lib/prisma', () => {
     },
     product: {
       updateMany: vi.fn(),
+      update: vi.fn(),
       findMany: vi.fn().mockResolvedValue([]),
     },
     supplementOption: {
       findFirst: vi.fn(),
       updateMany: vi.fn(),
+      update: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
     },
     // Les transactions reçoivent le même client mocké : les assertions sur les
     // mocks de premier niveau couvrent donc aussi les opérations transactionnelles.
@@ -76,6 +79,7 @@ import {
   updateOrderFulfillment,
   setOrderCustomer,
   setOrderLoyaltyReward,
+  updateOrderItems,
   OrderMutationError,
   StockShortageError,
 } from './order-mutations';
@@ -112,6 +116,18 @@ const mockOptionFindFirst = prisma.supplementOption.findFirst as MockedFunction<
 >;
 const mockOptionUpdateMany = prisma.supplementOption
   .updateMany as MockedFunction<typeof prisma.supplementOption.updateMany>;
+const mockProdUpdate = prisma.product.update as MockedFunction<
+  typeof prisma.product.update
+>;
+const mockProdFindMany = prisma.product.findMany as MockedFunction<
+  typeof prisma.product.findMany
+>;
+const mockOptionUpdate = prisma.supplementOption.update as MockedFunction<
+  typeof prisma.supplementOption.update
+>;
+const mockOptionFindMany = prisma.supplementOption.findMany as MockedFunction<
+  typeof prisma.supplementOption.findMany
+>;
 const mockNotifyOrderCustomer = notifyOrderCustomer as MockedFunction<
   typeof notifyOrderCustomer
 >;
@@ -1006,5 +1022,522 @@ describe('setOrderLoyaltyReward', () => {
       setOrderLoyaltyReward('order1', { loyaltyRewardId: null })
     ).rejects.toThrow(OrderMutationError);
     expect(mockConsumeLoyaltyReward).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Commandes différées : le stock d'aujourd'hui n'est jamais touché ─────────
+
+/** Demain, exprimé en ISO — le prédicat raisonne en jours civils Abidjan. */
+function tomorrowIso(hour = 10): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 1);
+  d.setUTCHours(hour, 0, 0, 0);
+  return d.toISOString();
+}
+
+/** Plus tard aujourd'hui : lointain, mais PAS un autre jour civil. */
+function laterTodayIso(): string {
+  const d = new Date();
+  d.setUTCHours(23, 30, 0, 0);
+  return d.toISOString();
+}
+
+describe('commande différée — création en caisse', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOrderUpdateManyWithClaim(1);
+    mockUpsertCustomer.mockResolvedValue('cust-1');
+    mockCustomerFindUnique.mockResolvedValue({ isTrusted: true } as never);
+    mockOrderCreate.mockImplementation((async (args: {
+      data: Record<string, unknown>;
+    }) => ({
+      id: 'order-new',
+      dailyNumber: 5,
+      reference: 'EBA-20260804-B1C2',
+      total: 2500,
+      customerName: null,
+      status: args.data.status ?? 'NEW',
+      pickupTime: args.data.pickupTime ?? null,
+      items: args.data.items,
+    })) as never);
+  });
+
+  const items = [
+    {
+      cartId: 'c1',
+      productId: 'p1',
+      productName: 'Sponge cake',
+      basePrice: 2500,
+      coutMatiere: 0,
+      coutEmballage: 0,
+      quantity: 1,
+      supplements: [],
+      discount: 0,
+      discountReason: null,
+    },
+  ] as CartItem[];
+
+  it('client de confiance + retrait demain : reste NEW, aucun décrément de stock', async () => {
+    await createCashierOrder({
+      items,
+      orderType: 'TAKEAWAY',
+      customerPhone: '0700000000',
+      pickupTime: tomorrowIso(),
+    });
+
+    expect(mockOrderCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ status: 'PREPARING' }),
+      })
+    );
+    // Le stock d'aujourd'hui n'a pas bougé : la marchandise sera produite demain.
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+    // `isOnAccount` n'est pas posé non plus : rien n'est parti en cuisine.
+    expect(mockOrderCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ isOnAccount: true }),
+      })
+    );
+  });
+
+  it('non-régression — client de confiance + retrait TARDIF LE JOUR MÊME : part en cuisine et décompte', async () => {
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+
+    await createCashierOrder({
+      items,
+      orderType: 'TAKEAWAY',
+      customerPhone: '0700000000',
+      pickupTime: laterTodayIso(),
+    });
+
+    expect(mockOrderCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'PREPARING',
+          isOnAccount: true,
+        }),
+      })
+    );
+    expect(mockProdUpdateMany).toHaveBeenCalled();
+  });
+});
+
+describe('commande différée — encaissement purement financier', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOrderUpdateManyWithClaim(1);
+  });
+
+  it('encaisser une commande NEW pour demain : ni PREPARING, ni décrément', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      ...orderWithOneItem(),
+      pickupTime: new Date(tomorrowIso()),
+    } as never);
+    mockOrderPaymentCreateMany.mockResolvedValue({ count: 1 } as never);
+
+    const res = await setOrderPayment('order1', true, [
+      { mode: 'CASH', amount: 2500 },
+    ]);
+
+    expect(res.startedPreparation).toBe(false);
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+    expect(mockOptionUpdateMany).not.toHaveBeenCalled();
+    // Le paiement, lui, est bien écrit : c'est un encaissement, pas un refus.
+    expect(businessWrites()[0]?.[0]).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({ isPaid: true }),
+      })
+    );
+    expect(businessWrites()[0]?.[0]).toEqual(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ status: 'PREPARING' }),
+      })
+    );
+  });
+
+  it('non-régression — encaisser une commande NEW du jour la pousse toujours en cuisine', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      ...orderWithOneItem(),
+      pickupTime: null,
+    } as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-1' } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOrderPaymentCreateMany.mockResolvedValue({ count: 1 } as never);
+
+    const res = await setOrderPayment('order1', true, [
+      { mode: 'CASH', amount: 2500 },
+    ]);
+
+    expect(res.startedPreparation).toBe(true);
+    expect(mockProdUpdateMany).toHaveBeenCalled();
+  });
+});
+
+describe('payAndComplete — refus explicite sur une commande différée', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOrderUpdateManyWithClaim(1);
+  });
+
+  it('refuse « payer + récupérer » tant que rien n’a été produit', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      ...orderWithOneItem(),
+      pickupTime: new Date(tomorrowIso()),
+      stockReservedAt: null,
+    } as never);
+
+    await expect(
+      payAndComplete('order1', [{ mode: 'CASH', amount: 2500 }], 'ADMIN')
+    ).rejects.toThrow(/Retrait prévu/);
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('l’autorise si la commande a été PRÉPARÉE EN AVANCE (stock déjà réservé)', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      ...orderWithOneItem(),
+      pickupTime: new Date(tomorrowIso()),
+      stockReservedAt: new Date(),
+    } as never);
+    mockOrderUpdateManyWithClaim(0); // déjà réservé : le verrou ne se reprend pas
+    mockOrderPaymentCreateMany.mockResolvedValue({ count: 1 } as never);
+
+    await expect(
+      payAndComplete('order1', [{ mode: 'CASH', amount: 2500 }], 'ADMIN')
+    ).resolves.toEqual({ alreadyPaid: false });
+  });
+});
+
+// ─── Couverture de pénurie : le staff confirme avoir produit ──────────────────
+
+describe('coverShortage — crédite le manquant puis réserve (net nul)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOrderUpdateManyWithClaim(1);
+  });
+
+  it('crédite EXACTEMENT ce qui manque, produit et goût, avant de décompter', async () => {
+    mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
+    // Stock courant : 0 produit, 1 goût — il faut 1 produit et 3 goûts.
+    mockProdFindMany.mockResolvedValue([
+      { id: 'p1', stockQuantity: 0 },
+    ] as never);
+    mockOptionFindMany.mockResolvedValue([
+      { id: 'opt-1', stockQuantity: 1 },
+    ] as never);
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-1' } as never);
+    mockProdUpdate.mockResolvedValue({} as never);
+    mockOptionUpdate.mockResolvedValue({} as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+
+    await sendOrderToKitchen('order1', 'ADMIN', { coverShortage: true });
+
+    expect(mockProdUpdate).toHaveBeenCalledWith({
+      where: { id: 'p1' },
+      data: { stockQuantity: { increment: 1 } },
+    });
+    expect(mockOptionUpdate).toHaveBeenCalledWith({
+      where: { id: 'opt-1' },
+      data: { stockQuantity: { increment: 2 } },
+    });
+    // Puis le décrément normal : effet net nul sur le stock.
+    expect(mockProdUpdateMany).toHaveBeenCalled();
+  });
+
+  it('ne crédite rien sur une cible à stock illimité (jamais en pénurie)', async () => {
+    mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
+    mockProdFindMany.mockResolvedValue([
+      { id: 'p1', stockQuantity: null },
+    ] as never);
+    mockOptionFindMany.mockResolvedValue([
+      { id: 'opt-1', stockQuantity: null },
+    ] as never);
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-1' } as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+
+    await sendOrderToKitchen('order1', 'ADMIN', { coverShortage: true });
+
+    expect(mockProdUpdate).not.toHaveBeenCalled();
+    expect(mockOptionUpdate).not.toHaveBeenCalled();
+  });
+
+  it('sans confirmation, une pénurie reste un refus', async () => {
+    mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 0 } as never);
+
+    await expect(sendOrderToKitchen('order1', 'ADMIN')).rejects.toBeInstanceOf(
+      StockShortageError
+    );
+    expect(mockProdUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Édition d'articles : le stock suit le contenu réel de la commande ────────
+
+describe('updateOrderItems — resynchronisation du stock', () => {
+  const line = (quantity: number, optionQuantity = 3) => ({
+    cartId: 'c1',
+    productId: 'p1',
+    productName: 'Tartelettes x3',
+    basePrice: 2500,
+    coutMatiere: 0,
+    coutEmballage: 0,
+    quantity,
+    supplements: [
+      {
+        groupName: 'Choisissez vos goûts',
+        optionName: 'Cacahuète vanille',
+        price: 0,
+        quantity: optionQuantity,
+      },
+    ],
+    discount: 0,
+    discountReason: null,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-1' } as never);
+    mockOrderUpdate.mockResolvedValue({} as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockProdUpdate.mockResolvedValue({} as never);
+    mockOptionUpdate.mockResolvedValue({} as never);
+  });
+
+  it('ne touche à rien tant que la commande n’a pas réservé', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'NEW',
+      loyaltyDiscount: null,
+      stockReservedAt: null,
+      items: [line(1)],
+    } as never);
+
+    await updateOrderItems('order1', [line(3)] as CartItem[]);
+
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+    expect(mockProdUpdate).not.toHaveBeenCalled();
+  });
+
+  it('décompte le delta AJOUTÉ sur une commande déjà en cuisine', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'PREPARING',
+      loyaltyDiscount: null,
+      stockReservedAt: new Date(),
+      items: [line(1)],
+    } as never);
+
+    await updateOrderItems('order1', [line(3)] as CartItem[]);
+
+    // 3 − 1 = 2 unités de plus, et 9 − 3 = 6 goûts de plus.
+    expect(mockProdUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { stockQuantity: { decrement: 2 } },
+      })
+    );
+    expect(mockOptionUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { stockQuantity: { decrement: 6 } },
+      })
+    );
+  });
+
+  it('REND au stock ce qui est retiré — un article non consommé doit redevenir vendable', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'PREPARING',
+      loyaltyDiscount: null,
+      stockReservedAt: new Date(),
+      items: [line(3)],
+    } as never);
+
+    await updateOrderItems('order1', [line(1)] as CartItem[]);
+
+    expect(mockProdUpdate).toHaveBeenCalledWith({
+      where: { id: 'p1' },
+      data: { stockQuantity: { increment: 2 } },
+    });
+    expect(mockOptionUpdate).toHaveBeenCalledWith({
+      where: { id: 'opt-1' },
+      data: { stockQuantity: { increment: 6 } },
+    });
+  });
+
+  it('ne rend rien si le staff indique que l’article était déjà préparé', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'PREPARING',
+      loyaltyDiscount: null,
+      stockReservedAt: new Date(),
+      items: [line(3)],
+    } as never);
+
+    await updateOrderItems('order1', [line(1)] as CartItem[], {
+      restoreRemovedStock: false,
+    });
+
+    expect(mockProdUpdate).not.toHaveBeenCalled();
+    expect(mockOptionUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejouer la même modification ne crédite pas deux fois (delta calculé sur l’état persisté)', async () => {
+    // Deuxième appel : les articles persistés sont DÉJÀ ceux qu'on envoie.
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'PREPARING',
+      loyaltyDiscount: null,
+      stockReservedAt: new Date(),
+      items: [line(1)],
+    } as never);
+
+    await updateOrderItems('order1', [line(1)] as CartItem[]);
+
+    expect(mockProdUpdate).not.toHaveBeenCalled();
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+  });
+});
+
+// Couverture reprise de la correction parallèle de `master` (« Décrémente le
+// stock sur une hausse de quantité après l'entrée en cuisine »), qui traitait
+// le même bug par le seul côté HAUSSE. Ces cas restent valides et complètent
+// les précédents ; le seul qu'elle affirmait — « une baisse ne restitue rien »
+// — a été délibérément inversé : un article retiré d'une commande vivante n'a
+// pas été consommé, le laisser décompté fait mentir le stock (cf. le test
+// « REND au stock ce qui est retiré » plus haut).
+describe('updateOrderItems — delta de stock, cas complémentaires', () => {
+  const productItem = (overrides: Partial<CartItem> = {}): CartItem => ({
+    cartId: 'c1',
+    productId: 'p1',
+    productName: 'Cappuccino',
+    basePrice: 1500,
+    coutMatiere: 0,
+    coutEmballage: 0,
+    quantity: 1,
+    supplements: [],
+    discount: 0,
+    discountReason: null,
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOrderUpdate.mockResolvedValue({} as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-active' } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+  });
+
+  it('commande PAS encore réservée : aucun appel stock, juste items/total mis à jour', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'NEW',
+      loyaltyDiscount: 0,
+      items: [productItem({ quantity: 1 })],
+      stockReservedAt: null,
+    } as never);
+
+    const result = await updateOrderItems('order1', [
+      productItem({ quantity: 5 }),
+    ]);
+
+    expect(result).toEqual({ total: 7500 });
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+    expect(mockOrderUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ total: 7500 }),
+      })
+    );
+  });
+
+  it('un article tout juste ajouté décrémente sa quantité complète', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'PREPARING',
+      loyaltyDiscount: 0,
+      items: [productItem({ quantity: 1 })],
+      stockReservedAt: new Date('2026-08-13T10:00:00Z'),
+    } as never);
+
+    await updateOrderItems('order1', [
+      productItem({ quantity: 1 }),
+      productItem({
+        cartId: 'c2',
+        productId: 'p2',
+        productName: 'Croissant',
+        basePrice: 800,
+        quantity: 2,
+        addedLater: true,
+      }),
+    ]);
+
+    expect(mockProdUpdateMany).toHaveBeenCalledTimes(1);
+    expect(mockProdUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'p2' }),
+        data: { stockQuantity: { decrement: 2 } },
+      })
+    );
+  });
+
+  it('le delta d’un supplément est décrémenté', async () => {
+    const supplement = {
+      groupName: 'Lait',
+      optionName: 'Amande',
+      price: 200,
+      quantity: 1,
+    };
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'PREPARING',
+      loyaltyDiscount: 0,
+      items: [productItem({ quantity: 1, supplements: [supplement] })],
+      stockReservedAt: new Date('2026-08-13T10:00:00Z'),
+    } as never);
+
+    await updateOrderItems('order1', [
+      productItem({ quantity: 3, supplements: [supplement] }),
+    ]);
+
+    // Produit : 3 − 1 = 2. Supplément (besoin = quantité × qté de ligne) :
+    // 1×3 − 1×1 = 2.
+    expect(mockOptionUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'opt-active' }),
+        data: { stockQuantity: { decrement: 2 } },
+      })
+    );
+  });
+
+  it('pénurie sur le delta : lève StockShortageError et n’écrit rien', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'PREPARING',
+      loyaltyDiscount: 0,
+      items: [productItem({ quantity: 1 })],
+      stockReservedAt: new Date('2026-08-13T10:00:00Z'),
+    } as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 0 } as never);
+
+    await expect(
+      updateOrderItems('order1', [productItem({ quantity: 3 })])
+    ).rejects.toThrow(StockShortageError);
+    expect(mockOrderUpdate).not.toHaveBeenCalled();
+  });
+
+  it('refuse (409) sur une commande terminée', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'COMPLETED',
+      loyaltyDiscount: 0,
+      items: [productItem()],
+      stockReservedAt: new Date('2026-08-13T10:00:00Z'),
+    } as never);
+
+    await expect(
+      updateOrderItems('order1', [productItem({ quantity: 2 })])
+    ).rejects.toThrow(OrderMutationError);
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('lève (404) si la commande est introuvable', async () => {
+    mockOrderFindUnique.mockResolvedValue(null);
+
+    await expect(updateOrderItems('order1', [productItem()])).rejects.toThrow(
+      OrderMutationError
+    );
   });
 });

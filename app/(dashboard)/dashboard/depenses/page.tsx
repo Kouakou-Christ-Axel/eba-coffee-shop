@@ -1,4 +1,6 @@
 import { Suspense } from 'react';
+import Link from 'next/link';
+import { Plus } from 'lucide-react';
 import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
 import {
   parseDateOnlyToUTC,
@@ -13,6 +15,7 @@ import {
   TableSkeleton,
 } from '@/components/(dashboard)/skeletons';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { DepensesTabs } from './depenses-tabs';
 import { ExpenseSettingsButton } from './expense-settings-sheet';
 import { ReceiptBackfillAlertSection } from './_components/receipt-backfill-alert-section';
@@ -102,6 +105,14 @@ export default async function DepensesPage({
         <div className="flex flex-wrap items-center gap-2">
           <ExpenseSettingsButton settings={expenseSettings} />
           <DateRangeFilter from={fromStr} to={toStr} isAll={isAll} />
+          {/* Accessible quel que soit l'onglet actif, plus seulement depuis
+              la table de l'Historique. */}
+          <Button asChild size="sm">
+            <Link href="/dashboard/depenses/nouvelle">
+              <Plus className="mr-1.5 h-4 w-4" />
+              Nouvelle dépense
+            </Link>
+          </Button>
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import AboutVisionSection from '@/components/(public)/a-propos/about-vision-sect
 import AboutEngagementsSection from '@/components/(public)/a-propos/about-engagements-section';
 import AboutAtelierSection from '@/components/(public)/a-propos/about-atelier-section';
 import AboutCtaSection from '@/components/(public)/a-propos/about-cta-section';
+import { OG_IMAGE } from '@/config/constants';
 
 export const metadata: Metadata = {
   title: 'À propos — Notre histoire',
@@ -19,14 +20,7 @@ export const metadata: Metadata = {
     description:
       "Découvrez l'histoire d'EBA Coffee Shop à Abidjan : une pâtissière formée en France, des engagements qualité et une vision artisanale à Cocody.",
     url: '/a-propos',
-    images: [
-      {
-        url: '/assets/examples/accueil/eba-hero.webp',
-        width: 800,
-        height: 449,
-        alt: 'À propos — EBA Coffee Shop',
-      },
-    ],
+    images: [{ ...OG_IMAGE, alt: 'À propos — EBA Coffee Shop' }],
   },
 };
 

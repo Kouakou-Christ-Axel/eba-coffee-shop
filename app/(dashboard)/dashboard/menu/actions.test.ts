@@ -62,6 +62,9 @@ const mockGetSession = auth.api.getSession as MockedFunction<
   typeof auth.api.getSession
 >;
 const mockRevalidate = revalidatePath as MockedFunction<typeof revalidatePath>;
+const mockCreateCategory = mutations.createCategory as MockedFunction<
+  typeof mutations.createCategory
+>;
 
 const adminSession = {
   user: { role: 'ADMIN', id: 'u1', email: 'admin@eba.ci', name: null },
@@ -139,12 +142,33 @@ describe('Menu Server Actions — happy path + revalidate', () => {
   });
 
   it('createCategoryAction appelle mutation puis revalide /api/menu et /carte', async () => {
+    mockCreateCategory.mockResolvedValue({
+      id: 'cat9',
+      name: 'Pâtisseries',
+    } as never);
     await createCategoryAction({ name: 'Pâtisseries' });
     expect(mutations.createCategory).toHaveBeenCalledWith({
       name: 'Pâtisseries',
     });
     expect(mockRevalidate).toHaveBeenCalledWith('/api/menu');
     expect(mockRevalidate).toHaveBeenCalledWith('/carte');
+  });
+
+  // Le panneau « Nouveau produit » enchaîne sur la fiche produit de la
+  // catégorie qu'il vient de créer : sans cet id, il faudrait renvoyer la
+  // personne sur la liste pour qu'elle y retourne à la main.
+  it('createCategoryAction renvoie l’id et le nom de la catégorie créée', async () => {
+    mockCreateCategory.mockResolvedValue({
+      id: 'cat9',
+      name: 'Pâtisseries',
+      slug: 'patisseries',
+      sortOrder: 3,
+    } as never);
+    const result = await createCategoryAction({ name: 'Pâtisseries' });
+    expect(result).toEqual({
+      ok: true,
+      data: { id: 'cat9', name: 'Pâtisseries' },
+    });
   });
 
   it('toggleCategoryAvailabilityAction → mutation + revalidate', async () => {
@@ -309,9 +333,9 @@ describe('Menu Server Actions — happy path + revalidate', () => {
   });
 
   it('reorderProductsAction transmet la catégorie et la liste ordonnée', async () => {
-    await expect(
-      reorderProductsAction('cat1', ['p2', 'p1'])
-    ).resolves.toEqual({ ok: true });
+    await expect(reorderProductsAction('cat1', ['p2', 'p1'])).resolves.toEqual({
+      ok: true,
+    });
     expect(mutations.reorderProducts).toHaveBeenCalledWith('cat1', [
       'p2',
       'p1',

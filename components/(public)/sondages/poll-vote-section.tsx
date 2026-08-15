@@ -11,7 +11,7 @@ import {
   Radio,
   RadioGroup,
 } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { CheckCircle2 } from 'lucide-react';
 import {
   castVoteAction,
@@ -133,7 +133,7 @@ function PollVoteSection({
 
   return (
     <section className="content-container px-6 py-16 md:py-24">
-      <motion.div
+      <m.div
         initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
         animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
         transition={reduceMotion ? undefined : { duration: 0.5 }}
@@ -244,7 +244,7 @@ function PollVoteSection({
             <PastrySuggestionForm pollId={pollId} />
           </div>
         )}
-      </motion.div>
+      </m.div>
     </section>
   );
 }

@@ -24,7 +24,8 @@ import {
   type CartItemSupplement,
 } from '@/lib/cart-store';
 import type { OrderType } from '@/generated/prisma/client';
-import { productNeedsPicker } from '@/lib/catalog';
+import { isProductSoldOut, productNeedsPicker } from '@/lib/catalog';
+import { isDeferredPickup } from '@/lib/orders/scheduling';
 import { readApiError } from '@/lib/api-error';
 
 export type NewOrderStep = 'catalog' | 'review';
@@ -76,6 +77,13 @@ export function useNewOrder() {
   const [pickupTime, setPickupTime] = useState<string | null>(null);
   // Antidatage : YYYY-MM-DD pour une commande ancienne. null = jour en cours.
   const [orderDate, setOrderDate] = useState<string | null>(null);
+  // Produit épuisé tapé alors qu'on est sur « Maintenant » : déclenche la
+  // feuille « pour quel jour ? » (null = fermée).
+  const [soldOutPrompt, setSoldOutPrompt] = useState<Product | null>(null);
+
+  // Le retrait tombe-t-il un JOUR CIVIL ULTÉRIEUR ? Pilote tout le relâchement
+  // du blocage stock dans le catalogue et le sélecteur de goûts.
+  const isDeferredDay = isDeferredPickup(pickupTime);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, startSubmit] = useTransition();
@@ -185,8 +193,33 @@ export function useNewOrder() {
    * Tap sur une tuile du catalogue. Ajoute directement au panier sauf si le
    * produit impose un choix (`productNeedsPicker` — voir lib/catalog.ts pour
    * pourquoi ce n'est PAS « le produit a des suppléments »).
+   *
+   * FILET DE RATTRAPAGE : sur « Maintenant », taper un produit épuisé ouvre la
+   * question « pour quel jour ? » au lieu de ne rien faire. Le geste est
+   * mémorisé et rejoué après le choix — le tap n'est jamais perdu, c'est tout
+   * l'intérêt : le caissier n'a pas à recommencer sa saisie.
    */
   function handleProductTap(product: Product) {
+    if (!isDeferredDay && isProductSoldOut(product)) {
+      setSoldOutPrompt(product);
+      return;
+    }
+    if (!productNeedsPicker(product)) {
+      addToCart(product, []);
+      return;
+    }
+    openPicker(product);
+  }
+
+  /**
+   * Le caissier a choisi un jour depuis la feuille de rattrapage : on bascule
+   * TOUTE la commande sur ce jour, puis on rejoue le tap en attente.
+   */
+  function resolveSoldOutPrompt(iso: string) {
+    const product = soldOutPrompt;
+    setSoldOutPrompt(null);
+    setPickupTime(iso);
+    if (!product) return;
     if (!productNeedsPicker(product)) {
       addToCart(product, []);
       return;
@@ -331,6 +364,8 @@ export function useNewOrder() {
     note,
     pickupTime,
     orderDate,
+    isDeferredDay,
+    soldOutPrompt,
     submitError,
     isSubmitting,
     // setters d'étape
@@ -352,6 +387,10 @@ export function useNewOrder() {
     handleDiscountChange,
     // modale suppléments
     closePicker,
+    // feuille de rattrapage « épuisé aujourd'hui »
+    resolveSoldOutPrompt,
+    dismissSoldOutPrompt: () => setSoldOutPrompt(null),
+    promptSoldOutDay: (product: Product) => setSoldOutPrompt(product),
     // navigation
     goBackOrCancel,
     // soumission

@@ -8,20 +8,31 @@
 // enregistrement auprès de `bottom-banner-store` pour que le bouton panier
 // flottant de /carte se décale au lieu d'être recouvert.
 //
-// N'est montée que si NEXT_PUBLIC_GTM_ID est configuré (cf. app/(public)/layout.tsx) :
-// sans conteneur, rien n'est chargé et il n'y a rien à faire consentir.
+// N'est montée que si un traceur est configuré — GTM ou pixel Meta (cf.
+// app/(public)/layout.tsx) : sans traceur, rien n'est chargé et il n'y a rien à
+// faire consentir.
 
 import React from 'react';
 import NextLink from 'next/link';
 import { Button } from '@heroui/react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import { IconCookie } from '@tabler/icons-react';
 import { useBottomBannerStore } from '@/lib/bottom-banner-store';
 import { useConsentStore } from '@/lib/consent-store';
 import { readConsentStatus, writeConsent } from '@/lib/consent-storage';
 import { updateConsent } from '@/lib/analytics';
 
-export function CookieConsent() {
+/**
+ * `hasAdvertising` : le pixel Meta est configuré, donc « accepter » couvre AUSSI
+ * le reciblage publicitaire. Le libellé doit le dire — annoncer de simples
+ * « statistiques anonymes » alors qu'un pixel publicitaire se charge derrière
+ * rendrait le consentement caduc.
+ */
+export function CookieConsent({
+  hasAdvertising = false,
+}: {
+  hasAdvertising?: boolean;
+}) {
   const reduceMotion = useReducedMotion();
   const status = useConsentStore((s) => s.status);
   const setStatus = useConsentStore((s) => s.setStatus);
@@ -65,7 +76,7 @@ export function CookieConsent() {
   return (
     <AnimatePresence>
       {isVisible && (
-        <motion.div
+        <m.div
           initial={initial}
           animate={animate}
           exit={exit}
@@ -84,8 +95,10 @@ export function CookieConsent() {
                 On peut mesurer votre visite&nbsp;?
               </p>
               <p className="mt-0.5 text-xs text-default-500">
-                Ces statistiques anonymes nous aident à améliorer la carte et le
-                site. Rien n&apos;est déposé sans votre accord.{' '}
+                {hasAdvertising
+                  ? 'Ces statistiques anonymes nous aident à améliorer la carte et le site, et à mesurer nos publicités Facebook et Instagram.'
+                  : 'Ces statistiques anonymes nous aident à améliorer la carte et le site.'}{' '}
+                Rien n&apos;est déposé sans votre accord.{' '}
                 <NextLink
                   href="/cookies"
                   className="underline underline-offset-2 transition-colors hover:text-primary"
@@ -113,7 +126,7 @@ export function CookieConsent() {
               </Button>
             </div>
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

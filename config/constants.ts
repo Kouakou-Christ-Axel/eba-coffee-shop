@@ -217,6 +217,25 @@ export const SCHEDULED_LEAD_IN_MINUTES = 60;
 export const SCHEDULED_ALERT_MINUTES = 15;
 
 /**
+ * Commandes différées (retrait un JOUR CIVIL ULTÉRIEUR — cf. `isDeferredPickup`,
+ * lib/orders/scheduling.ts).
+ *
+ * - `PRODUCTION_PLAN_DAYS` : horizon du panneau « À produire » (écran cuisine).
+ *   BORNE DE REQUÊTE uniquement — le panneau n'affiche que les jours réellement
+ *   chargés, jamais une semaine d'onglets vides. Aligné sur
+ *   `PICKUP_MIN_VISIBLE_DAYS` : on ne peut pas commander plus loin que ce que
+ *   le sélecteur de créneau propose.
+ * - `DEFERRED_PICKUP_DEFAULT_TIME` : heure de retrait proposée par défaut pour
+ *   un jour ultérieur. Une seule valeur pour les deux surfaces — pré-sélection
+ *   automatique au checkout client, et heure de la puce « Demain » en caisse.
+ * - `LAUNCH_ALERT_MINUTES` : en deçà de ce délai avant le retrait, une commande
+ *   programmée pas encore lancée en cuisine est signalée « à lancer ».
+ */
+export const PRODUCTION_PLAN_DAYS = 7;
+export const DEFERRED_PICKUP_DEFAULT_TIME = '11:00';
+export const LAUNCH_ALERT_MINUTES = 30;
+
+/**
  * Pré-analyse IA des preuves de paiement (Wave/Orange Money), via OpenRouter
  * (lib/ai/payment-proof.ts). Stratégie à deux étages : le modèle primaire
  * (rapide/économique) traite tous les appels ; le modèle de repli (plus
@@ -465,3 +484,21 @@ export const ADVANCE_ORDER_DAYS_MAX = 30;
  * Source : lib/pickup-settings.ts (DEFAULT_SETTINGS.visibleDays).
  */
 export const PICKUP_MIN_VISIBLE_DAYS = 7;
+
+/**
+ * Vignette de partage unique du site : Open Graph, Twitter Card et champ
+ * `image` du JSON-LD pointent tous ici. Générée par `pnpm assets:build`
+ * (cf. `OG_IMAGE` dans `scripts/optimize-assets.mjs`) — 1200×630, le seuil
+ * en dessous duquel Facebook et LinkedIn rétrogradent la grande carte en
+ * vignette carrée, et en JPEG pour que l'aperçu WhatsApp fonctionne.
+ *
+ * Centralisée parce que 8 fichiers la référencent (les métadonnées des 7
+ * pages publiques indexables + `lib/json-ld.ts`) : la dupliquer, c'est
+ * garantir qu'une future photo n'en mettra à jour que la moitié.
+ */
+export const OG_IMAGE = {
+  url: '/assets/og/eba-og.jpg',
+  width: 1200,
+  height: 630,
+  alt: 'EBA Coffee Shop à Abidjan',
+} as const;

@@ -17,12 +17,23 @@ import { LOW_STOCK_THRESHOLD } from '@/config/constants';
 
 type Props = {
   menu: MenuCategory[];
+  /**
+   * La commande en cours est pour un JOUR CIVIL ULTÉRIEUR : le stock
+   * d'aujourd'hui ne s'y applique pas. Les produits épuisés restent
+   * signalés (« Épuisé aujourd'hui ») mais redeviennent commandables.
+   */
+  forFutureDay?: boolean;
   onProductTap: (product: Product) => void;
   /** Ouvre le sélecteur de suppléments à la demande (bouton « Options »). */
   onOpenOptions?: (product: Product) => void;
 };
 
-export function ProductCatalog({ menu, onProductTap, onOpenOptions }: Props) {
+export function ProductCatalog({
+  menu,
+  forFutureDay = false,
+  onProductTap,
+  onOpenOptions,
+}: Props) {
   const [activeCategoryId, setActiveCategoryId] = useState<string>(
     menu[0]?.id ?? ''
   );
@@ -83,6 +94,7 @@ export function ProductCatalog({ menu, onProductTap, onOpenOptions }: Props) {
           <ProductGrid
             products={hits.map((h) => h.product)}
             subtitles={hits.map((h) => h.categoryName)}
+            forFutureDay={forFutureDay}
             onProductTap={onProductTap}
             onOpenOptions={onOpenOptions}
           />
@@ -112,6 +124,7 @@ export function ProductCatalog({ menu, onProductTap, onOpenOptions }: Props) {
 
           <ProductGrid
             products={activeCategory.products}
+            forFutureDay={forFutureDay}
             onProductTap={onProductTap}
             onOpenOptions={onOpenOptions}
           />
@@ -124,12 +137,14 @@ export function ProductCatalog({ menu, onProductTap, onOpenOptions }: Props) {
 function ProductGrid({
   products,
   subtitles,
+  forFutureDay = false,
   onProductTap,
   onOpenOptions,
 }: {
   products: Product[];
   /** Catégorie d'origine, affichée seulement en mode recherche. */
   subtitles?: string[];
+  forFutureDay?: boolean;
   onProductTap: (product: Product) => void;
   onOpenOptions?: (product: Product) => void;
 }) {
@@ -140,6 +155,7 @@ function ProductGrid({
           key={product.id}
           product={product}
           subtitle={subtitles?.[index]}
+          forFutureDay={forFutureDay}
           onProductTap={onProductTap}
           onOpenOptions={onOpenOptions}
         />
@@ -151,15 +167,21 @@ function ProductGrid({
 function ProductTile({
   product,
   subtitle,
+  forFutureDay = false,
   onProductTap,
   onOpenOptions,
 }: {
   product: Product;
   subtitle?: string;
+  forFutureDay?: boolean;
   onProductTap: (product: Product) => void;
   onOpenOptions?: (product: Product) => void;
 }) {
   const soldOut = isProductSoldOut(product);
+  // Le stock d'AUJOURD'HUI ne bloque pas une commande pour un autre jour : la
+  // marchandise sera produite d'ici là. On garde l'information à l'écran (elle
+  // reste utile au caissier), mais elle n'interdit plus le geste.
+  const blocked = soldOut && !forFutureDay;
   const remaining = product.remaining ?? product.stockQuantity;
   const lowStock =
     !soldOut &&
@@ -170,7 +192,7 @@ function ProductTile({
   // Le bouton « Options » n'a de sens que pour les produits dont le tap ajoute
   // directement : ceux qui imposent un choix ouvrent déjà le sélecteur.
   const showOptionsButton =
-    !soldOut &&
+    !blocked &&
     onOpenOptions !== undefined &&
     productHasOptions(product) &&
     !productNeedsPicker(product);
@@ -180,14 +202,17 @@ function ProductTile({
       <button
         type="button"
         onClick={() => onProductTap(product)}
-        disabled={soldOut}
         aria-label={
-          soldOut ? `${product.name} — épuisé` : `Ajouter ${product.name}`
+          soldOut
+            ? forFutureDay
+              ? `Ajouter ${product.name} — épuisé aujourd'hui, produit pour la date choisie`
+              : `${product.name} — épuisé aujourd'hui, choisir un autre jour`
+            : `Ajouter ${product.name}`
         }
         className={cn(
           'group flex w-full flex-col gap-2 rounded-xl border bg-card p-2 text-left transition-all',
-          soldOut
-            ? 'cursor-not-allowed opacity-50'
+          blocked
+            ? 'opacity-60'
             : 'hover:border-primary/40 hover:shadow-md active:scale-[0.98]'
         )}
       >
@@ -198,12 +223,19 @@ function ProductTile({
               alt={product.name}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
-              className={cn('object-cover', soldOut && 'grayscale')}
+              className={cn('object-cover', blocked && 'grayscale')}
             />
           )}
           {soldOut && (
-            <span className="absolute inset-x-1 top-1 rounded-md bg-foreground/80 px-1.5 py-0.5 text-center text-[11px] font-semibold uppercase tracking-wide text-background">
-              Épuisé
+            <span
+              className={cn(
+                'absolute inset-x-1 top-1 rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold uppercase tracking-wide',
+                forFutureDay
+                  ? 'bg-amber-500/90 text-white'
+                  : 'bg-foreground/80 text-background'
+              )}
+            >
+              {forFutureDay ? 'Épuisé aujourd’hui' : 'Épuisé'}
             </span>
           )}
           {lowStock && (

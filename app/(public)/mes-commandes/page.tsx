@@ -29,7 +29,7 @@ export default function MesCommandesPage() {
       <div className="mt-8 text-center">
         <Link
           href="/carte"
-          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          className="inline-block py-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
           ← Retour à la carte
         </Link>

@@ -26,3 +26,41 @@ describe('toolset — partition complète des outils', () => {
     expect(seen.size).toBe(tools.length);
   });
 });
+
+// ─── Commandes différées : surface MCP ───────────────────────────────────────
+
+describe('create_order — créneau de retrait', () => {
+  const createOrder = tools.find((t) => t.name === 'create_order')!;
+
+  it('accepte un pickupTime ISO (une commande différée est créable par MCP)', () => {
+    const parsed = createOrder.inputSchema.safeParse({
+      items: [{ productId: 'p1', quantity: 1 }],
+      pickupTime: '2026-06-15T11:00:00.000Z',
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('reste optionnel — le walk-in MCP ne change pas', () => {
+    const parsed = createOrder.inputSchema.safeParse({
+      items: [{ productId: 'p1', quantity: 1 }],
+    });
+    expect(parsed.success).toBe(true);
+  });
+});
+
+describe('get_pending_demand — restriction à un jour', () => {
+  const tool = tools.find((t) => t.name === 'get_pending_demand')!;
+
+  it('accepte un jour civil, et reste utilisable sans argument', () => {
+    expect(tool.inputSchema.safeParse({ day: '2026-06-15' }).success).toBe(
+      true
+    );
+    expect(tool.inputSchema.safeParse({}).success).toBe(true);
+  });
+
+  it('refuse un format de date non civil', () => {
+    expect(
+      tool.inputSchema.safeParse({ day: '2026-06-15T11:00:00Z' }).success
+    ).toBe(false);
+  });
+});

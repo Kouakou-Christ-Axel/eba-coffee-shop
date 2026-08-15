@@ -146,6 +146,34 @@ export function ContactSettingsForm({ initial }: { initial: ContactSettings }) {
             onChange={(v) => set('tiktokUrl', v)}
           />
           <Field
+            id="facebookUrl"
+            label="Facebook (lien de la page) — facultatif"
+            type="url"
+            value={s.facebookUrl}
+            onChange={(v) => set('facebookUrl', v)}
+          />
+          <Field
+            id="xUrl"
+            label="X / Twitter (lien) — facultatif"
+            type="url"
+            value={s.xUrl}
+            onChange={(v) => set('xUrl', v)}
+          />
+          <Field
+            id="linkedinUrl"
+            label="LinkedIn (lien) — facultatif"
+            type="url"
+            value={s.linkedinUrl}
+            onChange={(v) => set('linkedinUrl', v)}
+          />
+          <Field
+            id="youtubeUrl"
+            label="YouTube (lien de la chaîne) — facultatif"
+            type="url"
+            value={s.youtubeUrl}
+            onChange={(v) => set('youtubeUrl', v)}
+          />
+          <Field
             id="hashtagLabel"
             label="Hashtag"
             value={s.hashtagLabel}

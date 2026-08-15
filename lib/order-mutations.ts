@@ -23,6 +23,16 @@
 // et parce qu'une commande peut partir en cuisine sans paiement (« ardoise »).
 // Point d'entrée unique : `sendOrderToKitchen`. Le verrou d'idempotence est la
 // colonne `Order.stockReservedAt` (cf. `reserveStockOnce`).
+//
+// COMMANDE DIFFÉRÉE (retrait un JOUR CIVIL ULTÉRIEUR, cf. `isDeferredPickup`,
+// lib/orders/scheduling.ts) : elle ne consomme JAMAIS le stock d'aujourd'hui.
+// La marchandise sera produite le jour du retrait, il serait donc faux de
+// décompter aujourd'hui — c'est exactement ce qui empêchait de vendre pour
+// demain un produit épuisé ce soir. Concrètement, deux chemins qui poussent
+// normalement une commande en cuisine s'en abstiennent quand elle est différée :
+// la création « ardoise » (`createCashierOrder`) et l'encaissement d'une
+// commande encore NEW (`setOrderPayment`, qui redevient purement financier).
+// Seul le geste humain `sendOrderToKitchen` réserve, le jour venu.
 
 import { Prisma } from '@/generated/prisma/client';
 import type {
@@ -53,6 +63,10 @@ import { canTransition, canTogglePayment } from '@/lib/order-permissions';
 import { normalizeIvorianPhone } from '@/lib/phone';
 import { computeItemsTotal, getMaxItemDiscount } from '@/lib/orders/totals';
 import { fetchStockSnapshot, optionKey } from '@/lib/orders/availability';
+import { formatPickup, isDeferredPickup } from '@/lib/orders/scheduling';
+// Type PARTAGÉ avec les écrans (fichier pur, sans Prisma) : la liste des
+// manques voyage jusqu'à la caisse et la cuisine pour y être affichée.
+import type { ShortageLine } from '@/lib/orders/shortage';
 import { parseDateOnlyToUTC } from '@/lib/timezone';
 import { getMenuAdmin } from '@/lib/menu';
 import { cartItemSchema, updateOrderDetailsSchema } from '@/lib/schemas/order';
@@ -169,6 +183,36 @@ export class StockShortageError extends OrderMutationError {
 // *disponible* (déterministe, la plus ancienne) avant de décrémenter cet id
 // précis — la garde atomique et la sérialisation de concurrence restent
 // intactes, seule l'ambiguïté du nom est levée en amont.
+
+/**
+ * Id de l'option DISPONIBLE correspondant à (produit, nom de groupe, nom
+ * d'option) — la plus ancienne en cas d'homonymie. Extrait ici parce que trois
+ * appelants en dépendent et doivent impérativement viser la MÊME ligne :
+ * le décrément, le calcul de pénurie et la couverture de pénurie.
+ */
+async function resolveOptionId(
+  tx: Prisma.TransactionClient,
+  productId: string,
+  groupName: string,
+  optionName: string
+): Promise<string | null> {
+  const option = await tx.supplementOption.findFirst({
+    where: {
+      name: optionName,
+      available: true,
+      // Le groupe peut être propre au produit OU global (« Extras »,
+      // `isGlobal: true`, sans `productId`) — voir prisma/schema.prisma.
+      group: {
+        name: groupName,
+        OR: [{ productId }, { isGlobal: true }],
+      },
+    },
+    orderBy: { id: 'asc' },
+    select: { id: true },
+  });
+  return option?.id ?? null;
+}
+
 async function decrementStockForOrderItems(
   tx: Prisma.TransactionClient,
   items: CartItem[]
@@ -192,28 +236,20 @@ async function decrementStockForOrderItems(
 
     for (const supplement of item.supplements) {
       const needed = (supplement.quantity ?? 1) * item.quantity;
-      const option = await tx.supplementOption.findFirst({
-        where: {
-          name: supplement.optionName,
-          available: true,
-          // Le groupe peut être propre au produit OU global (« Extras »,
-          // `isGlobal: true`, sans `productId`) — voir prisma/schema.prisma.
-          group: {
-            name: supplement.groupName,
-            OR: [{ productId: item.productId }, { isGlobal: true }],
-          },
-        },
-        orderBy: { id: 'asc' },
-        select: { id: true },
-      });
-      if (!option) {
+      const optionId = await resolveOptionId(
+        tx,
+        item.productId,
+        supplement.groupName,
+        supplement.optionName
+      );
+      if (!optionId) {
         throw new StockShortageError(
           `Option indisponible pour « ${item.productName} — ${supplement.optionName} »`
         );
       }
       const optionResult = await tx.supplementOption.updateMany({
         where: {
-          id: option.id,
+          id: optionId,
           OR: [{ stockQuantity: null }, { stockQuantity: { gte: needed } }],
         },
         data: { stockQuantity: { decrement: needed } },
@@ -225,6 +261,293 @@ async function decrementStockForOrderItems(
       }
     }
   }
+}
+
+// ─── Pénurie : la question posée au cuisinier, et sa couverture ───────────────
+//
+// Le décrément ci-dessus refuse une commande dont le stock manque. C'est juste
+// vis-à-vis de la survente, mais insuffisant en pratique : le cuisinier a la
+// matière devant lui, il vient de produire la fournée, et on lui demandait
+// d'aller corriger la quantité dans /dashboard/menu avant de pouvoir lancer.
+//
+// Les fonctions ci-dessous permettent de lui poser la question à la place —
+// « il manque 3 × Sponge cake (Vanille), vous les avez produits ? » — puis, s'il
+// valide, de CRÉDITER EXACTEMENT la quantité manquante juste avant la
+// réservation, qui la redescend aussitôt. Effet net sur le stock : zéro. Ce
+// n'est donc pas un contournement de la garde anti-survente : c'est
+// l'enregistrement d'une production réelle, faite au bon endroit.
+
+/**
+ * Besoin TOTAL de la commande par cible de stock. L'agrégation est
+ * indispensable : deux lignes de panier peuvent viser le même produit (ou le
+ * même goût via des suppléments distincts), et les traiter séparément
+ * sous-estimerait le manque.
+ *
+ * Les options introuvables (renommées, désactivées) sont ignorées ici : ce
+ * n'est pas une pénurie que le cuisinier puisse couvrir en produisant, et le
+ * décrément lèvera de toute façon « Option indisponible ».
+ */
+async function aggregateStockNeeds(
+  tx: Prisma.TransactionClient,
+  items: CartItem[]
+): Promise<{
+  products: Map<string, { name: string; needed: number }>;
+  options: Map<
+    string,
+    {
+      productName: string;
+      groupName: string;
+      optionName: string;
+      needed: number;
+    }
+  >;
+}> {
+  const products = new Map<string, { name: string; needed: number }>();
+  const options = new Map<
+    string,
+    {
+      productName: string;
+      groupName: string;
+      optionName: string;
+      needed: number;
+    }
+  >();
+
+  for (const item of items) {
+    const current = products.get(item.productId);
+    products.set(item.productId, {
+      name: item.productName,
+      needed: (current?.needed ?? 0) + item.quantity,
+    });
+
+    for (const supplement of item.supplements) {
+      const optionId = await resolveOptionId(
+        tx,
+        item.productId,
+        supplement.groupName,
+        supplement.optionName
+      );
+      if (!optionId) continue;
+      const needed = (supplement.quantity ?? 1) * item.quantity;
+      const existing = options.get(optionId);
+      options.set(optionId, {
+        productName: item.productName,
+        groupName: supplement.groupName,
+        optionName: supplement.optionName,
+        needed: (existing?.needed ?? 0) + needed,
+      });
+    }
+  }
+
+  return { products, options };
+}
+
+/**
+ * Ce qui manque pour honorer `items` face au stock COURANT. N'écrit rien.
+ * Une cible à `stockQuantity: null` (illimité) n'est jamais en pénurie.
+ */
+async function computeShortage(
+  tx: Prisma.TransactionClient,
+  items: CartItem[]
+): Promise<ShortageLine[]> {
+  const { products, options } = await aggregateStockNeeds(tx, items);
+  const lines: ShortageLine[] = [];
+
+  if (products.size > 0) {
+    const rows = await tx.product.findMany({
+      where: { id: { in: [...products.keys()] } },
+      select: { id: true, stockQuantity: true },
+    });
+    for (const row of rows) {
+      const need = products.get(row.id);
+      if (!need || row.stockQuantity === null) continue;
+      const missing = need.needed - row.stockQuantity;
+      if (missing > 0) {
+        lines.push({
+          target: 'product',
+          targetId: row.id,
+          productName: need.name,
+          missing,
+        });
+      }
+    }
+  }
+
+  if (options.size > 0) {
+    const rows = await tx.supplementOption.findMany({
+      where: { id: { in: [...options.keys()] } },
+      select: { id: true, stockQuantity: true },
+    });
+    for (const row of rows) {
+      const need = options.get(row.id);
+      if (!need || row.stockQuantity === null) continue;
+      const missing = need.needed - row.stockQuantity;
+      if (missing > 0) {
+        lines.push({
+          target: 'option',
+          targetId: row.id,
+          productName: need.productName,
+          groupName: need.groupName,
+          optionName: need.optionName,
+          missing,
+        });
+      }
+    }
+  }
+
+  return lines;
+}
+
+/**
+ * Pénurie d'une commande existante, en LECTURE SEULE. Appelée sur le chemin
+ * d'erreur (409) pour construire la question posée au staff : elle donne la
+ * liste COMPLÈTE des manques, là où le décrément s'arrête à la première ligne
+ * fautive.
+ */
+export async function getOrderShortage(id: string): Promise<ShortageLine[]> {
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: { items: true, stockReservedAt: true },
+  });
+  // Stock déjà réservé : plus rien à produire pour cette commande.
+  if (!order || order.stockReservedAt !== null) return [];
+  return computeShortage(prisma, order.items as unknown as CartItem[]);
+}
+
+/** Corps de réponse d'un refus pour pénurie. */
+export type ShortagePayload = { error: string; shortage: ShortageLine[] };
+
+/**
+ * Construit la réponse 409 d'une pénurie : le message ET les lignes manquantes.
+ * C'est ce qui permet à l'écran de poser une question chiffrée (« il manque
+ * 3 × Sponge cake (Vanille), vous les avez produits ? ») au lieu d'un mur qui
+ * renvoie le staff vers /dashboard/menu.
+ *
+ * `getOrderShortage` relit le stock : la liste est donc COMPLÈTE, là où
+ * l'exception s'arrête à la première ligne fautive.
+ */
+export async function buildShortagePayload(
+  id: string,
+  err: StockShortageError
+): Promise<ShortagePayload> {
+  return { error: err.message, shortage: await getOrderShortage(id) };
+}
+
+/**
+ * Crédite EXACTEMENT la quantité manquante de chaque cible suivie, dans la
+ * transaction qui va réserver. La réservation la redescend immédiatement :
+ * effet net nul sur le stock, et la commande passe.
+ *
+ * Geste explicite : n'est jamais appelée sans que quelqu'un ait répondu « oui,
+ * je les ai produits » à l'écran.
+ */
+/**
+ * Réaligne le stock après une MODIFICATION du contenu d'une commande DÉJÀ
+ * RÉSERVÉE : décrémente ce qui vient d'être ajouté, recrédite ce qui vient
+ * d'être retiré. Le delta est calculé entre les articles PERSISTÉS et les
+ * nouveaux, donc rejouer deux fois la même modification ne crédite qu'une fois
+ * — l'idempotence vient de l'état, pas d'un verrou.
+ *
+ * Ce n'est PAS une entorse à l'invariant « jamais ré-incrémenté » de
+ * `sendOrderToKitchen` : cet invariant porte sur les changements de STATUT
+ * (annulation, dépaiement), où le plat est perdu et où l'undo doit rester sûr.
+ * Ici on parle du CONTENU : un article retiré d'une commande vivante n'a pas
+ * été consommé, le laisser décompté fait mentir le stock et bloque une vente
+ * réelle. Deux règles distinctes, pour deux gestes distincts.
+ *
+ * `restoreRemoved: false` : le staff a indiqué que l'article retiré était déjà
+ * préparé (commande en cuisine) — on ne recrédite alors rien, les ajouts
+ * restent décomptés.
+ */
+async function resyncStockForItemChange(
+  tx: Prisma.TransactionClient,
+  previousItems: CartItem[],
+  nextItems: CartItem[],
+  restoreRemoved: boolean
+): Promise<void> {
+  const before = await aggregateStockNeeds(tx, previousItems);
+  const after = await aggregateStockNeeds(tx, nextItems);
+
+  for (const id of new Set([
+    ...before.products.keys(),
+    ...after.products.keys(),
+  ])) {
+    const delta =
+      (after.products.get(id)?.needed ?? 0) -
+      (before.products.get(id)?.needed ?? 0);
+    if (delta === 0) continue;
+    const name =
+      after.products.get(id)?.name ?? before.products.get(id)?.name ?? id;
+    if (delta > 0) {
+      const res = await tx.product.updateMany({
+        where: {
+          id,
+          OR: [{ stockQuantity: null }, { stockQuantity: { gte: delta } }],
+        },
+        data: { stockQuantity: { decrement: delta } },
+      });
+      if (res.count !== 1) {
+        throw new StockShortageError(`Stock insuffisant pour « ${name} »`);
+      }
+    } else if (restoreRemoved) {
+      // `NULL + n = NULL` : une cible à stock illimité reste illimitée.
+      await tx.product.update({
+        where: { id },
+        data: { stockQuantity: { increment: -delta } },
+      });
+    }
+  }
+
+  for (const id of new Set([
+    ...before.options.keys(),
+    ...after.options.keys(),
+  ])) {
+    const delta =
+      (after.options.get(id)?.needed ?? 0) -
+      (before.options.get(id)?.needed ?? 0);
+    if (delta === 0) continue;
+    const need = after.options.get(id) ?? before.options.get(id);
+    if (delta > 0) {
+      const res = await tx.supplementOption.updateMany({
+        where: {
+          id,
+          OR: [{ stockQuantity: null }, { stockQuantity: { gte: delta } }],
+        },
+        data: { stockQuantity: { decrement: delta } },
+      });
+      if (res.count !== 1) {
+        throw new StockShortageError(
+          `Stock insuffisant pour « ${need?.productName} — ${need?.optionName} »`
+        );
+      }
+    } else if (restoreRemoved) {
+      await tx.supplementOption.update({
+        where: { id },
+        data: { stockQuantity: { increment: -delta } },
+      });
+    }
+  }
+}
+
+async function coverShortageForOrderItems(
+  tx: Prisma.TransactionClient,
+  items: CartItem[]
+): Promise<ShortageLine[]> {
+  const shortage = await computeShortage(tx, items);
+  for (const line of shortage) {
+    if (line.target === 'product') {
+      await tx.product.update({
+        where: { id: line.targetId },
+        data: { stockQuantity: { increment: line.missing } },
+      });
+    } else {
+      await tx.supplementOption.update({
+        where: { id: line.targetId },
+        data: { stockQuantity: { increment: line.missing } },
+      });
+    }
+  }
+  return shortage;
 }
 
 /**
@@ -251,17 +574,27 @@ async function decrementStockForOrderItems(
  *
  * Une pénurie lève `StockShortageError` APRÈS la revendication : le rollback
  * de la transaction annule aussi la pose du verrou, donc rien n'est perdu.
+ *
+ * `coverShortage` (geste explicite du staff, jamais un défaut) crédite d'abord
+ * le manque : la réservation qui suit le redescend, effet net nul.
  */
 async function reserveStockOnce(
   tx: Prisma.TransactionClient,
   orderId: string,
-  items: CartItem[]
+  items: CartItem[],
+  opts?: { coverShortage?: boolean }
 ): Promise<boolean> {
   const claim = await tx.order.updateMany({
     where: { id: orderId, stockReservedAt: null },
     data: { stockReservedAt: new Date() },
   });
   if (claim.count === 0) return false;
+
+  // AVANT le décrément, et seulement sur demande explicite : le staff a
+  // confirmé avoir produit la quantité manquante.
+  if (opts?.coverShortage) {
+    await coverShortageForOrderItems(tx, items);
+  }
 
   await decrementStockForOrderItems(tx, items);
   return true;
@@ -279,10 +612,17 @@ async function reserveStockOnce(
 // Candidates = `stockReservedAt: null` (et non `isPaid: false`) : une commande
 // impayée déjà partie en cuisine a son stock réservé, elle n'est donc pas en
 // danger et ne doit surtout pas recevoir un « article indisponible ».
+//
+// Les commandes DIFFÉRÉES sont écartées pour la même raison, l'autre bout :
+// leur marchandise sera produite le jour du retrait, le stock d'aujourd'hui ne
+// les concerne pas. Sans ce filtre, un client dont la commande est pour samedi
+// recevrait « article indisponible » chaque fois qu'un produit tombe à 0 un
+// jour de semaine.
 async function notifyPendingOrdersOfShortage(
   reservedOrderId: string,
   reservedItems: CartItem[]
 ): Promise<void> {
+  const now = new Date();
   const snapshot = await fetchStockSnapshot([reservedItems]);
 
   const zeroedProductIds = new Set(
@@ -303,11 +643,12 @@ async function notifyPendingOrdersOfShortage(
       stockReservedAt: null,
       status: { notIn: ['CANCELLED', 'COMPLETED'] },
     },
-    select: { id: true, items: true },
+    select: { id: true, items: true, pickupTime: true },
     take: 200,
   });
 
   for (const candidate of candidates) {
+    if (isDeferredPickup(candidate.pickupTime, now)) continue;
     const items = candidate.items as unknown as CartItem[];
     const affected = items.some((item) => {
       if (zeroedProductIds.has(item.productId)) return true;
@@ -376,6 +717,13 @@ export type CreateCashierOrderInput = {
  * « nouvelle commande » : une saisie de rattrapage n'est pas un événement en
  * direct, elle ne doit ni réveiller la cuisine ni décrémenter le stock
  * d'aujourd'hui pour un plat servi la semaine dernière.
+ *
+ * UN RETRAIT DIFFÉRÉ AUSSI, pour la raison symétrique : la marchandise sera
+ * produite le jour du retrait. La commande d'un client de confiance pour demain
+ * reste donc `NEW`, et `isOnAccount` N'EST PAS posé — ce drapeau signifie
+ * précisément « partie en cuisine sans encaissement », et le poser sans départ
+ * en cuisine fausserait l'ardoise (lib/ardoise.ts). Il sera posé le jour J, par
+ * `sendOrderToKitchen({ onAccount: true })`.
  */
 export async function createCashierOrder(input: CreateCashierOrderInput) {
   // Normalisation téléphone : saisie libre acceptée, stockée en E.164 si
@@ -392,6 +740,11 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
     ? (parseDateOnlyToUTC(input.orderDate) ?? today)
     : today;
   const isBackdated = dailyDate.getTime() !== today.getTime();
+
+  // Un seul `now` pour toute la création : les retries de numérotation ne
+  // doivent pas pouvoir changer le verdict « différée » en cours de route.
+  const now = new Date();
+  const isDeferred = isDeferredPickup(input.pickupTime ?? null, now);
 
   const grossTotal = computeItemsTotal(input.items as CartItem[]);
 
@@ -418,7 +771,8 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
               })
             )?.isTrusted ?? false)
           : false;
-        const goToKitchen = (input.onAccount ?? trusted) && !isBackdated;
+        const goToKitchen =
+          (input.onAccount ?? trusted) && !isBackdated && !isDeferred;
 
         // Récompense fidélité : vérifiée à nouveau à CHAQUE tentative (une
         // transaction annulée par un conflit de numéro n'a rien écrit).
@@ -509,9 +863,15 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
       // Pas de notification pour une commande antidatée : ce n'est pas un
       // événement en direct, juste une saisie de rattrapage.
       if (!isBackdated) {
+        // Le créneau figure dans le corps : sans lui, une commande pour samedi
+        // et un walk-in se ressemblent trait pour trait dans la notification,
+        // et la caisse court après une commande qui n'est pas pour maintenant.
+        const pickupLabel = created.pickupTime
+          ? ` · ${formatPickup(created.pickupTime, now)}`
+          : '';
         notifyPush(ROLE_GROUPS.DASHBOARD, {
           title: 'Nouvelle commande',
-          body: `#${created.dailyNumber} · ${created.total} FCFA${created.customerName ? ` · ${created.customerName}` : ''}`,
+          body: `#${created.dailyNumber} · ${created.total} FCFA${created.customerName ? ` · ${created.customerName}` : ''}${pickupLabel}`,
           url: '/dashboard/caisse',
           tag: `order-${created.id}`,
         });
@@ -589,7 +949,8 @@ export async function buildOrderItemsFromMenu(
       const group = product.supplements.find((g) => g.name === s.groupName);
       // Deux options peuvent partager un nom dans un même groupe (renommage,
       // ancien « goût » désactivé conservé) : on préfère toujours l'option
-      // disponible, cohérent avec le décrément au paiement (§ ci-dessus).
+      // disponible, cohérent avec le décrément à l'entrée en cuisine
+      // (`resolveOptionId`, § ci-dessus).
       const option =
         group?.options.find((o) => o.name === s.optionName && o.available) ??
         group?.options.find((o) => o.name === s.optionName);
@@ -649,6 +1010,17 @@ export async function buildOrderItemsFromMenu(
  * Le réapprovisionnement explicite existe déjà par ailleurs
  * (`/api/caisse/restock`).
  *
+ * `opts.coverShortage` : le staff a confirmé à l'écran avoir produit la
+ * quantité manquante — on la crédite avant de réserver (effet net nul, cf.
+ * `coverShortageForOrderItems`). Jamais un défaut : sans cette confirmation,
+ * une pénurie reste un refus.
+ *
+ * La réservation est INCONDITIONNELLE ici, y compris pour une commande dont le
+ * retrait est un jour ultérieur : c'est un geste humain délibéré, et préparer
+ * la veille est un usage légitime. Ce sont les chemins AUTOMATIQUES (ardoise à
+ * la création, encaissement d'une NEW) qui s'abstiennent — voir l'en-tête de
+ * fichier.
+ *
  * Lève `OrderMutationError` (404 introuvable, 403 transition refusée, 409
  * conflit de concurrence) ou `StockShortageError` (409 — le client est alors
  * notifié `ITEM_UNAVAILABLE` avant que l'erreur ne remonte).
@@ -656,7 +1028,7 @@ export async function buildOrderItemsFromMenu(
 export async function sendOrderToKitchen(
   id: string,
   role: UserRole,
-  opts?: { onAccount?: boolean }
+  opts?: { onAccount?: boolean; coverShortage?: boolean }
 ): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id },
@@ -685,7 +1057,9 @@ export async function sendOrderToKitchen(
     reserved = await prisma.$transaction(async (tx) => {
       // Réservation AVANT l'écriture du statut : une pénurie fait échouer la
       // transaction entière, la commande reste donc là où elle était.
-      const claimed = await reserveStockOnce(tx, id, items);
+      const claimed = await reserveStockOnce(tx, id, items, {
+        coverShortage: opts?.coverShortage,
+      });
 
       const result = await tx.order.updateMany({
         where: { id, status: order.status },
@@ -748,7 +1122,8 @@ export async function sendOrderToKitchen(
 export async function setOrderStatus(
   id: string,
   newStatus: OrderStatus,
-  role: UserRole
+  role: UserRole,
+  opts?: { coverShortage?: boolean }
 ): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id },
@@ -775,7 +1150,9 @@ export async function setOrderStatus(
   // `sendOrderToKitchen` la refait — c'est volontairement redondant : elle
   // reste ainsi correcte quand elle est appelée directement (ardoise).
   if (newStatus === 'PREPARING') {
-    return sendOrderToKitchen(id, role);
+    return sendOrderToKitchen(id, role, {
+      coverShortage: opts?.coverShortage,
+    });
   }
 
   // Remettre une commande ANNULÉE « à encaisser » n'a de sens que si elle n'a
@@ -880,6 +1257,13 @@ function resolvePaymentMode(
  * aucun appel stock. L'ancienne exception « ne pas décrémenter si `COMPLETED` »
  * n'a plus lieu d'être ; `stockReservedAt` la subsume et couvre en plus une
  * commande `COMPLETED` qui n'a jamais été encaissée.
+ *
+ * COMMANDE DIFFÉRÉE : l'encaissement redevient PUREMENT financier, même sur une
+ * commande `NEW`. Elle ne part pas en cuisine et ne décompte rien — le client
+ * peut donc payer d'avance (cas courant d'une commande de gâteau réservée), la
+ * commande reste « Programmée » et n'entrera en cuisine que le jour du retrait,
+ * sur le geste `sendOrderToKitchen`.
+ *
  * Crée une ligne `OrderPayment` par moyen de paiement fourni ; `paymentMode`
  * (sur `Order`) reste renseigné pour le cas courant (1 seul mode), `null` pour
  * un paiement fractionné (voir `resolvePaymentMode`).
@@ -908,6 +1292,11 @@ export async function setOrderPayment(
      * faux (le dépaiement remet toujours ce drapeau à `false`).
      */
     autoValidatedByAi?: boolean;
+    /**
+     * Le staff a confirmé avoir produit la quantité manquante — transmis à la
+     * réservation quand cet encaissement pousse la commande en cuisine.
+     */
+    coverShortage?: boolean;
   }
 ): Promise<{ startedPreparation: boolean }> {
   if (isPaid && (!payments || payments.length === 0)) {
@@ -945,6 +1334,7 @@ export async function setOrderPayment(
     return { startedPreparation: false };
   }
 
+  const now = new Date();
   let txResult: {
     startedPreparation: boolean;
     reserved: boolean;
@@ -963,6 +1353,7 @@ export async function setOrderPayment(
           total: true,
           dailyNumber: true,
           reference: true,
+          pickupTime: true,
         },
       });
       if (!order) {
@@ -981,15 +1372,22 @@ export async function setOrderPayment(
         );
       }
 
-      const startedPreparation = order.status === 'NEW';
+      // Une commande différée ne part PAS en cuisine à l'encaissement : sa
+      // marchandise sera produite le jour du retrait. Un seul point de décision
+      // — tout l'aval (réservation, statut, notification) en dépend déjà.
+      const startedPreparation =
+        order.status === 'NEW' && !isDeferredPickup(order.pickupTime, now);
       const items = order.items as unknown as CartItem[];
 
       // Le stock suit l'ENTRÉE EN CUISINE, pas l'argent : on ne réserve que
       // lorsque cet encaissement pousse effectivement la commande en cuisine.
-      // Sinon (déjà en cuisine, prête, récupérée), l'encaissement est purement
-      // financier — la réservation a déjà eu lieu, ou aura lieu à l'entrée.
+      // Sinon (déjà en cuisine, prête, récupérée, ou programmée pour un autre
+      // jour), l'encaissement est purement financier — la réservation a déjà eu
+      // lieu, ou aura lieu à l'entrée.
       const reserved = startedPreparation
-        ? await reserveStockOnce(tx, id, items)
+        ? await reserveStockOnce(tx, id, items, {
+            coverShortage: opts?.coverShortage,
+          })
         : false;
 
       const result = await tx.order.updateMany({
@@ -1139,8 +1537,16 @@ export async function updateOrderDetails(id: string, input: unknown) {
  * requis QUE si la commande n'est pas déjà payée ; ignoré (la commande garde
  * ses lignes `OrderPayment` existantes) si `alreadyPaid`.
  *
+ * COMMANDE DIFFÉRÉE : refusée (409). « Payer + récupérer » affirme que le client
+ * emporte la marchandise maintenant — ce qui est faux pour un retrait prévu un
+ * autre jour, et décompterait le stock du jour pour rien. La garde porte sur
+ * `stockReservedAt` et non sur le statut : une commande différée PRÉPARÉE EN
+ * AVANCE (donc déjà réservée) peut légitimement être remise et encaissée en un
+ * geste. L'interface masque le bouton dans le cas refusé ; ce garde-fou existe
+ * pour les appels directs à l'API.
+ *
  * Lève `OrderMutationError` (400 paiement manquant/somme incorrecte si pas déjà
- * payée, 403 rôle, 404 introuvable, 409 conflit/déjà finale, ou
+ * payée, 403 rôle, 404 introuvable, 409 conflit/déjà finale/retrait différé, ou
  * `StockShortageError` 409 si le stock ne suffit plus — le client perdant est
  * alors notifié `ITEM_UNAVAILABLE` avant que l'erreur ne remonte).
  * Renvoie `alreadyPaid` (vrai si la commande était déjà encaissée avant l'appel).
@@ -1149,18 +1555,27 @@ export async function payAndComplete(
   id: string,
   payments: OrderPaymentLineInput[] | undefined,
   role: UserRole,
-  actorId?: string | null
+  actorId?: string | null,
+  opts?: { coverShortage?: boolean }
 ): Promise<{ alreadyPaid: boolean }> {
   if (!canTogglePayment(role)) {
     throw new OrderMutationError('Action réservée à la caisse', 403);
   }
 
+  const now = new Date();
   let txResult: { alreadyPaid: boolean; reserved: boolean; items: CartItem[] };
   try {
     txResult = await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id },
-        select: { status: true, isPaid: true, items: true, total: true },
+        select: {
+          status: true,
+          isPaid: true,
+          items: true,
+          total: true,
+          pickupTime: true,
+          stockReservedAt: true,
+        },
       });
       if (!order) {
         throw new OrderMutationError('Commande introuvable', 404);
@@ -1170,6 +1585,16 @@ export async function payAndComplete(
       }
       if (order.status === 'COMPLETED' && order.isPaid) {
         throw new OrderMutationError('Commande déjà finalisée', 409);
+      }
+      if (
+        order.stockReservedAt === null &&
+        isDeferredPickup(order.pickupTime, now)
+      ) {
+        throw new OrderMutationError(
+          `Retrait prévu ${formatPickup(order.pickupTime as Date, now)} : encaissez la commande, elle sera remise le jour du retrait. ` +
+            'Pour la remettre maintenant, modifiez d’abord le créneau de retrait.',
+          409
+        );
       }
 
       const alreadyPaid = order.isPaid;
@@ -1194,7 +1619,9 @@ export async function payAndComplete(
       // Inconditionnel : NEW → COMPLETED court-circuite PREPARING, mais la
       // marchandise part quand même. Le verrou d'idempotence garantit qu'une
       // commande déjà passée en cuisine n'est pas décomptée une seconde fois.
-      const reserved = await reserveStockOnce(tx, id, items);
+      const reserved = await reserveStockOnce(tx, id, items, {
+        coverShortage: opts?.coverShortage,
+      });
 
       const result = await tx.order.updateMany({
         // Garde optimiste sur les deux champs lus : un autre caissier peut avoir
@@ -1393,31 +1820,28 @@ export async function setOrderCustomer(
  * remises). Sert à ajouter/retirer des produits ET à appliquer des remises de
  * ligne. Refuse une commande terminée/annulée et plafonne chaque remise.
  *
+ * STOCK : si la commande a DÉJÀ réservé (`stockReservedAt` non nul), le stock
+ * est réaligné sur le nouveau contenu dans la même transaction — décrément des
+ * ajouts, recrédit des retraits (cf. `resyncStockForItemChange`). Sans cela,
+ * ajouter un article à une commande partie en cuisine ne le décomptait jamais,
+ * et en retirer un le laissait décompté pour toujours.
+ *
+ * `opts.restoreRemovedStock: false` : l'article retiré était déjà préparé, on
+ * ne le recrédite pas. Défaut `true`.
+ *
  * Lève `OrderMutationError` (400 liste vide / remise trop élevée, 404
- * introuvable, 409 commande terminée). Renvoie le nouveau total.
+ * introuvable, 409 commande terminée) ou `StockShortageError` (409, si les
+ * articles ajoutés dépassent le stock). Renvoie le nouveau total.
  */
 export async function updateOrderItems(
   id: string,
-  items: CartItem[]
+  items: CartItem[],
+  opts?: { restoreRemovedStock?: boolean }
 ): Promise<{ total: number }> {
   if (items.length === 0) {
     throw new OrderMutationError(
       'La commande doit avoir au moins un article',
       400
-    );
-  }
-
-  const order = await prisma.order.findUnique({
-    where: { id },
-    select: { status: true, loyaltyDiscount: true },
-  });
-  if (!order) {
-    throw new OrderMutationError('Commande introuvable', 404);
-  }
-  if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
-    throw new OrderMutationError(
-      'Impossible de modifier une commande terminée ou annulée',
-      409
     );
   }
 
@@ -1431,22 +1855,59 @@ export async function updateOrderItems(
     }
   }
 
-  // Total net recalculé côté serveur (après remises), en conservant la
-  // récompense fidélité déjà appliquée à la commande (sinon un simple ajout /
-  // retrait d'article efface silencieusement sa déduction du total, alors que
-  // `loyaltyDiscount`/`loyaltyRewardId` restent inchangés sur la ligne — cf.
-  // `createCashierOrder` pour le même calcul à la création).
-  const total = Math.max(
-    0,
-    computeItemsTotal(items) - (order.loyaltyDiscount ?? 0)
-  );
+  // Lecture DANS la transaction : les articles relus servent de base au delta
+  // de stock, ils doivent donc être ceux sur lesquels on écrit — sinon deux
+  // éditions concurrentes calculeraient leur delta sur le même état d'origine.
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.findUnique({
+      where: { id },
+      select: {
+        status: true,
+        loyaltyDiscount: true,
+        items: true,
+        stockReservedAt: true,
+      },
+    });
+    if (!order) {
+      throw new OrderMutationError('Commande introuvable', 404);
+    }
+    if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
+      throw new OrderMutationError(
+        'Impossible de modifier une commande terminée ou annulée',
+        409
+      );
+    }
 
-  await prisma.order.update({
-    where: { id },
-    data: { items: items as unknown as Prisma.InputJsonValue, total },
+    // Réalignement du stock AVANT l'écriture : une pénurie sur les articles
+    // ajoutés fait échouer toute la transaction, la commande reste intacte.
+    // Rien à faire tant que la commande n'a pas réservé — la future entrée en
+    // cuisine décomptera les articles finaux tels quels.
+    if (order.stockReservedAt !== null) {
+      await resyncStockForItemChange(
+        tx,
+        order.items as unknown as CartItem[],
+        items,
+        opts?.restoreRemovedStock ?? true
+      );
+    }
+
+    // Total net recalculé côté serveur (après remises), en conservant la
+    // récompense fidélité déjà appliquée à la commande (sinon un simple ajout /
+    // retrait d'article efface silencieusement sa déduction du total, alors que
+    // `loyaltyDiscount`/`loyaltyRewardId` restent inchangés sur la ligne — cf.
+    // `createCashierOrder` pour le même calcul à la création).
+    const total = Math.max(
+      0,
+      computeItemsTotal(items) - (order.loyaltyDiscount ?? 0)
+    );
+
+    await tx.order.update({
+      where: { id },
+      data: { items: items as unknown as Prisma.InputJsonValue, total },
+    });
+
+    return { total };
   });
-
-  return { total };
 }
 
 // ─── Récompense fidélité sur une commande déjà créée ───────────────────────────

@@ -17,6 +17,7 @@ export function SortSelect({ value }: { value?: string }) {
 
   return (
     <Select
+      id="orders-sort-select"
       aria-label="Trier les commandes"
       size="sm"
       variant="bordered"

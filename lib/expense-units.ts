@@ -85,3 +85,46 @@ export function toBaseQty({
 
   return round3((rawQty * from.toCanonical) / to.toCanonical);
 }
+
+/**
+ * Convertit un prix exprimé PAR unité de `fromUnit` vers un prix PAR unité de
+ * `toUnit` (mêmes familles dimensionnelles que `toBaseQty`). Ex.
+ * { price: 900, fromUnit: 'kg', toUnit: 'g' } → 900 F/kg = 0,9 F/g → `null`.
+ *
+ * Sert à pré-remplir le prix unitaire d'une ligne de dépense depuis le prix
+ * moyen d'un article, qui est exprimé dans son `baseUnit` alors que la ligne
+ * peut être saisie dans une autre unité de la même famille.
+ *
+ * Renvoie `null` quand la conversion est impossible (unité inconnue, familles
+ * incompatibles, prix absent) **ou** quand le résultat arrondi tomberait à 0 :
+ * `ExpenseItem.unitPrice` est un entier de francs, et un PU à 0 F fausserait le
+ * montant calculé bien plus qu'il n'aiderait la saisie.
+ */
+export function convertUnitPrice({
+  price,
+  fromUnit,
+  toUnit,
+}: {
+  price?: number | null;
+  fromUnit?: string | null;
+  toUnit?: string | null;
+}): number | null {
+  if (price == null || !Number.isFinite(price) || price < 0) return null;
+
+  // Pas d'unité de part et d'autre : le prix est déjà dans la bonne unité.
+  if (!fromUnit || !toUnit || fromUnit === toUnit) {
+    return price >= 1 ? Math.round(price) : null;
+  }
+
+  const from = UNIT_FACTORS[fromUnit];
+  const to = UNIT_FACTORS[toUnit];
+  if (!from || !to || from.family !== to.family) return null;
+
+  // Un prix est l'inverse d'une quantité : 900 F/kg → 0,9 F/g, donc on divise
+  // par le rapport des facteurs (et non l'inverse comme dans `toBaseQty`).
+  const exact = (price * to.toCanonical) / from.toCanonical;
+
+  // Tester la valeur EXACTE, pas l'arrondi : `Math.round(0,9)` vaut 1, et
+  // suggérer 1 F/g pour un article à 0,9 F/g gonflerait le montant de 11 %.
+  return exact >= 1 ? Math.round(exact) : null;
+}

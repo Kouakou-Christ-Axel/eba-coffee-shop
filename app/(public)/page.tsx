@@ -13,6 +13,7 @@ import { getContactSettings } from '@/lib/contact-settings-db';
 import { getPickupSettings } from '@/lib/pickup-settings-db';
 import { summarizeWeeklyHours } from '@/lib/pickup-settings';
 import { listPublicTiktokVideos } from '@/lib/tiktok';
+import { OG_IMAGE } from '@/config/constants';
 
 // ISR: regenerate the homepage at most once per hour.
 // Featured products change rarely, and the dashboard menu actions already
@@ -41,14 +42,7 @@ export const metadata: Metadata = {
     description:
       'EBA Coffee Shop : votre coffee shop à Cocody, Abidjan. Cafés de spécialité, pâtisseries artisanales, brunch et ambiance chaleureuse. Ouvert 7j/7.',
     url: '/',
-    images: [
-      {
-        url: '/assets/examples/accueil/eba-hero.webp',
-        width: 800,
-        height: 449,
-        alt: 'EBA Coffee Shop à Abidjan',
-      },
-    ],
+    images: [OG_IMAGE],
   },
 };
 

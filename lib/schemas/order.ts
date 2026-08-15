@@ -147,6 +147,35 @@ export const createOrderSchema = z.object({
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 
+/**
+ * Antidatage et retrait sont incompatibles hors du même jour civil.
+ *
+ * `orderDate` rattache la commande à un jour PASSÉ (saisie de rattrapage) ;
+ * `pickupTime` planifie un retrait FUTUR. Les combiner produirait une commande
+ * « enregistrée mardi dernier, à retirer demain » — incohérente dans la file
+ * comme dans les statistiques.
+ *
+ * Règle DÉTERMINISTE (comparaison de chaînes ISO, aucune dépendance à `now`) :
+ * les tests restent stables, et Abidjan étant à UTC+0, les 10 premiers
+ * caractères de l'ISO donnent bien le jour civil.
+ *
+ * Exporté comme PRÉDICAT et non comme schéma figé : `.refine` produit un
+ * `ZodEffects`, qui n'a plus de `.extend`. Or la route caisse et l'outil MCP
+ * étendent tous deux `createOrderSchema` avant d'appliquer cette règle — ils
+ * la posent donc en dernier, sur leur propre schéma.
+ */
+export function isBackdateCompatibleWithPickup(d: {
+  orderDate?: string | null;
+  pickupTime?: string | null;
+}): boolean {
+  return (
+    !d.orderDate || !d.pickupTime || d.pickupTime.slice(0, 10) === d.orderDate
+  );
+}
+
+export const BACKDATE_PICKUP_CONFLICT_MESSAGE =
+  'Une commande antidatée ne peut pas avoir un retrait un autre jour';
+
 // ─── updateOrderSchema ────────────────────────────────────────────────────────
 //
 // Aggrège les trois variantes PATCH existantes :

@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import React from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 
 type GalleryItem = {
   src: string;
@@ -57,14 +57,14 @@ function AmbianceGallerySection() {
     >
       <div className="content-container">
         <div className="mb-8 flex flex-col gap-3 md:mb-10">
-          <motion.p
+          <m.p
             className="text-xs font-semibold uppercase tracking-[0.18em] text-primary"
             {...introAnimation}
           >
             Le lieu EBA
-          </motion.p>
+          </m.p>
 
-          <motion.h2
+          <m.h2
             id="ambiance-title"
             className="text-3xl font-bold tracking-tight sm:text-4xl"
             {...introAnimation}
@@ -75,7 +75,7 @@ function AmbianceGallerySection() {
             }
           >
             Une ambiance qui donne envie de s&apos;attarder
-          </motion.h2>
+          </m.h2>
         </div>
 
         <ul
@@ -83,7 +83,7 @@ function AmbianceGallerySection() {
           className="mt-6 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 scrollbar-none md:grid md:grid-cols-12 md:gap-5 md:overflow-visible md:pb-0"
         >
           {galleryItems.map((item, index) => (
-            <motion.li
+            <m.li
               key={item.alt}
               className={`${item.desktopClassName} w-[84%] shrink-0 snap-start sm:w-[68%] md:w-auto md:shrink md:snap-none`}
               initial={reduceMotion ? undefined : { opacity: 0, y: 18 }}
@@ -110,7 +110,7 @@ function AmbianceGallerySection() {
                   className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-black/30 to-transparent"
                 />
               </figure>
-            </motion.li>
+            </m.li>
           ))}
         </ul>
       </div>

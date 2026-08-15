@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import React from 'react';
 import { Link } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { MapPin, MessageCircle, Phone } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
 import { buildTelLink, buildWhatsAppLink } from '@/lib/contact-links';
@@ -84,7 +84,7 @@ function ContactHeroSection({ contact }: { contact: ContactSettings }) {
 
       <div className="relative z-10 flex min-h-svh items-center">
         <div className="content-container w-full px-6 py-20 md:py-24">
-          <motion.div
+          <m.div
             className="mx-auto max-w-3xl text-center text-white"
             {...fadeUp}
           >
@@ -92,7 +92,7 @@ function ContactHeroSection({ contact }: { contact: ContactSettings }) {
               Contact
             </span>
 
-            <motion.h1
+            <m.h1
               id="contact-hero-title"
               className="mt-5 text-balance text-3xl font-semibold leading-tight sm:text-4xl md:text-5xl"
               {...fadeUp}
@@ -103,9 +103,9 @@ function ContactHeroSection({ contact }: { contact: ContactSettings }) {
               }
             >
               Contactez EBA Coffee Shop à Abidjan
-            </motion.h1>
+            </m.h1>
 
-            <motion.p
+            <m.p
               className="mx-auto mt-4 max-w-2xl text-pretty text-base text-white/85 sm:text-lg"
               {...fadeUp}
               transition={
@@ -115,15 +115,15 @@ function ContactHeroSection({ contact }: { contact: ContactSettings }) {
               }
             >
               On vous répond en moins d&apos;une heure sur WhatsApp
-            </motion.p>
-          </motion.div>
+            </m.p>
+          </m.div>
 
           <div className="mx-auto mt-10 max-w-5xl">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               {contactCards.map((card, index) => {
                 const Icon = card.icon;
                 return (
-                  <motion.div
+                  <m.div
                     key={card.label}
                     initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
                     whileInView={
@@ -162,7 +162,7 @@ function ContactHeroSection({ contact }: { contact: ContactSettings }) {
                         {card.value}
                       </p>
                     </Link>
-                  </motion.div>
+                  </m.div>
                 );
               })}
             </div>
