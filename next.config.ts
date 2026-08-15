@@ -5,6 +5,10 @@ import { varlockNextConfigPlugin } from '@varlock/nextjs-integration/plugin';
 setDefaultResultOrder('ipv4first');
 
 const isProduction = process.env.NODE_ENV === 'production';
+// Le pixel Meta est optionnel (cf. components/analytics/meta-pixel.tsx) : ses
+// domaines n'entrent dans la CSP que s'il est réellement configuré — pas de
+// script-src élargi « au cas où » sur une installation qui ne s'en sert pas.
+const hasMetaPixel = Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID);
 
 // ─── Content Security Policy ─────────────────────────────────────────────────
 //
@@ -29,10 +33,14 @@ const isProduction = process.env.NODE_ENV === 'production';
 //   `google-analytics.com` (+ sous-domaines régionaux `*.analytics.google.com`)
 //   et pose des pixels de repli sur `img-src`. Le script d'amorçage Consent
 //   Mode est inline — déjà couvert par `'unsafe-inline'` ci-dessus.
+// - Pixel Meta (`connect.facebook.net` pour le script, `www.facebook.com` pour
+//   la collecte et les pixels image) : ouvert UNIQUEMENT si
+//   NEXT_PUBLIC_META_PIXEL_ID est configuré.
 //   ⚠️ ATTENTION EXPLOITANT : cette CSP borne aussi ce que le conteneur GTM a le
-//   droit de charger. Ajouter un tag tiers depuis l'interface web de GTM (Meta
-//   Pixel, Google Ads, TikTok Pixel…) ne suffira PAS : son domaine doit être
-//   ajouté ici, puis l'app redéployée, sinon le navigateur le bloque.
+//   droit de charger. Ajouter un tag tiers depuis l'interface web de GTM (Google
+//   Ads, TikTok Pixel…) ne suffira PAS : son domaine doit être ajouté ici, puis
+//   l'app redéployée, sinon le navigateur le bloque. Le pixel Meta, lui, est
+//   câblé nativement (variable d'env ci-dessus) — inutile de l'ajouter à GTM.
 const cspDirectives: Record<string, string[]> = {
   'default-src': ["'self'"],
   'script-src': [
@@ -40,6 +48,7 @@ const cspDirectives: Record<string, string[]> = {
     "'unsafe-inline'",
     'https://static.cloudflareinsights.com',
     'https://www.googletagmanager.com',
+    ...(hasMetaPixel ? ['https://connect.facebook.net'] : []),
     ...(isProduction ? [] : ["'unsafe-eval'"]),
   ],
   'style-src': ["'self'", "'unsafe-inline'"],
@@ -52,6 +61,7 @@ const cspDirectives: Record<string, string[]> = {
     'https://www.googletagmanager.com',
     'https://www.google-analytics.com',
     'https://*.google-analytics.com',
+    ...(hasMetaPixel ? ['https://www.facebook.com'] : []),
   ],
   'font-src': ["'self'", 'data:'],
   'connect-src': [
@@ -62,6 +72,7 @@ const cspDirectives: Record<string, string[]> = {
     'https://www.google-analytics.com',
     'https://*.google-analytics.com',
     'https://*.analytics.google.com',
+    ...(hasMetaPixel ? ['https://www.facebook.com'] : []),
     ...(isProduction ? [] : ['ws:', 'wss:']),
   ],
   'frame-src': [

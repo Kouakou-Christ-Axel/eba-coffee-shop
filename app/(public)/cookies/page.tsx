@@ -31,6 +31,11 @@ function Section({
 }
 
 export default function CookiesPage() {
+  // Le pixel Meta est optionnel (NEXT_PUBLIC_META_PIXEL_ID). Cette page doit
+  // décrire ce qui tourne RÉELLEMENT sur l'installation : promettre « aucune
+  // publicité ciblée » alors qu'un pixel de reciblage est actif serait faux.
+  const hasMetaPixel = Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID);
+
   return (
     <div className="mx-auto max-w-3xl px-4 pb-20 pt-28 sm:px-6 sm:pt-32">
       {/* « Accueil » est déjà ajouté par buildBreadcrumbJsonLd. */}
@@ -92,19 +97,47 @@ export default function CookiesPage() {
             2&nbsp;ans.
           </li>
         </ul>
-        <p>
-          Nous ne vendons aucune donnée, ne diffusons pas de publicité ciblée
-          sur ce site, et ne recoupons pas ces statistiques avec votre identité.
-          Les commandes que vous passez sont, elles, traitées séparément pour
-          les besoins du service (préparation, retrait, fidélité).
-        </p>
+        {hasMetaPixel ? (
+          <>
+            <p>
+              Nous utilisons également le{' '}
+              <strong className="text-foreground">pixel Meta</strong> (Facebook,
+              Instagram) : il mesure les visites et les commandes issues de nos
+              publicités, et permet de vous proposer nos annonces sur ces
+              réseaux. Il n&apos;est chargé qu&apos;après votre acceptation —
+              aucun octet n&apos;est téléchargé auprès de Meta avant.
+            </p>
+            <p>
+              Cookies concernés&nbsp;:{' '}
+              <code className="rounded bg-default-100 px-1 py-0.5 text-xs">
+                _fbp
+              </code>{' '}
+              — identifie votre navigateur pour Meta. Durée&nbsp;: 3&nbsp;mois.
+            </p>
+            <p>
+              Nous ne vendons aucune donnée et ne recoupons pas ces statistiques
+              avec votre identité. Les commandes que vous passez sont, elles,
+              traitées séparément pour les besoins du service (préparation,
+              retrait, fidélité).
+            </p>
+          </>
+        ) : (
+          <p>
+            Nous ne vendons aucune donnée, ne diffusons pas de publicité ciblée
+            sur ce site, et ne recoupons pas ces statistiques avec votre
+            identité. Les commandes que vous passez sont, elles, traitées
+            séparément pour les besoins du service (préparation, retrait,
+            fidélité).
+          </p>
+        )}
       </Section>
 
       <Section title="Si vous refusez">
         <p>
           Le site fonctionne exactement de la même manière — commande, panier,
           fidélité, suivi. Aucun cookie de mesure n&apos;est déposé et aucune
-          statistique de navigation n&apos;est transmise à Google.
+          statistique de navigation n&apos;est transmise à Google
+          {hasMetaPixel ? ' ni à Meta' : ''}.
         </p>
       </Section>
 

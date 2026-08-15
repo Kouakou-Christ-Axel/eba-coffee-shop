@@ -5,28 +5,40 @@ import React from 'react';
 import { Link } from '@heroui/react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { MapPin, MessageCircle, Mail } from 'lucide-react';
-import { IconBrandInstagram, IconBrandTiktok } from '@tabler/icons-react';
+import {
+  IconBrandFacebook,
+  IconBrandInstagram,
+  IconBrandLinkedin,
+  IconBrandTiktok,
+  IconBrandX,
+  IconBrandYoutube,
+} from '@tabler/icons-react';
 import { brandConfig } from '@/config/brand.config';
 import { DASHBOARD_ROLES } from '@/config/constants';
 import { authClient } from '@/lib/auth-client';
 import type { ContactSettings } from '@/lib/contact-settings';
 import { buildWhatsAppLink } from '@/lib/contact-links';
+import { buildSocialProfiles, type SocialNetworkKey } from '@/lib/social-links';
 import { trackContactClick } from '@/lib/analytics';
+
+// Le pied de page est le SEUL endroit du site présent sur toutes les pages :
+// c'est donc lui qui porte les liens vers les profils sociaux, aussi bien pour
+// le visiteur que pour les robots (qui relient ainsi le domaine aux comptes).
+const SOCIAL_ICONS: Record<
+  SocialNetworkKey,
+  React.ComponentType<{ className?: string }>
+> = {
+  instagram: IconBrandInstagram,
+  tiktok: IconBrandTiktok,
+  facebook: IconBrandFacebook,
+  x: IconBrandX,
+  linkedin: IconBrandLinkedin,
+  youtube: IconBrandYoutube,
+};
 
 function SiteFooter({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
-  const socialItems = [
-    {
-      label: 'Instagram',
-      href: contact.instagramUrl,
-      icon: IconBrandInstagram,
-    },
-    {
-      label: 'TikTok',
-      href: contact.tiktokUrl,
-      icon: IconBrandTiktok,
-    },
-  ] as const;
+  const socialItems = buildSocialProfiles(contact);
   const whatsappHref = buildWhatsAppLink(contact.whatsapp) ?? '#';
   const { data: session } = authClient.useSession();
   const userRole = (session?.user as { role?: string } | undefined)?.role;
@@ -59,12 +71,12 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
           />
           <div className="flex items-center gap-4">
             {socialItems.map((social) => {
-              const Icon = social.icon;
+              const Icon = SOCIAL_ICONS[social.key];
               return (
                 <Link
-                  key={social.label}
+                  key={social.key}
                   isExternal
-                  href={social.href}
+                  href={social.url}
                   aria-label={`Suivez EBA sur ${social.label}`}
                   className="text-white/70 transition duration-300 hover:text-primary"
                 >
