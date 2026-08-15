@@ -92,6 +92,9 @@ const mockOrderFindUnique = prisma.order.findUnique as MockedFunction<
 const mockOrderUpdateMany = prisma.order.updateMany as MockedFunction<
   typeof prisma.order.updateMany
 >;
+const mockOrderUpdate = prisma.order.update as MockedFunction<
+  typeof prisma.order.update
+>;
 const mockOrderCreate = prisma.order.create as MockedFunction<
   typeof prisma.order.create
 >;
