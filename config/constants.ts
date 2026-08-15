@@ -484,3 +484,21 @@ export const ADVANCE_ORDER_DAYS_MAX = 30;
  * Source : lib/pickup-settings.ts (DEFAULT_SETTINGS.visibleDays).
  */
 export const PICKUP_MIN_VISIBLE_DAYS = 7;
+
+/**
+ * Vignette de partage unique du site : Open Graph, Twitter Card et champ
+ * `image` du JSON-LD pointent tous ici. Générée par `pnpm assets:build`
+ * (cf. `OG_IMAGE` dans `scripts/optimize-assets.mjs`) — 1200×630, le seuil
+ * en dessous duquel Facebook et LinkedIn rétrogradent la grande carte en
+ * vignette carrée, et en JPEG pour que l'aperçu WhatsApp fonctionne.
+ *
+ * Centralisée parce que 8 fichiers la référencent (les métadonnées des 7
+ * pages publiques indexables + `lib/json-ld.ts`) : la dupliquer, c'est
+ * garantir qu'une future photo n'en mettra à jour que la moitié.
+ */
+export const OG_IMAGE = {
+  url: '/assets/og/eba-og.jpg',
+  width: 1200,
+  height: 630,
+  alt: 'EBA Coffee Shop à Abidjan',
+} as const;

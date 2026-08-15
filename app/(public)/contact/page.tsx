@@ -6,27 +6,21 @@ import ContactMapSection from '@/components/(public)/contact/contact-map-section
 import { getContactSettings } from '@/lib/contact-settings-db';
 import { getPickupSettings } from '@/lib/pickup-settings-db';
 import { summarizeWeeklyHours } from '@/lib/pickup-settings';
+import { OG_IMAGE } from '@/config/constants';
 
 export const metadata: Metadata = {
-  title: 'Contact',
+  title: 'Contact — nous trouver à Cocody',
   description:
     'Contactez EBA Coffee Shop à Abidjan. Réservation, question ou partenariat — écrivez-nous ou passez nous voir à Cocody.',
   alternates: {
     canonical: '/contact',
   },
   openGraph: {
-    title: 'Contact',
+    title: 'Contact — nous trouver à Cocody',
     description:
       'Contactez EBA Coffee Shop à Abidjan. Réservation, question ou partenariat — écrivez-nous ou passez nous voir à Cocody.',
     url: '/contact',
-    images: [
-      {
-        url: '/assets/examples/accueil/eba-hero.webp',
-        width: 800,
-        height: 449,
-        alt: 'Contact — EBA Coffee Shop',
-      },
-    ],
+    images: [{ ...OG_IMAGE, alt: 'Contact — EBA Coffee Shop' }],
   },
 };
 

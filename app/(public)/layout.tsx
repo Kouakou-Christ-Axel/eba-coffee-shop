@@ -6,17 +6,23 @@ import InstallPwa from '@/components/pwa/install-pwa';
 import DashboardFabMount from '@/components/layouts/dashboard-fab-mount';
 import ConsentBoot from '@/components/analytics/consent-boot';
 import CookieConsent from '@/components/analytics/cookie-consent';
+import MetaPixel from '@/components/analytics/meta-pixel';
 import { getContactSettings } from '@/lib/contact-settings-db';
 
 // La mesure d'audience est montée ICI et non dans app/layout.tsx : le
 // back-office (route group `(dashboard)`) génère un trafic staff intense —
 // caisse, cuisine, statistiques — qui écraserait les chiffres du site vitrine.
-// Sans NEXT_PUBLIC_GTM_ID, aucun script n'est chargé et la bannière de
-// consentement ne s'affiche pas.
+// Sans NEXT_PUBLIC_GTM_ID ni NEXT_PUBLIC_META_PIXEL_ID, aucun script n'est
+// chargé et la bannière de consentement ne s'affiche pas.
 
 async function PublicLayout({ children }: { children: React.ReactNode }) {
   const contact = await getContactSettings();
   const gtmId = process.env.NEXT_PUBLIC_GTM_ID;
+  const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+  // La bannière conditionne les DEUX traceurs : le pixel Meta ne se charge
+  // qu'après acceptation, il lui faut donc un moyen d'être accepté même si GTM
+  // n'est pas configuré.
+  const needsConsent = Boolean(gtmId || metaPixelId);
 
   return (
     <>
@@ -32,12 +38,15 @@ async function PublicLayout({ children }: { children: React.ReactNode }) {
       {/* Ordre significatif : l'amorçage Consent Mode doit précéder GTM. */}
       {gtmId ? <ConsentBoot /> : null}
       {gtmId ? <GoogleTagManager gtmId={gtmId} /> : null}
+      {metaPixelId ? <MetaPixel pixelId={metaPixelId} /> : null}
       <Navbar />
       <main>{children}</main>
       <SiteFooter contact={contact} />
       <InstallPwa />
       <DashboardFabMount />
-      {gtmId ? <CookieConsent /> : null}
+      {needsConsent ? (
+        <CookieConsent hasAdvertising={Boolean(metaPixelId)} />
+      ) : null}
     </>
   );
 }

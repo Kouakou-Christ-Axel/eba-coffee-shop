@@ -6,6 +6,8 @@ import { ENV } from 'varlock/env';
 import { buildHomeJsonLd } from '@/lib/json-ld';
 import { getContactSettings } from '@/lib/contact-settings-db';
 import { getPickupSettings } from '@/lib/pickup-settings-db';
+import { xHandleFromUrl } from '@/lib/social-links';
+import { OG_IMAGE } from '@/config/constants';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -17,7 +19,30 @@ const geistMono = Geist_Mono({
   subsets: ['latin', 'latin-ext'],
 });
 
-export const metadata: Metadata = {
+// `generateMetadata` plutôt qu'un objet statique : le pseudo X (`twitter:site`)
+// vient des réglages de contact en base, comme les liens du pied de page — un
+// seul endroit à renseigner pour que la carte X soit attribuée au compte. La
+// lecture est mutualisée avec celle du layout ci-dessous (`cache()` de React),
+// donc pas de requête supplémentaire.
+export async function generateMetadata(): Promise<Metadata> {
+  const contact = await getContactSettings();
+  const xHandle = xHandleFromUrl(contact.xUrl);
+  if (!xHandle) return baseMetadata;
+  return {
+    ...baseMetadata,
+    twitter: { ...twitterMetadata, site: xHandle, creator: xHandle },
+  };
+}
+
+const twitterMetadata = {
+  card: 'summary_large_image',
+  title: 'EBA Coffee Shop à Abidjan',
+  description:
+    'Café, brunch, boissons signatures et ambiance cosy chez EBA Coffee Shop.',
+  images: [OG_IMAGE.url],
+} satisfies Metadata['twitter'];
+
+const baseMetadata: Metadata = {
   metadataBase: new URL(ENV.NEXT_PUBLIC_SITE_URL),
   title: {
     default: 'EBA Coffee shop à Abidjan | Café, brunch et douceurs',
@@ -28,29 +53,17 @@ export const metadata: Metadata = {
   alternates: {
     canonical: '/',
   },
-  // TODO: remplacer par un visuel OG dédié 1200x630 (ce placeholder est une
-  // photo hero existante, réutilisée en attendant un vrai shooting).
   openGraph: {
+    type: 'website',
+    siteName: 'EBA Coffee Shop',
+    locale: 'fr_FR',
     title: 'EBA Coffee Shop à Abidjan',
     description:
       'Un coffee shop chaleureux à Abidjan pour savourer café, brunch, pâtisseries et moments de détente.',
     url: '/',
-    images: [
-      {
-        url: '/assets/examples/accueil/eba-hero.webp',
-        width: 800,
-        height: 449,
-        alt: 'EBA Coffee Shop à Abidjan',
-      },
-    ],
+    images: [OG_IMAGE],
   },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'EBA Coffee Shop à Abidjan',
-    description:
-      'Café, brunch, boissons signatures et ambiance cosy chez EBA Coffee Shop.',
-    images: ['/assets/examples/accueil/eba-hero.webp'],
-  },
+  twitter: twitterMetadata,
   manifest: '/manifest.json',
   icons: {
     icon: [
