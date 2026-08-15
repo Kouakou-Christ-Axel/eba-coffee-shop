@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import React from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { Button, Link } from '@heroui/react';
 
 type ReasonItem = {
@@ -43,7 +43,7 @@ function WhyComeSection() {
     >
       <div className="content-container">
         <div className="grid items-stretch gap-7 lg:grid-cols-12 lg:gap-10">
-          <motion.figure
+          <m.figure
             className="relative overflow-hidden rounded-4xl border border-border/70 bg-card shadow-sm lg:col-span-5"
             initial={prefersReducedMotion ? undefined : { opacity: 0, y: 18 }}
             whileInView={
@@ -69,9 +69,9 @@ function WhyComeSection() {
                 className="absolute inset-0 bg-linear-to-t from-black/45 via-black/12 to-transparent"
               />
             </div>
-          </motion.figure>
+          </m.figure>
 
-          <motion.div
+          <m.div
             className="lg:col-span-7"
             initial={prefersReducedMotion ? undefined : { opacity: 0, y: 20 }}
             whileInView={
@@ -96,7 +96,7 @@ function WhyComeSection() {
 
             <ul role="list" className="mt-7 space-y-3">
               {reasons.map((item, index) => (
-                <motion.li
+                <m.li
                   key={item.title}
                   className="rounded-2xl border border-border/70 bg-white/75 px-4 py-4 backdrop-blur-xs"
                   initial={
@@ -129,7 +129,7 @@ function WhyComeSection() {
                       </p>
                     </div>
                   </div>
-                </motion.li>
+                </m.li>
               ))}
             </ul>
 
@@ -138,7 +138,7 @@ function WhyComeSection() {
                 Je reserve ma pause
               </Button>
             </div>
-          </motion.div>
+          </m.div>
         </div>
       </div>
     </section>

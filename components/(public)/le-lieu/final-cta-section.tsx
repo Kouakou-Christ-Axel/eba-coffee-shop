@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { Button, Link } from '@heroui/react';
 import { Compass, Clock3 } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
@@ -13,7 +13,7 @@ function FinalCtaSection({ contact }: { contact: ContactSettings }) {
   return (
     <section className="py-12 md:py-16" aria-labelledby="final-cta-title">
       <div className="content-container">
-        <motion.div
+        <m.div
           className="relative overflow-hidden rounded-4xl bg-[linear-gradient(135deg,#2A1D3A_0%,#1A1325_100%)] px-5 py-10 text-center text-white shadow-xl sm:px-8 md:py-12"
           initial={reduceMotion ? undefined : { opacity: 0, y: 18 }}
           whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -67,7 +67,7 @@ function FinalCtaSection({ contact }: { contact: ContactSettings }) {
               </Button>
             </div>
           </div>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

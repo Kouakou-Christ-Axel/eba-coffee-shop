@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Button, Chip, Input } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import {
   Bike,
   Check,
@@ -24,6 +24,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { PublicOrderLoyaltyView, PublicOrderView } from '@/lib/orders';
+import { MapEmbed } from '@/components/(public)/_components/map-embed';
 import { OrderNotifications } from '@/components/(public)/commande/order-notifications';
 import { OrderNotificationsModal } from '@/components/(public)/commande/order-notifications-modal';
 import { PaymentSection } from '@/components/(public)/commande/payment-section';
@@ -348,23 +349,26 @@ export function OrderTracking({
           </div>
           {pickupMapsUrl &&
             (pickupMapsUrl.includes('/maps/embed') ? (
-              <div className="mt-4 overflow-hidden rounded-lg border border-foreground/10">
-                <iframe
-                  src={pickupMapsUrl}
-                  width="100%"
-                  height="220"
-                  style={{ border: 0 }}
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  title="Carte du lieu de retrait"
-                />
-              </div>
+              <MapEmbed
+                embedUrl={pickupMapsUrl}
+                // Un lien `/maps/embed` n'est pas destiné à être ouvert tel
+                // quel : le repli hors-iframe pointe donc sur une recherche
+                // Maps de l'adresse quand on en a une.
+                directionsUrl={
+                  pickupAddress
+                    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pickupAddress)}`
+                    : pickupMapsUrl
+                }
+                title="Carte du lieu de retrait"
+                caption={pickupAddress ?? undefined}
+                className="mt-4 h-55 overflow-hidden rounded-lg border border-foreground/10"
+              />
             ) : (
               <a
                 href={pickupMapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-3 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
+                className="mt-2 inline-block py-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
               >
                 Voir sur Google Maps →
               </a>
@@ -404,7 +408,7 @@ function StatusTimeline({
                         : 'bg-foreground/15'
                   )}
                 />
-                <motion.div
+                <m.div
                   initial={false}
                   animate={
                     active && !reduceMotion ? { scale: [1, 1.12, 1] } : {}
@@ -422,7 +426,7 @@ function StatusTimeline({
                   ) : (
                     <StepIcon className="h-4 w-4" />
                   )}
-                </motion.div>
+                </m.div>
                 <div
                   className={cn(
                     'h-0.5 flex-1',
@@ -617,7 +621,7 @@ function DriverSection({
   }
 
   return (
-    <motion.div
+    <m.div
       initial={reduceMotion ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
@@ -722,6 +726,6 @@ function DriverSection({
           Partager au livreur sur WhatsApp
         </Button>
       )}
-    </motion.div>
+    </m.div>
   );
 }

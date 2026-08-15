@@ -8,7 +8,7 @@
 // une prochaine commande.
 
 import { Switch } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { Gift } from 'lucide-react';
 import { priceFormatter } from '@/config/menu';
 
@@ -26,7 +26,7 @@ export function LoyaltyRewardBanner({
   const reduceMotion = useReducedMotion();
 
   return (
-    <motion.div
+    <m.div
       initial={reduceMotion ? false : { opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
@@ -52,6 +52,6 @@ export function LoyaltyRewardBanner({
           aria-label="Utiliser ma récompense fidélité"
         />
       </div>
-    </motion.div>
+    </m.div>
   );
 }

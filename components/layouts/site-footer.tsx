@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import React from 'react';
 import { Link } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { MapPin, MessageCircle, Mail } from 'lucide-react';
 import {
   IconBrandFacebook,
@@ -14,8 +14,7 @@ import {
   IconBrandYoutube,
 } from '@tabler/icons-react';
 import { brandConfig } from '@/config/brand.config';
-import { DASHBOARD_ROLES } from '@/config/constants';
-import { authClient } from '@/lib/auth-client';
+import { useStaffAccess } from '@/lib/hooks/use-staff-access';
 import type { ContactSettings } from '@/lib/contact-settings';
 import { buildWhatsAppLink } from '@/lib/contact-links';
 import { buildSocialProfiles, type SocialNetworkKey } from '@/lib/social-links';
@@ -40,10 +39,10 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
   const socialItems = buildSocialProfiles(contact);
   const whatsappHref = buildWhatsAppLink(contact.whatsapp) ?? '#';
-  const { data: session } = authClient.useSession();
-  const userRole = (session?.user as { role?: string } | undefined)?.role;
-  const hasDashboardAccess =
-    !!userRole && (DASHBOARD_ROLES as string[]).includes(userRole);
+  // Résolu APRÈS l'hydratation et hors du chunk initial (cf. `useStaffAccess`) :
+  // le lien affiche donc « Connexion » d'abord, ce qui est déjà la bonne
+  // réponse pour l'écrasante majorité des visiteurs du site vitrine.
+  const hasDashboardAccess = useStaffAccess();
   // Point d'accès indispensable dans la PWA installée (pas de barre d'adresse) :
   // « Connexion » si déconnecté, sinon raccourci vers le dashboard pour le staff.
   const accountLink = hasDashboardAccess
@@ -62,14 +61,16 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
   return (
     <footer className="border-t border-white/10 bg-[linear-gradient(180deg,rgba(20,20,25,1)_0%,rgba(15,15,20,1)_100%)] text-white">
       <div className="content-container">
-        <motion.div className="flex items-center justify-between border-b border-white/10 py-6 md:py-7">
+        <m.div className="flex items-center justify-between border-b border-white/10 py-6 md:py-7">
           <Image
             src="/assets/logos/eba_white_n.webp"
             alt="EBA Coffee Shop — café et pâtisserie à Abidjan"
             width={48}
             height={48}
           />
-          <div className="flex items-center gap-4">
+          {/* `-mr-2.5` compense la zone tactile ajoutée à droite du dernier
+              icone, pour que la rangée reste alignée sur le bord du contenu. */}
+          <div className="-mr-2.5 flex items-center gap-1">
             {socialItems.map((social) => {
               const Icon = SOCIAL_ICONS[social.key];
               return (
@@ -78,17 +79,21 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
                   isExternal
                   href={social.url}
                   aria-label={`Suivez EBA sur ${social.label}`}
-                  className="text-white/70 transition duration-300 hover:text-primary"
+                  // L'icone reste à 20 px ; c'est la zone CLIQUABLE qui passe à
+                  // 44 px. À 20x20 la cible était sous le minimum de 24 px du
+                  // WCAG 2.2 (2.5.8) et bien loin des ~44 px confortables au
+                  // pouce — sur un site dont le trafic est massivement mobile.
+                  className="flex h-11 w-11 items-center justify-center text-white/70 transition duration-300 hover:text-primary"
                 >
                   <Icon className="h-5 w-5" />
                 </Link>
               );
             })}
           </div>
-        </motion.div>
+        </m.div>
 
         <div className="grid gap-8 py-8 md:grid-cols-3 md:py-9 lg:gap-12">
-          <motion.div
+          <m.div
             {...fadeUp}
             transition={
               reduceMotion
@@ -103,9 +108,9 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
               Café et pâtisserie artisanale à Cocody, Abidjan. Votre coffee shop
               pour savourer l&apos;instant.
             </p>
-          </motion.div>
+          </m.div>
 
-          <motion.div
+          <m.div
             {...fadeUp}
             transition={
               reduceMotion
@@ -116,12 +121,16 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
             <h3 className="text-sm font-bold uppercase tracking-wide text-white">
               Navigation
             </h3>
-            <ul className="mt-4 space-y-2" role="list">
+            {/* `py-1.5` sur chaque lien : la ligne de texte seule ne fait que
+                20 px de haut, sous le minimum de 24 px du WCAG 2.2 (2.5.8).
+                L'espacement de la liste se resserre d'autant pour que le bloc
+                garde sa hauteur — la cible grandit, pas le footer. */}
+            <ul className="mt-3 space-y-0.5" role="list">
               {brandConfig.menu.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
-                    className="text-sm text-white/75 transition duration-300 hover:text-primary hover:translate-x-0.5"
+                    className="block py-1.5 text-sm text-white/75 transition duration-300 hover:text-primary hover:translate-x-0.5"
                   >
                     {link.label}
                   </Link>
@@ -130,15 +139,15 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
               <li key={accountLink.href}>
                 <Link
                   href={accountLink.href}
-                  className="text-sm text-white/75 transition duration-300 hover:text-primary hover:translate-x-0.5"
+                  className="block py-1.5 text-sm text-white/75 transition duration-300 hover:text-primary hover:translate-x-0.5"
                 >
                   {accountLink.label}
                 </Link>
               </li>
             </ul>
-          </motion.div>
+          </m.div>
 
-          <motion.div
+          <m.div
             {...fadeUp}
             transition={
               reduceMotion
@@ -149,8 +158,12 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
             <h3 className="text-sm font-bold uppercase tracking-wide text-white">
               Contact
             </h3>
-            <ul className="mt-4 space-y-3" role="list">
-              <li className="flex items-start gap-2 text-sm text-white/75">
+            {/* Même traitement que la colonne Navigation : `py-1.5` amène le
+                numéro et l'email au-dessus des 24 px, et l'espacement de la
+                liste se resserre pour compenser. Ce sont les deux liens de
+                contact direct du footer — ceux qu'on vise au pouce. */}
+            <ul className="mt-3 space-y-1.5" role="list">
+              <li className="flex items-start gap-2 py-1.5 text-sm text-white/75">
                 <MapPin
                   aria-hidden="true"
                   className="mt-0.5 h-4 w-4 shrink-0 text-primary"
@@ -166,7 +179,7 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
                   isExternal
                   href={whatsappHref}
                   onPress={() => trackContactClick('whatsapp', 'footer')}
-                  className="hover:text-primary"
+                  className="py-1.5 hover:text-primary"
                 >
                   {contact.whatsapp}
                 </Link>
@@ -178,16 +191,16 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
                 />
                 <Link
                   href={`mailto:${contact.email}`}
-                  className="hover:text-primary"
+                  className="py-1.5 hover:text-primary"
                 >
                   {contact.email}
                 </Link>
               </li>
             </ul>
-          </motion.div>
+          </m.div>
         </div>
 
-        <motion.div
+        <m.div
           className="border-t border-white/10 py-4 text-center text-sm text-white/60 md:py-5"
           initial={reduceMotion ? undefined : { opacity: 0 }}
           whileInView={reduceMotion ? undefined : { opacity: 1 }}
@@ -203,12 +216,12 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
             {' · '}
             <Link
               href="/cookies"
-              className="text-sm text-white/60 underline underline-offset-2 hover:text-primary"
+              className="inline-block py-1.5 text-sm text-white/60 underline underline-offset-2 hover:text-primary"
             >
               Cookies
             </Link>
           </p>
-        </motion.div>
+        </m.div>
       </div>
     </footer>
   );

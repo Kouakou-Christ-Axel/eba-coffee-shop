@@ -1,7 +1,7 @@
 'use client';
 
 import { Link } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import type { ContactSettings } from '@/lib/contact-settings';
 import type { PublicTiktokVideo } from '@/lib/tiktok';
 import TiktokEmbedRow from './_components/tiktok-embed-row';
@@ -21,7 +21,7 @@ function SocialSection({
       aria-labelledby="social-section-title"
     >
       <div className="content-container px-6">
-        <motion.div
+        <m.div
           className="mx-auto max-w-3xl text-center"
           initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
           whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -57,11 +57,11 @@ function SocialSection({
               {contact.tiktokHandle} on TikTok
             </Link>
           </div>
-        </motion.div>
+        </m.div>
 
         {tiktokVideos.length > 0 && <TiktokEmbedRow videos={tiktokVideos} />}
 
-        <motion.p
+        <m.p
           className="mt-7 text-center text-sm text-primary md:mt-8"
           initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
           whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -79,7 +79,7 @@ function SocialSection({
           >
             Taggez vos moments avec {contact.hashtagLabel}
           </Link>
-        </motion.p>
+        </m.p>
       </div>
     </section>
   );

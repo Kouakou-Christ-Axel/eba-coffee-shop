@@ -15,7 +15,7 @@
 import React from 'react';
 import dynamic from 'next/dynamic';
 import { Button, Card, CardBody, CardFooter, Link } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { Check, Plus } from 'lucide-react';
 
 import { priceFormatter, type Product } from '@/config/menu';
@@ -114,7 +114,7 @@ function IncontournablesSectionClient({ items }: Props) {
       aria-labelledby="incontournables-title"
     >
       <div className="content-container px-6">
-        <motion.div
+        <m.div
           className="mb-8 flex flex-col gap-3 md:mb-10"
           initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
           whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -134,11 +134,11 @@ function IncontournablesSectionClient({ items }: Props) {
             Les pâtisseries et boissons les plus aimées par nos habitués,
             préparées chaque matin à Cocody.
           </p>
-        </motion.div>
+        </m.div>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((product, index) => (
-            <motion.div
+            <m.div
               key={product.id}
               initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
               whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -151,11 +151,11 @@ function IncontournablesSectionClient({ items }: Props) {
               className="h-full"
             >
               <FeaturedCard product={product} />
-            </motion.div>
+            </m.div>
           ))}
         </div>
 
-        <motion.div
+        <m.div
           className="mt-10 flex justify-center"
           initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
           whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -172,7 +172,7 @@ function IncontournablesSectionClient({ items }: Props) {
           >
             Voir toute la carte
           </Button>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

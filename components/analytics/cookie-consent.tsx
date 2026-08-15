@@ -15,7 +15,7 @@
 import React from 'react';
 import NextLink from 'next/link';
 import { Button } from '@heroui/react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import { IconCookie } from '@tabler/icons-react';
 import { useBottomBannerStore } from '@/lib/bottom-banner-store';
 import { useConsentStore } from '@/lib/consent-store';
@@ -76,7 +76,7 @@ export function CookieConsent({
   return (
     <AnimatePresence>
       {isVisible && (
-        <motion.div
+        <m.div
           initial={initial}
           animate={animate}
           exit={exit}
@@ -126,7 +126,7 @@ export function CookieConsent({
               </Button>
             </div>
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

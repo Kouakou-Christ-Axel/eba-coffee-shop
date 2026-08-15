@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { Clock3, MapPin, MessageCircle } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
 
@@ -57,32 +57,32 @@ export function ContactInfoCard({
       } as const);
 
   return (
-    <motion.div
+    <m.div
       {...containerProps}
       className="rounded-3xl border border-default-200/70 bg-content1/80 p-6 shadow-lg shadow-black/5 backdrop-blur-sm md:p-8"
     >
-      <motion.p
+      <m.p
         className="text-xs font-semibold uppercase tracking-[0.2em] text-primary"
         {...itemProps}
       >
         Contact EBA
-      </motion.p>
-      <motion.h2
+      </m.p>
+      <m.h2
         id="contact-form-title"
         className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl"
         {...itemProps}
       >
         Ecrivons ensemble votre prochaine experience
-      </motion.h2>
-      <motion.p
+      </m.h2>
+      <m.p
         className="mt-4 max-w-xl text-sm leading-relaxed text-foreground/75 sm:text-base"
         {...itemProps}
       >
         Une question, une reservation ou un partenariat ? Notre equipe vous
         repond rapidement avec attention.
-      </motion.p>
+      </m.p>
 
-      <motion.ul className="mt-7 space-y-3" role="list" {...itemProps}>
+      <m.ul className="mt-7 space-y-3" role="list" {...itemProps}>
         {infoItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -104,7 +104,7 @@ export function ContactInfoCard({
             </li>
           );
         })}
-      </motion.ul>
-    </motion.div>
+      </m.ul>
+    </m.div>
   );
 }
