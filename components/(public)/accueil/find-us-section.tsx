@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Button, Card, CardBody, Link } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import {
   Clock3,
   MapPin,
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
 import { trackContactClick } from '@/lib/analytics';
+import { MapEmbed } from '@/components/(public)/_components/map-embed';
 
 function FindUsSection({
   contact,
@@ -67,15 +68,15 @@ function FindUsSection({
       <div className="content-container px-6">
         <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
           <div>
-            <motion.h2
+            <m.h2
               id="find-us-title"
               className="text-3xl font-bold tracking-tight sm:text-4xl"
               {...fadeUp}
             >
               Nous trouver a Abidjan
-            </motion.h2>
+            </m.h2>
 
-            <motion.p
+            <m.p
               className="mt-4 max-w-2xl text-sm leading-relaxed text-foreground/80 sm:text-base"
               {...fadeUp}
               transition={
@@ -86,9 +87,9 @@ function FindUsSection({
             >
               Retrouvez EBA pour une pause cafe et patisserie dans un cadre
               elegant et chaleureux a Abidjan.
-            </motion.p>
+            </m.p>
 
-            <motion.address
+            <m.address
               className="mt-6 not-italic"
               initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
               whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -103,7 +104,7 @@ function FindUsSection({
                 {infoRows.map((row, index) => {
                   const Icon = row.icon;
                   return (
-                    <motion.li
+                    <m.li
                       key={row.label}
                       className="flex items-start gap-3 rounded-xl border border-default-200/70 bg-content1/90 px-4 py-3"
                       initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
@@ -131,13 +132,13 @@ function FindUsSection({
                         </p>
                         <p className="text-foreground/75">{row.value}</p>
                       </div>
-                    </motion.li>
+                    </m.li>
                   );
                 })}
               </ul>
-            </motion.address>
+            </m.address>
 
-            <motion.div
+            <m.div
               className="mt-6 flex flex-wrap gap-3"
               initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
               whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -175,10 +176,10 @@ function FindUsSection({
               >
                 Voir l&apos;itineraire
               </Button>
-            </motion.div>
+            </m.div>
           </div>
 
-          <motion.div
+          <m.div
             initial={reduceMotion ? undefined : { opacity: 0 }}
             whileInView={reduceMotion ? undefined : { opacity: 1 }}
             viewport={{ once: true, amount: 0.25 }}
@@ -190,18 +191,16 @@ function FindUsSection({
           >
             <Card className="overflow-hidden rounded-2xl border border-default-200/70 bg-content1 shadow-lg">
               <CardBody className="p-0">
-                <div className="relative h-80 w-full md:h-128">
-                  <iframe
-                    title="Carte Google Maps EBA a Abidjan"
-                    src={contact.mapsEmbedUrl}
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                    className="h-full w-full border-0"
-                  />
-                </div>
+                <MapEmbed
+                  embedUrl={contact.mapsEmbedUrl}
+                  directionsUrl={contact.mapsDirectionsUrl}
+                  title="Carte Google Maps EBA a Abidjan"
+                  caption={contact.address}
+                  className="relative h-80 w-full md:h-128"
+                />
               </CardBody>
             </Card>
-          </motion.div>
+          </m.div>
         </div>
       </div>
     </section>

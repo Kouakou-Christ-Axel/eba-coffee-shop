@@ -3,7 +3,7 @@
 import React from 'react';
 import { Button, Link } from '@heroui/react';
 import { IconDownload, IconFileTypePdf, IconX } from '@tabler/icons-react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import { useBottomBannerStore } from '@/lib/bottom-banner-store';
 import { useIsConsentPrompting } from '@/lib/consent-store';
 
@@ -68,7 +68,7 @@ export default function DownloadMenuPdf({ pdfUrl }: Props) {
   return (
     <AnimatePresence>
       {isBannerVisible && (
-        <motion.div
+        <m.div
           initial={initial}
           animate={animate}
           exit={exit}
@@ -117,7 +117,7 @@ export default function DownloadMenuPdf({ pdfUrl }: Props) {
               <IconX size={16} aria-hidden />
             </Button>
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
   );

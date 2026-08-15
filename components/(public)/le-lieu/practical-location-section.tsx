@@ -1,12 +1,13 @@
 'use client';
 
 import React from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { Button, Link } from '@heroui/react';
 import { Clock3, MapPin, MessageCircle } from 'lucide-react';
 import type { ContactSettings } from '@/lib/contact-settings';
 import { buildWhatsAppLink } from '@/lib/contact-links';
 import { trackContactClick } from '@/lib/analytics';
+import { MapEmbed } from '@/components/(public)/_components/map-embed';
 
 function PracticalLocationSection({
   contact,
@@ -48,7 +49,7 @@ function PracticalLocationSection({
     >
       <div className="content-container">
         <div className="grid gap-6 lg:grid-cols-12 lg:items-start lg:gap-8">
-          <motion.div
+          <m.div
             className="rounded-3xl border border-border/70 bg-white p-5 shadow-sm sm:p-6 lg:col-span-5"
             initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
             whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -75,7 +76,7 @@ function PracticalLocationSection({
               {infoRows.map((item, index) => {
                 const Icon = item.icon;
                 return (
-                  <motion.li
+                  <m.li
                     key={item.label}
                     className="rounded-2xl border border-border/70 bg-default-50 px-3.5 py-3"
                     initial={reduceMotion ? undefined : { opacity: 0, y: 10 }}
@@ -107,7 +108,7 @@ function PracticalLocationSection({
                         </p>
                       </div>
                     </div>
-                  </motion.li>
+                  </m.li>
                 );
               })}
             </ul>
@@ -143,9 +144,9 @@ function PracticalLocationSection({
                 WhatsApp
               </Button>
             </div>
-          </motion.div>
+          </m.div>
 
-          <motion.div
+          <m.div
             className="overflow-hidden rounded-3xl border border-border/70 bg-white shadow-sm lg:col-span-7"
             initial={reduceMotion ? undefined : { opacity: 0 }}
             whileInView={reduceMotion ? undefined : { opacity: 1 }}
@@ -164,16 +165,14 @@ function PracticalLocationSection({
                 {contact.address} - {contact.landmark}
               </p>
             </div>
-            <div className="relative h-72 w-full sm:h-88 lg:h-124">
-              <iframe
-                title="Carte Google Maps EBA a Abidjan"
-                src={contact.mapsEmbedUrl}
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                className="h-full w-full border-0"
-              />
-            </div>
-          </motion.div>
+            <MapEmbed
+              embedUrl={contact.mapsEmbedUrl}
+              directionsUrl={contact.mapsDirectionsUrl}
+              title="Carte Google Maps EBA a Abidjan"
+              caption={contact.address}
+              className="relative h-72 w-full sm:h-88 lg:h-124"
+            />
+          </m.div>
         </div>
       </div>
     </section>

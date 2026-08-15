@@ -3,26 +3,23 @@
 import React from 'react';
 import { Button, Link } from '@heroui/react';
 import { IconLayoutDashboard } from '@tabler/icons-react';
-import { motion, useReducedMotion } from 'framer-motion';
-import { authClient } from '@/lib/auth-client';
-import { DASHBOARD_ROLES } from '@/config/constants';
+import { m, useReducedMotion } from 'framer-motion';
 
 /**
  * Bouton flottant d'accès au dashboard, visible uniquement sous `xl` où le
  * bouton « Dashboard » de la navbar est masqué (cf. components/layouts/
  * navbar.tsx : à 1024 px la barre est déjà pleine). Réservé au staff connecté.
+ *
+ * Le composant ne sait plus RIEN de la session : c'est `DashboardFabMount` qui
+ * décide de le monter, et qui ne l'importe qu'à ce moment-là. Sans quoi le
+ * `@tabler/icons-react` de l'icône ci-dessous voyagerait dans le chunk du
+ * layout public, pour un bouton qu'un visiteur anonyme ne voit jamais.
  */
 export default function DashboardFab() {
   const reduceMotion = useReducedMotion();
-  const { data: session } = authClient.useSession();
-  const userRole = (session?.user as { role?: string } | undefined)?.role;
-  const hasDashboardAccess =
-    !!userRole && (DASHBOARD_ROLES as string[]).includes(userRole);
-
-  if (!hasDashboardAccess) return null;
 
   return (
-    <motion.div
+    <m.div
       initial={reduceMotion ? false : { opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ type: 'spring', stiffness: 260, damping: 22 }}
@@ -40,6 +37,6 @@ export default function DashboardFab() {
       >
         Dashboard
       </Button>
-    </motion.div>
+    </m.div>
   );
 }

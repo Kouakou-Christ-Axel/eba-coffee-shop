@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 
 const trustItems = [
   'Café de qualité',
@@ -47,7 +47,7 @@ function QuickTrustSection() {
         ))}
       </ul>
 
-      <motion.div
+      <m.div
         className={`flex w-max ${reduceMotion ? '' : 'animate-[marquee_28s_linear_infinite]'}`}
         initial={reduceMotion ? undefined : { opacity: 0 }}
         whileInView={reduceMotion ? undefined : { opacity: 1 }}
@@ -56,7 +56,7 @@ function QuickTrustSection() {
       >
         <TrustStrip />
         <TrustStrip />
-      </motion.div>
+      </m.div>
     </section>
   );
 }

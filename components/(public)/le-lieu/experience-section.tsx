@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { Card, CardBody } from '@heroui/react';
 import { Heart, Sparkles, Users, type LucideIcon } from 'lucide-react';
 
@@ -50,13 +50,13 @@ function ExperienceSection() {
     >
       <div className="content-container">
         <div className="mb-8 flex flex-col gap-3 md:mb-10">
-          <motion.p
+          <m.p
             className="text-xs font-semibold uppercase tracking-[0.18em] text-primary"
             {...introMotion}
           >
             Le lieu EBA
-          </motion.p>
-          <motion.h2
+          </m.p>
+          <m.h2
             id="experience-title"
             className="text-3xl font-bold tracking-tight sm:text-4xl"
             {...introMotion}
@@ -67,12 +67,12 @@ function ExperienceSection() {
             }
           >
             L&apos;experience sur place
-          </motion.h2>
+          </m.h2>
         </div>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-3 md:gap-6">
           {experienceItems.map((item, index) => (
-            <motion.div
+            <m.div
               key={item.title}
               initial={prefersReducedMotion ? undefined : { opacity: 0, y: 16 }}
               whileInView={
@@ -99,7 +99,7 @@ function ExperienceSection() {
                   </p>
                 </CardBody>
               </Card>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>

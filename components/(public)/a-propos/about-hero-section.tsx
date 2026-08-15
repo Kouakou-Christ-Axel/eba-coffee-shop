@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 
 function AboutHeroSection() {
   const reduceMotion = useReducedMotion();
@@ -26,7 +26,7 @@ function AboutHeroSection() {
         className="absolute inset-0 bg-linear-to-t from-black/35 via-black/15 to-transparent"
       />
 
-      <motion.div
+      <m.div
         className="relative z-10 flex min-h-svh items-center justify-center px-6"
         initial={reduceMotion ? undefined : { opacity: 0, y: 20 }}
         animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -54,7 +54,7 @@ function AboutHeroSection() {
             son temps.
           </p>
         </div>
-      </motion.div>
+      </m.div>
     </section>
   );
 }

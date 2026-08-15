@@ -3,7 +3,7 @@ import { GoogleTagManager } from '@next/third-parties/google';
 import Navbar from '@/components/layouts/navbar';
 import SiteFooter from '@/components/layouts/site-footer';
 import InstallPwa from '@/components/pwa/install-pwa';
-import DashboardFab from '@/components/layouts/dashboard-fab';
+import DashboardFabMount from '@/components/layouts/dashboard-fab-mount';
 import ConsentBoot from '@/components/analytics/consent-boot';
 import CookieConsent from '@/components/analytics/cookie-consent';
 import { getContactSettings } from '@/lib/contact-settings-db';
@@ -20,6 +20,15 @@ async function PublicLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      {/* Les photos produits sont servies par Cloudinary (cf.
+          components/ui/media-image.tsx) et découvertes tard, une fois le HTML
+          parsé. Ouvrir la connexion dès le `<head>` (React 19 hisse ce `link`)
+          économise DNS + TCP + TLS sur le chemin de l'image — soit un aller-
+          retour complet, ce qui pèse plus que les octets sur le mobile
+          ivoirien. */}
+      <link rel="preconnect" href="https://res.cloudinary.com" />
+      <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+
       {/* Ordre significatif : l'amorçage Consent Mode doit précéder GTM. */}
       {gtmId ? <ConsentBoot /> : null}
       {gtmId ? <GoogleTagManager gtmId={gtmId} /> : null}
@@ -27,7 +36,7 @@ async function PublicLayout({ children }: { children: React.ReactNode }) {
       <main>{children}</main>
       <SiteFooter contact={contact} />
       <InstallPwa />
-      <DashboardFab />
+      <DashboardFabMount />
       {gtmId ? <CookieConsent /> : null}
     </>
   );

@@ -11,7 +11,7 @@
 // compléter — la vitrine reste ainsi pleine même sans historique de ventes.
 
 import dynamic from 'next/dynamic';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { Button } from '@heroui/react';
 import { Check, Plus } from 'lucide-react';
 import { priceFormatter, type MenuCategory, type Product } from '@/config/menu';
@@ -125,7 +125,7 @@ function FeaturedShowcase({ menuData }: { menuData: MenuCategory[] }) {
   if (products.length < SHOWCASE_MIN_PRODUCTS) return null;
 
   return (
-    <motion.section
+    <m.section
       aria-labelledby="vitrine-title"
       className="content-container mt-6 md:mt-8"
       // Props d'animation identiques serveur/client : voir la note dans
@@ -158,7 +158,7 @@ function FeaturedShowcase({ menuData }: { menuData: MenuCategory[] }) {
           ))}
         </div>
       </div>
-    </motion.section>
+    </m.section>
   );
 }
 

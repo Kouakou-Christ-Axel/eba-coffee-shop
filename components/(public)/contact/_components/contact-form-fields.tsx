@@ -1,7 +1,7 @@
 'use client';
 
 import { Input, Select, SelectItem, Textarea } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import type {
   ContactFormErrors,
   ContactFormValues,
@@ -47,10 +47,7 @@ export function ContactFormFields({ values, errors, setField }: Props) {
 
   return (
     <>
-      <motion.div
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2"
-        {...itemProps}
-      >
+      <m.div className="grid grid-cols-1 gap-4 sm:grid-cols-2" {...itemProps}>
         <Input
           label="Nom complet"
           placeholder="Votre nom"
@@ -78,12 +75,9 @@ export function ContactFormFields({ values, errors, setField }: Props) {
           errorMessage={errors.email}
           autoComplete="email"
         />
-      </motion.div>
+      </m.div>
 
-      <motion.div
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2"
-        {...itemProps}
-      >
+      <m.div className="grid grid-cols-1 gap-4 sm:grid-cols-2" {...itemProps}>
         <Input
           label="Telephone"
           type="tel"
@@ -131,9 +125,9 @@ export function ContactFormFields({ values, errors, setField }: Props) {
             <SelectItem key={m.key}>{m.label}</SelectItem>
           ))}
         </Select>
-      </motion.div>
+      </m.div>
 
-      <motion.div {...itemProps}>
+      <m.div {...itemProps}>
         <Textarea
           label="Message"
           placeholder="Votre message..."
@@ -147,7 +141,7 @@ export function ContactFormFields({ values, errors, setField }: Props) {
           isInvalid={!!errors.message}
           errorMessage={errors.message}
         />
-      </motion.div>
+      </m.div>
     </>
   );
 }

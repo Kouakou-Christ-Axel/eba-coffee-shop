@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { ShoppingBag } from 'lucide-react';
 import { useCartSummary } from '@/lib/hooks/use-cart-summary';
 import { useHasBottomBanner } from '@/lib/bottom-banner-store';
@@ -36,7 +36,7 @@ function CartFloatingButton() {
             posait par-dessus le « Passer la commande ». Il n'a de toute façon
             plus rien à ouvrir tant que le panier est affiché. */}
         {totalItems > 0 && !drawerOpen && (
-          <motion.button
+          <m.button
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
@@ -59,7 +59,7 @@ function CartFloatingButton() {
             <span className="text-sm font-semibold">
               {priceFormatter.format(totalPrice)}&nbsp;F
             </span>
-          </motion.button>
+          </m.button>
         )}
       </AnimatePresence>
 

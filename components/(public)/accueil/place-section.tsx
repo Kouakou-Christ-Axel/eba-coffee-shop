@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import React from 'react';
 import { Button, Link } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 
 type PlaceImage = {
   src: string;
@@ -53,15 +53,15 @@ function PlaceSection() {
     >
       <div className="content-container px-6">
         <div className="mx-auto max-w-3xl text-left">
-          <motion.h2
+          <m.h2
             id="place-section-title"
             className="text-3xl font-bold tracking-tight sm:text-4xl"
             {...introAnimation}
           >
             Le lieu
-          </motion.h2>
+          </m.h2>
 
-          <motion.p
+          <m.p
             className="mt-4 max-w-2xl text-sm leading-relaxed text-foreground/80 sm:text-base"
             {...introAnimation}
             transition={
@@ -73,9 +73,9 @@ function PlaceSection() {
             Un espace pens&eacute; pour savourer un caf&eacute; et une
             p&acirc;tisserie dans une ambiance intime, soign&eacute;e et
             chaleureuse &agrave; Abidjan.
-          </motion.p>
+          </m.p>
 
-          <motion.div
+          <m.div
             className="mt-6"
             {...introAnimation}
             transition={
@@ -94,7 +94,7 @@ function PlaceSection() {
             >
               Voir le lieu
             </Button>
-          </motion.div>
+          </m.div>
         </div>
 
         <ul
@@ -102,7 +102,7 @@ function PlaceSection() {
           role="list"
         >
           {placeImages.map((image, index) => (
-            <motion.li
+            <m.li
               key={image.alt}
               className={`${index === 3 ? 'hidden md:block' : ''} w-[82%] shrink-0 snap-start sm:w-[62%] md:w-auto`}
               initial={reduceMotion ? undefined : { opacity: 0, y: 18 }}
@@ -125,7 +125,7 @@ function PlaceSection() {
                   />
                 </div>
               </figure>
-            </motion.li>
+            </m.li>
           ))}
         </ul>
       </div>

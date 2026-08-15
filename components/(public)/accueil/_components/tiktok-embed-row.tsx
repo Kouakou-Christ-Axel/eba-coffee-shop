@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import type { PublicTiktokVideo } from '@/lib/tiktok';
 import TiktokEmbedLazy from './tiktok-embed-lazy';
 
@@ -18,7 +18,7 @@ function TiktokEmbedRow({ videos }: TiktokEmbedRowProps) {
   const reduceMotion = useReducedMotion();
 
   return (
-    <motion.div
+    <m.div
       className="mt-8 md:mt-10"
       initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
       whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
@@ -30,7 +30,7 @@ function TiktokEmbedRow({ videos }: TiktokEmbedRowProps) {
           <TiktokEmbedLazy key={video.id} video={video} />
         ))}
       </div>
-    </motion.div>
+    </m.div>
   );
 }
 

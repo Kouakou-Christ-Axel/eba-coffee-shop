@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, Card, CardBody } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import { Send } from 'lucide-react';
 import { useContactForm } from '@/lib/hooks/use-contact-form';
 import type { ContactSettings } from '@/lib/contact-settings';
@@ -55,7 +55,7 @@ function ContactFormSection({
         <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-10">
           <ContactInfoCard contact={contact} hoursLabel={hoursLabel} />
 
-          <motion.div
+          <m.div
             initial={reduceMotion ? undefined : { opacity: 0, y: 18 }}
             whileInView={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.25 }}
@@ -67,7 +67,7 @@ function ContactFormSection({
           >
             <Card className="rounded-3xl border border-default-200/70 bg-background/90 shadow-xl shadow-black/10 backdrop-blur-sm">
               <CardBody className="p-5 sm:p-7">
-                <motion.form
+                <m.form
                   onSubmit={handleSubmit}
                   className="space-y-4"
                   {...containerProps}
@@ -99,10 +99,10 @@ function ContactFormSection({
                       Envoyer le message
                     </Button>
                   </div>
-                </motion.form>
+                </m.form>
               </CardBody>
             </Card>
-          </motion.div>
+          </m.div>
         </div>
       </div>
     </section>

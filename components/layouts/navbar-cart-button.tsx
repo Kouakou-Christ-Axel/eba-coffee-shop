@@ -14,7 +14,7 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import { Button } from '@heroui/react';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { m, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { ShoppingBag } from 'lucide-react';
 import { useCartSummary } from '@/lib/hooks/use-cart-summary';
 import { priceFormatter } from '@/config/menu';
@@ -43,7 +43,7 @@ export default function NavbarCartButton() {
           // `li` animé plutôt qu'un `NavbarItem` fixe contenant une `div` :
           // panier vide = aucun `<li>` dans la barre, donc pas de `gap`
           // orphelin, et l'entrée/sortie reste animée.
-          <motion.li
+          <m.li
             className="box-border list-none"
             initial={reduceMotion ? false : { scale: 0.6, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -77,7 +77,7 @@ export default function NavbarCartButton() {
                 {priceFormatter.format(totalPrice)}&nbsp;F
               </span>
             </Button>
-          </motion.li>
+          </m.li>
         )}
       </AnimatePresence>
 

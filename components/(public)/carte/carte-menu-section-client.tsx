@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@heroui/react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { m, useReducedMotion } from 'framer-motion';
 import type { MenuCategory } from '@/config/menu';
 import ProductCard from '@/components/(public)/carte/product-card';
 import FeaturedShowcase from '@/components/(public)/carte/featured-showcase';
@@ -324,7 +324,7 @@ function CarteMenuSectionClient({ menuData }: Props) {
                   // démontent et remontent à chaque frappe (`once: true` ne
                   // protège pas d'un remontage), et rejouer la cascade
                   // échelonnée donnerait des résultats qui clignotent.
-                  <motion.div
+                  <m.div
                     key={product.id}
                     id={productAnchorId(product.id)}
                     // Cible d'un lien `/carte?p=<id>` : focusable au clavier
@@ -342,7 +342,7 @@ function CarteMenuSectionClient({ menuData }: Props) {
                     }
                   >
                     <ProductCard product={product} />
-                  </motion.div>
+                  </m.div>
                 ))}
               </div>
             </div>
