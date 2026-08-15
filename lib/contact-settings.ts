@@ -14,6 +14,22 @@ const phoneNumber = z
   .min(1, 'Numéro requis')
   .refine((v) => normalizeIvorianPhone(v) !== null, 'Numéro invalide');
 
+/**
+ * URL de profil social FACULTATIVE : chaîne vide = « le commerce n'est pas sur
+ * ce réseau », et non « URL invalide ». Instagram et TikTok restent obligatoires
+ * (comptes historiques, affichés avec leur pseudo dans la section « Suivez
+ * l'aventure ») ; Facebook / X / LinkedIn / YouTube sont opt-in et disparaissent
+ * simplement du pied de page et du `sameAs` JSON-LD tant qu'ils sont vides.
+ */
+const optionalProfileUrl = z
+  .string()
+  .trim()
+  .max(300)
+  .refine(
+    (v) => v === '' || z.string().url().safeParse(v).success,
+    'URL invalide'
+  );
+
 export const contactSettingsSchema = z.object({
   address: z.string().trim().min(1).max(200),
   district: z.string().trim().min(1).max(100),
@@ -32,6 +48,10 @@ export const contactSettingsSchema = z.object({
   instagramUrl: z.string().trim().url('URL invalide').max(300),
   tiktokHandle: z.string().trim().min(1).max(50),
   tiktokUrl: z.string().trim().url('URL invalide').max(300),
+  facebookUrl: optionalProfileUrl,
+  xUrl: optionalProfileUrl,
+  linkedinUrl: optionalProfileUrl,
+  youtubeUrl: optionalProfileUrl,
   hashtagLabel: z.string().trim().min(1).max(50),
   hashtagUrl: z.string().trim().url('URL invalide').max(300),
 });
@@ -59,13 +79,22 @@ export const DEFAULT_CONTACT_SETTINGS: ContactSettings = {
   instagramUrl: 'https://www.instagram.com/eba.coffeeshop/',
   tiktokHandle: '@eba.coffeeshop',
   tiktokUrl: 'https://www.tiktok.com/@eba.coffeeshop',
+  facebookUrl: '',
+  xUrl: '',
+  linkedinUrl: '',
+  youtubeUrl: '',
   hashtagLabel: '#InstantEBA',
   hashtagUrl: 'https://www.instagram.com/explore/tags/InstantEBA/',
 };
 
 /** Ligne DB partielle → config effective (défauts si champ manquant/null). */
 export function contactSettingsFromRow(
-  row: Partial<ContactSettings> | null | undefined
+  row: Partial<Record<keyof ContactSettings, string | null>> | null | undefined
 ): ContactSettings {
-  return { ...DEFAULT_CONTACT_SETTINGS, ...(row ?? {}) };
+  // Un `null` en base doit retomber sur le défaut, pas l'écraser : un simple
+  // spread de la ligne poserait `null` sur le champ et ferait mentir le type.
+  const defined = Object.fromEntries(
+    Object.entries(row ?? {}).filter(([, value]) => value !== null)
+  );
+  return { ...DEFAULT_CONTACT_SETTINGS, ...defined };
 }

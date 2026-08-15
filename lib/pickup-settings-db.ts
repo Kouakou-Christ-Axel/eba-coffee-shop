@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import prisma from '@/lib/prisma';
 import type { Prisma } from '@/generated/prisma/client';
 import {
@@ -7,7 +8,14 @@ import {
 } from '@/lib/pickup-settings';
 import { generatePickupSlots } from '@/lib/pickup-slots';
 
-export async function getPickupSettings(): Promise<PickupSettings> {
+/**
+ * Réglages de retrait (créneaux + horaires d'ouverture).
+ *
+ * Mémoïsé par requête pour la même raison que `getContactSettings` : les
+ * horaires servent au JSON-LD dans `app/layout.tsx` ET à la page rendue en
+ * dessous (`/`, `/contact`, `/le-lieu`), soit deux fois la même lecture.
+ */
+export const getPickupSettings = cache(async (): Promise<PickupSettings> => {
   const row = await prisma.pickupSettings.findUnique({
     where: { id: 'singleton' },
   });
@@ -25,7 +33,7 @@ export async function getPickupSettings(): Promise<PickupSettings> {
   });
 
   return parsed.success ? parsed.data : DEFAULT_SETTINGS;
-}
+});
 
 export async function updatePickupSettings(
   input: PickupSettings

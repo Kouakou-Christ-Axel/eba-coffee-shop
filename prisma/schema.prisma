@@ -453,6 +453,12 @@ model ContactSettings {
   instagramUrl             String
   tiktokHandle             String
   tiktokUrl                String
+  // Réseaux facultatifs : "" = compte inexistant (le lien disparaît du pied de
+  // page et du `sameAs` JSON-LD). Cf. lib/contact-settings.ts.
+  facebookUrl              String   @default("")
+  xUrl                     String   @default("")
+  linkedinUrl              String   @default("")
+  youtubeUrl               String   @default("")
   hashtagLabel             String
   hashtagUrl               String
   updatedAt                DateTime @updatedAt

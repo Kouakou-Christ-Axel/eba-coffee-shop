@@ -3,8 +3,17 @@ import { brandConfig } from '@/config/brand.config';
 import type { MenuCategory } from '@/config/menu';
 import type { ContactSettings } from '@/lib/contact-settings';
 import type { WeeklyHours } from '@/lib/pickup-settings';
+import { buildSameAs } from '@/lib/social-links';
 
 const siteUrl = ENV.NEXT_PUBLIC_SITE_URL;
+
+/** Visuel de référence du commerce. Deux exigences : un fichier RÉELLEMENT
+ * servi (un `image` en 404 suffit à faire rejeter la fiche par les validateurs
+ * de données structurées — c'était le cas de l'ancien `/og/home-coffee.jpg`,
+ * qui n'a jamais existé dans `public/`), et au moins 1200 px de large, seuil
+ * des résultats enrichis Google. D'où la photo hero 1920×1080, déjà chargée par
+ * la page d'accueil donc déjà en cache. */
+const BUSINESS_IMAGE_PATH = '/assets/examples/accueil/eba-hero-2.webp';
 
 /** Chemin relatif (`/uploads/...`) → URL absolue ; une URL déjà absolue
  * (Cloudinary, http(s)) est renvoyée telle quelle. */
@@ -65,12 +74,19 @@ export function buildHomeJsonLd(
 ) {
   return {
     '@context': 'https://schema.org',
-    '@type': 'CafeOrCoffeeShop',
+    // `CafeOrCoffeeShop` HÉRITE de `LocalBusiness`, mais la plupart des outils
+    // de référencement local (et des annuaires) cherchent le libellé
+    // `LocalBusiness` littéralement dans `@type` et ne remontent pas la
+    // hiérarchie schema.org. Déclarer les deux types est valide et lève le
+    // « aucun schéma d'entreprise locale identifié » sans rien perdre de la
+    // spécificité « coffee shop ».
+    '@type': ['CafeOrCoffeeShop', 'LocalBusiness'],
     '@id': `${siteUrl}/#organization`,
     name: 'EBA Coffee Shop',
     description:
       'Coffee shop et pâtisserie artisanale à Cocody, Abidjan. Cafés de spécialité, pâtisseries maison, brunch et ambiance chaleureuse.',
-    image: `${siteUrl}/og/home-coffee.jpg`,
+    image: `${siteUrl}${BUSINESS_IMAGE_PATH}`,
+    logo: `${siteUrl}/assets/logos/eba_white_n.webp`,
     url: siteUrl,
     telephone: contact.phone,
     email: contact.email,
@@ -91,6 +107,7 @@ export function buildHomeJsonLd(
       name: 'Abidjan',
     },
     hasMenu: `${siteUrl}/carte`,
+    hasMap: contact.mapsDirectionsUrl,
     priceRange: '$$',
     currenciesAccepted: 'XOF',
     paymentAccepted: 'Cash, Mobile Money, Carte bancaire',
@@ -100,7 +117,9 @@ export function buildHomeJsonLd(
       'Brunch',
       'Boissons signatures',
     ],
-    sameAs: [contact.instagramUrl, contact.tiktokUrl],
+    // Tous les profils renseignés (cf. lib/social-links.ts) — un réseau laissé
+    // vide dans les réglages ne produit PAS une entrée vide dans `sameAs`.
+    sameAs: buildSameAs(contact),
     founder: {
       '@type': 'Person',
       name: brandConfig.founderName,
