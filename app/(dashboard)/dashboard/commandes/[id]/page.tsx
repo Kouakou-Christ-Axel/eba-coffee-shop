@@ -14,6 +14,7 @@ import {
   getItemNet,
 } from '@/lib/orders/totals';
 import { formatSupplementLabel } from '@/lib/orders/format';
+import { normalizeSiteUrl } from '@/lib/site-url';
 import type {
   OrderStatus,
   OrderType,
@@ -108,7 +109,7 @@ export default async function CommandeDetailPage({
     ? { settings: loyaltyCard.settings, stampCount: loyaltyCard.stampCount }
     : null;
   const trackingUrl = process.env.NEXT_PUBLIC_SITE_URL
-    ? `${process.env.NEXT_PUBLIC_SITE_URL}/commande/${order.id}`
+    ? `${normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL)}/commande/${order.id}`
     : undefined;
 
   return (

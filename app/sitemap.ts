@@ -1,8 +1,8 @@
 import type { MetadataRoute } from 'next';
-import { ENV } from 'varlock/env';
 import { listPublicPolls } from '@/lib/polls';
+import { siteUrl as getSiteUrl } from '@/lib/site-url';
 
-const siteUrl = ENV.NEXT_PUBLIC_SITE_URL;
+const siteUrl = getSiteUrl();
 
 // Le sitemap est peu volatile (pages statiques + sondages ouverts) : 1h de
 // cache limite la charge DB tout en gardant les nouveaux sondages visibles

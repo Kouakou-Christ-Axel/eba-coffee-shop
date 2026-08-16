@@ -5,6 +5,7 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth-helpers';
 import { sendStaffInviteEmail } from '@/lib/email';
+import { normalizeSiteUrl } from '@/lib/site-url';
 import type { UserRole } from '@/generated/prisma/client';
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -58,7 +59,7 @@ export async function inviteStaff(input: { email: string; role: UserRole }) {
     });
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const baseUrl = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL ?? '');
   try {
     await sendStaffInviteEmail({
       to: parsed.data.email,

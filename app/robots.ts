@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
-import { ENV } from 'varlock/env';
+import { siteUrl } from '@/lib/site-url';
 
-const baseUrl = ENV.NEXT_PUBLIC_SITE_URL;
+const baseUrl = siteUrl();
 
 export default function robots(): MetadataRoute.Robots {
   return {
