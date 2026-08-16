@@ -10,20 +10,37 @@ import FinalCtaSection from '@/components/(public)/le-lieu/final-cta-section';
 import React from 'react';
 import { getContactSettings } from '@/lib/contact-settings-db';
 import { getPickupSettings } from '@/lib/pickup-settings-db';
-import { summarizeWeeklyHours } from '@/lib/pickup-settings';
+import { summarizeOpenDays, summarizeWeeklyHours } from '@/lib/pickup-settings';
 import { OG_IMAGE } from '@/config/constants';
 
-export const metadata: Metadata = {
-  title: 'Le lieu — Votre coffee shop à Cocody',
-  description:
-    'Visitez EBA Coffee Shop à Cocody, Abidjan : un espace chaleureux et soigné pour savourer café de spécialité, pâtisseries artisanales et brunch. Ouvert 7j/7.',
+const TITLE = 'Le lieu — Votre coffee shop à Cocody';
+
+// Mention d'ouverture dérivée des horaires en base — cf. le commentaire de
+// `app/(public)/page.tsx`, même raison et même coût nul en requêtes.
+export async function generateMetadata(): Promise<Metadata> {
+  const pickup = await getPickupSettings();
+  const openDays = summarizeOpenDays(pickup.weeklyHours);
+  const description = [
+    'Visitez EBA Coffee Shop à Cocody, Abidjan : un espace chaleureux pour savourer café de spécialité, pâtisseries et brunch.',
+    openDays && `${openDays}.`,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return {
+    ...baseMetadata,
+    description,
+    openGraph: { ...baseMetadata.openGraph, description },
+  };
+}
+
+const baseMetadata: Metadata = {
+  title: TITLE,
   alternates: {
     canonical: '/le-lieu',
   },
   openGraph: {
-    title: 'Le lieu — Votre coffee shop à Cocody',
-    description:
-      'Visitez EBA Coffee Shop à Cocody, Abidjan : un espace chaleureux et soigné pour savourer café de spécialité, pâtisseries artisanales et brunch. Ouvert 7j/7.',
+    title: TITLE,
     url: '/le-lieu',
     images: [{ ...OG_IMAGE, alt: 'Le lieu — EBA Coffee Shop' }],
   },
