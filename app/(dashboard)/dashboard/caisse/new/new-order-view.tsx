@@ -71,6 +71,9 @@ export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
               forFutureDay={o.isDeferredDay}
               onProductTap={o.handleProductTap}
               onOpenOptions={o.openPicker}
+              onRestockProduct={(productId, stock) =>
+                applyRestock({ target: 'product', productId }, stock)
+              }
             />
           </div>
           <aside className="hidden md:block">
