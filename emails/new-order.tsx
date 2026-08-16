@@ -12,6 +12,7 @@ import {
 import { formatPickupTime } from '@/lib/format-order';
 import type { CartItem } from '@/lib/cart-store';
 import { formatSupplementLabel } from '@/lib/orders/format';
+import { normalizeSiteUrl } from '@/lib/site-url';
 
 type OrderData = {
   id: string;
@@ -32,7 +33,7 @@ export default function NewOrderEmail({ order }: Props) {
   const pickupFormatted = order.pickupTime
     ? formatPickupTime(order.pickupTime)
     : 'Walk-in (sans créneau)';
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const siteUrl = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL ?? '');
 
   return (
     <Html lang="fr">

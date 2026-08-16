@@ -1,12 +1,12 @@
-import { ENV } from 'varlock/env';
 import { brandConfig } from '@/config/brand.config';
 import { OG_IMAGE } from '@/config/constants';
 import type { MenuCategory } from '@/config/menu';
 import type { ContactSettings } from '@/lib/contact-settings';
 import type { WeeklyHours } from '@/lib/pickup-settings';
+import { siteUrl as getSiteUrl } from '@/lib/site-url';
 import { buildSameAs } from '@/lib/social-links';
 
-const siteUrl = ENV.NEXT_PUBLIC_SITE_URL;
+const siteUrl = getSiteUrl();
 
 /** Chemin relatif (`/uploads/...`) → URL absolue ; une URL déjà absolue
  * (Cloudinary, http(s)) est renvoyée telle quelle. */

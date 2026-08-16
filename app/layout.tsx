@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import Providers from '@/components/providers';
-import { ENV } from 'varlock/env';
 import { buildHomeJsonLd } from '@/lib/json-ld';
+import { siteUrl } from '@/lib/site-url';
 import { getContactSettings } from '@/lib/contact-settings-db';
 import { getPickupSettings } from '@/lib/pickup-settings-db';
 import { xHandleFromUrl } from '@/lib/social-links';
@@ -43,7 +43,7 @@ const twitterMetadata = {
 } satisfies Metadata['twitter'];
 
 const baseMetadata: Metadata = {
-  metadataBase: new URL(ENV.NEXT_PUBLIC_SITE_URL),
+  metadataBase: new URL(siteUrl()),
   title: {
     default: 'EBA Coffee shop à Abidjan | Café, brunch et douceurs',
     template: '%s | EBA Coffee Shop',

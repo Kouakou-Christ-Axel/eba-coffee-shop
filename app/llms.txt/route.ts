@@ -13,12 +13,12 @@
 // cf. `lib/json-ld.ts`), et le dupliquer créerait une seconde source de
 // vérité à maintenir.
 
-import { ENV } from 'varlock/env';
 import { getContactSettings } from '@/lib/contact-settings-db';
 import { getPickupSettings } from '@/lib/pickup-settings-db';
 import { summarizeWeeklyHours } from '@/lib/pickup-settings';
+import { siteUrl as getSiteUrl } from '@/lib/site-url';
 
-const siteUrl = ENV.NEXT_PUBLIC_SITE_URL;
+const siteUrl = getSiteUrl();
 
 // Même cadence que le sitemap : les coordonnées et horaires sont peu
 // volatils, et les crawlers LLM repassent rarement.

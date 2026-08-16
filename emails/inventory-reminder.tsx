@@ -9,6 +9,7 @@ import {
   Link,
   Hr,
 } from '@react-email/components';
+import { normalizeSiteUrl } from '@/lib/site-url';
 
 export type InventoryReminderItem = {
   name: string;
@@ -29,7 +30,7 @@ export default function InventoryReminderEmail({
   daysSince,
   lowStockItems,
 }: Props) {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? '';
+  const siteUrl = normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL ?? '');
   return (
     <Html lang="fr">
       <Body style={{ fontFamily: 'sans-serif', color: '#333' }}>
