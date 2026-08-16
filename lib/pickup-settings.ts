@@ -144,3 +144,40 @@ export function summarizeWeeklyHours(weeklyHours: WeeklyHours): string {
     })
     .join(' · ');
 }
+
+/**
+ * Résume les seuls JOURS d'ouverture, sans les heures : « Ouvert du mardi au
+ * dimanche », « Ouvert 7j/7 », « Ouvert le mardi, jeudi et samedi ».
+ *
+ * Complément volontairement court de `summarizeWeeklyHours`, destiné aux
+ * `<meta name="description">` de l'accueil et de `/le-lieu` : la version
+ * détaillée y ferait déborder la description au-delà de la limite d'affichage
+ * de Google (~155 caractères). Dérivé des mêmes `weeklyHours` que le reste du
+ * site, donc jamais désynchronisé — c'est une mention « Ouvert 7j/7 » écrite en
+ * dur qui avait fini par contredire les horaires réels (lundi fermé).
+ *
+ * Renvoie une chaîne vide si aucun jour n'est ouvert : l'appelant omet alors
+ * la phrase plutôt que d'annoncer une fermeture permanente.
+ */
+export function summarizeOpenDays(weeklyHours: WeeklyHours): string {
+  const openDays = WEEK_ORDER.filter((day) => (weeklyHours[day] ?? []).length);
+  if (openDays.length === 0) return '';
+  if (openDays.length === WEEK_ORDER.length) return 'Ouvert 7j/7';
+
+  // Jours contigus au sens de WEEK_ORDER (lundi → dimanche) : on préfère la
+  // forme « du … au … », plus courte et plus naturelle que l'énumération.
+  const startIndex = WEEK_ORDER.indexOf(openDays[0]);
+  const isContiguous = openDays.every(
+    (day, i) => WEEK_ORDER[startIndex + i] === day
+  );
+  const label = (day: string) => WEEKDAY_LABELS[day].toLowerCase();
+
+  if (isContiguous && openDays.length > 1) {
+    return `Ouvert du ${label(openDays[0])} au ${label(openDays[openDays.length - 1])}`;
+  }
+  if (openDays.length === 1) return `Ouvert le ${label(openDays[0])}`;
+
+  const last = label(openDays[openDays.length - 1]);
+  const others = openDays.slice(0, -1).map(label).join(', ');
+  return `Ouvert le ${others} et ${last}`;
+}

@@ -56,10 +56,11 @@ function buildOpeningHoursSpecification(weeklyHours: WeeklyHours) {
 
 /** JSON-LD `CafeOrCoffeeShop` / `LocalBusiness` (schema.org) pour la page
  * d'accueil, rendu dans
- * le `<head>` racine (`app/layout.tsx`). Le téléphone/email/adresse/réseaux
- * viennent des réglages de contact en base (`lib/contact-settings-db.ts`) —
- * la localité/région/coordonnées GPS restent statiques (le commerce ne
- * déménage pas, contrairement au téléphone/email qui peuvent changer). Les
+ * le `<head>` racine (`app/layout.tsx`). Le téléphone/email/adresse/quartier/
+ * réseaux viennent des réglages de contact en base
+ * (`lib/contact-settings-db.ts`) — seules la ville et les coordonnées GPS
+ * restent statiques (le commerce ne déménage pas, contrairement au
+ * téléphone/email/quartier qui peuvent changer). Les
  * horaires viennent des réglages de retrait (`lib/pickup-settings-db.ts`) —
  * pas de second jeu d'horaires dupliqué dans les réglages de contact. */
 export function buildHomeJsonLd(
@@ -86,15 +87,24 @@ export function buildHomeJsonLd(
     email: contact.email,
     address: {
       '@type': 'PostalAddress',
+      // Texte libre saisi par le staff : repris tel quel, sans tenter d'en
+      // retirer la ville. Un découpage à la volée casserait dès qu'une adresse
+      // est saisie autrement (« Rue X » vs « Rue X, Abidjan »).
       streetAddress: contact.address,
-      addressLocality: 'Cocody',
-      addressRegion: 'Abidjan',
+      addressLocality: 'Abidjan',
+      // La commune/quartier suit les réglages (« Cocody, Angré ») : c'est le
+      // seul champ de l'adresse qui bouge quand le commerce précise sa zone.
+      addressRegion: contact.district,
       addressCountry: 'CI',
     },
+    // Source de vérité : le `mapsEmbedUrl` des réglages de contact, dont les
+    // paramètres `!3d<latitude>` et `!2d<longitude>` portent la position réelle
+    // du commerce. Épinglé par `lib/json-ld.test.ts` — la paire précédente
+    // pointait à ~6 km d'ici, sur un autre quartier d'Abidjan.
     geo: {
       '@type': 'GeoCoordinates',
-      latitude: 5.359952,
-      longitude: -3.994028,
+      latitude: 5.4037601,
+      longitude: -3.9601476,
     },
     areaServed: {
       '@type': 'City',
