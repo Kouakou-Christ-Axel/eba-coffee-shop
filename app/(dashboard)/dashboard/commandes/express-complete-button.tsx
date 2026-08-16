@@ -55,7 +55,10 @@ export function ExpressCompleteButton({
         let result = await payAndCompleteAction(orderId, payments);
         // Pénurie : on propose d'enregistrer la production sur place plutôt que
         // de renvoyer le staff corriger le stock dans le menu.
-        if (result?.shortage?.length && (await confirmShortage(result.shortage))) {
+        if (
+          result?.shortage?.length &&
+          (await confirmShortage(result.shortage))
+        ) {
           result = await payAndCompleteAction(orderId, payments, {
             coverShortage: true,
           });

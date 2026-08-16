@@ -226,7 +226,9 @@ function SupplementModal({
   const maxQuantity = Math.max(
     1,
     Math.min(
-      soldOutForLater ? CART_ITEM_QUANTITY_MAX : (product.remaining ?? CART_ITEM_QUANTITY_MAX),
+      soldOutForLater
+        ? CART_ITEM_QUANTITY_MAX
+        : (product.remaining ?? CART_ITEM_QUANTITY_MAX),
       CART_ITEM_QUANTITY_MAX
     )
   );
@@ -491,11 +493,7 @@ function SupplementModal({
                 onValueChange={(v) => setSingle(group.name, v)}
               >
                 {options.map((opt) => (
-                  <Radio
-                    key={opt.name}
-                    value={opt.name}
-                    isDisabled={false}
-                  >
+                  <Radio key={opt.name} value={opt.name} isDisabled={false}>
                     <span className="flex items-center justify-between gap-4">
                       <span className="text-sm">
                         {opt.name}
@@ -529,8 +527,7 @@ function SupplementModal({
                 {options.map((opt) => {
                   const current = multipleSelection(selections, group.name);
                   const isChecked = current.includes(opt.name);
-                  const isDisabled =
-                    !isChecked && count >= max;
+                  const isDisabled = !isChecked && count >= max;
                   return (
                     <Checkbox
                       key={opt.name}
@@ -568,8 +565,7 @@ function SupplementModal({
                   const optionCap = opt.soldOut
                     ? Infinity
                     : (opt.remaining ?? Infinity);
-                  const canIncrement =
-                    count < max && qty < optionCap;
+                  const canIncrement = count < max && qty < optionCap;
                   return (
                     <div
                       key={opt.name}

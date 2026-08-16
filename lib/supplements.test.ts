@@ -387,13 +387,17 @@ describe('SupplementRules.ignoreSoldOut — commande pour un jour ultérieur', (
   };
 
   it('conserve le goût épuisé dans la ligne du panier', () => {
-    expect(getSelectedSupplements(soldOutFlavour, { Goûts: 'Vanille' })).toEqual(
-      []
-    );
     expect(
-      getSelectedSupplements(soldOutFlavour, { Goûts: 'Vanille' }, {
-        ignoreSoldOut: true,
-      })
+      getSelectedSupplements(soldOutFlavour, { Goûts: 'Vanille' })
+    ).toEqual([]);
+    expect(
+      getSelectedSupplements(
+        soldOutFlavour,
+        { Goûts: 'Vanille' },
+        {
+          ignoreSoldOut: true,
+        }
+      )
     ).toEqual([{ groupName: 'Goûts', optionName: 'Vanille', price: 0 }]);
   });
 
@@ -402,9 +406,13 @@ describe('SupplementRules.ignoreSoldOut — commande pour un jour ultérieur', (
       false
     );
     expect(
-      canSubmitSelections(soldOutFlavour, { Goûts: 'Vanille' }, {
-        ignoreSoldOut: true,
-      })
+      canSubmitSelections(
+        soldOutFlavour,
+        { Goûts: 'Vanille' },
+        {
+          ignoreSoldOut: true,
+        }
+      )
     ).toBe(true);
   });
 
@@ -438,12 +446,14 @@ describe('SupplementRules.ignoreSoldOut — commande pour un jour ultérieur', (
   });
 
   it('sans règles, le comportement historique est strictement inchangé', () => {
-    expect(groupSelectionCount(soldOutFlavour.supplements![0], {
-      Goûts: 'Vanille',
-    })).toBe(0);
-    expect(isGroupValid(soldOutFlavour.supplements![0], { Goûts: 'Vanille' })).toBe(
-      false
-    );
+    expect(
+      groupSelectionCount(soldOutFlavour.supplements![0], {
+        Goûts: 'Vanille',
+      })
+    ).toBe(0);
+    expect(
+      isGroupValid(soldOutFlavour.supplements![0], { Goûts: 'Vanille' })
+    ).toBe(false);
   });
 });
 
@@ -468,7 +478,9 @@ describe('canOrderForLaterDay', () => {
     const p = {
       ...base,
       soldOut: true,
-      weeklySpecialPeriods: [{ startDate: '2000-01-01', endDate: '2000-01-05' }],
+      weeklySpecialPeriods: [
+        { startDate: '2000-01-01', endDate: '2000-01-05' },
+      ],
     } as Product;
     expect(canOrderForLaterDay(p)).toBe(false);
   });

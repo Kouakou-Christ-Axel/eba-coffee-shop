@@ -167,7 +167,9 @@ export function SupplementPicker({
 
   const runningTotal =
     activeProduct.price +
-    getSupplementsPrice(getSelectedSupplements(activeProduct, selections, rules));
+    getSupplementsPrice(
+      getSelectedSupplements(activeProduct, selections, rules)
+    );
 
   return (
     <Modal

@@ -90,7 +90,10 @@ export function SoldOutDaySheet({
             </Button>
           </div>
           <div className="grid gap-1">
-            <Label htmlFor="sold-out-day" className="text-xs text-muted-foreground">
+            <Label
+              htmlFor="sold-out-day"
+              className="text-xs text-muted-foreground"
+            >
               Autre date
             </Label>
             <div className="flex gap-2">

@@ -56,9 +56,7 @@ function serializeQueue(orders: PreparationOrder[]): SerializedOrder[] {
       : null,
     readyAt: o.readyAt ? o.readyAt.toISOString() : null,
     // Alimente le panneau « À produire » côté client : `null` = reste à faire.
-    stockReservedAt: o.stockReservedAt
-      ? o.stockReservedAt.toISOString()
-      : null,
+    stockReservedAt: o.stockReservedAt ? o.stockReservedAt.toISOString() : null,
   }));
 }
 

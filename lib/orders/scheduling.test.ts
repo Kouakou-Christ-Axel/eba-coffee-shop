@@ -167,9 +167,7 @@ describe('pickupLocalAt / pickupISOAt', () => {
 
   it('produit un ISO ancré Abidjan (UTC), relisible à l’identique', () => {
     expect(pickupISOAt('2026-06-14')).toBe('2026-06-14T11:00:00.000Z');
-    expect(pickupISOAt('2026-06-14', '14:30')).toBe(
-      '2026-06-14T14:30:00.000Z'
-    );
+    expect(pickupISOAt('2026-06-14', '14:30')).toBe('2026-06-14T14:30:00.000Z');
   });
 
   it('renvoie null sur une entrée invalide plutôt qu’une date NaN', () => {

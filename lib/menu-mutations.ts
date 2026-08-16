@@ -217,7 +217,11 @@ export async function moveCategory(id: string, direction: 'up' | 'down') {
 // temps un autre admin (ou un outil MCP) a pu créer ou supprimer une ligne.
 // Réindexer sur une liste périmée effacerait silencieusement sa modification —
 // on refuse, l'UI restaure l'ordre affiché et signale le conflit.
-function assertSameSet(orderedIds: string[], currentIds: string[], what: string) {
+function assertSameSet(
+  orderedIds: string[],
+  currentIds: string[],
+  what: string
+) {
   const ordered = new Set(orderedIds);
   if (
     ordered.size !== orderedIds.length ||
@@ -246,7 +250,10 @@ export async function reorderCategories(orderedIds: string[]) {
 
   return prisma.$transaction(async (tx) => {
     for (const [index, id] of orderedIds.entries()) {
-      await tx.menuCategory.update({ where: { id }, data: { sortOrder: index } });
+      await tx.menuCategory.update({
+        where: { id },
+        data: { sortOrder: index },
+      });
     }
   });
 }

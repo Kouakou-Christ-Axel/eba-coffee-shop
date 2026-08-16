@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  buildProductionPlan,
-  type ProducibleOrder,
-} from './production-plan';
+import { buildProductionPlan, type ProducibleOrder } from './production-plan';
 import type { CartItem } from '@/lib/cart-store';
 import type { OrderStatus } from '@/generated/prisma/client';
 

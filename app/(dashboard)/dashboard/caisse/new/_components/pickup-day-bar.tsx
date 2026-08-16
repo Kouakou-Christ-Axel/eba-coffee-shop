@@ -67,7 +67,8 @@ export function PickupDayBar({
   // On conserve l'heure déjà saisie en changeant de jour : le caissier qui a
   // réglé 15h30 puis bascule de « Demain » à « Autre date » ne doit pas la
   // ressaisir.
-  const currentTime = currentLocal.slice(11, 16) || DEFERRED_PICKUP_DEFAULT_TIME;
+  const currentTime =
+    currentLocal.slice(11, 16) || DEFERRED_PICKUP_DEFAULT_TIME;
 
   function selectDay(day: string | null) {
     if (day === null) {
@@ -111,7 +112,11 @@ export function PickupDayBar({
         Retrait
       </p>
 
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Jour de retrait">
+      <div
+        className="flex flex-wrap gap-2"
+        role="group"
+        aria-label="Jour de retrait"
+      >
         {chips.map((c) => (
           <TimeChip
             key={c.key}
@@ -130,7 +135,10 @@ export function PickupDayBar({
       {pickupTime && (
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <div className="grid gap-1">
-            <Label htmlFor="pickup-day" className="text-xs text-muted-foreground">
+            <Label
+              htmlFor="pickup-day"
+              className="text-xs text-muted-foreground"
+            >
               Jour
             </Label>
             <Input

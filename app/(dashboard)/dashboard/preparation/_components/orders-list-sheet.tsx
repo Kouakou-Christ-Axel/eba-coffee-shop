@@ -145,7 +145,9 @@ function OrdersListRow({
     ? Math.round((order.pickupTime.getTime() - now.getTime()) / 60_000)
     : null;
   const launchNow =
-    awaitingLaunch && untilPickup !== null && untilPickup <= LAUNCH_ALERT_MINUTES;
+    awaitingLaunch &&
+    untilPickup !== null &&
+    untilPickup <= LAUNCH_ALERT_MINUTES;
 
   return (
     <li

@@ -52,7 +52,9 @@ describe('get_pending_demand — restriction à un jour', () => {
   const tool = tools.find((t) => t.name === 'get_pending_demand')!;
 
   it('accepte un jour civil, et reste utilisable sans argument', () => {
-    expect(tool.inputSchema.safeParse({ day: '2026-06-15' }).success).toBe(true);
+    expect(tool.inputSchema.safeParse({ day: '2026-06-15' }).success).toBe(
+      true
+    );
     expect(tool.inputSchema.safeParse({}).success).toBe(true);
   });
 

@@ -350,7 +350,11 @@ export function getSelectedSupplements(
   (product.supplements ?? []).forEach((group) => {
     const sel = selections[group.name];
     if (group.type === 'single') {
-      if (typeof sel === 'string' && sel && !isOptionSoldOut(group, sel, rules)) {
+      if (
+        typeof sel === 'string' &&
+        sel &&
+        !isOptionSoldOut(group, sel, rules)
+      ) {
         const opt = group.options.find((o) => o.name === sel);
         if (opt) {
           result.push({

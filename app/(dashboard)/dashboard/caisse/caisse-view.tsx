@@ -116,7 +116,11 @@ export function CaisseView({
     return () => clearTimeout(timer);
   }, [createdParam]);
 
-  const { orders: queue, connState } = useOrdersStream<CashierOrder>({
+  const {
+    orders: queue,
+    connState,
+    isStale,
+  } = useOrdersStream<CashierOrder>({
     endpoint: SSE_URL,
     initialOrders: initialQueue,
     normalize,
@@ -261,6 +265,7 @@ export function CaisseView({
         <CaisseHeader
           cashierName={cashierName}
           connState={connState}
+          isStale={isStale}
           soundEnabled={soundEnabled}
           onToggleSound={toggleSound}
         />

@@ -83,18 +83,19 @@ export function PreparationView({
   const { confirmShortage, shortageDialog } = useShortageConfirm();
   const now = useNowTick(15_000);
 
-  const { orders, connState, lastSync } = useOrdersStream<PreparationOrder>({
-    endpoint: SSE_URL,
-    initialOrders: initialQueue,
-    normalize,
-    getId: (o) => o.id,
-    onNewOrders: (newOrders) => {
-      // Ne carillonner que pour les NOUVELLES commandes en préparation (pas les
-      // prêtes, qui apparaissent aussi dans le flux mais ne sont pas du travail).
-      const hasPreparing = newOrders.some((o) => o.status === 'PREPARING');
-      if (hasPreparing && soundEnabledRef.current) playNewOrderChime();
-    },
-  });
+  const { orders, connState, isStale, lastSync } =
+    useOrdersStream<PreparationOrder>({
+      endpoint: SSE_URL,
+      initialOrders: initialQueue,
+      normalize,
+      getId: (o) => o.id,
+      onNewOrders: (newOrders) => {
+        // Ne carillonner que pour les NOUVELLES commandes en préparation (pas les
+        // prêtes, qui apparaissent aussi dans le flux mais ne sont pas du travail).
+        const hasPreparing = newOrders.some((o) => o.status === 'PREPARING');
+        if (hasPreparing && soundEnabledRef.current) playNewOrderChime();
+      },
+    });
 
   const visible = useMemo(
     () => orders.filter((o) => !optimisticHidden.has(o.id)),
@@ -129,10 +130,7 @@ export function PreparationView({
   );
   // « À produire » : dérivé des commandes non encore lancées, groupé par jour.
   // Aucune requête dédiée — le flux SSE porte déjà tout ce qu'il faut.
-  const productionPlan = useMemo(
-    () => buildProductionPlan(visible),
-    [visible]
-  );
+  const productionPlan = useMemo(() => buildProductionPlan(visible), [visible]);
   // Commandes programmées dont le retrait approche sans qu'elles soient
   // lancées : c'est le signal « il faut s'y mettre maintenant ».
   const toLaunchCount = useMemo(
@@ -288,6 +286,7 @@ export function PreparationView({
         readyAlert={readyAlert}
         toLaunchCount={toLaunchCount}
         connState={connState}
+        isStale={isStale}
         lastSync={lastSync}
         soundEnabled={soundEnabled}
         onToggleSound={toggleSound}

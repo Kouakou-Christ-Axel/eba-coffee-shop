@@ -294,13 +294,23 @@ async function aggregateStockNeeds(
   products: Map<string, { name: string; needed: number }>;
   options: Map<
     string,
-    { productName: string; groupName: string; optionName: string; needed: number }
+    {
+      productName: string;
+      groupName: string;
+      optionName: string;
+      needed: number;
+    }
   >;
 }> {
   const products = new Map<string, { name: string; needed: number }>();
   const options = new Map<
     string,
-    { productName: string; groupName: string; optionName: string; needed: number }
+    {
+      productName: string;
+      groupName: string;
+      optionName: string;
+      needed: number;
+    }
   >();
 
   for (const item of items) {
@@ -458,7 +468,10 @@ async function resyncStockForItemChange(
   const before = await aggregateStockNeeds(tx, previousItems);
   const after = await aggregateStockNeeds(tx, nextItems);
 
-  for (const id of new Set([...before.products.keys(), ...after.products.keys()])) {
+  for (const id of new Set([
+    ...before.products.keys(),
+    ...after.products.keys(),
+  ])) {
     const delta =
       (after.products.get(id)?.needed ?? 0) -
       (before.products.get(id)?.needed ?? 0);
@@ -485,7 +498,10 @@ async function resyncStockForItemChange(
     }
   }
 
-  for (const id of new Set([...before.options.keys(), ...after.options.keys()])) {
+  for (const id of new Set([
+    ...before.options.keys(),
+    ...after.options.keys(),
+  ])) {
     const delta =
       (after.options.get(id)?.needed ?? 0) -
       (before.options.get(id)?.needed ?? 0);
@@ -1686,7 +1702,9 @@ export async function payAndComplete(
  * à un autre ne re-tamponne pas (évite le double-comptage).
  *
  * Lève `OrderMutationError` (404 commande / client introuvable, 400 entrée
- * invalide). Renvoie l'`id` client final (ou null si détaché).
+ * invalide, 409 si `customerId` a changé entre la lecture et l'écriture —
+ * un autre caissier a modifié le client entre-temps). Renvoie l'`id` client
+ * final (ou null si détaché).
  */
 export async function setOrderCustomer(
   orderId: string,
@@ -1708,10 +1726,16 @@ export async function setOrderCustomer(
 
     // Détachement explicite : { customerId: null } sans téléphone fourni.
     if (input.customerId === null && !input.phone) {
-      await tx.order.update({
-        where: { id: orderId },
+      const result = await tx.order.updateMany({
+        where: { id: orderId, customerId: order.customerId },
         data: { customerId: null },
       });
+      if (result.count === 0) {
+        throw new OrderMutationError(
+          'Client déjà modifié entre-temps, recharger',
+          409
+        );
+      }
       return { customerId: null };
     }
 
@@ -1763,10 +1787,16 @@ export async function setOrderCustomer(
 
     const wasAnonymous = order.customerId === null;
 
-    await tx.order.update({
-      where: { id: orderId },
+    const result = await tx.order.updateMany({
+      where: { id: orderId, customerId: order.customerId },
       data: { customerId, customerName, customerPhone },
     });
+    if (result.count === 0) {
+      throw new OrderMutationError(
+        'Client déjà modifié entre-temps, recharger',
+        409
+      );
+    }
 
     // Fidélité : on tamponne comme à la création, seulement si la commande
     // était anonyme (pas de double-comptage sur une ré-affectation).
@@ -1975,14 +2005,20 @@ export async function setOrderLoyaltyReward(
       reward && !redeemAsGift ? Math.min(reward.capAmount, grossTotal) : 0;
     const total = grossTotal - discount;
 
-    await tx.order.update({
-      where: { id: orderId },
+    const result = await tx.order.updateMany({
+      where: { id: orderId, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
       data: {
         total,
         loyaltyRewardId: reward?.id ?? null,
         loyaltyDiscount: discount || null,
       },
     });
+    if (result.count === 0) {
+      throw new OrderMutationError(
+        'État déjà modifié par un autre caissier',
+        409
+      );
+    }
 
     if (reward) {
       await consumeLoyaltyReward(tx, {
@@ -2029,10 +2065,16 @@ export async function setOrderDriver(
     ? (normalizeIvorianPhone(input.driverPhone) ?? input.driverPhone)
     : null;
 
-  await prisma.order.update({
-    where: { id },
+  const result = await prisma.order.updateMany({
+    where: { id, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
     data: { driverName: input.driverName, driverPhone },
   });
+  if (result.count === 0) {
+    throw new OrderMutationError(
+      'État déjà modifié par un autre caissier',
+      409
+    );
+  }
 }
 
 // ─── Prise en charge (édition caisse) ──────────────────────────────────────────
@@ -2084,8 +2126,8 @@ export async function updateOrderFulfillment(
     input.note !== undefined;
 
   if (hasDirectFields) {
-    await prisma.order.update({
-      where: { id },
+    const result = await prisma.order.updateMany({
+      where: { id, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
       data: {
         ...(input.orderType !== undefined
           ? { orderType: input.orderType }
@@ -2096,6 +2138,12 @@ export async function updateOrderFulfillment(
         ...(input.note !== undefined ? { note: input.note ?? null } : {}),
       },
     });
+    if (result.count === 0) {
+      throw new OrderMutationError(
+        'État déjà modifié par un autre caissier',
+        409
+      );
+    }
   }
 
   if (input.driverName !== undefined || input.driverPhone !== undefined) {

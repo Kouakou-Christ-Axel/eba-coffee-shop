@@ -186,8 +186,8 @@ function EmptyCategories({ onCreate }: { onCreate: () => void }) {
       </div>
       <h2 className="font-semibold">Aucune catégorie pour l’instant</h2>
       <p className="max-w-md text-sm text-muted-foreground">
-        Une catégorie regroupe des produits qui vont ensemble — « Boissons »,
-        « Crêpes », « Pâtisseries ». Il en faut au moins une avant de créer un
+        Une catégorie regroupe des produits qui vont ensemble — « Boissons », «
+        Crêpes », « Pâtisseries ». Il en faut au moins une avant de créer un
         produit.
       </p>
       <Button onClick={onCreate} className="mt-1">

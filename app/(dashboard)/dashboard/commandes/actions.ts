@@ -56,10 +56,7 @@ function formatMutationError(err: unknown): string {
 export type MutationFailure = { error: string; shortage?: ShortageLine[] };
 
 /** Enrichit l'échec des lignes manquantes quand c'est une pénurie. */
-async function toFailure(
-  id: string,
-  err: unknown
-): Promise<MutationFailure> {
+async function toFailure(id: string, err: unknown): Promise<MutationFailure> {
   const error = formatMutationError(err);
   if (err instanceof StockShortageError) {
     return { error, shortage: await getOrderShortage(id) };

@@ -77,10 +77,13 @@ import {
   payAndComplete,
   sendOrderToKitchen,
   updateOrderFulfillment,
+  setOrderCustomer,
+  setOrderLoyaltyReward,
   updateOrderItems,
   OrderMutationError,
   StockShortageError,
 } from './order-mutations';
+import { consumeLoyaltyReward } from '@/lib/loyalty-mutations';
 import type { CartItem } from '@/lib/cart-store';
 
 const mockOrderFindUnique = prisma.order.findUnique as MockedFunction<
@@ -100,6 +103,9 @@ const mockCustomerFindUnique = prisma.customer.findUnique as MockedFunction<
 >;
 const mockUpsertCustomer = upsertCustomerForOrder as MockedFunction<
   typeof upsertCustomerForOrder
+>;
+const mockConsumeLoyaltyReward = consumeLoyaltyReward as MockedFunction<
+  typeof consumeLoyaltyReward
 >;
 const mockOrderPaymentCreateMany = prisma.orderPayment
   .createMany as MockedFunction<typeof prisma.orderPayment.createMany>;
@@ -779,6 +785,7 @@ describe('createCashierOrder — ardoise du client de confiance', () => {
 describe('updateOrderFulfillment', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockOrderUpdateMany.mockResolvedValue({ count: 1 } as never);
   });
 
   it('refuse (409) sur une commande terminée', async () => {
@@ -787,7 +794,7 @@ describe('updateOrderFulfillment', () => {
     await expect(
       updateOrderFulfillment('order1', { orderType: 'DELIVERY' })
     ).rejects.toThrow(OrderMutationError);
-    expect(mockOrderUpdate).not.toHaveBeenCalled();
+    expect(mockOrderUpdateMany).not.toHaveBeenCalled();
   });
 
   it('refuse (409) sur une commande annulée', async () => {
@@ -806,9 +813,20 @@ describe('updateOrderFulfillment', () => {
     ).rejects.toThrow(OrderMutationError);
   });
 
+  it('refuse (409) si la commande est passée COMPLETED/CANCELLED entre la lecture et l’écriture', async () => {
+    // La lecture initiale voit encore NEW (une autre requête a terminé/annulé
+    // la commande juste après) : l'`updateMany` conditionnel ne trouve plus
+    // de ligne correspondante et renvoie count: 0.
+    mockOrderFindUnique.mockResolvedValue({ status: 'NEW' } as never);
+    mockOrderUpdateMany.mockResolvedValue({ count: 0 } as never);
+
+    await expect(
+      updateOrderFulfillment('order1', { orderType: 'DELIVERY' })
+    ).rejects.toThrow(OrderMutationError);
+  });
+
   it('met à jour orderType/pickupTime/note directement, sans toucher au livreur si absent', async () => {
     mockOrderFindUnique.mockResolvedValue({ status: 'NEW' } as never);
-    mockOrderUpdate.mockResolvedValue({} as never);
 
     await updateOrderFulfillment('order1', {
       orderType: 'DELIVERY',
@@ -816,8 +834,8 @@ describe('updateOrderFulfillment', () => {
       note: 'Sonner deux fois',
     });
 
-    expect(mockOrderUpdate).toHaveBeenCalledWith({
-      where: { id: 'order1' },
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'order1', status: { notIn: ['COMPLETED', 'CANCELLED'] } },
       data: {
         orderType: 'DELIVERY',
         pickupTime: new Date('2026-08-01T10:00:00.000Z'),
@@ -830,14 +848,13 @@ describe('updateOrderFulfillment', () => {
     // Deux findUnique : un pour la garde de `updateOrderFulfillment`, un pour
     // celle de `setOrderDriver` (délégation, pas de logique dupliquée).
     mockOrderFindUnique.mockResolvedValue({ status: 'NEW' } as never);
-    mockOrderUpdate.mockResolvedValue({} as never);
 
     await updateOrderFulfillment('order1', {
       driverName: 'Ibrahim',
       driverPhone: '0708090910',
     });
 
-    expect(mockOrderUpdate).toHaveBeenCalledWith(
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ driverName: 'Ibrahim' }),
       })
@@ -850,11 +867,10 @@ describe('updateOrderFulfillment', () => {
       driverName: null,
       driverPhone: null,
     } as never);
-    mockOrderUpdate.mockResolvedValue({} as never);
 
     await updateOrderFulfillment('order1', { driverName: 'Ibrahim' });
 
-    expect(mockOrderUpdate).toHaveBeenCalledWith(
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           driverName: 'Ibrahim',
@@ -862,6 +878,153 @@ describe('updateOrderFulfillment', () => {
         }),
       })
     );
+  });
+
+  it('refuse (409) si le livreur est modifié entre-temps (délégation setOrderDriver)', async () => {
+    mockOrderFindUnique.mockResolvedValue({ status: 'NEW' } as never);
+    mockOrderUpdateMany.mockResolvedValue({ count: 0 } as never);
+
+    await expect(
+      updateOrderFulfillment('order1', { driverName: 'Ibrahim' })
+    ).rejects.toThrow(OrderMutationError);
+  });
+});
+
+describe('setOrderCustomer', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOrderUpdateMany.mockResolvedValue({ count: 1 } as never);
+  });
+
+  it('détache le client (customerId: null) en conditionnant sur le customerId lu', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      id: 'order1',
+      customerId: 'cust-1',
+      customerName: 'Awa',
+      total: 2500,
+    } as never);
+
+    const result = await setOrderCustomer('order1', { customerId: null });
+
+    expect(result).toEqual({ customerId: null });
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'order1', customerId: 'cust-1' },
+      data: { customerId: null },
+    });
+  });
+
+  it('refuse (409) le détachement si le client a changé entre-temps', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      id: 'order1',
+      customerId: 'cust-1',
+      customerName: 'Awa',
+      total: 2500,
+    } as never);
+    mockOrderUpdateMany.mockResolvedValue({ count: 0 } as never);
+
+    await expect(
+      setOrderCustomer('order1', { customerId: null })
+    ).rejects.toThrow(OrderMutationError);
+  });
+
+  it('rattache un client existant en conditionnant sur le customerId (anonyme) lu', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      id: 'order1',
+      customerId: null,
+      customerName: null,
+      total: 2500,
+    } as never);
+    mockCustomerFindUnique.mockResolvedValue({
+      id: 'cust-1',
+      name: 'Awa',
+      phone: '0708090910',
+    } as never);
+
+    const result = await setOrderCustomer('order1', { customerId: 'cust-1' });
+
+    expect(result).toEqual({ customerId: 'cust-1' });
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'order1', customerId: null },
+      data: {
+        customerId: 'cust-1',
+        customerName: 'Awa',
+        customerPhone: '0708090910',
+      },
+    });
+  });
+
+  it('refuse (409) le rattachement si un autre caissier a déjà lié un client entre-temps', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      id: 'order1',
+      customerId: null,
+      customerName: null,
+      total: 2500,
+    } as never);
+    mockCustomerFindUnique.mockResolvedValue({
+      id: 'cust-1',
+      name: 'Awa',
+      phone: '0708090910',
+    } as never);
+    mockOrderUpdateMany.mockResolvedValue({ count: 0 } as never);
+
+    await expect(
+      setOrderCustomer('order1', { customerId: 'cust-1' })
+    ).rejects.toThrow(OrderMutationError);
+  });
+});
+
+describe('setOrderLoyaltyReward', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOrderUpdateMany.mockResolvedValue({ count: 1 } as never);
+  });
+
+  it('refuse (409) sur une commande terminée', async () => {
+    mockOrderFindUnique.mockResolvedValue(
+      orderWithOneItem({}, { status: 'COMPLETED' }) as never
+    );
+
+    await expect(
+      setOrderLoyaltyReward('order1', { loyaltyRewardId: null })
+    ).rejects.toThrow(OrderMutationError);
+    expect(mockOrderUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('retire la récompense (loyaltyRewardId: null) en conditionnant sur le statut', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      id: 'order1',
+      status: 'NEW',
+      customerId: 'cust-1',
+      loyaltyRewardId: null,
+      ...orderWithOneItem(),
+    } as never);
+
+    const result = await setOrderLoyaltyReward('order1', {
+      loyaltyRewardId: null,
+    });
+
+    expect(result).toEqual({ total: 2500, loyaltyDiscount: null });
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'order1', status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+      data: { total: 2500, loyaltyRewardId: null, loyaltyDiscount: null },
+    });
+    expect(mockConsumeLoyaltyReward).not.toHaveBeenCalled();
+  });
+
+  it('refuse (409) et ne consomme pas la récompense si la commande a changé de statut entre-temps', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      id: 'order1',
+      status: 'NEW',
+      customerId: 'cust-1',
+      loyaltyRewardId: null,
+      ...orderWithOneItem(),
+    } as never);
+    mockOrderUpdateMany.mockResolvedValue({ count: 0 } as never);
+
+    await expect(
+      setOrderLoyaltyReward('order1', { loyaltyRewardId: null })
+    ).rejects.toThrow(OrderMutationError);
+    expect(mockConsumeLoyaltyReward).not.toHaveBeenCalled();
   });
 });
 

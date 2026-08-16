@@ -4,10 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ORDER_NOTE_MAX } from '@/config/constants';
-import {
-  todayDateString,
-  isoToAbidjanDatetimeLocal,
-} from '@/lib/timezone';
+import { todayDateString, isoToAbidjanDatetimeLocal } from '@/lib/timezone';
 import type { OrderType } from '@/generated/prisma/client';
 import { OrderTypePicker } from './order-type-picker';
 import { CustomerSearchSelect } from './customer-search-select';
@@ -108,7 +105,10 @@ export function CustomerInfoStep({
             </p>
           )}
           {conflictsWithPickup && (
-            <p role="alert" className="mt-1 text-xs font-semibold text-destructive">
+            <p
+              role="alert"
+              className="mt-1 text-xs font-semibold text-destructive"
+            >
               Une commande antidatée ne peut pas avoir un retrait un autre jour.
               Choisissez l’un ou l’autre.
             </p>

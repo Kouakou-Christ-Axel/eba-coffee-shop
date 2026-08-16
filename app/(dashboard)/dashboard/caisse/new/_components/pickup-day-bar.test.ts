@@ -16,14 +16,14 @@ describe('resolvePickupChip', () => {
   });
 
   it('le lendemain est reconnu comme « Demain »', () => {
-    expect(resolvePickupChip(`${shiftDateString(today, 1)}T11:00:00.000Z`)).toBe(
-      'tomorrow'
-    );
+    expect(
+      resolvePickupChip(`${shiftDateString(today, 1)}T11:00:00.000Z`)
+    ).toBe('tomorrow');
   });
 
   it('au-delà, c’est « Autre date »', () => {
-    expect(resolvePickupChip(`${shiftDateString(today, 4)}T11:00:00.000Z`)).toBe(
-      'other'
-    );
+    expect(
+      resolvePickupChip(`${shiftDateString(today, 4)}T11:00:00.000Z`)
+    ).toBe('other');
   });
 });
