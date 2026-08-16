@@ -20,6 +20,15 @@ type Props = {
   onDone: (stockQuantity: number | null) => void;
   /** Libellé du déclencheur (défaut « Réappro »). */
   label?: string;
+  /**
+   * Déclencheur icône seule (sans texte), pour les emplacements denses
+   * (ligne d'option radio/checkbox, overlay de tuile catalogue). Le
+   * popover reste identique — seul le bouton qui l'ouvre change de forme.
+   * Un `aria-label` explicite est alors requis (le libellé texte disparaît).
+   */
+  compact?: boolean;
+  /** Requis quand `compact` est vrai : décrit la cible pour les lecteurs d'écran. */
+  ariaLabel?: string;
 };
 
 /**
@@ -34,6 +43,8 @@ export function RestockControl({
   currentStock,
   onDone,
   label = 'Réappro',
+  compact = false,
+  ariaLabel,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [stock, setStock] = useState<number>(currentStock ?? 0);
@@ -77,14 +88,27 @@ export function RestockControl({
       showArrow
     >
       <PopoverTrigger>
-        <Button
-          size="sm"
-          variant="flat"
-          color="secondary"
-          startContent={<PackagePlus className="size-3.5" />}
-        >
-          {label}
-        </Button>
+        {compact ? (
+          <Button
+            isIconOnly
+            size="sm"
+            variant="flat"
+            color="secondary"
+            aria-label={ariaLabel ?? label}
+            className="h-11 w-11 min-w-0"
+          >
+            <PackagePlus className="size-4" />
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="flat"
+            color="secondary"
+            startContent={<PackagePlus className="size-3.5" />}
+          >
+            {label}
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent className="w-56 p-3">
         <div className="flex flex-col gap-2">

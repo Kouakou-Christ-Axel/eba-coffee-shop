@@ -14,6 +14,7 @@ import {
   searchProducts,
 } from '@/lib/catalog';
 import { LOW_STOCK_THRESHOLD } from '@/config/constants';
+import { RestockControl } from '../_components/restock-control';
 
 type Props = {
   menu: MenuCategory[];
@@ -26,6 +27,8 @@ type Props = {
   onProductTap: (product: Product) => void;
   /** Ouvre le sélecteur de suppléments à la demande (bouton « Options »). */
   onOpenOptions?: (product: Product) => void;
+  /** Réappro rapide du stock du PRODUIT (pas d'un goût) depuis sa tuile. */
+  onRestockProduct?: (productId: string, stock: number | null) => void;
 };
 
 export function ProductCatalog({
@@ -33,6 +36,7 @@ export function ProductCatalog({
   forFutureDay = false,
   onProductTap,
   onOpenOptions,
+  onRestockProduct,
 }: Props) {
   const [activeCategoryId, setActiveCategoryId] = useState<string>(
     menu[0]?.id ?? ''
@@ -97,6 +101,7 @@ export function ProductCatalog({
             forFutureDay={forFutureDay}
             onProductTap={onProductTap}
             onOpenOptions={onOpenOptions}
+            onRestockProduct={onRestockProduct}
           />
         )
       ) : (
@@ -127,6 +132,7 @@ export function ProductCatalog({
             forFutureDay={forFutureDay}
             onProductTap={onProductTap}
             onOpenOptions={onOpenOptions}
+            onRestockProduct={onRestockProduct}
           />
         </>
       )}
@@ -140,6 +146,7 @@ function ProductGrid({
   forFutureDay = false,
   onProductTap,
   onOpenOptions,
+  onRestockProduct,
 }: {
   products: Product[];
   /** Catégorie d'origine, affichée seulement en mode recherche. */
@@ -147,6 +154,7 @@ function ProductGrid({
   forFutureDay?: boolean;
   onProductTap: (product: Product) => void;
   onOpenOptions?: (product: Product) => void;
+  onRestockProduct?: (productId: string, stock: number | null) => void;
 }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
@@ -158,6 +166,7 @@ function ProductGrid({
           forFutureDay={forFutureDay}
           onProductTap={onProductTap}
           onOpenOptions={onOpenOptions}
+          onRestockProduct={onRestockProduct}
         />
       ))}
     </div>
@@ -170,12 +179,14 @@ function ProductTile({
   forFutureDay = false,
   onProductTap,
   onOpenOptions,
+  onRestockProduct,
 }: {
   product: Product;
   subtitle?: string;
   forFutureDay?: boolean;
   onProductTap: (product: Product) => void;
   onOpenOptions?: (product: Product) => void;
+  onRestockProduct?: (productId: string, stock: number | null) => void;
 }) {
   const soldOut = isProductSoldOut(product);
   // Le stock d'AUJOURD'HUI ne bloque pas une commande pour un autre jour : la
@@ -196,6 +207,13 @@ function ProductTile({
     onOpenOptions !== undefined &&
     productHasOptions(product) &&
     !productNeedsPicker(product);
+
+  // Contrairement au bouton « Options », reste affiché même produit épuisé :
+  // c'est justement le cas d'usage principal (une fournée sort de cuisine
+  // pour un produit affiché « Épuisé », il faut pouvoir corriger le stock
+  // sans quitter l'écran).
+  const showRestockButton =
+    onRestockProduct !== undefined && product.stockQuantity != null;
 
   return (
     <div className="relative">
@@ -267,6 +285,18 @@ function ProductTile({
         >
           <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
         </button>
+      )}
+
+      {showRestockButton && (
+        <div className="absolute left-1 top-1">
+          <RestockControl
+            compact
+            ariaLabel={`Réapprovisionner ${product.name}`}
+            body={{ target: 'product', productId: product.id }}
+            currentStock={remaining ?? product.stockQuantity ?? null}
+            onDone={(stock) => onRestockProduct?.(product.id, stock)}
+          />
+        </div>
       )}
     </div>
   );
