@@ -67,5 +67,6 @@ export async function saveContactSettings(
   revalidatePath('/');
   revalidatePath('/contact');
   revalidatePath('/le-lieu');
+  revalidatePath('/a-propos');
   return { ok: true };
 }
