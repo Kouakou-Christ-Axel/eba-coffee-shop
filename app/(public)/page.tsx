@@ -52,16 +52,6 @@ export async function generateMetadata(): Promise<Metadata> {
 
 const baseMetadata: Metadata = {
   title: TITLE,
-  keywords: [
-    'coffee shop abidjan',
-    'café abidjan',
-    'pâtisserie abidjan',
-    'brunch abidjan',
-    'coffee shop cocody',
-    'café cocody',
-    'EBA coffee shop',
-    'meilleur café abidjan',
-  ],
   alternates: {
     canonical: '/',
   },

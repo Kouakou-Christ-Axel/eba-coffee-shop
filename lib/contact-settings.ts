@@ -62,14 +62,14 @@ export type ContactSettings = z.infer<typeof contactSettingsSchema>;
 // sécurité tant qu'aucune ligne n'est enregistrée en base, à corriger par
 // l'admin depuis /dashboard/parametres.
 export const DEFAULT_CONTACT_SETTINGS: ContactSettings = {
-  address: 'Boulevard Latrille, Cocody, Abidjan',
+  address: 'Rue Yvette Tiessé Duru, Abidjan',
   district: 'Cocody, Abidjan',
   landmark: 'A 2 min du carrefour Duncan',
-  phone: '+225 27 22 00 00 00',
-  whatsapp: '+225 07 00 00 00 00',
+  phone: '+225 01 61 33 99 43',
+  whatsapp: '+225 01 61 33 99 43',
   email: 'contact@eba.ci',
   mapsDirectionsUrl:
-    'https://maps.google.com/?q=Boulevard+Latrille+Cocody+Abidjan',
+    'https://maps.google.com/?q=Rue+Yvette+Tiess%C3%A9+Duru+Abidjan',
   mapsEmbedUrl:
     'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3775.551175252953!2d-3.9601476!3d5.4037600999999995!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0xfc193623ac5095f%3A0x7f92b7dfdde03a30!2sEba%20coffee%20shop!5e1!3m2!1sfr!2sci!4v1780742729469!5m2!1sfr!2sci',
   yangoLandmark: 'Odyssée du vin',

@@ -28,7 +28,7 @@ export function PickupLocationForm({ settings, onUpdate }: Props) {
             id="pickupAddress"
             type="text"
             maxLength={200}
-            placeholder="Boulevard Latrille, Cocody, Abidjan"
+            placeholder="Rue Yvette Tiessé Duru, Abidjan"
             value={settings.pickupAddress ?? ''}
             onChange={(e) =>
               onUpdate(

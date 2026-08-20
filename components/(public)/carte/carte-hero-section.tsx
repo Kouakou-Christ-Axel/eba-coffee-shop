@@ -28,7 +28,7 @@ function CarteHeroSection({ menuPdfUrl }: Props) {
             id="carte-hero-title"
             className="mt-2 text-balance text-3xl font-semibold leading-snug tracking-tight sm:text-4xl"
           >
-            Des saveurs pensées avec soin
+            Cafés & pâtisseries artisanales à Cocody
           </h1>
           <p className="mt-2.5 text-sm leading-relaxed text-foreground/60 sm:text-base">
             Chaque boisson et chaque pâtisserie est préparée sur place, chaque
