@@ -28,6 +28,7 @@ export async function KpiSection({ from, to }: { from: Date; to: Date }) {
   // (apports/financements) sont du capital, suivis dans un bloc séparé. Le CA
   // (stats.revenue) inclut déjà les régularisations de recette.
   const netMargin = stats.revenue - comparison.expenses.current.total;
+  const netMarginPct = stats.revenue > 0 ? netMargin / stats.revenue : null;
   const rangeDays =
     Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
   const vsLabel =
@@ -69,6 +70,11 @@ export async function KpiSection({ from, to }: { from: Date; to: Date }) {
         Icon={TrendingDown}
         valueClassName={netMargin < 0 ? 'text-destructive' : 'text-green-600'}
         delta={{ pct: deltas.netMargin.pct, label: vsLabel }}
+        hint={
+          netMarginPct !== null
+            ? `soit ${Math.round(netMarginPct * 100)} % du CA`
+            : undefined
+        }
       />
       <KpiCard
         label="Commandes"

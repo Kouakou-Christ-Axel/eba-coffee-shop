@@ -312,4 +312,10 @@ export async function getTopProducts(
     .slice(0, limit);
 }
 
+/** Jour civil de la toute première commande (toutes dates confondues), ou `null` si aucune commande n'existe encore. Sert à résoudre le preset "Depuis le début". */
+export async function getEarliestOrderDate(): Promise<Date | null> {
+  const result = await prisma.order.aggregate({ _min: { dailyDate: true } });
+  return result._min.dailyDate ?? null;
+}
+
 export { ORDER_STATUSES };

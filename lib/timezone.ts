@@ -90,6 +90,16 @@ export function shiftDateString(value: string, delta: number): string {
   return formatLocalDateOnly(base);
 }
 
+/** Premier jour du mois civil de `value` (YYYY-MM-DD → YYYY-MM-01). */
+export function startOfMonthDateString(value: string): string {
+  return `${value.slice(0, 7)}-01`;
+}
+
+/** Premier jour de l'année civile de `value` (YYYY-MM-DD → YYYY-01-01). */
+export function startOfYearDateString(value: string): string {
+  return `${value.slice(0, 4)}-01-01`;
+}
+
 // ─── Créneaux de retrait : datetime-local ⇄ instant, ancrés Abidjan ────────────
 //
 // Le widget <input type="datetime-local"> n'a AUCUNE notion de fuseau : sa valeur
