@@ -4,13 +4,24 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { todayDateString, shiftDateString } from '@/lib/timezone';
+import {
+  todayDateString,
+  shiftDateString,
+  startOfMonthDateString,
+  startOfYearDateString,
+} from '@/lib/timezone';
 
-export type RangePreset = {
-  label: string;
-  /** Nombre de jours dans la fenêtre (1 = aujourd'hui seul). */
-  days: number;
-};
+export type RangePreset =
+  | {
+      label: string;
+      /** Nombre de jours dans la fenêtre (1 = aujourd'hui seul). */
+      days: number;
+    }
+  | {
+      label: string;
+      /** Fenêtre calendaire : depuis le 1er du mois/de l'année en cours. */
+      kind: 'month' | 'year';
+    };
 
 type Navigate = (
   mutate: (params: URLSearchParams) => void,
@@ -81,9 +92,18 @@ export function DateRangeFilter({
     router.push(`?${params.toString()}`);
   }
 
-  function applyPreset(days: number) {
+  function applyPreset(preset: RangePreset) {
     const today = todayDateString();
-    const start = days <= 1 ? today : shiftDateString(today, -(days - 1));
+    if ('kind' in preset) {
+      const start =
+        preset.kind === 'month'
+          ? startOfMonthDateString(today)
+          : startOfYearDateString(today);
+      apply({ from: start, to: today });
+      return;
+    }
+    const start =
+      preset.days <= 1 ? today : shiftDateString(today, -(preset.days - 1));
     apply({ from: start, to: today });
   }
 
@@ -169,7 +189,7 @@ export function DateRangeFilter({
           key={p.label}
           variant="ghost"
           size="sm"
-          onClick={() => applyPreset(p.days)}
+          onClick={() => applyPreset(p)}
         >
           {p.label}
         </Button>

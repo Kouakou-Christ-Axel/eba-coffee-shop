@@ -10,6 +10,8 @@ import * as XLSX from 'xlsx';
 import type { InventoryItemView } from '@/lib/inventory';
 import type { InventoryImportMode } from '@/lib/schemas/inventory';
 
+export { xlsxResponse } from '@/lib/excel';
+
 const UNIT_LABELS: Record<string, string> = {
   UNIT: 'UNIT',
   KG: 'KG',
@@ -74,7 +76,17 @@ export function buildImportTemplateWorkbook(): Buffer {
     // SKU laissé VIDE = nouvelle référence (le système génère le code).
     ['', 'Grains Arabica', 'Café', 'KG', 5, 8, 'Torréfacteur', 20, 6000],
     ['', 'Lait entier 1L', 'Boissons', 'L', 12, 20, 'Grossiste', 30, 700],
-    ['', 'Gobelet carton 25cl', 'Emballages', 'UNIT', 200, 400, 'Fournitures', 1000, 35],
+    [
+      '',
+      'Gobelet carton 25cl',
+      'Emballages',
+      'UNIT',
+      200,
+      400,
+      'Fournitures',
+      1000,
+      35,
+    ],
   ];
   XLSX.utils.book_append_sheet(
     wb,
@@ -107,9 +119,7 @@ export function buildImportTemplateWorkbook(): Buffer {
     ['pour créer une nouvelle référence. Ne renseignez un SKU que pour'],
     ['cibler une référence EXISTANTE (le SKU figure dans l’export).'],
     [''],
-    [
-      'Feuille « Références » : crée (sku vide) ou met à jour (sku rempli) le',
-    ],
+    ['Feuille « Références » : crée (sku vide) ou met à jour (sku rempli) le'],
     [
       'catalogue. quantite_initiale et cout_initial servent au stock d’ouverture',
     ],
@@ -122,7 +132,9 @@ export function buildImportTemplateWorkbook(): Buffer {
     [
       'Feuille « Achats » : enregistre un réappro (entrées). Le SKU est requis.',
     ],
-    ['Fournisseur, date, mode de paiement et dépense liée sont choisis dans la'],
+    [
+      'Fournisseur, date, mode de paiement et dépense liée sont choisis dans la',
+    ],
     ['fenêtre d’import.'],
     [''],
     ['Unités acceptées : UNIT, KG, G, L, ML, BOX.'],
@@ -229,17 +241,4 @@ export function parseImportWorkbook(
     quantity: r.quantite ?? undefined,
     unitCost: r.cout_unitaire ?? r.cout ?? undefined,
   }));
-}
-
-// ─── Réponse HTTP de téléchargement .xlsx ─────────────────────────────────────
-
-export function xlsxResponse(filename: string, buffer: Buffer): Response {
-  return new Response(new Uint8Array(buffer), {
-    headers: {
-      'Content-Type':
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Cache-Control': 'no-store',
-    },
-  });
 }

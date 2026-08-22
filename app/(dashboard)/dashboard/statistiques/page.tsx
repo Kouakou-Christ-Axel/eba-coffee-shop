@@ -1,7 +1,8 @@
 import { Suspense } from 'react';
-import { Download } from 'lucide-react';
+import { Download, FileSpreadsheet } from 'lucide-react';
 import { requireStats } from '@/lib/auth-helpers';
 import { previousRange } from '@/lib/stats-compare';
+import { getEarliestOrderDate } from '@/lib/stats';
 import {
   formatLocalDateOnly,
   parseDateOnlyToUTC,
@@ -29,22 +30,39 @@ const DEFAULT_RANGE_DAYS = 30;
 export default async function StatistiquesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; range?: string }>;
 }) {
   await requireStats();
   const params = await searchParams;
 
+  const isAll = params.range === 'all';
   const today = todayDateString();
   const defaultFrom = shiftDateString(today, -(DEFAULT_RANGE_DAYS - 1));
-  let fromStr = parseDateOnlyToUTC(params.from) ? params.from! : defaultFrom;
-  let toStr = parseDateOnlyToUTC(params.to) ? params.to! : today;
-  if (fromStr > toStr) [fromStr, toStr] = [toStr, fromStr];
+
+  let fromStr: string;
+  let toStr: string;
+  if (isAll) {
+    const earliest = await getEarliestOrderDate();
+    fromStr = earliest ? formatLocalDateOnly(earliest) : defaultFrom;
+    toStr = today;
+  } else {
+    fromStr = parseDateOnlyToUTC(params.from) ? params.from! : defaultFrom;
+    toStr = parseDateOnlyToUTC(params.to) ? params.to! : today;
+    if (fromStr > toStr) [fromStr, toStr] = [toStr, fromStr];
+  }
 
   const from = parseDateOnlyToUTC(fromStr)!;
   const to = parseDateOnlyToUTC(toStr)!;
   // Calculée localement (sync, pas de fetch) : le sous-titre n'a pas besoin
-  // d'attendre `compareRangesCached` (streamé dans kpi-section).
+  // d'attendre `compareRangesCached` (streamé dans kpi-section). Sans objet
+  // en mode "Tout" (pas de période de référence avant la 1ère commande).
   const { from: previousFrom, to: previousTo } = previousRange(from, to);
+  // fromStr/toStr sont toujours des bornes concrètes (même en mode "Tout",
+  // résolu ci-dessus à la 1ère commande) : tous les exports peuvent les
+  // utiliser directement. `all=1` indique au rapport bancaire de ne pas
+  // afficher de comparaison vs période précédente.
+  const exportSp = `from=${fromStr}&to=${toStr}`;
+  const bankReportSp = isAll ? `${exportSp}&all=1` : exportSp;
 
   return (
     <div className="space-y-6">
@@ -52,33 +70,49 @@ export default async function StatistiquesPage({
         <div>
           <h1 className="text-2xl font-bold">Statistiques</h1>
           <p className="text-sm text-muted-foreground">
-            Du {fromStr} au {toStr} · comparé du{' '}
-            {formatLocalDateOnly(previousFrom)} au{' '}
-            {formatLocalDateOnly(previousTo)}
+            {isAll ? (
+              <>
+                Depuis le début · {fromStr} → {toStr}
+              </>
+            ) : (
+              <>
+                Du {fromStr} au {toStr} · comparé du{' '}
+                {formatLocalDateOnly(previousFrom)} au{' '}
+                {formatLocalDateOnly(previousTo)}
+              </>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <DateRangeFilter
             from={fromStr}
             to={toStr}
-            isAll={false}
-            allowAll={false}
+            isAll={isAll}
+            allowAll={true}
             presets={[
               { label: '7 jours', days: 7 },
               { label: '30 jours', days: 30 },
               { label: '90 jours', days: 90 },
+              { label: 'Ce mois-ci', kind: 'month' },
+              { label: 'Cette année', kind: 'year' },
             ]}
           />
           <Button asChild variant="outline" size="sm">
-            <a href={`/api/export/daily?from=${fromStr}&to=${toStr}`}>
+            <a href={`/api/export/daily?${exportSp}`}>
               <Download className="mr-1.5 h-4 w-4" />
               Récap journalier
             </a>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <a href={`/api/export/orders?from=${fromStr}&to=${toStr}`}>
+            <a href={`/api/export/orders?${exportSp}`}>
               <Download className="mr-1.5 h-4 w-4" />
               Commandes
+            </a>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <a href={`/api/export/bank-report?${bankReportSp}`}>
+              <FileSpreadsheet className="mr-1.5 h-4 w-4" />
+              Rapport bancaire
             </a>
           </Button>
         </div>
