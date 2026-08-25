@@ -42,6 +42,16 @@ const KITCHEN_ROLES: UserRole[] = [
   'CASHIER',
   'KITCHEN',
 ];
+// Réappro (lots, annulation, import Excel « achats ») et réglages d'inventaire
+// (seuils bas stock…) : KITCHEN_ROLES SANS CASHIER. Le caissier garde la
+// consultation du stock et la saisie de comptage physique (`requireKitchen`),
+// mais ne modifie plus les quantités/coûts d'achat ni les réglages.
+const INVENTORY_ADMIN_ROLES: UserRole[] = [
+  'ADMIN',
+  'MANAGER',
+  'ASSISTANT_MANAGER',
+  'KITCHEN',
+];
 // Destinataires du push « nouvelle commande en cuisine » : KITCHEN_ROLES SANS
 // CASHIER. Le caissier reçoit déjà « nouvelle commande » (création) et c'est
 // lui qui déclenche l'envoi en cuisine la plupart du temps — l'inclure ne
@@ -181,6 +191,11 @@ export async function requireKitchen(): Promise<AuthorizedSession> {
   return requireRole(KITCHEN_ROLES);
 }
 
+/** ADMIN, MANAGER, ASSISTANT_MANAGER ou KITCHEN (réappro + réglages inventaire). */
+export async function requireInventoryAdmin(): Promise<AuthorizedSession> {
+  return requireRole(INVENTORY_ADMIN_ROLES);
+}
+
 /** ADMIN, MANAGER, ASSISTANT_MANAGER, CASHIER ou COMPTABLE (accès à la clôture de caisse). */
 export async function requireCloture(): Promise<AuthorizedSession> {
   return requireRole(CLOTURE_ROLES);
@@ -211,6 +226,7 @@ export const ROLE_GROUPS = {
   STATS: STATS_ROLES,
   CASHIER_PLUS: CASHIER_ROLES,
   KITCHEN_PLUS: KITCHEN_ROLES,
+  INVENTORY_ADMIN: INVENTORY_ADMIN_ROLES,
   KITCHEN_STAFF: KITCHEN_STAFF_ROLES,
   CLOTURE: CLOTURE_ROLES,
   ORDERS_VIEW: ORDERS_VIEW_ROLES,

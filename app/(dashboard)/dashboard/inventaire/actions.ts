@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireKitchen } from '@/lib/auth-helpers';
+import { requireKitchen, requireInventoryAdmin } from '@/lib/auth-helpers';
 import * as inventory from '@/lib/inventory-mutations';
 import { updateInventorySettings } from '@/lib/inventory-settings-db';
 
@@ -9,6 +9,11 @@ type ActionResult = { ok: true } | { ok: false; error: string };
 
 async function requireStaffId(): Promise<string> {
   const session = await requireKitchen();
+  return session.user.id;
+}
+
+async function requireInventoryAdminId(): Promise<string> {
+  const session = await requireInventoryAdmin();
   return session.user.id;
 }
 
@@ -68,14 +73,14 @@ export async function restoreInventoryItemAction(
 export async function batchRestockAction(
   input: unknown
 ): Promise<ActionResult> {
-  const userId = await requireStaffId();
+  const userId = await requireInventoryAdminId();
   return run(() => inventory.batchRestock(input, userId));
 }
 
 export async function cancelRestockBatchAction(
   batchId: string
 ): Promise<ActionResult> {
-  await requireStaffId();
+  await requireInventoryAdmin();
   return run(() => inventory.cancelRestockBatch(batchId));
 }
 
@@ -93,6 +98,6 @@ export async function recordInventoryCountAction(
 export async function updateInventorySettingsAction(
   input: unknown
 ): Promise<ActionResult> {
-  await requireStaffId();
+  await requireInventoryAdmin();
   return run(() => updateInventorySettings(input));
 }
