@@ -705,6 +705,11 @@ export type CreateCashierOrderInput = {
  * client résolu, statut `AVAILABLE`) et marquée `USED` dans la MÊME
  * transaction que la création — jamais réutilisable deux fois.
  *
+ * Si CETTE commande débloque elle-même un palier (5e/10e tampon) et
+ * qu'aucune récompense pré-existante n'a été choisie via `loyaltyRewardId`,
+ * la récompense fraîchement créée est auto-appliquée à cette même commande
+ * (une seule récompense par commande) — pas besoin d'attendre la suivante.
+ *
  * ARDOISE À LA CRÉATION : si le client résolu est de confiance
  * (`Customer.isTrusted`) — ou si le caissier force via `input.onAccount` — la
  * commande est créée DIRECTEMENT en `PREPARING`, marquée `isOnAccount`, et son
@@ -848,16 +853,42 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
           });
         }
 
+        // Palier fidélité débloqué PAR cette commande (5e/10e tampon) : on
+        // l'applique directement à la même commande plutôt que de la laisser
+        // seulement disponible pour la suivante — sauf si une récompense
+        // pré-existante a déjà été choisie ci-dessus (une seule récompense par
+        // commande, `Order.loyaltyRewardId` est un champ unique).
+        let finalOrder = created;
         if (customerId) {
-          await awardLoyaltyForOrder(tx, {
+          const { rewards } = await awardLoyaltyForOrder(tx, {
             customerId,
             orderId: created.id,
             orderTotal: total,
             actorId: input.createdById ?? null,
           });
+
+          if (!reward && rewards.length > 0) {
+            const selfReward = rewards[0];
+            const selfDiscount = Math.min(selfReward.capAmount, total);
+            await consumeLoyaltyReward(tx, {
+              rewardId: selfReward.id,
+              customerId,
+              orderId: created.id,
+              capAmount: selfReward.capAmount,
+              actorId: input.createdById ?? null,
+            });
+            finalOrder = await tx.order.update({
+              where: { id: created.id },
+              data: {
+                total: total - selfDiscount,
+                loyaltyRewardId: selfReward.id,
+                loyaltyDiscount: selfDiscount,
+              },
+            });
+          }
         }
 
-        return created;
+        return finalOrder;
       });
 
       // Pas de notification pour une commande antidatée : ce n'est pas un
@@ -1929,8 +1960,15 @@ export async function updateOrderItems(
  * plus) mais SANS déduire `capAmount` du total — pour les clients à qui on
  * offre un geste/produit au comptoir plutôt qu'une réduction en numéraire.
  *
+ * Applicable même à une commande TERMINÉE (déjà récupérée/encaissée) : sert
+ * à corriger après coup un palier qui aurait dû déclencher la réduction sans
+ * que le personnel ne l'ait posée à temps. Seule une commande ANNULÉE reste
+ * bloquée. `lib/cash-closing.ts` ne fait pas de snapshot des totaux : modifier
+ * une commande terminée change donc rétroactivement le CA lu par les
+ * rapports déjà générés — compromis assumé, tracé par le ledger fidélité.
+ *
  * Lève `OrderMutationError` (404 commande, 400 récompense indisponible / pas
- * de client associé, 409 commande terminée/annulée).
+ * de client associé, 409 commande annulée).
  */
 export async function setOrderLoyaltyReward(
   orderId: string,
@@ -1951,9 +1989,9 @@ export async function setOrderLoyaltyReward(
     if (!order) {
       throw new OrderMutationError('Commande introuvable', 404);
     }
-    if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
+    if (order.status === 'CANCELLED') {
       throw new OrderMutationError(
-        'Impossible de modifier une commande terminée ou annulée',
+        'Impossible de modifier une commande annulée',
         409
       );
     }
@@ -2006,7 +2044,7 @@ export async function setOrderLoyaltyReward(
     const total = grossTotal - discount;
 
     const result = await tx.order.updateMany({
-      where: { id: orderId, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+      where: { id: orderId, status: { notIn: ['CANCELLED'] } },
       data: {
         total,
         loyaltyRewardId: reward?.id ?? null,

@@ -257,16 +257,43 @@ export async function createOrder(input: CreateOrderInput) {
           });
         }
 
+        // Palier fidélité débloqué PAR cette commande (5e/10e tampon) : on
+        // l'applique directement à la même commande plutôt que de la laisser
+        // seulement disponible pour la suivante — sauf si une récompense
+        // pré-existante a déjà été choisie ci-dessus (une seule récompense par
+        // commande, `Order.loyaltyRewardId` est un champ unique). Même
+        // mécanisme que la caisse (lib/order-mutations.ts).
+        let finalOrder = order;
         if (customerId) {
-          await awardLoyaltyForOrder(tx, {
+          const { rewards } = await awardLoyaltyForOrder(tx, {
             customerId,
             orderId: order.id,
             orderTotal: order.total,
             actorId: null,
           });
+
+          if (!reward && rewards.length > 0) {
+            const selfReward = rewards[0];
+            const selfDiscount = Math.min(selfReward.capAmount, order.total);
+            await consumeLoyaltyReward(tx, {
+              rewardId: selfReward.id,
+              customerId,
+              orderId: order.id,
+              capAmount: selfReward.capAmount,
+              actorId: null,
+            });
+            finalOrder = await tx.order.update({
+              where: { id: order.id },
+              data: {
+                total: order.total - selfDiscount,
+                loyaltyRewardId: selfReward.id,
+                loyaltyDiscount: selfDiscount,
+              },
+            });
+          }
         }
 
-        return order;
+        return finalOrder;
       });
 
       // Push staff (best-effort, jamais bloquant) : les commandes EN LIGNE

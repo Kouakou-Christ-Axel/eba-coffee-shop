@@ -106,26 +106,34 @@ export async function consumeLoyaltyReward(
   });
 }
 
+/** Récompense (palier) débloquée par une commande, avec l'id de la ligne créée. */
+export type EarnedRewardRow = EarnedReward & { id: string };
+
 /**
  * Attribue (au plus) 1 tampon pour une commande, et crée les récompenses
  * débloquées. Respecte : programme actif, montant min, et 1 tampon/jour/numéro.
  * No-op silencieux si une condition n'est pas remplie.
+ *
+ * Renvoie les récompenses débloquées PAR CETTE COMMANDE (id compris) : elles
+ * sont `AVAILABLE` mais n'ont pas encore été appliquées à une commande —
+ * l'appelant (caisse/en ligne) peut les auto-appliquer à la commande qui
+ * vient elle-même de les débloquer (cf. `createCashierOrder` / `createOrder`).
  */
 export async function awardLoyaltyForOrder(
   tx: Prisma.TransactionClient,
   { customerId, orderId, orderTotal, actorId }: AwardArgs
-): Promise<void> {
+): Promise<{ rewards: EarnedRewardRow[] }> {
   const settings = loyaltySettingsFromRow(
     await tx.loyaltySettings.findUnique({ where: { id: 'singleton' } })
   );
-  if (!settings.enabled) return;
-  if (orderTotal < settings.minOrderAmount) return;
+  if (!settings.enabled) return { rewards: [] };
+  if (orderTotal < settings.minOrderAmount) return { rewards: [] };
 
   const customer = await tx.customer.findUnique({
     where: { id: customerId },
     select: { stampCount: true, lastStampDate: true },
   });
-  if (!customer) return;
+  if (!customer) return { rewards: [] };
 
   const today = todayDailyDate();
   if (
@@ -133,7 +141,7 @@ export async function awardLoyaltyForOrder(
     customer.lastStampDate &&
     customer.lastStampDate.getTime() === today.getTime()
   ) {
-    return; // déjà un tampon aujourd'hui
+    return { rewards: [] }; // déjà un tampon aujourd'hui
   }
 
   const { newStampCount, rewards } = computeStampAward(
@@ -155,14 +163,20 @@ export async function awardLoyaltyForOrder(
     },
   });
 
+  const createdRewards: EarnedRewardRow[] = [];
   for (const r of rewards) {
-    await tx.loyaltyReward.create({
+    const created = await tx.loyaltyReward.create({
       data: {
         customerId,
         tier: r.tier,
         capAmount: r.capAmount,
         earnedOrderId: orderId,
       },
+    });
+    createdRewards.push({
+      tier: r.tier,
+      capAmount: r.capAmount,
+      id: created.id,
     });
     await tx.loyaltyLedger.create({
       data: {
@@ -174,6 +188,8 @@ export async function awardLoyaltyForOrder(
       },
     });
   }
+
+  return { rewards: createdRewards };
 }
 
 /** Ajustement manuel (admin) du compteur de tampons. Tracé au ledger. */
