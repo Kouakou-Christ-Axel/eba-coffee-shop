@@ -62,7 +62,7 @@ vi.mock('@/lib/customer-mutations', () => ({
 }));
 
 vi.mock('@/lib/loyalty-mutations', () => ({
-  awardLoyaltyForOrder: vi.fn().mockResolvedValue(undefined),
+  awardLoyaltyForOrder: vi.fn().mockResolvedValue({ rewards: [] }),
   consumeLoyaltyReward: vi.fn().mockResolvedValue(undefined),
   resolveLoyaltyReward: vi.fn().mockResolvedValue(null),
   LoyaltyRewardUnavailableError: class LoyaltyRewardUnavailableError extends Error {},
@@ -83,7 +83,11 @@ import {
   OrderMutationError,
   StockShortageError,
 } from './order-mutations';
-import { consumeLoyaltyReward } from '@/lib/loyalty-mutations';
+import {
+  awardLoyaltyForOrder,
+  consumeLoyaltyReward,
+  resolveLoyaltyReward,
+} from '@/lib/loyalty-mutations';
 import type { CartItem } from '@/lib/cart-store';
 
 const mockOrderFindUnique = prisma.order.findUnique as MockedFunction<
@@ -106,6 +110,12 @@ const mockUpsertCustomer = upsertCustomerForOrder as MockedFunction<
 >;
 const mockConsumeLoyaltyReward = consumeLoyaltyReward as MockedFunction<
   typeof consumeLoyaltyReward
+>;
+const mockAwardLoyaltyForOrder = awardLoyaltyForOrder as MockedFunction<
+  typeof awardLoyaltyForOrder
+>;
+const mockResolveLoyaltyReward = resolveLoyaltyReward as MockedFunction<
+  typeof resolveLoyaltyReward
 >;
 const mockOrderPaymentCreateMany = prisma.orderPayment
   .createMany as MockedFunction<typeof prisma.orderPayment.createMany>;
@@ -782,6 +792,94 @@ describe('createCashierOrder — ardoise du client de confiance', () => {
   });
 });
 
+describe('createCashierOrder — récompense fidélité auto-appliquée', () => {
+  const items = orderWithOneItem().items as unknown as CartItem[];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpsertCustomer.mockResolvedValue('cust-1');
+    mockCustomerFindUnique.mockResolvedValue({ isTrusted: false } as never);
+    mockOrderCreate.mockImplementation((async (args: {
+      data: Record<string, unknown>;
+    }) => ({
+      id: 'order-new',
+      dailyNumber: 5,
+      reference: 'EBA-20260804-B7C1',
+      total: 2500,
+      customerName: 'Awa',
+      items,
+      status: (args.data.status as string) ?? 'NEW',
+    })) as never);
+  });
+
+  it('la commande qui débloque un palier (5e/10e tampon) applique directement sa propre réduction', async () => {
+    mockAwardLoyaltyForOrder.mockResolvedValueOnce({
+      rewards: [{ id: 'reward-10', tier: 10, capAmount: 2000 }],
+    });
+    mockOrderUpdate.mockResolvedValueOnce({
+      id: 'order-new',
+      total: 500,
+      loyaltyRewardId: 'reward-10',
+      loyaltyDiscount: 2000,
+    } as never);
+
+    const result = await createCashierOrder({
+      items,
+      customerName: 'Awa',
+      customerPhone: '0708090910',
+      orderType: 'TAKEAWAY',
+    });
+
+    expect(mockConsumeLoyaltyReward).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        rewardId: 'reward-10',
+        orderId: 'order-new',
+        capAmount: 2000,
+      })
+    );
+    expect(mockOrderUpdate).toHaveBeenCalledWith({
+      where: { id: 'order-new' },
+      data: {
+        total: 500,
+        loyaltyRewardId: 'reward-10',
+        loyaltyDiscount: 2000,
+      },
+    });
+    expect((result as { total: number }).total).toBe(500);
+    expect((result as { loyaltyRewardId: string }).loyaltyRewardId).toBe(
+      'reward-10'
+    );
+  });
+
+  it('ne cumule pas : une récompense déjà choisie pour cette commande n’est pas remplacée par celle que la commande vient elle-même de débloquer', async () => {
+    mockResolveLoyaltyReward.mockResolvedValueOnce({
+      id: 'reward-existing',
+      capAmount: 1000,
+    });
+    mockAwardLoyaltyForOrder.mockResolvedValueOnce({
+      rewards: [{ id: 'reward-10', tier: 10, capAmount: 2000 }],
+    });
+
+    await createCashierOrder({
+      items,
+      customerName: 'Awa',
+      customerPhone: '0708090910',
+      orderType: 'TAKEAWAY',
+      loyaltyRewardId: 'reward-existing',
+    });
+
+    // Consommée une seule fois : la récompense pré-existante. La nouvelle
+    // (débloquée par cette même commande) reste `AVAILABLE` pour la suivante.
+    expect(mockConsumeLoyaltyReward).toHaveBeenCalledTimes(1);
+    expect(mockConsumeLoyaltyReward).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ rewardId: 'reward-existing' })
+    );
+    expect(mockOrderUpdate).not.toHaveBeenCalled();
+  });
+});
+
 describe('updateOrderFulfillment', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -979,15 +1077,35 @@ describe('setOrderLoyaltyReward', () => {
     mockOrderUpdateMany.mockResolvedValue({ count: 1 } as never);
   });
 
-  it('refuse (409) sur une commande terminée', async () => {
+  it('refuse (409) sur une commande annulée', async () => {
     mockOrderFindUnique.mockResolvedValue(
-      orderWithOneItem({}, { status: 'COMPLETED' }) as never
+      orderWithOneItem({}, { status: 'CANCELLED' }) as never
     );
 
     await expect(
       setOrderLoyaltyReward('order1', { loyaltyRewardId: null })
     ).rejects.toThrow(OrderMutationError);
     expect(mockOrderUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('accepte une commande déjà TERMINÉE (rattrapage d’un palier posé trop tard)', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      id: 'order1',
+      status: 'COMPLETED',
+      customerId: 'cust-1',
+      loyaltyRewardId: null,
+      ...orderWithOneItem(),
+    } as never);
+
+    const result = await setOrderLoyaltyReward('order1', {
+      loyaltyRewardId: null,
+    });
+
+    expect(result).toEqual({ total: 2500, loyaltyDiscount: null });
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'order1', status: { notIn: ['CANCELLED'] } },
+      data: { total: 2500, loyaltyRewardId: null, loyaltyDiscount: null },
+    });
   });
 
   it('retire la récompense (loyaltyRewardId: null) en conditionnant sur le statut', async () => {
@@ -1005,7 +1123,7 @@ describe('setOrderLoyaltyReward', () => {
 
     expect(result).toEqual({ total: 2500, loyaltyDiscount: null });
     expect(mockOrderUpdateMany).toHaveBeenCalledWith({
-      where: { id: 'order1', status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+      where: { id: 'order1', status: { notIn: ['CANCELLED'] } },
       data: { total: 2500, loyaltyRewardId: null, loyaltyDiscount: null },
     });
     expect(mockConsumeLoyaltyReward).not.toHaveBeenCalled();

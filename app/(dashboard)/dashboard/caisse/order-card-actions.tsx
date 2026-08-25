@@ -151,6 +151,11 @@ export function OrderCardActions({
 
   const canEditItems =
     order.status !== 'COMPLETED' && order.status !== 'CANCELLED';
+  // Plus permissive que `canEditItems` : la récompense fidélité peut être
+  // appliquée/retirée même sur une commande TERMINÉE (rattrapage d'un palier
+  // pas posé à temps) — seule une commande ANNULÉE reste bloquée, en miroir
+  // du garde-fou de `setOrderLoyaltyReward` (lib/order-mutations.ts).
+  const canEditLoyalty = order.status !== 'CANCELLED';
 
   const phone = order.customerPhone;
   const telLink = buildTelLink(phone);
@@ -736,8 +741,9 @@ export function OrderCardActions({
         </Button>
 
         {/* Appliquer / retirer une récompense fidélité, y compris après
-            création (pas seulement au moment de la commande) */}
-        {canEditItems && (
+            création (pas seulement au moment de la commande), et même sur une
+            commande déjà terminée */}
+        {canEditLoyalty && (
           <Button
             type="button"
             variant="outline"
