@@ -40,6 +40,12 @@ export async function POST(req: Request) {
     }
 
     const mode = inventoryImportModeSchema.parse(form.get('mode'));
+    if (
+      mode === 'purchases' &&
+      !ROLE_GROUPS.INVENTORY_ADMIN.includes(session.user.role)
+    ) {
+      return new Response('Non autorisé', { status: 403 });
+    }
     const buffer = Buffer.from(await file.arrayBuffer());
     const rows = parseImportWorkbook(buffer, mode);
 

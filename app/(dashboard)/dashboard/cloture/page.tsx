@@ -49,7 +49,11 @@ export default async function CloturePage({
     range?: string;
   }>;
 }) {
-  await requireRoleOrAnalyst(ROLE_GROUPS.CLOTURE);
+  const session = await requireRoleOrAnalyst(ROLE_GROUPS.CLOTURE);
+  // Le caissier saisit la caisse « à l'aveugle » : il ne voit ni le CA du
+  // jour, ni le détail par mode de paiement, ni l'historique des clôtures —
+  // seuls le fond de caisse et les espèces comptées lui sont demandés.
+  const canSeeFigures = session.user.role !== 'CASHIER';
   const params = await searchParams;
 
   // Jour à clôturer.
@@ -76,12 +80,14 @@ export default async function CloturePage({
   }
 
   const [figures, existing, history] = await Promise.all([
-    getCashFigures(day),
+    canSeeFigures ? getCashFigures(day) : null,
     getCashClosing(day),
-    listCashClosings(
-      histFromDate ?? parseDateOnlyToUTC('2000-01-01')!,
-      histToDate ?? parseDateOnlyToUTC(today)!
-    ),
+    canSeeFigures
+      ? listCashClosings(
+          histFromDate ?? parseDateOnlyToUTC('2000-01-01')!,
+          histToDate ?? parseDateOnlyToUTC(today)!
+        )
+      : Promise.resolve([]),
   ]);
 
   const existingProp = existing
@@ -120,108 +126,115 @@ export default async function CloturePage({
           <CardTitle className="text-base">Clôture du {dayStr}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
-          {/* Pour information (hors tiroir) */}
-          <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
-            <span>
-              CA encaissé : <b>{fmt.format(figures.totalRevenue)} F</b>
-            </span>
-            <span>Wave : {fmt.format(figures.waveSales)} F</span>
-            <span>Orange Money : {fmt.format(figures.orangeMoneySales)} F</span>
-            <span>Autre : {fmt.format(figures.otherSales)} F</span>
-          </div>
+          {canSeeFigures && figures && (
+            // Pour information (hors tiroir)
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
+              <span>
+                CA encaissé : <b>{fmt.format(figures.totalRevenue)} F</b>
+              </span>
+              <span>Wave : {fmt.format(figures.waveSales)} F</span>
+              <span>
+                Orange Money : {fmt.format(figures.orangeMoneySales)} F
+              </span>
+              <span>Autre : {fmt.format(figures.otherSales)} F</span>
+            </div>
+          )}
           <ClosingForm
             date={dayStr}
-            cashSales={figures.cashSales}
-            cashExpenses={figures.cashExpenses}
+            cashSales={figures?.cashSales ?? 0}
+            cashExpenses={figures?.cashExpenses ?? 0}
+            showFigures={canSeeFigures}
             existing={existingProp}
           />
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-base">
-            Historique des clôtures
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              {isAll ? 'Tout' : `Du ${histFrom} au ${histTo}`}
-            </span>
-          </CardTitle>
-          <div className="flex flex-wrap items-center gap-2">
-            <DateRangeFilter from={histFrom} to={histTo} isAll={isAll} />
-            <Button asChild variant="outline" size="sm">
-              <a href={exportHref}>
-                <Download className="mr-1.5 h-4 w-4" />
-                Exporter CSV
-              </a>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Fond</TableHead>
-                <TableHead>Ventes esp.</TableHead>
-                <TableHead>Dépenses esp.</TableHead>
-                <TableHead>Théorique</TableHead>
-                <TableHead>Compté</TableHead>
-                <TableHead>Écart</TableHead>
-                <TableHead>Par</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {history.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-mono text-sm">
-                    {formatLocalDateOnly(c.date)}
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    {fmt.format(c.openingFloat)}
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    {fmt.format(c.cashSales)}
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    {fmt.format(c.cashExpenses)}
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    {fmt.format(c.expectedCash)}
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    {fmt.format(c.countedCash)}
-                  </TableCell>
-                  <TableCell
-                    className={
-                      c.difference === 0
-                        ? 'tabular-nums'
-                        : c.difference > 0
-                          ? 'tabular-nums text-green-600'
-                          : 'tabular-nums text-destructive'
-                    }
-                  >
-                    {c.difference > 0 ? '+' : ''}
-                    {fmt.format(c.difference)}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {c.closedBy?.name ?? c.closedBy?.email ?? '—'}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {history.length === 0 && (
+      {canSeeFigures && (
+        <Card>
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base">
+              Historique des clôtures
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                {isAll ? 'Tout' : `Du ${histFrom} au ${histTo}`}
+              </span>
+            </CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <DateRangeFilter from={histFrom} to={histTo} isAll={isAll} />
+              <Button asChild variant="outline" size="sm">
+                <a href={exportHref}>
+                  <Download className="mr-1.5 h-4 w-4" />
+                  Exporter CSV
+                </a>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="py-8 text-center text-sm text-muted-foreground"
-                  >
-                    Aucune clôture sur cette période.
-                  </TableCell>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Fond</TableHead>
+                  <TableHead>Ventes esp.</TableHead>
+                  <TableHead>Dépenses esp.</TableHead>
+                  <TableHead>Théorique</TableHead>
+                  <TableHead>Compté</TableHead>
+                  <TableHead>Écart</TableHead>
+                  <TableHead>Par</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {history.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-mono text-sm">
+                      {formatLocalDateOnly(c.date)}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {fmt.format(c.openingFloat)}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {fmt.format(c.cashSales)}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {fmt.format(c.cashExpenses)}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {fmt.format(c.expectedCash)}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {fmt.format(c.countedCash)}
+                    </TableCell>
+                    <TableCell
+                      className={
+                        c.difference === 0
+                          ? 'tabular-nums'
+                          : c.difference > 0
+                            ? 'tabular-nums text-green-600'
+                            : 'tabular-nums text-destructive'
+                      }
+                    >
+                      {c.difference > 0 ? '+' : ''}
+                      {fmt.format(c.difference)}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {c.closedBy?.name ?? c.closedBy?.email ?? '—'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {history.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={8}
+                      className="py-8 text-center text-sm text-muted-foreground"
+                    >
+                      Aucune clôture sur cette période.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

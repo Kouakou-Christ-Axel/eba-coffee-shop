@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { requireDashboardAccess } from '@/lib/auth-helpers';
 import { listProductSchedules } from '@/lib/menu';
 import { MenuCategoriesView } from './_components/menu-categories-view';
 import { type CategoryRow } from './categories-table';
@@ -13,6 +14,7 @@ export const dynamic = 'force-dynamic';
 // courante : la carte PDF a sa page (`./reglages`) et la création passe par un
 // bouton. Reste ce qu'on vient vraiment voir ici.
 export default async function MenuPage() {
+  await requireDashboardAccess();
   const [categories, schedules] = await Promise.all([
     prisma.menuCategory.findMany({
       where: { deletedAt: null },

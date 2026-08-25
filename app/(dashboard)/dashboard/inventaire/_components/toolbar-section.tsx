@@ -3,7 +3,7 @@ import { listExpenseCategories } from '@/lib/expenses';
 import { Button } from '@/components/ui/button';
 import { ImportDialog } from '../import-dialog';
 
-export async function ToolbarSection() {
+export async function ToolbarSection({ canRestock }: { canRestock: boolean }) {
   const expenseCats = await listExpenseCategories();
   const expenseCategories = expenseCats.map((c) => ({
     id: c.id,
@@ -24,7 +24,10 @@ export async function ToolbarSection() {
           Modèle d&apos;import
         </a>
       </Button>
-      <ImportDialog expenseCategories={expenseCategories} />
+      <ImportDialog
+        expenseCategories={expenseCategories}
+        canRestock={canRestock}
+      />
     </div>
   );
 }

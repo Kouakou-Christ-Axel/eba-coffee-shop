@@ -23,11 +23,13 @@ export function ClosingForm({
   date,
   cashSales,
   cashExpenses,
+  showFigures = true,
   existing,
 }: {
   date: string;
   cashSales: number;
   cashExpenses: number;
+  showFigures?: boolean;
   existing: ExistingClosing;
 }) {
   const [openingFloat, setOpeningFloat] = useState(
@@ -68,9 +70,16 @@ export function ClosingForm({
   return (
     <div className="space-y-5">
       {/* Récapitulatif espèces */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Figure label="Ventes espèces" value={cashSales} />
-        <Figure label="Dépenses espèces" value={cashExpenses} negative />
+      <div
+        className={cn(
+          'grid grid-cols-2 gap-3',
+          showFigures ? 'sm:grid-cols-4' : 'sm:grid-cols-2'
+        )}
+      >
+        {showFigures && <Figure label="Ventes espèces" value={cashSales} />}
+        {showFigures && (
+          <Figure label="Dépenses espèces" value={cashExpenses} negative />
+        )}
         <div className="space-y-1.5">
           <Label htmlFor="float">Fond de caisse</Label>
           <Input
@@ -82,10 +91,17 @@ export function ClosingForm({
             onChange={(e) => setOpeningFloat(e.target.value)}
           />
         </div>
-        <Figure label="Caisse théorique" value={expectedCash} strong />
+        {showFigures && (
+          <Figure label="Caisse théorique" value={expectedCash} strong />
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div
+        className={cn(
+          'grid grid-cols-1 gap-3',
+          showFigures && 'sm:grid-cols-2'
+        )}
+      >
         <div className="space-y-1.5">
           <Label htmlFor="counted">Espèces comptées</Label>
           <Input
@@ -98,29 +114,31 @@ export function ClosingForm({
             placeholder="Montant réel dans le tiroir"
           />
         </div>
-        <div className="space-y-1.5">
-          <Label>Écart</Label>
-          <div
-            className={cn(
-              'flex h-9 items-center rounded-md border px-3 text-sm font-bold tabular-nums',
-              difference === 0
-                ? 'text-muted-foreground'
-                : difference > 0
-                  ? 'text-green-600'
-                  : 'text-destructive'
-            )}
-          >
-            {difference > 0 ? '+' : ''}
-            {fmt.format(difference)} F
-            <span className="ml-2 text-xs font-normal text-muted-foreground">
-              {difference === 0
-                ? '(équilibrée)'
-                : difference > 0
-                  ? '(excédent)'
-                  : '(manquant)'}
-            </span>
+        {showFigures && (
+          <div className="space-y-1.5">
+            <Label>Écart</Label>
+            <div
+              className={cn(
+                'flex h-9 items-center rounded-md border px-3 text-sm font-bold tabular-nums',
+                difference === 0
+                  ? 'text-muted-foreground'
+                  : difference > 0
+                    ? 'text-green-600'
+                    : 'text-destructive'
+              )}
+            >
+              {difference > 0 ? '+' : ''}
+              {fmt.format(difference)} F
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {difference === 0
+                  ? '(équilibrée)'
+                  : difference > 0
+                    ? '(excédent)'
+                    : '(manquant)'}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="space-y-1.5">

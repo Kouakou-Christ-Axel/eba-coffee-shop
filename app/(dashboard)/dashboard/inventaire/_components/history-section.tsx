@@ -3,10 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CountHistory } from '../count-history';
 import { RestockBatches } from '../restock-batches';
 
-export async function HistorySection() {
+export async function HistorySection({ canRestock }: { canRestock: boolean }) {
   const [counts, batches] = await Promise.all([
     listInventoryCounts(),
-    listRestockBatches(),
+    canRestock ? listRestockBatches() : Promise.resolve([]),
   ]);
 
   return (
@@ -19,14 +19,16 @@ export async function HistorySection() {
           <CountHistory counts={counts} />
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Réapprovisionnements</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RestockBatches batches={batches} />
-        </CardContent>
-      </Card>
+      {canRestock && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Réapprovisionnements</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RestockBatches batches={batches} />
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 }

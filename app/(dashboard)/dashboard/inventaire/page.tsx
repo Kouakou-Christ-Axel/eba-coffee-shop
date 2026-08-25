@@ -17,7 +17,8 @@ import { HistorySection } from './_components/history-section';
 export const dynamic = 'force-dynamic';
 
 export default async function InventairePage() {
-  await requireRoleOrAnalyst(ROLE_GROUPS.KITCHEN_PLUS);
+  const session = await requireRoleOrAnalyst(ROLE_GROUPS.KITCHEN_PLUS);
+  const canRestock = ROLE_GROUPS.INVENTORY_ADMIN.includes(session.user.role);
 
   return (
     <div className="space-y-6">
@@ -46,14 +47,14 @@ export default async function InventairePage() {
           </div>
         }
       >
-        <ToolbarSection />
+        <ToolbarSection canRestock={canRestock} />
       </Suspense>
 
       <Tabs defaultValue="references">
         <TabsList>
           <TabsTrigger value="references">Références</TabsTrigger>
           <TabsTrigger value="count">Inventaire</TabsTrigger>
-          <TabsTrigger value="restock">Réappro</TabsTrigger>
+          {canRestock && <TabsTrigger value="restock">Réappro</TabsTrigger>}
           <TabsTrigger value="history">Historique</TabsTrigger>
         </TabsList>
 
@@ -69,11 +70,13 @@ export default async function InventairePage() {
           </Suspense>
         </TabsContent>
 
-        <TabsContent value="restock">
-          <Suspense fallback={<TableSkeleton rows={10} withHeader={false} />}>
-            <RestockSection />
-          </Suspense>
-        </TabsContent>
+        {canRestock && (
+          <TabsContent value="restock">
+            <Suspense fallback={<TableSkeleton rows={10} withHeader={false} />}>
+              <RestockSection />
+            </Suspense>
+          </TabsContent>
+        )}
 
         <TabsContent value="history" className="space-y-6">
           <Suspense
@@ -84,7 +87,7 @@ export default async function InventairePage() {
               </div>
             }
           >
-            <HistorySection />
+            <HistorySection canRestock={canRestock} />
           </Suspense>
         </TabsContent>
       </Tabs>

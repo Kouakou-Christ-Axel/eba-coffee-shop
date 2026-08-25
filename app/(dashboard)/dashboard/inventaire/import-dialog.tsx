@@ -33,6 +33,10 @@ const MODE_OPTIONS = [
   { value: 'purchases', label: 'Achats / réappro' },
 ] as const;
 
+const MODE_OPTIONS_NO_RESTOCK = MODE_OPTIONS.filter(
+  (o) => o.value !== 'purchases'
+);
+
 const PAYMENT_OPTIONS = [
   { value: 'CASH', label: 'Espèces' },
   { value: 'WAVE', label: 'Wave' },
@@ -42,12 +46,15 @@ const PAYMENT_OPTIONS = [
 
 export function ImportDialog({
   expenseCategories,
+  canRestock,
 }: {
   expenseCategories: { id: string; name: string }[];
+  canRestock: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const modeOptions = canRestock ? MODE_OPTIONS : MODE_OPTIONS_NO_RESTOCK;
 
   const [mode, setMode] = useState<Mode>('references');
   const [file, setFile] = useState<File | null>(null);
@@ -138,7 +145,7 @@ export function ImportDialog({
                 setMode(String(Array.from(keys)[0] ?? 'references') as Mode)
               }
             >
-              {MODE_OPTIONS.map((o) => (
+              {modeOptions.map((o) => (
                 <SelectItem key={o.value}>{o.label}</SelectItem>
               ))}
             </Select>
