@@ -33,6 +33,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ConfirmDialog } from '@/components/(dashboard)/confirm-dialog';
@@ -72,7 +73,10 @@ import {
   type TabValue,
   type ValidatedField,
 } from '@/lib/menu/product-form-completeness';
-import { ADVANCE_ORDER_DAYS_MAX } from '@/config/constants';
+import {
+  ADVANCE_ORDER_DAYS_MAX,
+  MIN_DEPOSIT_PERCENT,
+} from '@/config/constants';
 
 export type ProductFormInitial = {
   id?: string;
@@ -92,6 +96,9 @@ export type ProductFormInitial = {
   // Délai de commande à l'avance (jours, brut — voir `Product.advanceOrderDays`,
   // prisma/schema.prisma). `null` = pas de contrainte propre à ce produit.
   advanceOrderDays: number | null;
+  // Commande spéciale sur mesure (ex. gâteau grand format) : exige un acompte
+  // minimum au checkout — voir `Product.requiresDeposit`, prisma/schema.prisma.
+  requiresDeposit: boolean;
   weeklySpecials: WeeklySpecialRow[];
 };
 
@@ -110,6 +117,7 @@ const EMPTY: ProductFormInitial = {
   unavailableUntil: null,
   scheduleId: null,
   advanceOrderDays: null,
+  requiresDeposit: false,
   weeklySpecials: [],
 };
 
@@ -199,6 +207,9 @@ export function ProductForm({
   const [advanceOrderDays, setAdvanceOrderDays] = useState<number | null>(
     initial?.advanceOrderDays ?? EMPTY.advanceOrderDays
   );
+  const [requiresDeposit, setRequiresDeposit] = useState(
+    initial?.requiresDeposit ?? EMPTY.requiresDeposit
+  );
 
   const priceNum = amountOrZero(price);
   const coutMatiereNum = amountOrZero(coutMatiere);
@@ -234,6 +245,7 @@ export function ProductForm({
     stockQuantity,
     scheduleId,
     advanceOrderDays,
+    requiresDeposit,
   });
   const initialSnapshot = useMemo(
     () =>
@@ -251,6 +263,7 @@ export function ProductForm({
         stockQuantity: initial?.stockQuantity ?? EMPTY.stockQuantity,
         scheduleId: initial?.scheduleId ?? EMPTY.scheduleId,
         advanceOrderDays: initial?.advanceOrderDays ?? EMPTY.advanceOrderDays,
+        requiresDeposit: initial?.requiresDeposit ?? EMPTY.requiresDeposit,
       }),
     [initial]
   );
@@ -365,6 +378,7 @@ export function ProductForm({
         stockQuantity,
         scheduleId,
         advanceOrderDays,
+        requiresDeposit,
       };
       const result =
         isEdit && initial?.id
@@ -670,6 +684,23 @@ export function ProductForm({
                     }
                   />
                 </Field>
+                <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+                  <div>
+                    <Label htmlFor="requires-deposit">
+                      Commande spéciale — acompte requis
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Ex. gâteau grand format. Un acompte minimum de{' '}
+                      {MIN_DEPOSIT_PERCENT}% sera exigé avant l&apos;entrée en
+                      cuisine.
+                    </p>
+                  </div>
+                  <Switch
+                    id="requires-deposit"
+                    checked={requiresDeposit}
+                    onCheckedChange={setRequiresDeposit}
+                  />
+                </div>
               </CardContent>
             </Card>
 

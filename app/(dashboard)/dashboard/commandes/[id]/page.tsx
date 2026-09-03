@@ -28,6 +28,7 @@ import { EditOrderItems } from './edit-order-items';
 import { AssociateCustomer } from './associate-customer';
 import { EditOrderDetails } from './edit-order-details';
 import { EncaisserButton } from '../encaisser-button';
+import { AcompteButton } from '../acompte-button';
 import { ExpressCompleteButton } from '../express-complete-button';
 import { CopyRecapButton } from '../../_components/copy-recap-button';
 import { BackButton } from '@/components/(dashboard)/back-button';
@@ -148,11 +149,31 @@ export default async function CommandeDetailPage({
           {order.status === 'CANCELLED' && order.isPaid && (
             <Badge variant="destructive">Remboursée</Badge>
           )}
+          {order.depositRequired != null && !order.isPaid && (
+            <Badge variant="outline" className="border-amber-400 text-amber-800">
+              Acompte {new Intl.NumberFormat('fr-FR').format(
+                order.depositPaid ?? 0
+              )}
+              /
+              {new Intl.NumberFormat('fr-FR').format(order.depositRequired)} F
+            </Badge>
+          )}
+          {canCash &&
+            order.depositRequired != null &&
+            (order.depositPaid ?? 0) < order.depositRequired &&
+            !order.isPaid &&
+            order.status !== 'CANCELLED' && (
+              <AcompteButton
+                orderId={order.id}
+                orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
+                amount={order.depositRequired - (order.depositPaid ?? 0)}
+              />
+            )}
           {canCash && !order.isPaid && order.status !== 'CANCELLED' && (
             <EncaisserButton
               orderId={order.id}
               orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
-              amount={order.total}
+              amount={order.total - (order.depositPaid ?? 0)}
             />
           )}
           {canCash &&
@@ -161,7 +182,7 @@ export default async function CommandeDetailPage({
               <ExpressCompleteButton
                 orderId={order.id}
                 orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
-                amount={order.total}
+                amount={order.total - (order.depositPaid ?? 0)}
                 isPaid={order.isPaid}
                 pickupTime={order.pickupTime}
                 stockReserved={order.stockReservedAt !== null}

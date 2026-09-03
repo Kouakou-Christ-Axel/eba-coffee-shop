@@ -388,6 +388,12 @@ export type PublicOrderView = {
    * si aucune récompense n'a été appliquée à cette commande. */
   loyaltyDiscount: number | null;
   total: number;
+  /** Acompte minimum requis (commande spéciale à l'avance) et déjà versé —
+   * voir `Order.depositRequired`/`depositPaid`. `null` = pas de règle
+   * d'acompte sur cette commande. Le solde se règle toujours en caisse, au
+   * retrait — jamais en ligne. */
+  depositRequired: number | null;
+  depositPaid: number | null;
   note: string | null;
   driverName: string | null;
   driverPhone: string | null;
@@ -455,6 +461,8 @@ export async function getPublicOrder(
     fulfillable,
     loyaltyDiscount: order.loyaltyDiscount,
     total: order.total,
+    depositRequired: order.depositRequired,
+    depositPaid: order.depositPaid,
     note: order.note,
     driverName: order.driverName,
     driverPhone: order.driverPhone,

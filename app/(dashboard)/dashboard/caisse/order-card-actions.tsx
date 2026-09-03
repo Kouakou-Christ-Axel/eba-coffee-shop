@@ -306,7 +306,12 @@ export function OrderCardActions({
         (coverShortage) =>
           callApi(`/api/caisse/orders/${order.id}/payment`, 'PATCH', {
             isPaid: true,
-            payments: [{ mode: 'WAVE', amount: order.total }],
+            payments: [
+              {
+                mode: 'WAVE',
+                amount: order.total - (order.depositPaid ?? 0),
+              },
+            ],
             ...(coverShortage ? { coverShortage: true } : {}),
           })
       );
@@ -813,7 +818,7 @@ export function OrderCardActions({
           setPaymentError(null);
         }}
         orderRef={orderRef}
-        amount={order.total}
+        amount={order.total - (order.depositPaid ?? 0)}
         isSubmitting={isPending}
         onConfirm={handlePaymentConfirm}
         error={paymentError}

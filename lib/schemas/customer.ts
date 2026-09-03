@@ -25,23 +25,38 @@ const phoneField = z
   .min(1, 'Téléphone requis')
   .max(ORDER_CUSTOMER_PHONE_MAX, 'Téléphone trop long');
 
+// Date de naissance : chaîne `AAAA-MM-JJ` (format natif `<input type="date">`),
+// ou null pour l'effacer. Aucune validation de plausibilité (âge min/max) :
+// c'est une note libre saisie par le staff, pas une donnée vérifiée.
+const dateOfBirthField = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format de date invalide (AAAA-MM-JJ)')
+  .nullable()
+  .optional();
+
 export const customerInputSchema = z.object({
   name: nameField,
   // Téléphone obligatoire à la création : c'est l'identité du client.
   phone: phoneField,
+  dateOfBirth: dateOfBirthField,
 });
 
 export type CustomerInput = z.infer<typeof customerInputSchema>;
 
-// Mise à jour partielle : nom et/ou téléphone.
+// Mise à jour partielle : nom, téléphone et/ou date de naissance.
 export const customerUpdateSchema = z
   .object({
     name: nameField,
     phone: phoneField.optional(),
+    dateOfBirth: dateOfBirthField,
   })
-  .refine((v) => v.name !== undefined || v.phone !== undefined, {
-    message: 'Au moins un champ à mettre à jour est requis',
-  });
+  .refine(
+    (v) =>
+      v.name !== undefined ||
+      v.phone !== undefined ||
+      v.dateOfBirth !== undefined,
+    { message: 'Au moins un champ à mettre à jour est requis' }
+  );
 
 export type CustomerUpdateInput = z.infer<typeof customerUpdateSchema>;
 

@@ -8,6 +8,7 @@ import CarteMenuSection from '@/components/(public)/carte/carte-menu-section';
 import CarteMenuSkeleton from '@/components/(public)/carte/carte-menu-skeleton';
 import CartFloatingButton from '@/components/(public)/carte/cart-floating-button';
 import DownloadMenuPdf from '@/components/(public)/carte/download-menu-pdf';
+import { ClosedPrecommandeModal } from '@/components/(public)/carte/_components/closed-precommande-modal';
 import { OG_IMAGE } from '@/config/constants';
 
 // ISR: regenerate the carte at most every 5 minutes. The menu changes more
@@ -42,6 +43,7 @@ async function CartePage() {
       </Suspense>
       <CartFloatingButton />
       {menuPdfUrl && <DownloadMenuPdf pdfUrl={menuPdfUrl} />}
+      <ClosedPrecommandeModal />
     </>
   );
 }

@@ -6,6 +6,7 @@ import {
   setOrderStatus,
   setOrderPayment,
   payAndComplete,
+  recordDeposit,
   updateOrderItems,
   setOrderCustomer,
   updateOrderDetails,
@@ -114,6 +115,25 @@ export async function markOrderPaidAction(
   }
   revalidateOrder(id);
   revalidatePublicMenu();
+}
+
+/**
+ * Enregistre un versement d'acompte (commande spéciale à l'avance, cf.
+ * `Order.depositRequired`). Distinct de `markOrderPaidAction` : ne solde
+ * jamais la commande, ne déclenche jamais l'entrée en cuisine.
+ */
+export async function recordDepositAction(
+  id: string,
+  payments: OrderPaymentLineInput[]
+): Promise<MutationFailure | undefined> {
+  const session = await requireCashier();
+
+  try {
+    await recordDeposit(id, payments, session.user.id);
+  } catch (err) {
+    return toFailure(id, err);
+  }
+  revalidateOrder(id);
 }
 
 /**

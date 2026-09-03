@@ -47,6 +47,9 @@ export const cartItemSchema = z
       .max(ORDER_DISCOUNT_REASON_MAX, 'Motif trop long')
       .nullable()
       .optional(),
+    // Snapshot de `Product.requiresDeposit` au moment de l'ajout au panier
+    // (voir lib/deposits.ts). Absent/false = pas d'acompte exigé.
+    requiresDeposit: z.boolean().optional().default(false),
   })
   // La remise d'une ligne ne peut pas dépasser le plafond métier.
   .refine(

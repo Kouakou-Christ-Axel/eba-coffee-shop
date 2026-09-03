@@ -252,6 +252,7 @@ function SupplementModal({
           availableDays: product.availableDays,
           weeklySpecialPeriods: product.weeklySpecialPeriods,
           soldOutToday: soldOutForLater || undefined,
+          requiresDeposit: product.requiresDeposit,
         },
         // Pas de plafond quand l'article part pour un autre jour : `addItem`
         // refuse SILENCIEUSEMENT un ajout avec `maxQuantity <= 0`.

@@ -216,6 +216,21 @@ model Order {
   paymentMode PaymentMode?
   paidAt      DateTime?
 
+  // Acompte (commande spéciale à l'avance, ex. gâteau grand format — cf.
+  // Product.requiresDeposit). `depositRequired` = montant minimum (FCFA)
+  // calculé à la création depuis le panier (MIN_DEPOSIT_PERCENT % du total,
+  // config/constants.ts) ; `null` = commande ordinaire, aucune règle
+  // d'acompte. Jamais recalculé après coup (une commande créée est figée).
+  // `depositPaid` = montant déjà versé au titre de l'acompte, enregistré via
+  // des `OrderPayment` normales (cf. lib/order-mutations.ts::recordDeposit) —
+  // distinct de `isPaid`, qui continue de signifier "commande SOLDÉE en
+  // totalité" et n'est jamais posé par un acompte partiel. Tant que
+  // `depositPaid < depositRequired`, la commande ne peut pas entrer en
+  // cuisine (cf. `sendOrderToKitchen`).
+  depositRequired Int?
+  depositPaid     Int?      @default(0)
+  depositPaidAt   DateTime?
+
   // Vrai si CET encaissement (isPaid=true courant) a été posé automatiquement
   // par la pré-analyse IA (verdict MATCH, cf. lib/ai/payment-proof.ts) plutôt
   // que par un geste caisse. Remis à `false` dès que `isPaid` repasse à
@@ -319,6 +334,11 @@ model Order {
 // Une commande payée peut être réglée via 1..N lignes de modes différents, à
 // condition que leur somme égale EXACTEMENT `Order.total` (pas de paiement
 // partiel/layaway — cf. `setOrderPayment` dans lib/order-mutations.ts).
+// EXCEPTION : une commande à acompte (`Order.depositRequired` non nul) peut
+// accumuler des lignes dont la somme est INFÉRIEURE à `total` tant que
+// l'acompte n'est pas intégralement versé — cf. `recordDeposit`, qui écrit
+// ces lignes AVANT le règlement final (`setOrderPayment` ne réclame alors
+// que le solde restant, `total - depositPaid`).
 model OrderPayment {
   id      String      @id @default(cuid())
   orderId String
@@ -342,6 +362,10 @@ model Customer {
   id    String  @id @default(cuid())
   phone String  @unique
   name  String?
+
+  // Date de naissance (facultative, saisie manuelle par le staff). Aucune
+  // logique automatisée pour l'instant (pas de promo/email anniversaire).
+  dateOfBirth DateTime? @db.Date
 
   // Fidélité (carte à tampons). `stampCount` = avancement de la carte en cours.
   // `lastStampDate` sert à la règle « 1 tampon / jour / numéro ».
@@ -714,6 +738,12 @@ model Product {
   // l'ajout au panier : seule la date de retrait choisie au checkout est
   // contrainte (voir `isPickupDateAllowed`, lib/supplements.ts).
   advanceOrderDays Int?
+  // Commande spéciale sur mesure (ex. gâteau grand format) : exige un acompte
+  // minimum (MIN_DEPOSIT_PERCENT, config/constants.ts) avant d'entrer en
+  // cuisine. Se combine avec `advanceOrderDays` (délai de commande) plutôt que
+  // de dupliquer un second mécanisme — voir `Order.depositRequired` et
+  // `sendOrderToKitchen` (lib/order-mutations.ts).
+  requiresDeposit  Boolean           @default(false)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 

@@ -638,6 +638,8 @@ describe('setOrderPayment — dépaiement', () => {
         paymentMode: null,
         paidAt: null,
         paymentAutoValidatedByAi: false,
+        depositPaid: 0,
+        depositPaidAt: null,
       },
     });
     expect(mockOrderPaymentDeleteMany).toHaveBeenCalledWith({
@@ -844,6 +846,7 @@ describe('createCashierOrder — récompense fidélité auto-appliquée', () => 
         total: 500,
         loyaltyRewardId: 'reward-10',
         loyaltyDiscount: 2000,
+        depositRequired: null,
       },
     });
     expect((result as { total: number }).total).toBe(500);

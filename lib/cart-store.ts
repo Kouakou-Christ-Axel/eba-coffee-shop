@@ -56,6 +56,10 @@ export type CartItem = {
   // créer un second. Confort UI : la vérité reste revérifiée côté serveur
   // (`createOrder`, lib/orders.ts).
   soldOutToday?: boolean;
+  // Snapshot de `Product.requiresDeposit` (commande spéciale sur mesure, ex.
+  // gâteau grand format) au moment de l'ajout au panier — voir lib/deposits.ts.
+  // Absent/false = pas d'acompte exigé.
+  requiresDeposit?: boolean;
 };
 
 /** Total net d'une ligne (après remise). Voir lib/orders/totals.ts. */

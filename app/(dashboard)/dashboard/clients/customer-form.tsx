@@ -26,7 +26,13 @@ import { createCustomerAction, updateCustomerAction } from './actions';
 
 type Props =
   | { mode: 'create' }
-  | { mode: 'edit'; id: string; name: string | null; phone: string };
+  | {
+      mode: 'edit';
+      id: string;
+      name: string | null;
+      phone: string;
+      dateOfBirth: string | null;
+    };
 
 export function CustomerFormSheet(props: Props) {
   const router = useRouter();
@@ -37,6 +43,9 @@ export function CustomerFormSheet(props: Props) {
     props.mode === 'edit' ? (props.name ?? '') : ''
   );
   const [phone, setPhone] = useState(props.mode === 'edit' ? props.phone : '');
+  const [dateOfBirth, setDateOfBirth] = useState(
+    props.mode === 'edit' ? (props.dateOfBirth ?? '') : ''
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -45,9 +54,11 @@ export function CustomerFormSheet(props: Props) {
     if (props.mode === 'edit') {
       setName(props.name ?? '');
       setPhone(props.phone);
+      setDateOfBirth(props.dateOfBirth ?? '');
     } else {
       setName('');
       setPhone('');
+      setDateOfBirth('');
     }
     setError(null);
     setOpen(true);
@@ -58,8 +69,16 @@ export function CustomerFormSheet(props: Props) {
     startTransition(async () => {
       const res =
         props.mode === 'edit'
-          ? await updateCustomerAction(props.id, { name, phone })
-          : await createCustomerAction({ name, phone });
+          ? await updateCustomerAction(props.id, {
+              name,
+              phone,
+              dateOfBirth: dateOfBirth || null,
+            })
+          : await createCustomerAction({
+              name,
+              phone,
+              dateOfBirth: dateOfBirth || null,
+            });
       if (!res.ok) {
         setError(res.error);
         return;
@@ -129,6 +148,16 @@ export function CustomerFormSheet(props: Props) {
                 placeholder="Facultatif"
                 maxLength={ORDER_CUSTOMER_NAME_MAX}
                 autoComplete="off"
+              />
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label htmlFor="customer-form-dob">Date de naissance</Label>
+              <Input
+                id="customer-form-dob"
+                type="date"
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
               />
             </div>
 

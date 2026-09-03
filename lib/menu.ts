@@ -147,6 +147,7 @@ export async function getMenu(): Promise<MenuCategory[]> {
             p.advanceOrderDays ?? null,
             categoryAdvanceOrderDays
           ) ?? undefined,
+        requiresDeposit: p.requiresDeposit || undefined,
         weeklySpecialPeriods: p.weeklySpecials.map((w) => ({
           startDate: formatLocalDateOnly(w.startDate),
           endDate: formatLocalDateOnly(w.endDate),
@@ -243,6 +244,9 @@ export type AdminMenuProduct = {
   // `effectiveAdvanceOrderDays`, ce fichier).
   advanceOrderDays: number | null;
   effectiveAdvanceOrderDays: number | null;
+  // Commande spéciale sur mesure (ex. gâteau grand format) : exige un acompte
+  // minimum au checkout — voir `Product.requiresDeposit`, prisma/schema.prisma.
+  requiresDeposit: boolean;
   weeklySpecials: AdminMenuWeeklySpecial[];
   supplements: AdminMenuSupplementGroup[];
 };
@@ -341,6 +345,7 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
           p.advanceOrderDays ?? null,
           categoryAdvanceOrderDays
         ),
+        requiresDeposit: p.requiresDeposit,
         weeklySpecials: p.weeklySpecials.map((w) => ({
           id: w.id,
           startDate: formatLocalDateOnly(w.startDate),

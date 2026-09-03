@@ -58,6 +58,7 @@ import {
 } from '@/lib/loyalty-mutations';
 import { getOrderLoyaltyOutcome } from '@/lib/loyalty';
 import { getLoyaltySettings } from '@/lib/loyalty-settings-db';
+import { cartRequiresDeposit, computeRequiredDeposit } from '@/lib/deposits';
 import { computePickupMessage } from '@/lib/loyalty-messaging';
 import { canTransition, canTogglePayment } from '@/lib/order-permissions';
 import { normalizeIvorianPhone } from '@/lib/phone';
@@ -752,6 +753,7 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
   const isDeferred = isDeferredPickup(input.pickupTime ?? null, now);
 
   const grossTotal = computeItemsTotal(input.items as CartItem[]);
+  const requiresDeposit = cartRequiresDeposit(input.items as CartItem[]);
 
   for (let attempt = 0; attempt < DAILY_NUMBER_MAX_RETRIES; attempt++) {
     try {
@@ -776,8 +778,14 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
               })
             )?.isTrusted ?? false)
           : false;
+        // Une commande spéciale exigeant un acompte (cf. Product.requiresDeposit)
+        // ne part jamais en cuisine sans encaissement : l'ardoise dispense de
+        // payer, ce qui contredit l'acompte requis avant prise en compte.
         const goToKitchen =
-          (input.onAccount ?? trusted) && !isBackdated && !isDeferred;
+          (input.onAccount ?? trusted) &&
+          !isBackdated &&
+          !isDeferred &&
+          !requiresDeposit;
 
         // Récompense fidélité : vérifiée à nouveau à CHAQUE tentative (une
         // transaction annulée par un conflit de numéro n'a rien écrit).
@@ -813,6 +821,10 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
             orderType: input.orderType,
             items: input.items,
             total,
+            depositRequired: computeRequiredDeposit(
+              input.items as CartItem[],
+              total
+            ),
             note: input.note ?? null,
             createdById: input.createdById ?? null,
             source: input.source ?? 'CASHIER',
@@ -883,6 +895,10 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
                 total: total - selfDiscount,
                 loyaltyRewardId: selfReward.id,
                 loyaltyDiscount: selfDiscount,
+                depositRequired: computeRequiredDeposit(
+                  input.items as CartItem[],
+                  total - selfDiscount
+                ),
               },
             });
           }
@@ -1010,6 +1026,7 @@ export async function buildOrderItemsFromMenu(
       supplements,
       discount: ref.discount ?? 0,
       discountReason: ref.discountReason ?? null,
+      requiresDeposit: product.requiresDeposit,
     });
   });
 
@@ -1068,6 +1085,8 @@ export async function sendOrderToKitchen(
       items: true,
       dailyNumber: true,
       reference: true,
+      depositRequired: true,
+      depositPaid: true,
     },
   });
   if (!order) {
@@ -1078,6 +1097,18 @@ export async function sendOrderToKitchen(
     throw new OrderMutationError(
       `Transition non autorisée : ${order.status} → PREPARING`,
       403
+    );
+  }
+
+  // Commande spéciale à l'avance (cf. Product.requiresDeposit) : n'entre en
+  // cuisine — donc n'est « prise en compte » — qu'une fois l'acompte minimum
+  // versé. Seul verrou de ce genre : un règlement intégral (setOrderPayment,
+  // payAndComplete) couvre toujours l'acompte, puisqu'il couvre le total.
+  if (order.depositRequired && (order.depositPaid ?? 0) < order.depositRequired) {
+    const remaining = order.depositRequired - (order.depositPaid ?? 0);
+    throw new OrderMutationError(
+      `Acompte requis avant l'entrée en cuisine : ${remaining} F restant sur ${order.depositRequired} F.`,
+      409
     );
   }
 
@@ -1354,6 +1385,12 @@ export async function setOrderPayment(
           paymentMode: null,
           paidAt: null,
           paymentAutoValidatedByAi: false,
+          // L'annulation efface TOUTES les lignes `OrderPayment` ci-dessous, y
+          // compris un éventuel acompte déjà versé : on remet aussi son suivi à
+          // zéro pour ne pas laisser un montant orphelin, sans ligne pour
+          // l'expliquer. Un dépaiement repart donc d'un acompte à reverser.
+          depositPaid: 0,
+          depositPaidAt: null,
         },
       }),
       prisma.orderPayment.deleteMany({ where: { orderId: id } }),
@@ -1385,6 +1422,7 @@ export async function setOrderPayment(
           dailyNumber: true,
           reference: true,
           pickupTime: true,
+          depositPaid: true,
         },
       });
       if (!order) {
@@ -1394,11 +1432,15 @@ export async function setOrderPayment(
         throw new OrderMutationError('État de paiement déjà à jour', 409);
       }
 
+      // Un acompte déjà versé (cf. `recordDeposit`) compte comme déjà réglé :
+      // ce règlement ne porte que sur le solde restant.
+      const alreadyCollected = order.depositPaid ?? 0;
+      const expected = order.total - alreadyCollected;
       const lines = payments as OrderPaymentLineInput[];
       const sum = lines.reduce((s, p) => s + p.amount, 0);
-      if (sum !== order.total) {
+      if (sum !== expected) {
         throw new OrderMutationError(
-          `Le total des paiements (${sum} F) ne correspond pas au montant de la commande (${order.total} F)`,
+          `Le total des paiements (${sum} F) ne correspond pas au solde de la commande (${expected} F)`,
           400
         );
       }
@@ -1497,6 +1539,83 @@ export async function setOrderPayment(
   }
 
   return { startedPreparation: txResult.startedPreparation };
+}
+
+// ─── Acompte (commande spéciale à l'avance) ───────────────────────────────────
+
+/**
+ * Enregistre un versement d'acompte sur une commande qui en exige un (cf.
+ * `Order.depositRequired`, `Product.requiresDeposit`). Distinct de
+ * `setOrderPayment` : ne touche JAMAIS `isPaid`/`status`, et ne déclenche
+ * JAMAIS l'entrée en cuisine ni la réservation de stock — c'est
+ * `sendOrderToKitchen` qui vérifie ensuite que l'acompte est couvert.
+ *
+ * Les lignes sont écrites comme des `OrderPayment` normales (même trace pour
+ * la caisse/clôture) ; seul `Order.depositPaid` distingue un acompte d'un
+ * règlement final. Accepte tout montant positif qui ne dépasse pas le total
+ * restant dû — pas seulement le minimum exact — le staff peut encaisser plus
+ * que le minimum si le client le souhaite.
+ */
+export async function recordDeposit(
+  id: string,
+  payments: OrderPaymentLineInput[],
+  actorId?: string | null
+): Promise<{ depositPaid: number; depositRequired: number }> {
+  if (!payments || payments.length === 0) {
+    throw new OrderMutationError('payments requis', 400);
+  }
+  const sum = payments.reduce((s, p) => s + p.amount, 0);
+  if (sum <= 0) {
+    throw new OrderMutationError('Montant invalide', 400);
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id },
+    select: {
+      total: true,
+      isPaid: true,
+      depositRequired: true,
+      depositPaid: true,
+    },
+  });
+  if (!order) {
+    throw new OrderMutationError('Commande introuvable', 404);
+  }
+  if (!order.depositRequired) {
+    throw new OrderMutationError("Cette commande n'exige pas d'acompte", 400);
+  }
+  if (order.isPaid) {
+    throw new OrderMutationError('Commande déjà soldée', 409);
+  }
+
+  const currentPaid = order.depositPaid ?? 0;
+  const newPaid = currentPaid + sum;
+  if (newPaid > order.total) {
+    throw new OrderMutationError(
+      `Le montant dépasse le solde restant (${order.total - currentPaid} F)`,
+      400
+    );
+  }
+
+  const [result] = await prisma.$transaction([
+    prisma.order.updateMany({
+      where: { id, depositPaid: currentPaid, isPaid: false },
+      data: { depositPaid: newPaid, depositPaidAt: new Date() },
+    }),
+    prisma.orderPayment.createMany({
+      data: payments.map((p) => ({
+        orderId: id,
+        mode: p.mode,
+        amount: p.amount,
+        createdById: actorId ?? null,
+      })),
+    }),
+  ]);
+  if (result.count === 0) {
+    throw new OrderMutationError('État modifié entre temps, recharger', 409);
+  }
+
+  return { depositPaid: newPaid, depositRequired: order.depositRequired };
 }
 
 // ─── Édition administrative des métadonnées ───────────────────────────────────
@@ -1606,6 +1725,7 @@ export async function payAndComplete(
           total: true,
           pickupTime: true,
           stockReservedAt: true,
+          depositPaid: true,
         },
       });
       if (!order) {
@@ -1638,10 +1758,13 @@ export async function payAndComplete(
             400
           );
         }
+        // Un acompte déjà versé (cf. `recordDeposit`) compte comme déjà réglé :
+        // ce geste ne porte que sur le solde restant.
+        const expected = order.total - (order.depositPaid ?? 0);
         const sum = payments.reduce((s, p) => s + p.amount, 0);
-        if (sum !== order.total) {
+        if (sum !== expected) {
           throw new OrderMutationError(
-            `Le total des paiements (${sum} F) ne correspond pas au montant de la commande (${order.total} F)`,
+            `Le total des paiements (${sum} F) ne correspond pas au solde de la commande (${expected} F)`,
             400
           );
         }

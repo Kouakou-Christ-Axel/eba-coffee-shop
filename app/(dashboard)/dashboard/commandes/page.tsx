@@ -371,7 +371,7 @@ export default async function CommandesPage({
                           <EncaisserButton
                             orderId={order.id}
                             orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
-                            amount={order.total}
+                            amount={order.total - (order.depositPaid ?? 0)}
                             variant="outline"
                             size="sm"
                           />
@@ -382,7 +382,7 @@ export default async function CommandesPage({
                           <ExpressCompleteButton
                             orderId={order.id}
                             orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
-                            amount={order.total}
+                            amount={order.total - (order.depositPaid ?? 0)}
                             isPaid={order.isPaid}
                             pickupTime={order.pickupTime}
                             stockReserved={order.stockReservedAt !== null}
@@ -474,7 +474,7 @@ export default async function CommandesPage({
                   <EncaisserButton
                     orderId={order.id}
                     orderRef={orderRef}
-                    amount={order.total}
+                    amount={order.total - (order.depositPaid ?? 0)}
                     variant="outline"
                     size="sm"
                   />
@@ -485,7 +485,7 @@ export default async function CommandesPage({
                     <ExpressCompleteButton
                       orderId={order.id}
                       orderRef={orderRef}
-                      amount={order.total}
+                      amount={order.total - (order.depositPaid ?? 0)}
                       isPaid={order.isPaid}
                       pickupTime={order.pickupTime}
                       stockReserved={order.stockReservedAt !== null}

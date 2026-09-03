@@ -50,7 +50,11 @@ export async function createCustomer(input: unknown) {
   if (!key) throw new Error('Numéro de téléphone invalide.');
   try {
     return await prisma.customer.create({
-      data: { phone: key, name: data.name?.trim() || null },
+      data: {
+        phone: key,
+        name: data.name?.trim() || null,
+        dateOfBirth: parseDateOfBirth(data.dateOfBirth),
+      },
     });
   } catch (err) {
     throw rethrowDuplicatePhone(err);
@@ -69,6 +73,9 @@ export async function updateCustomer(id: string, input: unknown) {
     const key = customerPhoneKey(data.phone);
     if (!key) throw new Error('Numéro de téléphone invalide.');
     patch.phone = key;
+  }
+  if (data.dateOfBirth !== undefined) {
+    patch.dateOfBirth = parseDateOfBirth(data.dateOfBirth);
   }
   try {
     return await prisma.customer.update({ where: { id }, data: patch });
@@ -245,6 +252,10 @@ export async function mergeCustomers(
       stampsMerged: source.stampCount,
     };
   });
+}
+
+function parseDateOfBirth(value: string | null | undefined): Date | null {
+  return value ? new Date(`${value}T00:00:00Z`) : null;
 }
 
 function rethrowDuplicatePhone(err: unknown): unknown {

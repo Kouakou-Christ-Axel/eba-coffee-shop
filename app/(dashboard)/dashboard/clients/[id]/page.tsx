@@ -33,6 +33,12 @@ const dateFmt = new Intl.DateTimeFormat('fr-FR', {
   hour: '2-digit',
   minute: '2-digit',
 });
+const dobFmt = new Intl.DateTimeFormat('fr-FR', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   NEW: 'Nouvelle',
@@ -93,6 +99,11 @@ export default async function CustomerDetailPage({
             <p className="font-mono text-sm text-muted-foreground">
               {formatPhoneForDisplay(customer.phone)}
             </p>
+            {customer.dateOfBirth && (
+              <p className="text-sm text-muted-foreground">
+                🎂 Né(e) le {dobFmt.format(customer.dateOfBirth)}
+              </p>
+            )}
             {customer.isTrusted && customer.trustedNote && (
               <p className="mt-1 text-sm text-muted-foreground">
                 {customer.trustedNote}
@@ -110,6 +121,11 @@ export default async function CustomerDetailPage({
               id={customer.id}
               name={customer.name}
               phone={customer.phone}
+              dateOfBirth={
+                customer.dateOfBirth
+                  ? customer.dateOfBirth.toISOString().slice(0, 10)
+                  : null
+              }
             />
           </div>
         </div>
