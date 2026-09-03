@@ -52,13 +52,42 @@ type PaymentUiState =
   | 'proof_pending'
   | 'rejected'
   | 'validated'
+  | 'deposit_paid'
   | 'nothing_due';
+
+/**
+ * Vrai si la commande exige un acompte (cf. `Order.depositRequired`) et que
+ * celui-ci n'est pas encore intégralement versé. Tant que c'est le cas, le
+ * montant demandé au client (Wave, capture) est celui de l'ACOMPTE, jamais le
+ * total — voir `getAmountDue`.
+ */
+function isDepositOutstanding(order: PublicOrderView): boolean {
+  return (
+    order.depositRequired != null &&
+    (order.depositPaid ?? 0) < order.depositRequired
+  );
+}
+
+/** Montant à régler MAINTENANT (acompte tant qu'il n'est pas couvert, sinon
+ * le total). Le solde après acompte ne se règle jamais en ligne — toujours en
+ * caisse, au retrait. */
+function getAmountDue(order: PublicOrderView): number {
+  if (isDepositOutstanding(order)) {
+    return order.depositRequired! - (order.depositPaid ?? 0);
+  }
+  return order.total;
+}
 
 function getPaymentUiState(order: PublicOrderView): PaymentUiState {
   if (order.isPaid) return 'validated';
   // Récompense fidélité couvrant tout le total : rien à régler (proposer
   // « Payer 0 F » n'aurait aucun sens). Le comptoir clôturera au retrait.
   if (order.total <= 0) return 'nothing_due';
+  // Acompte déjà couvert (commande spéciale à l'avance) : le solde se règle
+  // en caisse au retrait, jamais en ligne — plus rien à faire ici.
+  if (order.depositRequired != null && !isDepositOutstanding(order)) {
+    return 'deposit_paid';
+  }
   if (
     order.paymentProofUrl &&
     (order.paymentProofVerdict === 'MISMATCH' ||
@@ -122,7 +151,9 @@ export function PaymentSection({
   const reduceMotion = useReducedMotion();
 
   const uiState = getPaymentUiState(order);
-  const waveLink = buildWaveLink(order.total);
+  const depositOutstanding = isDepositOutstanding(order);
+  const amountDue = getAmountDue(order);
+  const waveLink = buildWaveLink(amountDue);
   const waveOpened = useSyncExternalStore(
     subscribeWaveOpened,
     () => readWaveOpened(order.id),
@@ -133,7 +164,7 @@ export function PaymentSection({
     buildPaymentProofMessage({
       customerName: order.customerName,
       dailyNumber: order.dailyNumber,
-      amount: order.total,
+      amount: amountDue,
     })
   );
 
@@ -185,6 +216,10 @@ export function PaymentSection({
         {uiState === 'validated' ? (
           <Chip color="success" variant="flat" size="sm">
             Paiement validé
+          </Chip>
+        ) : uiState === 'deposit_paid' ? (
+          <Chip color="success" variant="flat" size="sm">
+            Acompte versé
           </Chip>
         ) : uiState === 'nothing_due' ? (
           <Chip color="success" variant="flat" size="sm">
@@ -242,6 +277,21 @@ export function PaymentSection({
             <Gift className="h-6 w-6 shrink-0 text-success-700 dark:text-success" />
             <p className="text-sm font-medium text-success-700 dark:text-success">
               Rien à payer 🎉 — ta récompense fidélité couvre toute la commande.
+            </p>
+          </m.div>
+        ) : uiState === 'deposit_paid' ? (
+          <m.div
+            key="deposit-paid"
+            initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className="mt-4 flex items-center gap-3 rounded-lg bg-success/15 px-3 py-3"
+          >
+            <CheckCircle2 className="h-6 w-6 shrink-0 text-success-700 dark:text-success" />
+            <p className="text-sm font-medium text-success-700 dark:text-success">
+              Acompte reçu ✓ — le solde de{' '}
+              {priceFormatter.format(order.total - (order.depositPaid ?? 0))}{' '}
+              F se règle au comptoir, au retrait.
             </p>
           </m.div>
         ) : uiState === 'rejected' ? (
@@ -357,8 +407,9 @@ export function PaymentSection({
             className="mt-4 flex flex-col gap-3"
           >
             <p className="rounded-lg bg-warning/15 px-3 py-2 text-sm font-medium text-warning-700 dark:text-warning">
-              Ta commande part en préparation dès que le paiement est confirmé —
-              deux petites étapes&nbsp;:
+              {depositOutstanding
+                ? `Commande spéciale : un acompte de ${priceFormatter.format(amountDue)} F est requis pour la prise en compte. Le solde se règlera au retrait — deux petites étapes :`
+                : 'Ta commande part en préparation dès que le paiement est confirmé — deux petites étapes :'}
             </p>
 
             {/* Étape 1 — payer avec Wave */}
@@ -399,7 +450,7 @@ export function PaymentSection({
                 >
                   {waveOpened
                     ? 'Rouvrir Wave si besoin'
-                    : `Payer ${priceFormatter.format(order.total)} F avec Wave`}
+                    : `Payer ${priceFormatter.format(amountDue)} F avec Wave`}
                 </Button>
               </div>
             )}

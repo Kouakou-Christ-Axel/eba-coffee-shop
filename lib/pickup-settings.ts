@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ABIDJAN_TZ, parseDateOnlyToUTC, todayDateString } from '@/lib/timezone';
 
 const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -92,6 +93,28 @@ export function getRangesForDay(
   }
   const weekday = String(day.getDay());
   return settings.weeklyHours[weekday] ?? [];
+}
+
+/**
+ * Vrai si la boutique est ouverte À L'INSTANT (heure murale Abidjan), selon
+ * les plages horaires du jour — `getRangesForDay` applique déjà les
+ * exceptions de date. Factorise ce que `slot-picker.tsx` calcule côté client
+ * (nourri par `usePickupInfo`) pour un usage côté serveur (cf.
+ * `/api/shop-status`), sans dépendre du fuseau du runtime.
+ */
+export function isShopOpenNow(
+  settings: PickupSettings,
+  now: Date = new Date()
+): boolean {
+  const today = parseDateOnlyToUTC(todayDateString()) ?? now;
+  const ranges = getRangesForDay(today, settings);
+  const hhmm = new Intl.DateTimeFormat('en-GB', {
+    timeZone: ABIDJAN_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(now);
+  return ranges.some((r) => r.start <= hhmm && hhmm <= r.end);
 }
 
 const WEEK_ORDER = ['1', '2', '3', '4', '5', '6', '0'];

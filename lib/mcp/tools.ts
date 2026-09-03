@@ -1656,11 +1656,14 @@ export const tools: McpTool[] = [
       };
       const order = await prisma.order.findUnique({
         where: { id },
-        select: { total: true },
+        select: { total: true, depositPaid: true },
       });
       if (!order) throw new Error('Commande introuvable');
       const { startedPreparation } = await setOrderPayment(id, true, [
-        { mode: paymentMode, amount: order.total },
+        {
+          mode: paymentMode,
+          amount: order.total - (order.depositPaid ?? 0),
+        },
       ]);
       return { ok: true, id, paymentMode, startedPreparation };
     },

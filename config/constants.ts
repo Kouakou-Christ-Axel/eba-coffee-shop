@@ -202,6 +202,15 @@ export const CART_ITEM_QUANTITY_MAX = 20;
  */
 export const MAX_LINE_DISCOUNT_RATIO = 0.5;
 
+/**
+ * Commande spéciale sur mesure (ex. gâteau grand format, `Product.requiresDeposit`) :
+ * pourcentage minimum du total exigé en acompte pour que la commande soit
+ * prise en compte (entre en cuisine). Réglage global unique — pas de
+ * variation par produit. Le solde restant se règle en caisse au retrait.
+ * Source : lib/deposits.ts.
+ */
+export const MIN_DEPOSIT_PERCENT = 50;
+
 /** Longueur max du motif de remise saisi par le caissier. */
 export const ORDER_DISCOUNT_REASON_MAX = 100;
 

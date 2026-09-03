@@ -79,6 +79,7 @@ export default async function EditProductPage({
     unavailableUntil: product.unavailableUntil,
     scheduleId: product.scheduleId,
     advanceOrderDays: product.advanceOrderDays,
+    requiresDeposit: product.requiresDeposit,
     weeklySpecials,
     supplementGroups: product.supplementGroups.map((g) => ({
       name: g.name,

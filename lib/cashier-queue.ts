@@ -41,6 +41,11 @@ export type CashierOrder = {
   items: CartItem[];
   note: string | null;
   total: number;
+  /** Acompte minimum requis (commande spéciale à l'avance) et déjà versé — voir
+   * `Order.depositRequired`/`depositPaid`. `depositRequired` null = pas de
+   * règle d'acompte sur cette commande. */
+  depositRequired: number | null;
+  depositPaid: number | null;
   /** Montant de la récompense fidélité déjà déduit de `total` (null = aucune). */
   loyaltyDiscount: number | null;
   /** `LoyaltyReward.id` utilisée sur cette commande (null = aucune). */
@@ -274,6 +279,8 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       items,
       note: o.note,
       total: o.total,
+      depositRequired: o.depositRequired,
+      depositPaid: o.depositPaid,
       loyaltyDiscount: o.loyaltyDiscount,
       loyaltyRewardId: o.loyaltyRewardId,
       status: o.status,

@@ -12,6 +12,7 @@ import {
 import { formatSupplementLabel } from '@/lib/orders/format';
 import { LineDiscountControl } from '../../_components/line-discount-control';
 import type { LoyaltyCard } from '@/lib/hooks/use-new-order';
+import { computeRequiredDeposit } from '@/lib/deposits';
 
 type Props = {
   items: CartItem[];
@@ -63,6 +64,10 @@ export function CartSummary({
   const loyaltyDiscount = selectedReward
     ? Math.min(selectedReward.capAmount, total)
     : 0;
+  const depositAmount = computeRequiredDeposit(
+    items,
+    total - loyaltyDiscount
+  );
 
   return (
     <div className="rounded-xl border bg-card">
@@ -92,6 +97,11 @@ export function CartSummary({
                     {(item.advanceOrderDays ?? 0) > 0 && (
                       <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
                         Commande à J-{item.advanceOrderDays}
+                      </span>
+                    )}
+                    {item.requiresDeposit && (
+                      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-normal text-amber-800">
+                        Acompte requis
                       </span>
                     )}
                   </p>
@@ -205,6 +215,15 @@ export function CartSummary({
           {priceFormatter.format(total - loyaltyDiscount)} F
         </span>
       </div>
+
+      {depositAmount != null && (
+        <div className="flex items-center justify-between border-t bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          <span>Acompte minimum requis</span>
+          <span className="font-semibold tabular-nums">
+            {priceFormatter.format(depositAmount)} F
+          </span>
+        </div>
+      )}
     </div>
   );
 }

@@ -81,6 +81,7 @@ export function useQuickAdd(product: Product) {
           availableDays: product.availableDays,
           weeklySpecialPeriods: product.weeklySpecialPeriods,
           soldOutToday: soldOut || undefined,
+          requiresDeposit: product.requiresDeposit,
         },
         // ⚠️ Pas de plafond pour un article épuisé : `addItem` refuse
         // SILENCIEUSEMENT l'ajout quand `maxQuantity <= 0` (cf. cart-store.ts).

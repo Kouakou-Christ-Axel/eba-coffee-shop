@@ -43,6 +43,7 @@ function revalidate(id?: string) {
 export async function createCustomerAction(input: {
   name?: string | null;
   phone: string;
+  dateOfBirth?: string | null;
 }): Promise<ActionResult> {
   await requireAdminId();
   try {
@@ -59,7 +60,7 @@ export async function createCustomerAction(input: {
 
 export async function updateCustomerAction(
   id: string,
-  input: { name?: string | null; phone?: string }
+  input: { name?: string | null; phone?: string; dateOfBirth?: string | null }
 ): Promise<ActionResult> {
   await requireAdminId();
   try {

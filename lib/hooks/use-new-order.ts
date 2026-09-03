@@ -184,6 +184,7 @@ export function useNewOrder() {
         quantity: 1,
         supplements,
         advanceOrderDays: product.advanceOrderDays,
+        requiresDeposit: product.requiresDeposit,
       };
       return [...prev, item];
     });

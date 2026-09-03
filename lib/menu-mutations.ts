@@ -86,6 +86,10 @@ const availabilityFieldsSchema = {
   unavailableUntil: z.string().datetime().nullable().optional(),
   ...scheduleFieldSchema,
   ...advanceOrderDaysFieldSchema,
+  // Commande spéciale sur mesure (ex. gâteau grand format) : exige un acompte
+  // minimum au checkout (voir `MIN_DEPOSIT_PERCENT`, config/constants.ts).
+  // Absent (update) = inchangé ; absent (create) = false par défaut.
+  requiresDeposit: z.boolean().optional(),
 };
 
 export const productInputSchema = z.object({
@@ -288,6 +292,7 @@ export async function createProduct(input: ProductInput) {
         : null,
       scheduleId: data.scheduleId ?? null,
       advanceOrderDays: data.advanceOrderDays ?? null,
+      requiresDeposit: data.requiresDeposit ?? false,
       supplementGroups: {
         create: data.supplementGroups.map((g, gi) => ({
           name: g.name,
@@ -347,6 +352,9 @@ export async function updateProduct(id: string, input: ProductUpdate) {
     ...(data.scheduleId !== undefined && { scheduleId: data.scheduleId }),
     ...(data.advanceOrderDays !== undefined && {
       advanceOrderDays: data.advanceOrderDays,
+    }),
+    ...(data.requiresDeposit !== undefined && {
+      requiresDeposit: data.requiresDeposit,
     }),
   };
 

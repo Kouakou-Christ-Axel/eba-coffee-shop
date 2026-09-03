@@ -48,6 +48,7 @@ import { getContactSettings } from '@/lib/contact-settings-db';
 import {
   setOrderPaymentProofVerdict,
   setOrderPayment,
+  recordDeposit,
   OrderMutationError,
 } from '@/lib/order-mutations';
 import { callOpenRouterVision } from '@/lib/ai/openrouter';
@@ -86,6 +87,7 @@ const NO_AUTO_VALIDATION: AutoValidationResult = {
 async function attemptAutoValidation(
   orderId: string,
   order: { total: number },
+  expected: { amount: number; isDeposit: boolean },
   analysis: Analysis,
   verdict: PaymentProofVerdict
 ): Promise<AutoValidationResult> {
@@ -108,13 +110,26 @@ async function attemptAutoValidation(
   if (blocking) return { applied: false, reason: blocking };
 
   try {
+    // Commande à acompte pas encore couvert : ce versement n'est QUE
+    // l'acompte — `recordDeposit`, jamais `setOrderPayment` (qui soldrait la
+    // commande et la pousserait en cuisine à tort).
+    if (expected.isDeposit) {
+      await recordDeposit(orderId, [
+        {
+          mode: operatorToPaymentMode(analysis.operator),
+          amount: expected.amount,
+        },
+      ]);
+      return { applied: true, reason: null };
+    }
+
     await setOrderPayment(
       orderId,
       true,
       [
         {
           mode: operatorToPaymentMode(analysis.operator),
-          amount: order.total,
+          amount: expected.amount,
         },
       ],
       null,
@@ -210,14 +225,26 @@ export async function analyzePaymentProof(orderId: string): Promise<void> {
         isPaid: true,
         status: true,
         dailyNumber: true,
+        depositRequired: true,
+        depositPaid: true,
       },
     });
     if (!order || !order.paymentProofUrl) return;
     if (order.isPaid || order.status === 'CANCELLED') return;
 
+    // Commande à acompte (cf. Product.requiresDeposit) pas encore couvert :
+    // la capture attendue est celle de l'ACOMPTE, pas du total — sinon toute
+    // preuve d'acompte légitime ressortirait MISMATCH (montant insuffisant).
+    const depositOutstanding =
+      order.depositRequired != null &&
+      (order.depositPaid ?? 0) < order.depositRequired;
+    const expectedAmount = depositOutstanding
+      ? order.depositRequired! - (order.depositPaid ?? 0)
+      : order.total - (order.depositPaid ?? 0);
+
     const contact = await getContactSettings();
     const userPrompt = buildUserPrompt(
-      order,
+      { total: expectedAmount, createdAt: order.createdAt },
       contact.wavePaymentNumber,
       contact.orangeMoneyPaymentNumber
     );
@@ -267,7 +294,7 @@ export async function analyzePaymentProof(orderId: string): Promise<void> {
     const { verdict, amountMatches, overpaid } = computeVerdict({
       analysis,
       amount,
-      orderTotal: order.total,
+      orderTotal: expectedAmount,
       dateConsistent,
     });
 
@@ -277,6 +304,7 @@ export async function analyzePaymentProof(orderId: string): Promise<void> {
     const autoValidation = await attemptAutoValidation(
       orderId,
       order,
+      { amount: expectedAmount, isDeposit: depositOutstanding },
       analysis,
       verdict
     );

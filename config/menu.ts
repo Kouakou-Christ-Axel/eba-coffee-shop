@@ -76,6 +76,10 @@ export type Product = {
   // choisie au checkout est contrainte — voir `isPickupDateAllowed`
   // (lib/supplements.ts).
   advanceOrderDays?: number;
+  // Commande spéciale sur mesure (ex. gâteau grand format) : exige un acompte
+  // minimum au checkout (voir `MIN_DEPOSIT_PERCENT`, config/constants.ts, et
+  // `lib/deposits.ts`). `undefined`/absent = pas d'acompte exigé.
+  requiresDeposit?: boolean;
 };
 
 /**
