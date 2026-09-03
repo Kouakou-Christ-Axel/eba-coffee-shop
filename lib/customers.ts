@@ -4,9 +4,10 @@
 // commande) sont calculées à la volée depuis les commandes liées — pas de
 // compteur dénormalisé à maintenir.
 
-import { Prisma } from '@/generated/prisma/client';
+import type { Customer } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { customerPhoneKey } from '@/lib/phone';
+import { searchCustomers } from '@/lib/customer-search';
 import { ORDERS_PAGE_SIZE } from '@/config/constants';
 
 export type CustomerStats = {
@@ -48,26 +49,39 @@ export async function listCustomers({
 }) {
   const pageSize = ORDERS_PAGE_SIZE;
   const skip = (page - 1) * pageSize;
-
-  const where: Prisma.CustomerWhereInput = {};
   const term = search?.trim();
-  if (term) {
-    const digits = term.replace(/\D/g, '');
-    where.OR = [
-      { name: { contains: term, mode: 'insensitive' } },
-      ...(digits ? [{ phone: { contains: digits } }] : []),
-    ];
-  }
 
-  const [customers, total] = await Promise.all([
-    prisma.customer.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: pageSize,
-    }),
-    prisma.customer.count({ where }),
-  ]);
+  let customers: Customer[];
+  let total: number;
+
+  if (term) {
+    // Recherche floue (lib/customer-search.ts) : on classe sur des champs
+    // minimaux (toute la table, requête bon marché), on ne recharge les
+    // lignes complètes que pour la page affichée.
+    const candidates = await prisma.customer.findMany({
+      select: { id: true, name: true, phone: true },
+    });
+    const matched = searchCustomers(candidates, term);
+    total = matched.length;
+
+    const pageIds = matched.slice(skip, skip + pageSize).map((c) => c.id);
+    const rows = pageIds.length
+      ? await prisma.customer.findMany({ where: { id: { in: pageIds } } })
+      : [];
+    const byId = new Map(rows.map((c) => [c.id, c]));
+    customers = pageIds
+      .map((id) => byId.get(id))
+      .filter((c): c is Customer => c != null);
+  } else {
+    [customers, total] = await Promise.all([
+      prisma.customer.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      prisma.customer.count(),
+    ]);
+  }
 
   const stats = await statsByCustomer(customers.map((c) => c.id));
   const rows = customers.map((c) => ({
