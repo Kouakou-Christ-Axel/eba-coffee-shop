@@ -311,10 +311,10 @@ export type SetOrderLoyaltyRewardInput = z.infer<
 
 // ─── Livreur du client ────────────────────────────────────────────────────────
 //
-// Le livreur est envoyé PAR le client (le coffee shop ne livre pas) : il peut
-// être renseigné au checkout puis modifié depuis la page publique de suivi
-// (« ça peut changer »). Nom et téléphone vont ensemble : soit les deux sont
-// fournis, soit les deux sont null (effacement).
+// Le livreur est envoyé PAR le client (le coffee shop ne livre pas) — le
+// client se contente de lui donner le code de retrait, sans l'identifier.
+// Champs partagés par `updateOrderFulfillmentSchema` : seul le staff (caisse)
+// peut renseigner nom/téléphone, pour sa propre traçabilité interne.
 
 export const orderDriverFieldsSchema = z.object({
   driverName: z
@@ -330,13 +330,6 @@ export const orderDriverFieldsSchema = z.object({
     .max(ORDER_CUSTOMER_PHONE_MAX, 'Téléphone trop long (max 30 caractères)')
     .nullable(),
 });
-
-export const setOrderDriverSchema = orderDriverFieldsSchema.refine(
-  (d) => (d.driverName === null) === (d.driverPhone === null),
-  { message: 'Nom et téléphone du livreur vont ensemble' }
-);
-
-export type SetOrderDriverInput = z.infer<typeof setOrderDriverSchema>;
 
 // ─── updateOrderFulfillmentSchema ─────────────────────────────────────────────
 //

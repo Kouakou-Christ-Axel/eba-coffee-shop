@@ -106,14 +106,6 @@ export function CheckoutForm({
       <PickupModeCards
         mode={values.pickupMode}
         onModeChange={(m) => setField('pickupMode', m)}
-        driverName={values.driverName}
-        driverPhone={values.driverPhone}
-        errors={{
-          driverName: errors.driverName,
-          driverPhone: errors.driverPhone,
-        }}
-        onDriverNameChange={(v) => setField('driverName', v)}
-        onDriverPhoneChange={(v) => setField('driverPhone', v)}
         pickupAddress={
           pickupInfo.status === 'ready' ? pickupInfo.pickupAddress : null
         }

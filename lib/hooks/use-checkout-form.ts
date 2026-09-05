@@ -51,10 +51,6 @@ export type CheckoutFormValues = {
   timing: PickupTiming;
   pickupTime: string | null;
   note: string;
-  // Livreur envoyé par le client (optionnel au checkout, modifiable ensuite
-  // depuis la page de suivi). Les deux champs vont ensemble.
-  driverName: string;
-  driverPhone: string;
 };
 
 export type CheckoutFormErrors = Partial<
@@ -103,8 +99,6 @@ const INITIAL_VALUES: CheckoutFormValues = {
   timing: 'asap',
   pickupTime: null,
   note: '',
-  driverName: '',
-  driverPhone: '',
 };
 
 // ─── Validation pure (testable sans DOM) ─────────────────────────────────────
@@ -192,23 +186,6 @@ export function validateCheckoutForm(
     errors.note = `Note trop longue (max ${ORDER_NOTE_MAX} caractères)`;
   }
 
-  // Livreur : bloc optionnel, mais nom et téléphone vont ensemble (mêmes
-  // règles que setOrderDriverSchema côté serveur).
-  const driverName = values.driverName.trim();
-  const driverPhone = values.driverPhone.trim();
-  if (driverName || driverPhone) {
-    if (driverName.length < 2) {
-      errors.driverName = 'Nom du livreur requis (min 2 caractères)';
-    } else if (driverName.length > ORDER_CUSTOMER_NAME_MAX) {
-      errors.driverName = `Nom trop long (max ${ORDER_CUSTOMER_NAME_MAX} caractères)`;
-    }
-    if (driverPhone.length < 8) {
-      errors.driverPhone = 'Numéro du livreur requis (min 8 chiffres)';
-    } else if (driverPhone.length > ORDER_CUSTOMER_PHONE_MAX) {
-      errors.driverPhone = `Téléphone trop long (max ${ORDER_CUSTOMER_PHONE_MAX} caractères)`;
-    }
-  }
-
   // Garde-fous business : on délègue le reste au schéma Zod partagé pour
   // refléter immédiatement toute divergence côté serveur.
   const parsed = createOrderSchema.safeParse({
@@ -262,12 +239,6 @@ export async function submitCheckout({
         items,
         total,
         ...(values.note.trim() ? { note: values.note.trim() } : {}),
-        ...(values.driverName.trim() && values.driverPhone.trim()
-          ? {
-              driverName: values.driverName.trim(),
-              driverPhone: values.driverPhone.trim(),
-            }
-          : {}),
         // Le serveur revalide la récompense (appartenance au client résolu du
         // téléphone, statut AVAILABLE) et déduit lui-même la remise du total.
         ...(loyaltyRewardId ? { loyaltyRewardId } : {}),
@@ -377,8 +348,6 @@ export function useCheckoutForm({
           validation.customerPhone ??
           validation.pickupTime ??
           validation.note ??
-          validation.driverName ??
-          validation.driverPhone ??
           'Veuillez corriger les champs invalides.';
         return { ok: false, error: first };
       }

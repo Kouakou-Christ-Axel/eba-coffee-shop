@@ -6,7 +6,7 @@
 // Abonnement push du CLIENT au suivi de SA commande (page publique
 // /commande/:id) : il sera notifié des changements de statut (préparation,
 // prête, récupérée, annulée, paiement validé — lib/push-notify.ts). Même
-// modèle de confiance que les routes /livreur et /preuve-paiement : l'`id`
+// modèle de confiance que la route /preuve-paiement : l'`id`
 // cuid non devinable sert de capability URL. Refusé sur une commande terminée
 // ou annulée (plus rien à notifier).
 
