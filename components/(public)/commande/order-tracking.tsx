@@ -5,10 +5,11 @@
 // Page de suivi vivante d'une commande (/commande/:id). Remplace l'ancienne
 // confirmation statique : le client garde cette page ouverte (statut en
 // direct par polling) et la transfère à son livreur — code de retrait,
-// localisation, paiement Wave + preuve, et bloc livreur modifiable.
+// localisation, paiement Wave + preuve. Le client n'identifie plus son
+// livreur : il lui suffit de lui donner le code de retrait.
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import { Button, Chip, Input } from '@heroui/react';
+import { Button, Chip } from '@heroui/react';
 import { m, useReducedMotion } from 'framer-motion';
 import {
   Bike,
@@ -17,7 +18,6 @@ import {
   ChefHat,
   Gift,
   MapPin,
-  Pencil,
   Receipt,
   Share2,
   ShoppingBag,
@@ -35,12 +35,9 @@ import { priceFormatter } from '@/config/menu';
 import {
   buildDriverShareMessage,
   buildTrackingShareMessage,
-  buildWhatsAppLink,
   buildWhatsAppShareLink,
 } from '@/lib/contact-links';
 import {
-  ORDER_CUSTOMER_NAME_MAX,
-  ORDER_CUSTOMER_PHONE_MAX,
   ORDER_TRACKING_POLL_FAST_INTERVAL_MS,
   ORDER_TRACKING_POLL_INTERVAL_MS,
 } from '@/config/constants';
@@ -261,7 +258,6 @@ export function OrderTracking({
           pickupMapsUrl={pickupMapsUrl}
           pickupCode={pickupCode}
           trackingUrl={trackingUrl}
-          onOrderChange={setOrder}
         />
       )}
 
@@ -523,7 +519,6 @@ function DriverSection({
   pickupMapsUrl,
   pickupCode,
   trackingUrl,
-  onOrderChange,
 }: {
   order: PublicOrderView;
   isFinal: boolean;
@@ -531,63 +526,12 @@ function DriverSection({
   pickupMapsUrl: string | null;
   pickupCode: string;
   trackingUrl: string;
-  onOrderChange: (o: PublicOrderView) => void;
 }) {
-  const hasDriver = Boolean(order.driverName && order.driverPhone);
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(order.driverName ?? '');
-  const [phone, setPhone] = useState(order.driverPhone ?? '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const isReady = order.status === 'READY';
   const reduceMotion = useReducedMotion();
-  const showForm = !isFinal && (editing || !hasDriver);
 
-  async function save() {
-    setError(null);
-    const trimmedName = name.trim();
-    const trimmedPhone = phone.trim();
-    if (trimmedName.length < 2) {
-      setError('Nom du livreur requis (min 2 caractères)');
-      return;
-    }
-    if (trimmedPhone.length < 8) {
-      setError('Numéro du livreur requis (min 8 chiffres)');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/commandes/${order.id}/livreur`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          driverName: trimmedName,
-          driverPhone: trimmedPhone,
-        }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as {
-          error?: unknown;
-        };
-        throw new Error(
-          typeof data.error === 'string' ? data.error : 'Échec de l’envoi'
-        );
-      }
-      onOrderChange({
-        ...order,
-        driverName: trimmedName,
-        driverPhone: trimmedPhone,
-      });
-      setEditing(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Échec de l’envoi');
-    } finally {
-      setSaving(false);
-    }
-  }
-
+  // Le client n'identifie plus son livreur : il lui suffit de lui transférer
+  // le code de retrait (WhatsApp ouvre le sélecteur de contact).
   const shareMessage = buildDriverShareMessage({
     pickupCode,
     customerName: order.customerName,
@@ -595,12 +539,7 @@ function DriverSection({
     pickupMapsUrl,
     trackingUrl,
   });
-  // Livreur connu → message direct dans sa conversation ; sinon WhatsApp ouvre
-  // le sélecteur de contact.
-  const shareLink = hasDriver
-    ? (buildWhatsAppLink(order.driverPhone, shareMessage) ??
-      buildWhatsAppShareLink(shareMessage))
-    : buildWhatsAppShareLink(shareMessage);
+  const shareLink = buildWhatsAppShareLink(shareMessage);
 
   // Avant que la commande soit prête, on ne montre ni formulaire ni partage
   // — rien à faire tant que le livreur ne peut pas encore venir chercher la
@@ -637,78 +576,6 @@ function DriverSection({
         <div className="mt-3 rounded-lg bg-success/15 px-3 py-2 text-sm font-medium text-success-700 dark:text-success">
           C’est prêt ! Tu peux envoyer ton livreur dès maintenant.
         </div>
-      )}
-
-      {showForm ? (
-        <div className="mt-4 flex flex-col gap-3">
-          <Input
-            label="Nom du livreur"
-            value={name}
-            onValueChange={setName}
-            maxLength={ORDER_CUSTOMER_NAME_MAX}
-            size="sm"
-          />
-          <Input
-            label="Téléphone du livreur"
-            type="tel"
-            value={phone}
-            onValueChange={setPhone}
-            placeholder="07 00 00 00 00"
-            maxLength={ORDER_CUSTOMER_PHONE_MAX}
-            size="sm"
-          />
-          {error && <p className="text-xs text-danger">{error}</p>}
-          <div className="flex gap-2">
-            <Button
-              color="primary"
-              size="sm"
-              className="flex-1"
-              isLoading={saving}
-              onPress={save}
-            >
-              {hasDriver ? 'Mettre à jour' : 'Enregistrer le livreur'}
-            </Button>
-            {editing && (
-              <Button
-                variant="light"
-                size="sm"
-                onPress={() => {
-                  setEditing(false);
-                  setName(order.driverName ?? '');
-                  setPhone(order.driverPhone ?? '');
-                  setError(null);
-                }}
-              >
-                Annuler
-              </Button>
-            )}
-          </div>
-          <p className="text-xs text-foreground/50">
-            Le comptoir saura qui vient récupérer ta commande — tu peux le
-            changer à tout moment.
-          </p>
-        </div>
-      ) : (
-        hasDriver && (
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">
-                {order.driverName}
-              </p>
-              <p className="text-xs text-foreground/60">{order.driverPhone}</p>
-            </div>
-            {!isFinal && (
-              <Button
-                variant="light"
-                size="sm"
-                startContent={<Pencil className="h-3.5 w-3.5" />}
-                onPress={() => setEditing(true)}
-              >
-                Modifier
-              </Button>
-            )}
-          </div>
-        )
       )}
 
       {/* Transfert au livreur : code + adresse + Maps + lien de suivi. */}

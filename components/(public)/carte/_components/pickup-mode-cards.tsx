@@ -6,17 +6,13 @@
 // Deux cartes : « Je viens moi-même » (TAKEAWAY) / « J'envoie un livreur »
 // (DELIVERY — le livreur du CLIENT, le coffee shop ne livre pas).
 //
-// En mode livreur : champs nom + téléphone (optionnels, complétables depuis la
-// page de suivi) et lieu de retrait + lien Maps, pour que le client fasse
+// En mode livreur : lieu de retrait + lien Maps, pour que le client fasse
 // estimer la course AVANT de payer — comme dans le processus WhatsApp manuel.
+// Le client n'identifie plus son livreur : il lui suffit de lui donner le
+// code de retrait (voir la page de suivi de commande).
 
-import { Input } from '@heroui/react';
 import { Bike, MapPin, ShoppingBag } from 'lucide-react';
 import type { PickupMode } from '@/lib/hooks/use-checkout-form';
-import {
-  ORDER_CUSTOMER_NAME_MAX,
-  ORDER_CUSTOMER_PHONE_MAX,
-} from '@/config/constants';
 import { cn } from '@/lib/utils';
 
 const MODES: {
@@ -42,11 +38,6 @@ const MODES: {
 type PickupModeCardsProps = {
   mode: PickupMode;
   onModeChange: (mode: PickupMode) => void;
-  driverName: string;
-  driverPhone: string;
-  errors: { driverName?: string; driverPhone?: string };
-  onDriverNameChange: (value: string) => void;
-  onDriverPhoneChange: (value: string) => void;
   pickupAddress: string | null;
   pickupMapsUrl: string | null;
 };
@@ -54,11 +45,6 @@ type PickupModeCardsProps = {
 export function PickupModeCards({
   mode,
   onModeChange,
-  driverName,
-  driverPhone,
-  errors,
-  onDriverNameChange,
-  onDriverPhoneChange,
   pickupAddress,
   pickupMapsUrl,
 }: PickupModeCardsProps) {
@@ -136,31 +122,6 @@ export function PickupModeCards({
               </p>
             </div>
           )}
-
-          <Input
-            label="Nom du livreur"
-            value={driverName}
-            onValueChange={onDriverNameChange}
-            isInvalid={!!errors.driverName}
-            errorMessage={errors.driverName}
-            maxLength={ORDER_CUSTOMER_NAME_MAX}
-            size="sm"
-          />
-          <Input
-            label="Téléphone du livreur"
-            type="tel"
-            value={driverPhone}
-            onValueChange={onDriverPhoneChange}
-            isInvalid={!!errors.driverPhone}
-            errorMessage={errors.driverPhone}
-            placeholder="07 00 00 00 00"
-            maxLength={ORDER_CUSTOMER_PHONE_MAX}
-            size="sm"
-          />
-          <p className="text-xs text-foreground/50">
-            Tu ne le connais pas encore&nbsp;? Laisse vide — tu pourras
-            l&apos;ajouter depuis la page de suivi de ta commande.
-          </p>
         </div>
       )}
     </div>
