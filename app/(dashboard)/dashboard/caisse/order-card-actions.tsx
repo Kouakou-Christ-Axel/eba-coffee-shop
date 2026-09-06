@@ -120,6 +120,8 @@ export function OrderCardActions({
 }) {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [isDepositOpen, setIsDepositOpen] = useState(false);
+  const [depositError, setDepositError] = useState<string | null>(null);
   // Quelle mutation est en cours (null = aucune).
   //
   // Un `useTransition` unique servait auparavant de drapeau global : la
@@ -215,6 +217,16 @@ export function OrderCardActions({
       ? 'Encaisser maintenant'
       : 'Marquer payée';
 
+  // Commande spéciale à l'avance (cf. `Order.depositRequired`) : montant qui
+  // reste à verser au titre de l'acompte, avant même l'entrée en cuisine.
+  // `null`/0 si aucun acompte n'est exigé ou qu'il est déjà couvert — dans ce
+  // dernier cas c'est `sendOrderToKitchen` qui le sait, pas cet écran.
+  const depositRemaining =
+    order.depositRequired != null
+      ? order.depositRequired - (order.depositPaid ?? 0)
+      : 0;
+  const needsDeposit = !order.isPaid && depositRemaining > 0;
+
   // Retrait un jour ultérieur : le stock d'aujourd'hui ne la concerne pas.
   // Recalculé ICI plutôt que porté par le flux SSE (qui ne repousse qu'aux
   // mutations de commandes) : sans cela, le verdict resterait celui d'avant
@@ -294,6 +306,28 @@ export function OrderCardActions({
       }
       setIsPaymentOpen(false);
       pushPaymentUndo(result.data.startedPreparation);
+    });
+  }
+
+  // Encaisse l'acompte minimum d'une commande spéciale à l'avance (gâteau
+  // grand format, etc.) — SANS solder la commande ni la faire entrer en
+  // cuisine : c'est `sendOrderToKitchen` qui vérifie ensuite que l'acompte
+  // est couvert. Seul chemin depuis la file caisse : avant cette action, le
+  // bouton « ardoise » (ci-dessous) échouait systématiquement en 409 sur ces
+  // commandes, et la seule issue était la fiche détail de la commande.
+  function handleDepositConfirm(payments: PaymentLine[]) {
+    setDepositError(null);
+    runMutation('deposit', async () => {
+      const result = await callApi(
+        `/api/caisse/orders/${order.id}/deposit`,
+        'PATCH',
+        { payments }
+      );
+      if (!result.ok) {
+        setDepositError(result.error);
+        return;
+      }
+      setIsDepositOpen(false);
     });
   }
 
@@ -592,6 +626,30 @@ export function OrderCardActions({
             </Button>
           )}
 
+        {/* Commande spéciale à l'avance (cf. `Order.depositRequired`) dont
+            l'acompte minimum n'est pas encore couvert : seul chemin, depuis
+            cette file, pour encaisser CE montant précis avant l'entrée en
+            cuisine — sans lui, « lancer la préparation » échoue toujours en
+            409 (acompte requis) et le caissier n'a aucun bouton pour y
+            remédier ici. */}
+        {needsDeposit && order.status !== 'CANCELLED' && (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="w-full border-amber-400 text-amber-900 hover:bg-amber-50 dark:text-amber-100"
+            disabled={isPending}
+            onClick={() => setIsDepositOpen(true)}
+          >
+            {pendingAction === 'deposit' ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="mr-1.5 h-4 w-4" />
+            )}
+            Encaisser l&apos;acompte ({priceFormatter.format(depositRemaining)})
+          </Button>
+        )}
+
         {/* Action principale : marquer payée (pleine largeur) */}
         {!order.isPaid && order.status !== 'CANCELLED' && (
           <Button
@@ -611,8 +669,12 @@ export function OrderCardActions({
             La commande reste impayée — c'est le suivi de l'ardoise, pas la
             caisse, qui porte la dette. Sur une commande PROGRAMMÉE, c'est le
             même geste, mais le mot juste est « lancer » : elle attend son jour,
-            elle n'est pas en retard d'encaissement. */}
-        {!order.isPaid && order.status === 'NEW' && (
+            elle n'est pas en retard d'encaissement.
+            Masqué tant que `needsDeposit` : l'ardoise dispense de payer, ce qui
+            contredit l'acompte requis avant l'entrée en cuisine — le clic
+            échouerait de toute façon en 409 (même règle que `createCashierOrder`,
+            lib/order-mutations.ts). */}
+        {!order.isPaid && order.status === 'NEW' && !needsDeposit && (
           <Button
             type="button"
             variant="outline"
@@ -822,6 +884,19 @@ export function OrderCardActions({
         isSubmitting={isPending}
         onConfirm={handlePaymentConfirm}
         error={paymentError}
+      />
+
+      <PaymentModal
+        isOpen={isDepositOpen}
+        onClose={() => {
+          setIsDepositOpen(false);
+          setDepositError(null);
+        }}
+        orderRef={orderRef}
+        amount={depositRemaining}
+        isSubmitting={isPending}
+        onConfirm={handleDepositConfirm}
+        error={depositError}
       />
 
       <EditFulfillmentModal
