@@ -619,6 +619,54 @@ describe('setOrderPayment — paiement fractionné', () => {
   });
 });
 
+describe('setOrderPayment — acompte commande spéciale', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOrderUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-active' } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+  });
+
+  // Un règlement intégral doit couvrir l'acompte, puisqu'il couvre le total
+  // (cf. le commentaire de `sendOrderToKitchen`) : sans `depositPaid` aligné
+  // sur `depositRequired`, une commande à acompte payée en une fois AVANT son
+  // entrée en cuisine (typiquement un retrait différé, où `startedPreparation`
+  // est faux malgré `isPaid: true`) restait bloquée en 409 « acompte requis »
+  // le jour du retrait, alors même qu'elle était déjà soldée.
+  it('un paiement intégral aligne depositPaid sur le total quand un acompte est requis', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      ...orderWithOneItem(),
+      depositRequired: 1250,
+      depositPaid: 0,
+    } as never);
+
+    await setOrderPayment('order1', true, [{ mode: 'CASH', amount: 2500 }]);
+
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          isPaid: true,
+          depositPaid: 2500,
+          depositPaidAt: expect.any(Date),
+        }),
+      })
+    );
+  });
+
+  it("n'écrit pas depositPaid quand la commande n'exige pas d'acompte", async () => {
+    mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
+
+    await setOrderPayment('order1', true, [{ mode: 'CASH', amount: 2500 }]);
+
+    const [{ data }] = businessWrites()[0] as [
+      { data: Record<string, unknown> },
+    ];
+    expect(data).not.toHaveProperty('depositPaid');
+    expect(data).not.toHaveProperty('depositPaidAt');
+  });
+});
+
 describe('setOrderPayment — dépaiement', () => {
   beforeEach(() => {
     vi.clearAllMocks();
