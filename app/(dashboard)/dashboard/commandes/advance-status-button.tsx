@@ -14,6 +14,7 @@ import { useState, useTransition } from 'react';
 import { CheckCheck, ChefHat, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { updateOrderStatus } from './actions';
+import { useShortageConfirm } from '../_components/use-shortage-confirm';
 import type { OrderStatus } from '@/generated/prisma/client';
 
 const NEXT_STEP: Partial<
@@ -32,6 +33,7 @@ export function AdvanceStatusButton({
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const { confirmShortage, shortageDialog } = useShortageConfirm();
 
   const step = NEXT_STEP[status];
   if (!step) return null;
@@ -41,7 +43,12 @@ export function AdvanceStatusButton({
   function handleClick() {
     setError(null);
     startTransition(async () => {
-      const result = await updateOrderStatus(orderId, next);
+      let result = await updateOrderStatus(orderId, next);
+      // Pénurie : on propose d'enregistrer la production sur place plutôt que
+      // de renvoyer le staff corriger le stock dans le menu.
+      if (result?.shortage?.length && (await confirmShortage(result.shortage))) {
+        result = await updateOrderStatus(orderId, next, { coverShortage: true });
+      }
       if (result?.error) setError(result.error);
     });
   }
@@ -68,6 +75,7 @@ export function AdvanceStatusButton({
           {error}
         </span>
       )}
+      {shortageDialog}
     </>
   );
 }

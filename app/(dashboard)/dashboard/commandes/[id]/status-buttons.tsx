@@ -3,6 +3,7 @@ import { useState, useTransition } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { updateOrderStatus } from '../actions';
+import { useShortageConfirm } from '../../_components/use-shortage-confirm';
 import type { OrderStatus } from '@/generated/prisma/client';
 
 const ACTIONS: Record<
@@ -41,6 +42,7 @@ export function StatusButtons({
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const { confirmShortage, shortageDialog } = useShortageConfirm();
   // Une commande annulée APRÈS paiement est un remboursement : la remettre à
   // encaisser n'a pas de sens (miroir du garde-fou serveur dans
   // `setOrderStatus`).
@@ -57,7 +59,12 @@ export function StatusButtons({
       // de toute erreur traversant une Server Action, si bien qu'un refus
       // (droits, conflit d'édition, rupture de stock) ne s'affichait pas et que
       // le bouton paraissait sans effet.
-      const result = await updateOrderStatus(orderId, next);
+      let result = await updateOrderStatus(orderId, next);
+      // Pénurie : on propose d'enregistrer la production sur place plutôt que
+      // de renvoyer le staff corriger le stock dans le menu.
+      if (result?.shortage?.length && (await confirmShortage(result.shortage))) {
+        result = await updateOrderStatus(orderId, next, { coverShortage: true });
+      }
       if (result?.error) setError(result.error);
     });
   };
@@ -86,6 +93,7 @@ export function StatusButtons({
           {error}
         </p>
       )}
+      {shortageDialog}
     </div>
   );
 }
