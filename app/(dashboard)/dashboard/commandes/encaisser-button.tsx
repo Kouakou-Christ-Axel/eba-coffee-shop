@@ -9,6 +9,7 @@ import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PaymentModal, type PaymentLine } from '../caisse/payment-modal';
 import { markOrderPaidAction } from './actions';
+import { useShortageConfirm } from '../_components/use-shortage-confirm';
 
 type Props = {
   orderId: string;
@@ -32,12 +33,23 @@ export function EncaisserButton({
   const [isOpen, setIsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { confirmShortage, shortageDialog } = useShortageConfirm();
 
   function handleConfirm(payments: PaymentLine[]) {
     setError(null);
     startTransition(async () => {
       try {
-        const result = await markOrderPaidAction(orderId, payments);
+        let result = await markOrderPaidAction(orderId, payments);
+        // Pénurie : on propose d'enregistrer la production sur place plutôt que
+        // de renvoyer le staff corriger le stock dans le menu.
+        if (
+          result?.shortage?.length &&
+          (await confirmShortage(result.shortage))
+        ) {
+          result = await markOrderPaidAction(orderId, payments, {
+            coverShortage: true,
+          });
+        }
         if (result?.error) {
           setError(result.error);
           return;
@@ -74,6 +86,8 @@ export function EncaisserButton({
         onConfirm={handleConfirm}
         error={error}
       />
+
+      {shortageDialog}
     </>
   );
 }
