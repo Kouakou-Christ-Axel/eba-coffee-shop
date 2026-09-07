@@ -1104,7 +1104,10 @@ export async function sendOrderToKitchen(
   // cuisine — donc n'est « prise en compte » — qu'une fois l'acompte minimum
   // versé. Seul verrou de ce genre : un règlement intégral (setOrderPayment,
   // payAndComplete) couvre toujours l'acompte, puisqu'il couvre le total.
-  if (order.depositRequired && (order.depositPaid ?? 0) < order.depositRequired) {
+  if (
+    order.depositRequired &&
+    (order.depositPaid ?? 0) < order.depositRequired
+  ) {
     const remaining = order.depositRequired - (order.depositPaid ?? 0);
     throw new OrderMutationError(
       `Acompte requis avant l'entrée en cuisine : ${remaining} F restant sur ${order.depositRequired} F.`,
@@ -1423,6 +1426,7 @@ export async function setOrderPayment(
           reference: true,
           pickupTime: true,
           depositPaid: true,
+          depositRequired: true,
         },
       });
       if (!order) {
@@ -1470,6 +1474,16 @@ export async function setOrderPayment(
           paymentMode: resolvePaymentMode(lines),
           paidAt: new Date(),
           paymentAutoValidatedByAi: opts?.autoValidatedByAi ?? false,
+          // Un règlement intégral couvre TOUJOURS l'acompte, puisqu'il couvre
+          // le total (cf. le commentaire de `sendOrderToKitchen` ci-dessous).
+          // Sans cette écriture, une commande à acompte payée en une fois
+          // AVANT son entrée en cuisine (ex. retrait différé, où
+          // `startedPreparation` est faux malgré `isPaid: true`) restait
+          // bloquée en 409 « acompte requis » le jour du retrait, alors même
+          // qu'elle était déjà soldée.
+          ...(order.depositRequired != null
+            ? { depositPaid: order.total, depositPaidAt: new Date() }
+            : {}),
           // Encaisser une commande encore NEW la pousse en cuisine : on amorce
           // alors le chrono « en cuisine depuis X » au même instant.
           ...(startedPreparation
@@ -1726,6 +1740,7 @@ export async function payAndComplete(
           pickupTime: true,
           stockReservedAt: true,
           depositPaid: true,
+          depositRequired: true,
         },
       });
       if (!order) {
@@ -1792,6 +1807,11 @@ export async function payAndComplete(
                   payments as OrderPaymentLineInput[]
                 ),
                 paidAt: new Date(),
+                // Même règle que `setOrderPayment` : un règlement intégral
+                // couvre toujours l'acompte, puisqu'il couvre le total.
+                ...(order.depositRequired != null
+                  ? { depositPaid: order.total, depositPaidAt: new Date() }
+                  : {}),
               }),
         },
       });
