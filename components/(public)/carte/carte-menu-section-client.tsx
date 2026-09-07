@@ -30,6 +30,10 @@ type Props = {
 function CarteMenuSectionClient({ menuData }: Props) {
   const reduceMotion = useReducedMotion();
   const [term, setTerm] = useState('');
+  // Faux au rendu serveur — la carte reste complète dans le HTML prérendu,
+  // JSON-LD compris (cf. carte-menu-section-client.test.tsx). Basculé à vrai
+  // juste après le montage : le visiteur humain ne voit par défaut que les
+  // produits disponibles, sans attendre qu'il pense à activer le filtre.
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [activeId, setActiveId] = useState(menuData[0]?.id ?? '');
   const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
@@ -63,6 +67,15 @@ function CarteMenuSectionClient({ menuData }: Props) {
   const currentId = view.categories.some((c) => c.id === activeId)
     ? activeId
     : (view.categories[0]?.id ?? '');
+
+  useEffect(() => {
+    // Évite le repositionnement automatique prévu pour un filtre déclenché
+    // par l'utilisateur (cf. l'effet plus bas) : ce premier passage à `true`
+    // est automatique, pas un geste depuis le bas de page.
+    wasFiltered.current = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- bascule unique post-hydratation
+    setOnlyAvailable(true);
+  }, []);
 
   useEffect(() => {
     const nav = navRef.current;
