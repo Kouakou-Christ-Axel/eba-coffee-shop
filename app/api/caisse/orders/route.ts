@@ -1,9 +1,10 @@
 // app/api/caisse/orders/route.ts
 //
 // POST /api/caisse/orders
-// Crée une commande walk-in depuis l'écran caissier.
+// Crée une commande walk-in depuis l'écran caissier OU cuisine (les deux
+// surfaces réutilisent ce même endpoint — cf. `NewOrderView`).
 // Body : { items, customerName?, customerPhone?, orderType, note?, pickupTime?,
-//          orderDate? }
+//          orderDate?, coverShortage? }
 //
 // `orderDate` (YYYY-MM-DD) permet d'antidater une commande ancienne ; absent =
 // jour en cours. La logique de création (numérotation thread-safe, upsert
@@ -11,20 +12,30 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireCashier } from '@/lib/auth-helpers';
+import { requireKitchen } from '@/lib/auth-helpers';
 import {
   createOrderSchema,
   orderTypeSchema,
   isBackdateCompatibleWithPickup,
   BACKDATE_PICKUP_CONFLICT_MESSAGE,
 } from '@/lib/schemas/order';
-import { createCashierOrder, OrderMutationError } from '@/lib/order-mutations';
+import {
+  createCashierOrder,
+  getItemsShortage,
+  OrderMutationError,
+  StockShortageError,
+} from '@/lib/order-mutations';
+import type { CartItem } from '@/lib/cart-store';
 
 const bodySchema = createOrderSchema
   .extend({
     orderType: orderTypeSchema,
-    // Ardoise forcée par le caissier pour un client non fiché « de confiance ».
+    // Ardoise forcée par le caissier pour un client non fiché « de confiance »
+    // (ou refusée pour un sur-place/à-emporter qui en bénéficierait par défaut).
     onAccount: z.boolean().optional(),
+    // Le staff a confirmé avoir produit la quantité manquante après une 409
+    // de pénurie — cf. `useShortageConfirm`.
+    coverShortage: z.boolean().optional(),
   })
   // Antidater ET planifier un retrait un autre jour est contradictoire —
   // règle posée EN DERNIER, un `.refine` interdisant tout `.extend` ultérieur.
@@ -36,7 +47,10 @@ const bodySchema = createOrderSchema
 export async function POST(req: Request) {
   let session;
   try {
-    session = await requireCashier();
+    // La cuisine peut désormais créer des commandes elle-même (elles
+    // partent direct en préparation, cf. `createCashierOrder`) —
+    // `requireKitchen()` couvre caisse + cuisine (+ rôles supérieurs).
+    session = await requireKitchen();
   } catch {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
@@ -74,12 +88,21 @@ export async function POST(req: Request) {
       { status: 201 }
     );
   } catch (err) {
-    // La commande d'un client de confiance part directement en cuisine et
-    // RÉSERVE son stock (cf. `createCashierOrder`) : elle peut donc échouer en
-    // 409 « Stock insuffisant pour … ». Ce message doit atteindre le caissier
-    // tel quel — un « Erreur serveur » générique ne lui dirait pas quel article
-    // remplacer. Les autres erreurs métier (400 récompense fidélité indisponible)
-    // passent par le même chemin.
+    // Une commande de confiance / sur-place / à-emporter part directement en
+    // cuisine et RÉSERVE son stock (cf. `createCashierOrder`) : elle peut donc
+    // échouer en 409 « Stock insuffisant pour … ». La liste chiffrée des
+    // manques accompagne la réponse — même forme que les autres routes caisse
+    // — pour que l'écran propose « vous venez de les produire ? » au lieu d'un
+    // mur (cf. `useShortageConfirm`).
+    if (err instanceof StockShortageError) {
+      return NextResponse.json(
+        {
+          error: err.message,
+          shortage: await getItemsShortage(parsed.data.items as CartItem[]),
+        },
+        { status: err.httpStatus }
+      );
+    }
     if (err instanceof OrderMutationError) {
       return NextResponse.json(
         { error: err.message },

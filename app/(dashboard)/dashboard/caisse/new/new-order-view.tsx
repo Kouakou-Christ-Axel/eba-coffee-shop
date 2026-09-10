@@ -1,12 +1,14 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { MenuCategory } from '@/config/menu';
 import type { CartItem } from '@/lib/cart-store';
+import type { OrderType } from '@/generated/prisma/client';
 import { useNewOrder } from '@/lib/hooks/use-new-order';
 import { useLiveMenu } from '@/lib/hooks/use-live-menu';
+import { useShortageConfirm } from '../../_components/use-shortage-confirm';
 import { ProductCatalog } from './product-catalog';
 import { CartSummary } from './cart-summary';
 import { SupplementPicker } from './supplement-picker';
@@ -15,8 +17,38 @@ import { OrderBottomBar } from './_components/order-bottom-bar';
 import { PickupDayBar } from './_components/pickup-day-bar';
 import { SoldOutDaySheet } from './_components/sold-out-day-sheet';
 
-export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
-  const o = useNewOrder();
+type Props = {
+  menu: MenuCategory[];
+  /** Où revenir après annulation / création réussie. Défaut : la caisse. */
+  backHref?: string;
+  /** Type de commande présélectionné (ex. `DINE_IN` depuis l'écran cuisine). */
+  initialOrderType?: OrderType;
+};
+
+export function NewOrderView({
+  menu: initialMenu,
+  backHref,
+  initialOrderType,
+}: Props) {
+  const o = useNewOrder({ backHref, initialOrderType });
+  const { confirmShortage, shortageDialog } = useShortageConfirm();
+
+  // Pénurie renvoyée par la création (409) : on pose la question au staff
+  // plutôt que de le renvoyer corriger le stock dans /dashboard/menu — même
+  // filet que `startPreparation` côté cuisine.
+  useEffect(() => {
+    if (!o.pendingShortage) return;
+    let cancelled = false;
+    confirmShortage(o.pendingShortage).then((confirmed) => {
+      if (cancelled) return;
+      if (confirmed) o.confirmShortageAndRetry();
+      else o.dismissShortage();
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [o.pendingShortage]);
   // Menu « live » : reflète en direct une réappro (goût recrédité) faite ici ou
   // ailleurs, sans recharger la page.
   const { menu, applyRestock } = useLiveMenu(initialMenu);
@@ -164,6 +196,8 @@ export function NewOrderView({ menu: initialMenu }: { menu: MenuCategory[] }) {
         onSelectDay={o.resolveSoldOutPrompt}
         onDismiss={o.dismissSoldOutPrompt}
       />
+
+      {shortageDialog}
     </div>
   );
 }
