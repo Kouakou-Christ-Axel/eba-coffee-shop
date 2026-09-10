@@ -769,13 +769,13 @@ describe('createCashierOrder — ardoise du client de confiance', () => {
     ).toBeDefined();
   });
 
-  it('client ordinaire : commande créée en NEW, sans ardoise ni réservation', async () => {
+  it('client ordinaire, LIVRAISON : commande créée en NEW, sans ardoise ni réservation', async () => {
     mockCustomerFindUnique.mockResolvedValue({ isTrusted: false } as never);
 
     await createCashierOrder({
       items,
       customerPhone: '0708090910',
-      orderType: 'TAKEAWAY',
+      orderType: 'DELIVERY',
     });
 
     expect(createdData()).not.toHaveProperty('status');
@@ -783,13 +783,66 @@ describe('createCashierOrder — ardoise du client de confiance', () => {
     expect(mockProdUpdateMany).not.toHaveBeenCalled();
   });
 
-  it('`onAccount` force l’ardoise pour un client non fiché de confiance', async () => {
+  it('SUR PLACE ou À EMPORTER : départ direct en cuisine même pour un client ordinaire, non fiché', async () => {
+    mockCustomerFindUnique.mockResolvedValue({ isTrusted: false } as never);
+
+    for (const orderType of ['DINE_IN', 'TAKEAWAY'] as const) {
+      vi.clearAllMocks();
+      mockUpsertCustomer.mockResolvedValue('cust-1');
+      mockCustomerFindUnique.mockResolvedValue({ isTrusted: false } as never);
+      mockOrderCreate.mockImplementation((async (args: {
+        data: Record<string, unknown>;
+      }) => ({
+        id: 'order-new',
+        dailyNumber: 5,
+        reference: 'EBA-20260804-B7C1',
+        total: 2500,
+        customerName: 'Awa',
+        items,
+        status: (args.data.status as string) ?? 'NEW',
+      })) as never);
+      mockOrderUpdateManyWithClaim(1);
+      mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+      mockOptionFindFirst.mockResolvedValue({ id: 'opt-active' } as never);
+      mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+
+      await createCashierOrder({
+        items,
+        customerPhone: '0708090910',
+        orderType,
+      });
+
+      expect(createdData()).toMatchObject({
+        status: 'PREPARING',
+        preparingStartedAt: expect.any(Date),
+        isOnAccount: true,
+      });
+      expect(mockProdUpdateMany).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('`onAccount: false` refuse le départ auto en cuisine même pour un sur-place/à-emporter', async () => {
     mockCustomerFindUnique.mockResolvedValue({ isTrusted: false } as never);
 
     await createCashierOrder({
       items,
       customerPhone: '0708090910',
       orderType: 'TAKEAWAY',
+      onAccount: false,
+    });
+
+    expect(createdData()).not.toHaveProperty('status');
+    expect(createdData()).not.toHaveProperty('isOnAccount');
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('`onAccount` force l’ardoise pour un client non fiché de confiance (livraison)', async () => {
+    mockCustomerFindUnique.mockResolvedValue({ isTrusted: false } as never);
+
+    await createCashierOrder({
+      items,
+      customerPhone: '0708090910',
+      orderType: 'DELIVERY',
       onAccount: true,
     });
 
@@ -819,10 +872,10 @@ describe('createCashierOrder — ardoise du client de confiance', () => {
     expect(mockSendPushToRoles).not.toHaveBeenCalled();
   });
 
-  it('commande anonyme (sans téléphone) : jamais d’ardoise implicite', async () => {
+  it('commande anonyme (sans téléphone), LIVRAISON : jamais d’ardoise implicite', async () => {
     mockUpsertCustomer.mockResolvedValue(null);
 
-    await createCashierOrder({ items, orderType: 'TAKEAWAY' });
+    await createCashierOrder({ items, orderType: 'DELIVERY' });
 
     expect(mockCustomerFindUnique).not.toHaveBeenCalled();
     expect(createdData()).not.toHaveProperty('isOnAccount');
@@ -877,7 +930,7 @@ describe('createCashierOrder — récompense fidélité auto-appliquée', () => 
       items,
       customerName: 'Awa',
       customerPhone: '0708090910',
-      orderType: 'TAKEAWAY',
+      orderType: 'DELIVERY',
     });
 
     expect(mockConsumeLoyaltyReward).toHaveBeenCalledWith(
@@ -916,7 +969,7 @@ describe('createCashierOrder — récompense fidélité auto-appliquée', () => 
       items,
       customerName: 'Awa',
       customerPhone: '0708090910',
-      orderType: 'TAKEAWAY',
+      orderType: 'DELIVERY',
       loyaltyRewardId: 'reward-existing',
     });
 

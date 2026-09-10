@@ -415,6 +415,18 @@ export async function getOrderShortage(id: string): Promise<ShortageLine[]> {
   return computeShortage(prisma, order.items as unknown as CartItem[]);
 }
 
+/**
+ * Même calcul que `getOrderShortage`, mais pour un panier qui n'est pas
+ * encore une commande en base (échec de `createCashierOrder` sur pénurie à
+ * la création — la transaction a déjà tout annulé, il n'y a pas d'id à
+ * relire).
+ */
+export async function getItemsShortage(
+  items: CartItem[]
+): Promise<ShortageLine[]> {
+  return computeShortage(prisma, items);
+}
+
 /** Corps de réponse d'un refus pour pénurie. */
 export type ShortagePayload = { error: string; shortage: ShortageLine[] };
 
@@ -687,9 +699,17 @@ export type CreateCashierOrderInput = {
   /**
    * Force l'« ardoise » (envoi direct en cuisine sans encaissement) même si le
    * client n'est pas marqué de confiance — dérogation du caissier pour un
-   * walk-in qu'il connaît. Absent = on suit `Customer.isTrusted`.
+   * walk-in qu'il connaît, ou pour désactiver le départ automatique en
+   * cuisine d'un sur-place/à-emporter (`false`). Absent = on suit
+   * `Customer.isTrusted` OU le type de commande (cf. `autoOnAccount`
+   * ci-dessous).
    */
   onAccount?: boolean;
+  /**
+   * Le staff a confirmé avoir produit la quantité manquante après une 409 de
+   * pénurie — mêmes sémantiques que `sendOrderToKitchen`/`setOrderPayment`.
+   */
+  coverShortage?: boolean;
 };
 
 /**
@@ -712,12 +732,19 @@ export type CreateCashierOrderInput = {
  * (une seule récompense par commande) — pas besoin d'attendre la suivante.
  *
  * ARDOISE À LA CRÉATION : si le client résolu est de confiance
- * (`Customer.isTrusted`) — ou si le caissier force via `input.onAccount` — la
- * commande est créée DIRECTEMENT en `PREPARING`, marquée `isOnAccount`, et son
- * stock est réservé dans la MÊME transaction. Elle reste `isPaid: false` : ce
- * n'est PAS un paiement, seulement un non-blocage (cf. `Order.isOnAccount`).
+ * (`Customer.isTrusted`), si la commande est SUR PLACE ou À EMPORTER (ces
+ * deux types n'ont pas à attendre l'encaissement pour partir en cuisine —
+ * seule la livraison reste sur le flux normal), ou si le caissier force via
+ * `input.onAccount` — la commande est créée DIRECTEMENT en `PREPARING`,
+ * marquée `isOnAccount`, et son stock est réservé dans la MÊME transaction.
+ * Elle reste `isPaid: false` : ce n'est PAS un paiement, seulement un
+ * non-blocage (cf. `Order.isOnAccount`). `input.onAccount: false` permet à
+ * l'inverse de refuser ce départ automatique (dérogation explicite du
+ * caissier), y compris pour un sur-place/à-emporter.
  * Une pénurie lève alors `StockShortageError` (409) et annule toute la
- * création — la commande n'existe pas, rien n'a été décrémenté.
+ * création — la commande n'existe pas, rien n'a été décrémenté — sauf si
+ * `input.coverShortage` confirme que le manquant vient d'être produit (même
+ * filet que `sendOrderToKitchen`/`setOrderPayment`).
  *
  * L'ANTIDATAGE SUPPRIME CE COMPORTEMENT, exactement comme il supprime le push
  * « nouvelle commande » : une saisie de rattrapage n'est pas un événement en
@@ -778,11 +805,18 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
               })
             )?.isTrusted ?? false)
           : false;
+        // Sur place / à emporter : départ en cuisine automatique même sans
+        // client de confiance, la livraison reste sur le flux normal (le
+        // client doit d'abord être identifié pour l'envoi du livreur).
+        const autoOnAccount =
+          trusted ||
+          input.orderType === 'DINE_IN' ||
+          input.orderType === 'TAKEAWAY';
         // Une commande spéciale exigeant un acompte (cf. Product.requiresDeposit)
         // ne part jamais en cuisine sans encaissement : l'ardoise dispense de
         // payer, ce qui contredit l'acompte requis avant prise en compte.
         const goToKitchen =
-          (input.onAccount ?? trusted) &&
+          (input.onAccount ?? autoOnAccount) &&
           !isBackdated &&
           !isDeferred &&
           !requiresDeposit;
@@ -852,7 +886,9 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
         // Point d'entrée normal (`sendOrderToKitchen`) inapplicable ici : il
         // relit une commande qui n'existe pas encore.
         if (goToKitchen) {
-          await reserveStockOnce(tx, created.id, input.items as CartItem[]);
+          await reserveStockOnce(tx, created.id, input.items as CartItem[], {
+            coverShortage: input.coverShortage,
+          });
         }
 
         if (reward) {

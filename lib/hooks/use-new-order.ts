@@ -27,6 +27,7 @@ import type { OrderType } from '@/generated/prisma/client';
 import { isProductSoldOut, productNeedsPicker } from '@/lib/catalog';
 import { isDeferredPickup } from '@/lib/orders/scheduling';
 import { readApiError } from '@/lib/api-error';
+import type { ShortageLine } from '@/lib/orders/shortage';
 
 export type NewOrderStep = 'catalog' | 'review';
 
@@ -56,8 +57,16 @@ function supplementsKey(supplements: CartItemSupplement[]): string {
 
 export type UseNewOrder = ReturnType<typeof useNewOrder>;
 
-export function useNewOrder() {
+export type UseNewOrderOptions = {
+  /** Où revenir après annulation / création réussie. Défaut : la caisse. */
+  backHref?: string;
+  /** Type de commande présélectionné (ex. `DINE_IN` depuis l'écran cuisine). */
+  initialOrderType?: OrderType;
+};
+
+export function useNewOrder(opts?: UseNewOrderOptions) {
   const router = useRouter();
+  const backHref = opts?.backHref ?? '/dashboard/caisse';
 
   const [step, setStep] = useState<NewOrderStep>('catalog');
   const [items, setItems] = useState<CartItem[]>([]);
@@ -72,7 +81,9 @@ export function useNewOrder() {
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [orderType, setOrderType] = useState<OrderType>('DELIVERY');
+  const [orderType, setOrderType] = useState<OrderType>(
+    opts?.initialOrderType ?? 'DELIVERY'
+  );
   const [note, setNote] = useState('');
   const [pickupTime, setPickupTime] = useState<string | null>(null);
   // Antidatage : YYYY-MM-DD pour une commande ancienne. null = jour en cours.
@@ -279,15 +290,49 @@ export function useNewOrder() {
     );
   }
 
+  // Pénurie à la création (409 avec `shortage`) : posée par l'écran via
+  // `useShortageConfirm`, la réponse pilote le retry `coverShortage: true`.
+  const [pendingShortage, setPendingShortage] = useState<ShortageLine[] | null>(
+    null
+  );
+
   function goBackOrCancel() {
     if (step === 'review') {
       setStep('catalog');
     } else {
-      router.push('/dashboard/caisse');
+      router.push(backHref);
     }
   }
 
-  function submit() {
+  async function postOrder(coverShortage?: boolean) {
+    return fetch('/api/caisse/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items,
+        total: totalPrice,
+        customerName: customerName.trim() || null,
+        customerPhone: customerPhone.trim() || null,
+        orderType,
+        note: note.trim() || null,
+        pickupTime: pickupTime ?? null,
+        orderDate: orderDate ?? null,
+        loyaltyRewardId,
+        ...(coverShortage ? { coverShortage: true } : {}),
+      }),
+    });
+  }
+
+  function onOrderCreated(dailyNumber: number | null) {
+    // Pas de `router.refresh()` ici : la file est alimentée par SSE
+    // (`/api/caisse/stream`) et reçoit la nouvelle commande d'elle-même.
+    // Un refresh forcerait un re-rendu RSC complet pour rien.
+    router.push(
+      dailyNumber === null ? backHref : `${backHref}?cree=${dailyNumber}`
+    );
+  }
+
+  function submit(coverShortage?: boolean) {
     if (items.length === 0) return;
     if (pickupTime && !customerPhone.trim()) {
       setSubmitError(
@@ -296,24 +341,23 @@ export function useNewOrder() {
       return;
     }
     setSubmitError(null);
+    setPendingShortage(null);
     startSubmit(async () => {
       try {
-        const res = await fetch('/api/caisse/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items,
-            total: totalPrice,
-            customerName: customerName.trim() || null,
-            customerPhone: customerPhone.trim() || null,
-            orderType,
-            note: note.trim() || null,
-            pickupTime: pickupTime ?? null,
-            orderDate: orderDate ?? null,
-            loyaltyRewardId,
-          }),
-        });
+        const res = await postOrder(coverShortage);
         if (!res.ok) {
+          if (res.status === 409) {
+            const data = (await res.json().catch(() => null)) as {
+              error?: string;
+              shortage?: ShortageLine[];
+            } | null;
+            if (data?.shortage?.length) {
+              setPendingShortage(data.shortage);
+              return;
+            }
+            setSubmitError(data?.error ?? `Erreur ${res.status}`);
+            return;
+          }
           setSubmitError(await readApiError(res));
           return;
         }
@@ -329,18 +373,20 @@ export function useNewOrder() {
           // Confirmation best-effort : une réponse illisible ne doit pas
           // transformer une commande créée en erreur.
         }
-        // Pas de `router.refresh()` ici : la file est alimentée par SSE
-        // (`/api/caisse/stream`) et reçoit la nouvelle commande d'elle-même.
-        // Un refresh forcerait un re-rendu RSC complet pour rien.
-        router.push(
-          createdNumber === null
-            ? '/dashboard/caisse'
-            : `/dashboard/caisse?cree=${createdNumber}`
-        );
+        onOrderCreated(createdNumber);
       } catch (err) {
         setSubmitError(err instanceof Error ? err.message : 'Erreur réseau');
       }
     });
+  }
+
+  /** Le staff a confirmé avoir produit le manquant : relance avec le drapeau. */
+  function confirmShortageAndRetry() {
+    submit(true);
+  }
+
+  function dismissShortage() {
+    setPendingShortage(null);
   }
 
   return {
@@ -369,6 +415,9 @@ export function useNewOrder() {
     soldOutPrompt,
     submitError,
     isSubmitting,
+    pendingShortage,
+    confirmShortageAndRetry,
+    dismissShortage,
     // setters d'étape
     setStep,
     // setters client

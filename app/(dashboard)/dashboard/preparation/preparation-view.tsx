@@ -1,6 +1,15 @@
 'use client';
 
-import { useCallback, useMemo, useState, useTransition } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+} from 'react';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { CheckCircle2, Plus, X } from 'lucide-react';
 import {
   cancelOrderFromKitchen,
   markOrderReady,
@@ -10,6 +19,7 @@ import {
 } from './actions';
 import { useShortageConfirm } from '../_components/use-shortage-confirm';
 import { type PreparationOrder } from '@/lib/preparation-queue';
+import type { MenuCategory } from '@/config/menu';
 import {
   playNewOrderChime,
   useOrdersStream,
@@ -59,8 +69,10 @@ function normalize(raw: unknown): PreparationOrder {
 
 export function PreparationView({
   initialQueue,
+  menu,
 }: {
   initialQueue: PreparationOrder[];
+  menu: MenuCategory[];
 }) {
   const [isPending, startTransition] = useTransition();
   // Commandes masquées optimistiquement (annulation) le temps que le serveur
@@ -82,6 +94,21 @@ export function PreparationView({
     useSoundPreference(SOUND_STORAGE_KEY);
   const { confirmShortage, shortageDialog } = useShortageConfirm();
   const now = useNowTick(15_000);
+
+  // Confirmation de création : `/dashboard/preparation/new` redirige ici avec
+  // `?cree=<n° du jour>` — même patron que la caisse (`caisse-view.tsx`),
+  // sans quoi valider une commande depuis la cuisine ne donnait aucun retour.
+  const searchParams = useSearchParams();
+  const createdParam = searchParams.get('cree');
+  const [createdFlash, setCreatedFlash] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!createdParam) return;
+    setCreatedFlash(createdParam);
+    window.history.replaceState(null, '', '/dashboard/preparation');
+    const timer = setTimeout(() => setCreatedFlash(null), 8_000);
+    return () => clearTimeout(timer);
+  }, [createdParam]);
 
   const { orders, connState, isStale, lastSync } =
     useOrdersStream<PreparationOrder>({
@@ -295,6 +322,33 @@ export function PreparationView({
         onOpenProduction={() => setOpenSheet('production')}
       />
 
+      <div className="mt-3 flex justify-end">
+        <Link
+          href="/dashboard/preparation/new"
+          className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+        >
+          <Plus className="h-4 w-4" />
+          Nouvelle commande
+        </Link>
+      </div>
+
+      {createdFlash && (
+        <div className="mt-3 flex items-center gap-3 rounded-xl border-2 border-primary/30 bg-primary/10 px-4 py-3 text-primary shadow-sm">
+          <CheckCircle2 className="h-6 w-6 shrink-0" aria-hidden="true" />
+          <p className="min-w-0 flex-1 text-sm font-bold">
+            Commande #{createdFlash.padStart(3, '0')} créée
+          </p>
+          <button
+            type="button"
+            onClick={() => setCreatedFlash(null)}
+            aria-label="Fermer"
+            className="shrink-0 rounded-full p-1 transition-colors hover:bg-primary/15"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {launchError && (
         <p
           role="alert"
@@ -332,6 +386,7 @@ export function PreparationView({
       {/* Détail agrandi (lisible de loin), ouvert au toucher d'une carte/ligne. */}
       <OrderDetailSheet
         order={selected}
+        menu={menu}
         now={now}
         pending={selected ? pendingIds.has(selected.id) || isPending : false}
         onClose={() => setSelectedId(null)}

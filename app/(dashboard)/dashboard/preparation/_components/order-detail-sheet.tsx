@@ -1,11 +1,14 @@
 'use client';
 
+import { useState } from 'react';
+import { Modal, ModalContent, ModalHeader, ModalBody } from '@heroui/react';
 import {
   Bike,
   Check,
   CheckCheck,
   ChefHat,
   PackageCheck,
+  Pencil,
   StickyNote,
   Timer,
   X,
@@ -23,6 +26,12 @@ import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
 import { formatPickup } from '@/lib/orders/scheduling';
 import { TrackingLinkButton } from '@/components/(dashboard)/tracking-link-button';
 import type { PreparationOrder } from '@/lib/preparation-queue';
+import type { MenuCategory } from '@/config/menu';
+import {
+  buildDriverRequestMessage,
+  buildWhatsAppLink,
+} from '@/lib/contact-links';
+import { OrderItemsEditor } from '../../_components/order-items-editor';
 import { ORDER_TYPE_META } from './prep-order-card';
 import {
   elapsedMinutes,
@@ -35,6 +44,7 @@ import {
 
 type Props = {
   order: PreparationOrder | null;
+  menu: MenuCategory[];
   now: Date;
   pending: boolean;
   onClose: () => void;
@@ -53,6 +63,7 @@ type Props = {
  */
 export function OrderDetailSheet({
   order,
+  menu,
   now,
   pending,
   onClose,
@@ -77,6 +88,7 @@ export function OrderDetailSheet({
         {order && (
           <OrderDetailBody
             order={order}
+            menu={menu}
             now={now}
             pending={pending}
             onReady={onReady}
@@ -92,6 +104,7 @@ export function OrderDetailSheet({
 
 function OrderDetailBody({
   order,
+  menu,
   now,
   pending,
   onReady,
@@ -100,6 +113,7 @@ function OrderDetailBody({
   onRetrieve,
 }: {
   order: PreparationOrder;
+  menu: MenuCategory[];
   now: Date;
   pending: boolean;
   onReady: (id: string) => void;
@@ -107,10 +121,21 @@ function OrderDetailBody({
   onRequestDriver: (id: string) => void;
   onRetrieve: (id: string) => void;
 }) {
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const typeMeta = ORDER_TYPE_META[order.orderType];
   const TypeIcon = typeMeta.Icon;
   const isDelivery = order.orderType === 'DELIVERY';
   const isReady = order.status === 'READY';
+  // Message WhatsApp « envoie ton livreur » — même patron que le bouton
+  // « Prévenir : c'est prêt » côté caisse (`order-card-actions.tsx`) : lien
+  // `null` si aucun téléphone n'est renseigné, repli sur le drapeau seul.
+  const driverLink = buildWhatsAppLink(
+    order.customerPhone,
+    buildDriverRequestMessage({
+      customerName: order.customerName,
+      dailyNumber: order.dailyNumber,
+    })
+  );
 
   // Chrono : « en cuisine depuis X » (PREPARING) ou « prête depuis X » (READY).
   const since = isReady
@@ -228,22 +253,56 @@ function OrderDetailBody({
 
       {/* Actions fixes en bas */}
       <div className="flex flex-col gap-3 border-t p-4">
-        {isDelivery && (
-          <button
-            type="button"
-            onClick={() => onRequestDriver(order.id)}
-            disabled={pending || order.driverRequested}
-            className={cn(
-              'flex items-center justify-center gap-2 rounded-xl border py-3 text-lg font-semibold transition-colors disabled:opacity-60',
-              order.driverRequested
-                ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100'
-                : 'border-amber-500 bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-950/50 dark:hover:bg-amber-900/40'
-            )}
-          >
-            <Bike className="h-5 w-5" />
-            {order.driverRequested ? 'Livreur demandé' : 'Demander le livreur'}
-          </button>
-        )}
+        {isDelivery &&
+          (driverLink ? (
+            // Ouvre WhatsApp avec le message pré-rempli ET pose le drapeau
+            // `driverRequested` (bandeau lu par la caisse) dans le même geste.
+            <a
+              href={driverLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                if (!order.driverRequested) onRequestDriver(order.id);
+              }}
+              className={cn(
+                'flex items-center justify-center gap-2 rounded-xl border py-3 text-lg font-semibold transition-colors',
+                order.driverRequested
+                  ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100'
+                  : 'border-amber-500 bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-950/50 dark:hover:bg-amber-900/40'
+              )}
+            >
+              <Bike className="h-5 w-5" />
+              {order.driverRequested
+                ? 'Livreur demandé — relancer sur WhatsApp'
+                : 'Demander le livreur'}
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onRequestDriver(order.id)}
+              disabled={pending || order.driverRequested}
+              className={cn(
+                'flex items-center justify-center gap-2 rounded-xl border py-3 text-lg font-semibold transition-colors disabled:opacity-60',
+                order.driverRequested
+                  ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100'
+                  : 'border-amber-500 bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-950/50 dark:hover:bg-amber-900/40'
+              )}
+            >
+              <Bike className="h-5 w-5" />
+              {order.driverRequested
+                ? 'Livreur demandé'
+                : 'Demander le livreur'}
+            </button>
+          ))}
+
+        <button
+          type="button"
+          onClick={() => setIsEditOpen(true)}
+          className="flex items-center justify-center gap-2 rounded-xl border border-input bg-background py-3 text-lg font-semibold text-muted-foreground transition-colors hover:bg-accent"
+        >
+          <Pencil className="h-5 w-5" />
+          Modifier les articles
+        </button>
 
         {isReady ? (
           <div className="flex flex-col gap-3">
@@ -289,6 +348,29 @@ function OrderDetailBody({
           </div>
         )}
       </div>
+
+      <Modal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        placement="center"
+        size="lg"
+        scrollBehavior="inside"
+      >
+        <ModalContent>
+          <ModalHeader>
+            Commande #{String(order.dailyNumber).padStart(3, '0')}
+          </ModalHeader>
+          <ModalBody className="pb-6">
+            <OrderItemsEditor
+              orderId={order.id}
+              initialItems={order.items}
+              menu={menu}
+              stockReserved={order.stockReservedAt !== null}
+              onClose={() => setIsEditOpen(false)}
+            />
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </>
   );
 }

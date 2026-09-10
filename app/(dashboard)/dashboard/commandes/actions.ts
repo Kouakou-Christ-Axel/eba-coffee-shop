@@ -1,7 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireCashier, requireAdmin } from '@/lib/auth-helpers';
+import {
+  requireCashier,
+  requireAdmin,
+  requireKitchen,
+} from '@/lib/auth-helpers';
 import {
   setOrderStatus,
   setOrderPayment,
@@ -169,7 +173,10 @@ export async function updateOrderItemsAction(
   items: CartItem[],
   opts?: { restoreRemovedStock?: boolean }
 ): Promise<MutationFailure | undefined> {
-  await requireCashier();
+  // La cuisine peut désormais modifier les articles d'une commande en cours
+  // (bouton dans /dashboard/preparation) — `requireKitchen()` couvre caisse
+  // + cuisine (+ rôles supérieurs), même garde que le reste de l'écran cuisine.
+  await requireKitchen();
 
   try {
     await updateOrderItems(id, items, {
