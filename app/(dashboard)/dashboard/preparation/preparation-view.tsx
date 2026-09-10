@@ -157,7 +157,10 @@ export function PreparationView({
   );
   // « À produire » : dérivé des commandes non encore lancées, groupé par jour.
   // Aucune requête dédiée — le flux SSE porte déjà tout ce qu'il faut.
-  const productionPlan = useMemo(() => buildProductionPlan(visible), [visible]);
+  const productionPlan = useMemo(
+    () => buildProductionPlan(visible, now),
+    [visible, now]
+  );
   // Commandes programmées dont le retrait approche sans qu'elles soient
   // lancées : c'est le signal « il faut s'y mettre maintenant ».
   const toLaunchCount = useMemo(

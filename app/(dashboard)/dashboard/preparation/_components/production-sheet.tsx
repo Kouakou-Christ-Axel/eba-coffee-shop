@@ -68,7 +68,7 @@ export function ProductionSheet({ plan, open, onOpenChange }: Props) {
             <ClipboardList className="h-5 w-5" />À produire
           </SheetTitle>
           <SheetDescription>
-            Quantités minimales dictées par les commandes déjà passées
+            Commandes déjà en cuisine, pas encore prêtes
           </SheetDescription>
         </SheetHeader>
 
@@ -116,8 +116,23 @@ export function ProductionSheet({ plan, open, onOpenChange }: Props) {
                     {line.quantity}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-xl font-semibold leading-tight">
+                    <p className="flex flex-wrap items-center gap-2 text-xl font-semibold leading-tight">
                       {line.productName}
+                      {/* Ajouté APRÈS le lancement en cuisine : la cuisine a pu
+                          déjà commencer à produire avant que ça existe. */}
+                      {line.addedLaterQuantity > 0 && (
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold uppercase text-red-900 dark:bg-red-950 dark:text-red-100">
+                          +{line.addedLaterQuantity} ajout
+                        </span>
+                      )}
+                      {/* Vient d'une commande programmée, déjà lancée en avance
+                          pour un retrait plus tard : pas pour le service immédiat. */}
+                      {line.scheduledQuantity > 0 && (
+                        <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-900 dark:bg-indigo-950 dark:text-indigo-100">
+                          dont {line.scheduledQuantity} programmée
+                          {line.scheduledQuantity > 1 ? 's' : ''}
+                        </span>
+                      )}
                     </p>
                     {line.flavours.length > 0 && (
                       <p className="mt-1 text-base font-medium text-secondary-600">

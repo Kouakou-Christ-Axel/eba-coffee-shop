@@ -1,24 +1,36 @@
 // lib/orders/production-plan.ts
 //
-// « À produire » : ce que la cuisine doit fabriquer, par JOUR, par produit et
-// par goût. Entièrement DÉRIVÉ des commandes — aucune saisie, aucune table, rien
-// à tenir à jour. Le patron ne déclare pas ses quantités : ce sont les commandes
-// programmées qui les dictent.
+// « À produire » : la charge de travail RÉELLE de la cuisine, par JOUR, par
+// produit et par goût. Entièrement DÉRIVÉ des commandes — aucune saisie,
+// aucune table, rien à tenir à jour.
 //
 // Fichier PUR (aucun Prisma, aucun React) : il transforme une liste de commandes
 // déjà chargée — celle du flux SSE cuisine (`lib/preparation-queue.ts`) — donc
 // aucune requête supplémentaire, et le panneau se rafraîchit avec le reste de
 // l'écran.
 //
-// PÉRIMÈTRE = « reste à produire » : uniquement les commandes dont le stock
-// n'est PAS encore réservé (`stockReservedAt === null`) et qui ne sont pas
-// annulées. Une commande partie en cuisine a déjà décompté sa marchandise ;
-// la compter ici la ferait apparaître deux fois. Conséquence voulue : le
-// compteur DESCEND au fil de la journée, à mesure que la cuisine lance.
+// PÉRIMÈTRE = commandes déjà EN CUISINE (`status === 'PREPARING'`), pas
+// encore prêtes. Une commande `NEW` (ex. une livraison qui attend encore
+// l'encaissement) n'est pas « à produire » : elle n'a pas commencé. Une
+// commande `READY`/`COMPLETED`/`CANCELLED` non plus : c'est fait, ou ça ne
+// se fera pas. Conséquence voulue : le compteur descend quand la cuisine
+// marque « Prête », pas au lancement — c'est un agrégat de la file en cours,
+// utile pour préparer par lot (« 12 croissants au total ») plutôt que de
+// lire chaque ticket un par un.
+//
+// Deux tags CHIFFRÉS par ligne, tous deux inclus dans `quantity` (jamais en
+// plus) :
+//   - `addedLaterQuantity` : part ajoutée à une commande APRÈS son entrée en
+//     cuisine (`CartItem.addedLater`, cf. `updateOrderItems`) — la cuisine a
+//     pu commencer à produire AVANT que cet ajout existe, il ne faut pas le
+//     confondre avec ce qui est déjà en train de cuire.
+//   - `scheduledQuantity` : part venant d'une commande « programmée en
+//     avance » (`isScheduledAhead`) — déjà lancée en cuisine pour un retrait
+//     plus tard, mais pas pour le service immédiat.
 
 import type { CartItem } from '@/lib/cart-store';
 import type { OrderStatus } from '@/generated/prisma/client';
-import { orderProductionDay } from './scheduling';
+import { isScheduledAhead, orderProductionDay } from './scheduling';
 
 export type ProductionFlavour = {
   groupName: string;
@@ -31,6 +43,10 @@ export type ProductionLine = {
   productName: string;
   /** Somme des quantités d'articles à produire ce jour-là. */
   quantity: number;
+  /** Part de `quantity` ajoutée à une commande APRÈS son entrée en cuisine. */
+  addedLaterQuantity: number;
+  /** Part de `quantity` venant de commandes programmées, déjà lancées en avance. */
+  scheduledQuantity: number;
   /** Ventilation par goût (« 5 Vanille · 7 Coco »), vide si le produit n'en a pas. */
   flavours: ProductionFlavour[];
   /** Commandes à l'origine de cette ligne — traçabilité « ça vient d'où ? ». */
@@ -51,7 +67,6 @@ export type ProducibleOrder = {
   status: OrderStatus;
   pickupTime: Date | null;
   createdAt: Date;
-  stockReservedAt: Date | null;
   items: CartItem[];
 };
 
@@ -67,15 +82,16 @@ export type ProducibleOrder = {
  * attend, et cela évite toute jointure — donc aucun N+1.
  */
 export function buildProductionPlan(
-  orders: ProducibleOrder[]
+  orders: ProducibleOrder[],
+  now: Date = new Date()
 ): ProductionDay[] {
   const byDay = new Map<string, Map<string, ProductionLine>>();
 
   for (const order of orders) {
-    if (order.status === 'CANCELLED') continue;
-    // Déjà réservée = déjà décomptée : elle n'est plus « à produire ».
-    if (order.stockReservedAt !== null) continue;
+    // Périmètre = en cuisine, pas encore prête (cf. en-tête du fichier).
+    if (order.status !== 'PREPARING') continue;
 
+    const scheduledAhead = isScheduledAhead(order, now);
     const day = orderProductionDay(order);
     let lines = byDay.get(day);
     if (!lines) {
@@ -90,12 +106,16 @@ export function buildProductionPlan(
           productId: item.productId,
           productName: item.productName,
           quantity: 0,
+          addedLaterQuantity: 0,
+          scheduledQuantity: 0,
           flavours: [],
           orderIds: [],
         };
         lines.set(item.productId, line);
       }
       line.quantity += item.quantity;
+      if (item.addedLater) line.addedLaterQuantity += item.quantity;
+      if (scheduledAhead) line.scheduledQuantity += item.quantity;
       if (!line.orderIds.includes(order.id)) line.orderIds.push(order.id);
 
       for (const supplement of item.supplements) {
