@@ -10,6 +10,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { DashboardSidebar } from '@/components/(dashboard)/dashboard-sidebar';
 import { PushNotificationToggle } from '@/components/(dashboard)/push-notification-toggle';
+import { PushSoundRelay } from '@/components/(dashboard)/push-sound-relay';
 
 export default async function DashboardLayout({
   children,
@@ -39,6 +40,7 @@ export default async function DashboardLayout({
           <Separator orientation="vertical" className="mr-2 h-4" />
           <span className="flex-1 text-sm font-medium">Dashboard</span>
           <PushNotificationToggle />
+          <PushSoundRelay />
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4 sm:p-6">{children}</div>
       </SidebarInset>

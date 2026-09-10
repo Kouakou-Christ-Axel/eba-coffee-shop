@@ -123,13 +123,28 @@ self.addEventListener('push', (event) => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      icon: '/web-app-manifest-192x192.png',
-      badge: '/web-app-manifest-192x192.png',
-      tag: payload.tag,
-      data: { url: payload.url || '/dashboard' },
-    })
+    (async () => {
+      await self.registration.showNotification(payload.title, {
+        body: payload.body,
+        icon: '/web-app-manifest-192x192.png',
+        badge: '/web-app-manifest-192x192.png',
+        tag: payload.tag,
+        data: { url: payload.url || '/dashboard' },
+      });
+
+      // Le son de la notification système n'est pas personnalisable (API
+      // Notification) — on relaie donc le `tag` à tous les onglets dashboard
+      // ouverts pour qu'ils jouent eux-mêmes le carillon EBA correspondant
+      // (cf. components/(dashboard)/push-sound-relay.tsx), même sur un écran
+      // autre que celui d'où vient la notification.
+      const clientsList = await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      });
+      for (const client of clientsList) {
+        client.postMessage({ type: 'eba-push', tag: payload.tag });
+      }
+    })()
   );
 });
 
