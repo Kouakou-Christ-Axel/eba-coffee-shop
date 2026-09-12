@@ -121,6 +121,8 @@ export type Ardoise = {
  */
 export async function fetchArdoise(opts?: {
   onlyOnAccount?: boolean;
+  /** Restreint la dette à un seul client (fiche client) plutôt que tout le commerce. */
+  customerId?: string;
 }): Promise<Ardoise> {
   // Seuil d'ancienneté du garde-fou : minuit du jour en cours.
   const staleBefore = startOfDay(new Date());
@@ -131,6 +133,7 @@ export async function fetchArdoise(opts?: {
   const orders = await prisma.order.findMany({
     where: {
       isPaid: false,
+      ...(opts?.customerId ? { customerId: opts.customerId } : {}),
       OR: [
         {
           status: 'COMPLETED',

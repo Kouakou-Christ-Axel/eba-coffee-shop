@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, X } from 'lucide-react';
+import { Loader2, Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -12,6 +12,7 @@ export function CustomerSearch({ initial }: { initial: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [value, setValue] = useState(initial);
+  const [isPending, startTransition] = useTransition();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -24,7 +25,14 @@ export function CustomerSearch({ initial }: { initial: string }) {
     const trimmed = next.trim();
     if (trimmed) params.set('search', trimmed);
     else params.delete('search');
-    router.push(`?${params.toString()}`);
+    // `startTransition` évite que la navigation (déclenchée à chaque
+    // recherche) ne fasse apparaître le fallback `loading.tsx` de toute la
+    // page : React garde le contenu actuel affiché et n'utilise `isPending`
+    // que pour un indicateur discret, au lieu d'un flash plein écran à
+    // chaque frappe.
+    startTransition(() => {
+      router.push(`?${params.toString()}`, { scroll: false });
+    });
   }
 
   function onChange(next: string) {
@@ -41,7 +49,14 @@ export function CustomerSearch({ initial }: { initial: string }) {
 
   return (
     <div className="relative w-full sm:w-[300px]">
-      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      {isPending ? (
+        <Loader2
+          className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground"
+          aria-hidden="true"
+        />
+      ) : (
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      )}
       <Input
         type="search"
         value={value}
