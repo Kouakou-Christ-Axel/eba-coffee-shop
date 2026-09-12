@@ -59,10 +59,12 @@ export function AssociateCustomer({
   const [isPending, startTransition] = useTransition();
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abort = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
       if (timer.current) clearTimeout(timer.current);
+      abort.current?.abort();
     };
   }, []);
 
@@ -81,20 +83,33 @@ export function AssociateCustomer({
   }
 
   function runSearch(term: string) {
+    // Une requête plus ancienne mais plus lente écrasait sinon un résultat
+    // plus récent (le sélecteur de `caisse/new` annule déjà correctement).
+    abort.current?.abort();
     const q = term.trim();
     if (q.length < MIN_QUERY_LENGTH) {
       setResults([]);
       setSearching(false);
       return;
     }
+    const controller = new AbortController();
+    abort.current = controller;
     setSearching(true);
-    fetch(`/api/customers/search?q=${encodeURIComponent(q)}`)
+    fetch(`/api/customers/search?q=${encodeURIComponent(q)}`, {
+      signal: controller.signal,
+    })
       .then((res) => (res.ok ? res.json() : { customers: [] }))
       .then((data: { customers?: CustomerHit[] }) => {
         setResults(data.customers ?? []);
+        setSearching(false);
       })
-      .catch(() => setResults([]))
-      .finally(() => setSearching(false));
+      .catch(() => {
+        // Requête annulée : une plus récente est en vol, on lui laisse la
+        // main (y compris l'extinction de l'indicateur « Recherche… »).
+        if (controller.signal.aborted) return;
+        setResults([]);
+        setSearching(false);
+      });
   }
 
   function handleQueryChange(next: string) {
