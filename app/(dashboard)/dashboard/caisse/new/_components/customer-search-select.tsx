@@ -25,7 +25,11 @@ type CustomerHit = {
 };
 
 type Props = {
-  onSelect: (customer: { name: string | null; phone: string }) => void;
+  onSelect: (customer: {
+    id: string;
+    name: string | null;
+    phone: string;
+  }) => void;
 };
 
 export function CustomerSearchSelect({ onSelect }: Props) {
@@ -79,7 +83,7 @@ export function CustomerSearchSelect({ onSelect }: Props) {
 
   function handleSelect(hit: CustomerHit) {
     if (timer.current) clearTimeout(timer.current);
-    onSelect({ name: hit.name, phone: hit.phone });
+    onSelect({ id: hit.id, name: hit.name, phone: hit.phone });
     // Feedback : on affiche le client retenu dans le champ de recherche.
     setQuery(
       hit.name
