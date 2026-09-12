@@ -2,22 +2,24 @@
 
 // Tableau clients (TanStack Table, headless) au-dessus des primitives shadcn
 // (`components/ui/table`, cf. politique UI — Table = shadcn). Le tri est
-// CLIENT et ne porte que sur la page affichée : la pagination reste pilotée
-// par le serveur (recherche floue + `skip/take`), un tri global sur tout le
-// jeu de données nécessiterait un `ORDER BY` en base sur des stats calculées
-// à la volée (hors scope ici, cf. `lib/customers.ts::statsByCustomer`).
+// BACKEND (`manualSorting`) : un clic sur un en-tête change `sort`/`dir` dans
+// l'URL (via `startTransition`, comme `customer-search.tsx` et
+// `components/(dashboard)/pagination.tsx`), et `lib/customers.ts::listCustomers`
+// trie/pagine sur l'ensemble des clients — pas seulement la page affichée.
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useTransition } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   type ColumnDef,
+  type OnChangeFn,
   type SortingState,
   flexRender,
   getCoreRowModel,
-  getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ArrowUpDown, Handshake } from 'lucide-react';
+import type { CustomerSortKey, SortDir } from '@/lib/customers';
 import { formatPhoneForDisplay } from '@/lib/phone';
 import {
   Table,
@@ -29,6 +31,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
 const dateFmt = new Intl.DateTimeFormat('fr-FR', {
@@ -52,7 +55,7 @@ export type CustomerRow = {
 
 const columns: ColumnDef<CustomerRow>[] = [
   {
-    accessorKey: 'name',
+    id: 'name',
     header: 'Nom',
     cell: ({ row }) => (
       <Link
@@ -64,7 +67,7 @@ const columns: ColumnDef<CustomerRow>[] = [
     ),
   },
   {
-    accessorKey: 'phone',
+    id: 'phone',
     header: 'Téléphone',
     enableSorting: false,
     cell: ({ row }) => (
@@ -92,7 +95,6 @@ const columns: ColumnDef<CustomerRow>[] = [
   },
   {
     id: 'ordersCount',
-    accessorFn: (c) => c.stats.ordersCount,
     header: 'Commandes',
     cell: ({ row }) => (
       <span className="tabular-nums">{row.original.stats.ordersCount}</span>
@@ -100,7 +102,6 @@ const columns: ColumnDef<CustomerRow>[] = [
   },
   {
     id: 'totalSpent',
-    accessorFn: (c) => c.stats.totalSpent,
     header: 'Total acheté',
     cell: ({ row }) => (
       <span className="tabular-nums">
@@ -110,7 +111,6 @@ const columns: ColumnDef<CustomerRow>[] = [
   },
   {
     id: 'lastOrderAt',
-    accessorFn: (c) => c.stats.lastOrderAt?.getTime() ?? 0,
     header: 'Dernière commande',
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">
@@ -132,26 +132,73 @@ const columns: ColumnDef<CustomerRow>[] = [
   },
 ];
 
-export function CustomersTable({ customers }: { customers: CustomerRow[] }) {
-  const [sorting, setSorting] = useState<SortingState>([]);
+// Seules ces colonnes correspondent à un `CustomerSortKey` que le serveur
+// sait trier (cf. lib/customers.ts) ; les autres restent `enableSorting: false`.
+const SORT_KEY_BY_COLUMN: Partial<Record<string, CustomerSortKey>> = {
+  name: 'name',
+  ordersCount: 'ordersCount',
+  totalSpent: 'totalSpent',
+  lastOrderAt: 'lastOrderAt',
+};
+
+export function CustomersTable({
+  customers,
+  sort,
+  dir,
+}: {
+  customers: CustomerRow[];
+  sort?: CustomerSortKey;
+  dir: SortDir;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+
+  const sorting: SortingState = sort
+    ? [{ id: sort, desc: dir === 'desc' }]
+    : [];
+
+  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
+    const next = typeof updater === 'function' ? updater(sorting) : updater;
+    const first = next[0];
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('page');
+    if (first) {
+      params.set('sort', first.id);
+      params.set('dir', first.desc ? 'desc' : 'asc');
+    } else {
+      params.delete('sort');
+      params.delete('dir');
+    }
+    startTransition(() => {
+      router.push(`?${params.toString()}`, { scroll: false });
+    });
+  };
 
   const table = useReactTable({
     data: customers,
     columns,
     state: { sorting },
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
+    manualSorting: true,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
 
   return (
-    <div className="overflow-x-auto">
+    <div
+      aria-busy={isPending}
+      className={cn(
+        'overflow-x-auto transition-opacity',
+        isPending && 'opacity-60'
+      )}
+    >
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => {
-                const sortable = header.column.getCanSort();
+                const sortable =
+                  SORT_KEY_BY_COLUMN[header.column.id] !== undefined;
                 const sortState = header.column.getIsSorted();
                 return (
                   <TableHead

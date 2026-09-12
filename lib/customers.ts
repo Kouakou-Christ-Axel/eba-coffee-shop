@@ -58,12 +58,54 @@ async function statsByCustomer(
   );
 }
 
+export type CustomerSortKey =
+  | 'name'
+  | 'ordersCount'
+  | 'totalSpent'
+  | 'lastOrderAt';
+export type SortDir = 'asc' | 'desc';
+
+const ZERO_STATS: CustomerStats = {
+  ordersCount: 0,
+  totalSpent: 0,
+  lastOrderAt: null,
+};
+
+type RankedCustomer = { id: string; name: string | null; phone: string };
+
+/** Comparateur de tri, appliqué en JS sur l'ensemble des candidats (cf. plus bas). */
+function compareCustomers(sort: CustomerSortKey, dir: SortDir) {
+  const mul = dir === 'asc' ? 1 : -1;
+  return (
+    a: RankedCustomer & { stats: CustomerStats },
+    b: RankedCustomer & { stats: CustomerStats }
+  ) => {
+    switch (sort) {
+      case 'name':
+        return (a.name ?? '').localeCompare(b.name ?? '', 'fr') * mul;
+      case 'ordersCount':
+        return (a.stats.ordersCount - b.stats.ordersCount) * mul;
+      case 'totalSpent':
+        return (a.stats.totalSpent - b.stats.totalSpent) * mul;
+      case 'lastOrderAt': {
+        const at = a.stats.lastOrderAt?.getTime() ?? 0;
+        const bt = b.stats.lastOrderAt?.getTime() ?? 0;
+        return (at - bt) * mul;
+      }
+    }
+  };
+}
+
 export async function listCustomers({
   search,
   page = 1,
+  sort,
+  dir = 'desc',
 }: {
   search?: string;
   page?: number;
+  sort?: CustomerSortKey;
+  dir?: SortDir;
 }) {
   const pageSize = ORDERS_PAGE_SIZE;
   const skip = (page - 1) * pageSize;
@@ -71,18 +113,49 @@ export async function listCustomers({
 
   let customers: Customer[];
   let total: number;
+  // Stats déjà connues pour les lignes de la page (calculées pendant le tri
+  // ci-dessous) : évite de les recalculer une seconde fois quand on est
+  // passés par le chemin recherche/tri.
+  let pageStats: Map<string, CustomerStats> | null = null;
 
-  if (term) {
-    // Recherche floue (lib/customer-search.ts) : on classe sur des champs
-    // minimaux (toute la table, requête bon marché), on ne recharge les
-    // lignes complètes que pour la page affichée.
-    const candidates = await prisma.customer.findMany({
+  // Chemin rapide : ni recherche, ni tri (ou tri par nom, qu'on peut déléguer
+  // à la base) — pagination `skip/take` directement en base, sans charger
+  // toute la table.
+  if (!term && (!sort || sort === 'name')) {
+    const orderBy =
+      sort === 'name' ? { name: dir } : ({ createdAt: 'desc' } as const);
+    [customers, total] = await Promise.all([
+      prisma.customer.findMany({ orderBy, skip, take: pageSize }),
+      prisma.customer.count(),
+    ]);
+  } else {
+    // Recherche floue et/ou tri sur une stat calculée (commandes, total
+    // acheté, dernière commande) : ces colonnes n'existent pas en base, donc
+    // impossible de les déléguer à un `ORDER BY` SQL. On charge l'ensemble
+    // minimal des clients (candidats), on calcule leurs stats en une seule
+    // requête groupée, on trie/pagine en JS, puis on ne recharge les lignes
+    // complètes QUE pour la page affichée.
+    const allCandidates = await prisma.customer.findMany({
       select: { id: true, name: true, phone: true },
     });
-    const matched = searchCustomers(candidates, term);
-    total = matched.length;
+    // Recherche floue (lib/customer-search.ts) : classe par pertinence,
+    // conservée telle quelle tant qu'aucun tri explicite n'est demandé.
+    const candidates: RankedCustomer[] = term
+      ? searchCustomers(allCandidates, term)
+      : allCandidates;
 
-    const pageIds = matched.slice(skip, skip + pageSize).map((c) => c.id);
+    const stats = await statsByCustomer(candidates.map((c) => c.id));
+    const ranked = candidates.map((c) => ({
+      ...c,
+      stats: stats.get(c.id) ?? ZERO_STATS,
+    }));
+    if (sort) ranked.sort(compareCustomers(sort, dir));
+
+    total = ranked.length;
+    const pageSlice = ranked.slice(skip, skip + pageSize);
+    pageStats = new Map(pageSlice.map((c) => [c.id, c.stats]));
+
+    const pageIds = pageSlice.map((c) => c.id);
     const rows = pageIds.length
       ? await prisma.customer.findMany({ where: { id: { in: pageIds } } })
       : [];
@@ -90,25 +163,13 @@ export async function listCustomers({
     customers = pageIds
       .map((id) => byId.get(id))
       .filter((c): c is Customer => c != null);
-  } else {
-    [customers, total] = await Promise.all([
-      prisma.customer.findMany({
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: pageSize,
-      }),
-      prisma.customer.count(),
-    ]);
   }
 
-  const stats = await statsByCustomer(customers.map((c) => c.id));
+  const stats =
+    pageStats ?? (await statsByCustomer(customers.map((c) => c.id)));
   const rows = customers.map((c) => ({
     ...c,
-    stats: stats.get(c.id) ?? {
-      ordersCount: 0,
-      totalSpent: 0,
-      lastOrderAt: null,
-    },
+    stats: stats.get(c.id) ?? ZERO_STATS,
   }));
 
   return { customers: rows, total, pageSize };
