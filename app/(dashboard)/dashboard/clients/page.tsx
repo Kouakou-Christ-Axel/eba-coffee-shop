@@ -1,5 +1,10 @@
 import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
-import { listCustomers, getCustomerListSummary } from '@/lib/customers';
+import {
+  listCustomers,
+  getCustomerListSummary,
+  type CustomerSortKey,
+  type SortDir,
+} from '@/lib/customers';
 import { fetchArdoise } from '@/lib/ardoise';
 import { Pagination } from '@/components/(dashboard)/pagination';
 import { CustomerSearch } from './customer-search';
@@ -10,18 +15,32 @@ export const dynamic = 'force-dynamic';
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
 
+const SORT_KEYS: readonly CustomerSortKey[] = [
+  'name',
+  'ordersCount',
+  'totalSpent',
+  'lastOrderAt',
+];
+
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string; page?: string }>;
+  searchParams: Promise<{
+    search?: string;
+    page?: string;
+    sort?: string;
+    dir?: string;
+  }>;
 }) {
   await requireRoleOrAnalyst(['ADMIN']);
   const params = await searchParams;
   const page = Math.max(1, Number(params.page ?? 1));
   const search = params.search?.trim() || undefined;
+  const sort = SORT_KEYS.find((k) => k === params.sort);
+  const dir: SortDir = params.dir === 'asc' ? 'asc' : 'desc';
 
   const [{ customers, total, pageSize }, summary, ardoise] = await Promise.all([
-    listCustomers({ search, page }),
+    listCustomers({ search, page, sort, dir }),
     // Toujours calculée sur l'ensemble des clients : ne dépend pas de la
     // recherche, reste stable pendant qu'on filtre le tableau.
     getCustomerListSummary(),
@@ -70,7 +89,7 @@ export default async function ClientsPage({
         />
       </div>
 
-      <CustomersTable customers={customers} />
+      <CustomersTable customers={customers} sort={sort} dir={dir} />
 
       {totalPages > 1 && <Pagination page={page} totalPages={totalPages} />}
     </div>
