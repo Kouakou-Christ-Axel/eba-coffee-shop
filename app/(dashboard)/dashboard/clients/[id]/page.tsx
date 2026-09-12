@@ -4,6 +4,7 @@ import { Handshake } from 'lucide-react';
 import { requireRoleOrAnalyst, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { BackButton } from '@/components/(dashboard)/back-button';
 import { getCustomer } from '@/lib/customers';
+import { fetchArdoise } from '@/lib/ardoise';
 import { getLoyaltyCard } from '@/lib/loyalty';
 import { formatPhoneForDisplay } from '@/lib/phone';
 import type { OrderStatus } from '@/generated/prisma/client';
@@ -71,9 +72,30 @@ export default async function CustomerDetailPage({
   const canSetTrusted = ROLE_GROUPS.MANAGER_PLUS.includes(session.user.role);
   const { id } = await params;
 
-  const [data, card] = await Promise.all([getCustomer(id), getLoyaltyCard(id)]);
+  const [data, card, ardoise] = await Promise.all([
+    getCustomer(id),
+    getLoyaltyCard(id),
+    fetchArdoise({ customerId: id }),
+  ]);
   if (!data) notFound();
   const { customer, orders, stats } = data;
+
+  const averageBasket =
+    stats.ordersCount > 0
+      ? Math.round(stats.totalSpent / stats.ordersCount)
+      : 0;
+  // Intervalle moyen entre deux commandes non annulées, sur toute la durée
+  // connue du client (firstOrderAt/lastOrderAt), pas seulement les 50
+  // dernières lignes affichées ci-dessous.
+  const purchaseFrequencyDays =
+    stats.ordersCount > 1 && stats.firstOrderAt && stats.lastOrderAt
+      ? Math.round(
+          (stats.lastOrderAt.getTime() - stats.firstOrderAt.getTime()) /
+            (stats.ordersCount - 1) /
+            86_400_000
+        )
+      : null;
+  const debtOwed = ardoise.totalOwed;
 
   return (
     <div className="space-y-6">
@@ -131,15 +153,48 @@ export default async function CustomerDetailPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Mini label="Commandes" value={String(stats.ordersCount)} />
         <Mini
-          label="Total dépensé"
+          label="Total acheté"
           value={`${priceFmt.format(stats.totalSpent)} F`}
+        />
+        <Mini
+          label="Panier moyen"
+          value={`${priceFmt.format(averageBasket)} F`}
         />
         <Mini
           label="Dernière commande"
           value={stats.lastOrderAt ? dateFmt.format(stats.lastOrderAt) : '—'}
+        />
+        <Mini
+          label="Client depuis"
+          value={dateFmt.format(customer.createdAt)}
+        />
+        <Mini
+          label="Fréquence d'achat"
+          value={
+            purchaseFrequencyDays !== null
+              ? `~ tous les ${purchaseFrequencyDays} jour${purchaseFrequencyDays > 1 ? 's' : ''}`
+              : '—'
+          }
+        />
+        <Mini
+          label="Taux d'annulation"
+          value={
+            stats.cancelledCount > 0
+              ? `${Math.round(stats.cancellationRate * 100)} % (${stats.cancelledCount})`
+              : '0 %'
+          }
+        />
+        <Mini
+          label="Produit favori"
+          value={stats.favoriteProduct ? stats.favoriteProduct.name : '—'}
+        />
+        <Mini
+          label="Ardoise en cours"
+          value={debtOwed > 0 ? `${priceFmt.format(debtOwed)} F` : '0 F'}
+          alert={debtOwed > 0}
         />
       </div>
 
@@ -242,13 +297,25 @@ export default async function CustomerDetailPage({
   );
 }
 
-function Mini({ label, value }: { label: string; value: string }) {
+function Mini({
+  label,
+  value,
+  alert = false,
+}: {
+  label: string;
+  value: string;
+  alert?: boolean;
+}) {
   return (
     <div className="rounded-xl border bg-card p-4">
       <p className="text-xs uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
-      <p className="mt-2 text-lg font-bold tabular-nums">{value}</p>
+      <p
+        className={`mt-2 text-lg font-bold tabular-nums ${alert ? 'text-destructive' : ''}`}
+      >
+        {value}
+      </p>
     </div>
   );
 }

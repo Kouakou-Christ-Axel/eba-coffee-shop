@@ -1,30 +1,14 @@
-import Link from 'next/link';
-import { Handshake } from 'lucide-react';
 import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
-import { listCustomers } from '@/lib/customers';
-import { formatPhoneForDisplay } from '@/lib/phone';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { listCustomers, getCustomerListSummary } from '@/lib/customers';
+import { fetchArdoise } from '@/lib/ardoise';
 import { Pagination } from '@/components/(dashboard)/pagination';
 import { CustomerSearch } from './customer-search';
 import { CustomerFormSheet } from './customer-form';
+import { CustomersTable } from './customers-table';
 
 export const dynamic = 'force-dynamic';
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
-const dateFmt = new Intl.DateTimeFormat('fr-FR', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-});
 
 export default async function ClientsPage({
   searchParams,
@@ -36,7 +20,13 @@ export default async function ClientsPage({
   const page = Math.max(1, Number(params.page ?? 1));
   const search = params.search?.trim() || undefined;
 
-  const { customers, total, pageSize } = await listCustomers({ search, page });
+  const [{ customers, total, pageSize }, summary, ardoise] = await Promise.all([
+    listCustomers({ search, page }),
+    // Toujours calculée sur l'ensemble des clients : ne dépend pas de la
+    // recherche, reste stable pendant qu'on filtre le tableau.
+    getCustomerListSummary(),
+    fetchArdoise(),
+  ]);
   const totalPages = Math.ceil(total / pageSize);
 
   return (
@@ -55,79 +45,57 @@ export default async function ClientsPage({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nom</TableHead>
-              <TableHead>Téléphone</TableHead>
-              <TableHead>Confiance</TableHead>
-              <TableHead>Commandes</TableHead>
-              <TableHead>Total dépensé</TableHead>
-              <TableHead>Dernière commande</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {customers.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell className="font-medium">
-                  <Link
-                    href={`/dashboard/clients/${c.id}`}
-                    className="hover:underline"
-                  >
-                    {c.name ?? '—'}
-                  </Link>
-                </TableCell>
-                <TableCell className="font-mono text-sm">
-                  {formatPhoneForDisplay(c.phone)}
-                </TableCell>
-                <TableCell>
-                  {c.isTrusted ? (
-                    <Badge
-                      className="bg-blue-600"
-                      title={c.trustedNote ?? undefined}
-                    >
-                      <Handshake className="h-3 w-3" aria-hidden="true" />
-                      Confiance
-                    </Badge>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </TableCell>
-                <TableCell className="tabular-nums">
-                  {c.stats.ordersCount}
-                </TableCell>
-                <TableCell className="tabular-nums">
-                  {priceFmt.format(c.stats.totalSpent)} F
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {c.stats.lastOrderAt
-                    ? dateFmt.format(c.stats.lastOrderAt)
-                    : '—'}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link href={`/dashboard/clients/${c.id}`}>Voir</Link>
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-            {customers.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={7}
-                  className="py-8 text-center text-muted-foreground"
-                >
-                  Aucun client pour cette recherche.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <Mini label="Clients" value={String(summary.totalClients)} />
+        <Mini
+          label="Nouveaux (7j / 30j)"
+          value={`${summary.newLast7Days} / ${summary.newLast30Days}`}
+        />
+        <Mini
+          label="CA cumulé"
+          value={`${priceFmt.format(summary.revenueTotal)} F`}
+        />
+        <Mini
+          label="Panier moyen"
+          value={`${priceFmt.format(summary.averageBasket)} F`}
+        />
+        <Mini
+          label="Actifs (≤30 / 31-60 / 61-90j)"
+          value={`${summary.active30Days} / ${summary.active60Days} / ${summary.active90Days}`}
+        />
+        <Mini
+          label="Ardoise en cours"
+          value={`${priceFmt.format(ardoise.totalOwed)} F`}
+          alert={ardoise.totalOwed > 0}
+        />
       </div>
 
+      <CustomersTable customers={customers} />
+
       {totalPages > 1 && <Pagination page={page} totalPages={totalPages} />}
+    </div>
+  );
+}
+
+function Mini({
+  label,
+  value,
+  alert = false,
+}: {
+  label: string;
+  value: string;
+  alert?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <p className="text-xs uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <p
+        className={`mt-2 text-lg font-bold tabular-nums ${alert ? 'text-destructive' : ''}`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
