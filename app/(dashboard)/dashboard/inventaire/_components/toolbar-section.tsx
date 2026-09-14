@@ -1,10 +1,15 @@
 import { Download, FileSpreadsheet } from 'lucide-react';
 import { listExpenseCategories } from '@/lib/expenses';
+import { getInventorySettings } from '@/lib/inventory-settings-db';
 import { Button } from '@/components/ui/button';
 import { ImportDialog } from '../import-dialog';
+import { SettingsSheet } from '../settings-sheet';
 
 export async function ToolbarSection({ canRestock }: { canRestock: boolean }) {
-  const expenseCats = await listExpenseCategories();
+  const [expenseCats, settings] = await Promise.all([
+    listExpenseCategories(),
+    getInventorySettings(),
+  ]);
   const expenseCategories = expenseCats.map((c) => ({
     id: c.id,
     name: c.name,
@@ -28,6 +33,7 @@ export async function ToolbarSection({ canRestock }: { canRestock: boolean }) {
         expenseCategories={expenseCategories}
         canRestock={canRestock}
       />
+      {canRestock && <SettingsSheet settings={settings} />}
     </div>
   );
 }
