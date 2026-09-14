@@ -1,6 +1,7 @@
-// components/(public)/carte/_components/bottom-sheet.ts
+// lib/bottom-sheet.ts
 //
-// Présentation des modales du tunnel de commande : **bottom sheet plein écran
+// Présentation des modales « feuille » de l'app (tunnel de commande public,
+// comptage d'inventaire côté dashboard) : **bottom sheet plein écran
 // sur mobile**, dialogue centré sur desktop. C'est le geste natif attendu sur
 // téléphone (Uber Eats, Deliveroo) — une boîte flottante au milieu de l'écran
 // y fait pop-up web, et surtout elle gaspille la hauteur dont la fiche produit

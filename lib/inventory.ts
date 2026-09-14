@@ -172,6 +172,12 @@ export type InventorySummary = {
   lowStockCount: number;
   stockValue: number;
   neverCounted: number;
+  /**
+   * Références actives ayant un PMP non nul. `stockValue` ne vaut que ce que
+   * vaut ce compteur : tant qu'aucun réappro chiffré n'a été saisi, le PMP est
+   * à 0 partout et la valeur du stock est un zéro trompeur, pas une mesure.
+   */
+  valuedCount: number;
 };
 
 /** KPIs de l'inventaire (références actives). */
@@ -189,12 +195,14 @@ export async function getInventorySummary(): Promise<InventorySummary> {
   let lowStockCount = 0;
   let stockValue = 0;
   let neverCounted = 0;
+  let valuedCount = 0;
   for (const it of items) {
     const qty = num(it.currentQuantity);
     const threshold =
       it.reorderPoint === null ? num(it.safetyStock) : num(it.reorderPoint);
     if (threshold > 0 && qty <= threshold) lowStockCount++;
     stockValue += Math.round(qty * it.avgUnitCost);
+    if (it.avgUnitCost > 0) valuedCount++;
     if (!it.lastCountedAt) neverCounted++;
   }
   return {
@@ -202,6 +210,7 @@ export async function getInventorySummary(): Promise<InventorySummary> {
     lowStockCount,
     stockValue,
     neverCounted,
+    valuedCount,
   };
 }
 

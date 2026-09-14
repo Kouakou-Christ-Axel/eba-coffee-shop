@@ -1,53 +1,30 @@
 import { AlertTriangle, Boxes, ClipboardList, Coins } from 'lucide-react';
 import { getInventorySummary, getDaysSinceLastCount } from '@/lib/inventory';
+import { getInventorySettings } from '@/lib/inventory-settings-db';
 import { Card, CardContent } from '@/components/ui/card';
+import { KpiCard } from '@/components/(dashboard)/kpi-card';
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
 
-function Kpi({
-  label,
-  value,
-  hint,
-  Icon,
-  valueClassName,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  Icon: typeof Boxes;
-  valueClassName?: string;
-}) {
-  return (
-    <div className="rounded-xl border bg-card p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          {label}
-        </p>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </div>
-      <p
-        className={`mt-2 truncate text-2xl font-bold tabular-nums ${valueClassName ?? ''}`}
-      >
-        {value}
-      </p>
-      {hint && (
-        <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-          {hint}
-        </p>
-      )}
-    </div>
-  );
-}
-
 export async function SummarySection() {
-  const [summary, daysSince] = await Promise.all([
+  const [summary, daysSince, settings] = await Promise.all([
     getInventorySummary(),
     getDaysSinceLastCount(),
+    getInventorySettings(),
   ]);
+
+  // Le seuil est configurable (`InventorySettings.reminderDays`, déjà utilisé
+  // par le rappel email) : la bannière doit dire la même chose que le mail.
+  const overdue = daysSince !== null && daysSince > settings.reminderDays;
+
+  // `stockValue` est une somme de `quantité × PMP`. Tant qu'aucune référence
+  // n'a de PMP, elle vaut 0 — ce qui se lit comme un bug plutôt que comme une
+  // absence de donnée. On affiche l'absence.
+  const hasValuation = summary.valuedCount > 0;
 
   return (
     <>
-      {daysSince !== null && daysSince > 7 && (
+      {overdue && (
         <Card className="border-destructive/50 bg-destructive/10">
           <CardContent className="flex items-center gap-3 py-4">
             <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
@@ -60,12 +37,12 @@ export async function SummarySection() {
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi
+        <KpiCard
           label="Références actives"
           value={priceFmt.format(summary.activeCount)}
           Icon={Boxes}
         />
-        <Kpi
+        <KpiCard
           label="Sous le seuil"
           value={priceFmt.format(summary.lowStockCount)}
           Icon={AlertTriangle}
@@ -73,12 +50,22 @@ export async function SummarySection() {
             summary.lowStockCount > 0 ? 'text-destructive' : undefined
           }
         />
-        <Kpi
+        <KpiCard
           label="Valeur du stock"
-          value={`${priceFmt.format(summary.stockValue)} F`}
+          value={
+            hasValuation ? `${priceFmt.format(summary.stockValue)} F` : '—'
+          }
+          hint={
+            hasValuation
+              ? `${priceFmt.format(summary.valuedCount)} / ${priceFmt.format(summary.activeCount)} références valorisées`
+              : 'PMP non renseigné — saisissez un réappro pour valoriser'
+          }
           Icon={Coins}
+          // `truncate` : à `grid-cols-2` sur téléphone, un montant à 7 chiffres
+          // déborde de la carte.
+          valueClassName="truncate"
         />
-        <Kpi
+        <KpiCard
           label="Jamais compté"
           value={priceFmt.format(summary.neverCounted)}
           Icon={ClipboardList}
