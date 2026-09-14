@@ -1,14 +1,20 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ORDER_NOTE_MAX } from '@/config/constants';
 import { todayDateString, isoToAbidjanDatetimeLocal } from '@/lib/timezone';
+import { normalizeIvorianPhone } from '@/lib/phone';
 import type { OrderType } from '@/generated/prisma/client';
 import { OrderTypePicker } from './order-type-picker';
 import { CustomerSearchSelect } from './customer-search-select';
 import { PickupDayBar } from './pickup-day-bar';
+
+const PHONE_LOOKUP_DEBOUNCE_MS = 350;
+
+type AttachedCustomer = { id: string; name: string | null };
 
 type Props = {
   customerName: string;
@@ -55,6 +61,57 @@ export function CustomerInfoStep({
     : null;
   const conflictsWithPickup =
     isBackdated && pickupDay !== null && pickupDay !== orderDate;
+
+  // Rattachement automatique : si le téléphone saisi correspond déjà à un
+  // client, on remplace le nom par celui enregistré (jamais l'inverse) et on
+  // verrouille le champ « Prénom » — le nom d'un client existant se modifie
+  // depuis sa fiche client, pas en le retapant à la volée en caisse.
+  const [attachedCustomer, setAttachedCustomer] =
+    useState<AttachedCustomer | null>(null);
+  const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (lookupTimer.current) clearTimeout(lookupTimer.current);
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (lookupTimer.current) clearTimeout(lookupTimer.current);
+
+    if (!normalizeIvorianPhone(customerPhone)) {
+      setAttachedCustomer(null);
+      return;
+    }
+
+    lookupTimer.current = setTimeout(() => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      fetch(
+        `/api/customers/by-phone?phone=${encodeURIComponent(customerPhone)}`,
+        {
+          signal: controller.signal,
+        }
+      )
+        .then((res) => (res.ok ? res.json() : { customer: null }))
+        .then((data: { customer?: AttachedCustomer | null }) => {
+          const match = data.customer ?? null;
+          setAttachedCustomer(match);
+          if (match?.name && match.name !== customerName) {
+            onCustomerNameChange(match.name);
+          }
+        })
+        .catch(() => {
+          // Erreur réseau / requête annulée : on ne verrouille rien.
+        });
+    }, PHONE_LOOKUP_DEBOUNCE_MS);
+    // customerName est lu, pas suivi : on ne veut relancer le lookup que
+    // quand le TÉLÉPHONE change, pas à chaque frappe dans le champ nom.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerPhone]);
 
   function handleOrderDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const value = e.target.value;
@@ -132,6 +189,7 @@ export function CustomerInfoStep({
               onSelect={(c) => {
                 onCustomerPhoneChange(c.phone);
                 onCustomerNameChange(c.name ?? '');
+                setAttachedCustomer({ id: c.id, name: c.name });
               }}
             />
           </div>
@@ -169,7 +227,20 @@ export function CustomerInfoStep({
               onChange={(e) => onCustomerNameChange(e.target.value)}
               placeholder="Client anonyme"
               autoComplete="off"
+              readOnly={attachedCustomer !== null}
+              aria-readonly={attachedCustomer !== null}
+              className={
+                attachedCustomer !== null
+                  ? 'bg-muted text-muted-foreground'
+                  : undefined
+              }
             />
+            {attachedCustomer !== null && (
+              <p className="text-xs text-muted-foreground">
+                Client existant — rattaché automatiquement à ce numéro. Pour
+                changer son nom, modifiez sa fiche client.
+              </p>
+            )}
           </div>
           <div className="grid gap-1">
             <Label htmlFor="note" className="text-xs text-muted-foreground">
