@@ -35,7 +35,7 @@ export default async function InventairePage() {
       </Suspense>
 
       <Suspense fallback={<Skeleton className="h-16 rounded-xl" />}>
-        <LowStockSection />
+        <LowStockSection canRestock={canRestock} />
       </Suspense>
 
       <Suspense

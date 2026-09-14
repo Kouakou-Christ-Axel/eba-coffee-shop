@@ -214,6 +214,38 @@ export async function getInventorySummary(): Promise<InventorySummary> {
   };
 }
 
+/**
+ * Dernier coût unitaire connu par référence, lots annulés exclus.
+ *
+ * Sert à proposer un prix au réappro. On ne peut pas se reposer sur
+ * `avgUnitCost` : le PMP vaut 0 tant qu'aucun achat chiffré n'a été saisi —
+ * c'est le cas de tout le catalogue aujourd'hui — et pré-remplir un coût à 0
+ * est pire que ne rien pré-remplir, puisque la valeur passe la validation et
+ * empoisonne le PMP en se faisant passer pour un prix décidé.
+ */
+export async function listLastPurchaseCosts(): Promise<
+  Map<string, { unitCost: number; date: string }>
+> {
+  const purchases = await prisma.inventoryPurchase.findMany({
+    where: {
+      unitCost: { gt: 0 },
+      OR: [{ batchId: null }, { batch: { is: { canceledAt: null } } }],
+    },
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    select: { itemId: true, unitCost: true, date: true },
+  });
+  const byItem = new Map<string, { unitCost: number; date: string }>();
+  for (const p of purchases) {
+    // Trié du plus récent au plus ancien : le premier vu par article gagne.
+    if (byItem.has(p.itemId)) continue;
+    byItem.set(p.itemId, {
+      unitCost: p.unitCost,
+      date: p.date.toISOString().slice(0, 10),
+    });
+  }
+  return byItem;
+}
+
 /** Références actives sous leur seuil (réappro/réorder, alerte). */
 export async function listLowStockItems(): Promise<InventoryItemView[]> {
   return listInventoryItems({ lowStockOnly: true });
