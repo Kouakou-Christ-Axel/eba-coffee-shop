@@ -15,6 +15,11 @@ import prisma from '@/lib/prisma';
 import { parseDateOnlyToUTC } from '@/lib/timezone';
 import { createExpense, deleteExpense } from '@/lib/expense-mutations';
 import { getInventorySettings } from '@/lib/inventory-settings-db';
+import {
+  computeCountLines,
+  earliestPreviousDate,
+  latestPreviousByItem,
+} from '@/lib/inventory-count-math';
 import { getDaysSinceLastCount, listLowStockItems } from '@/lib/inventory';
 import { sendInventoryReminderEmail } from '@/lib/email';
 import {
@@ -60,7 +65,10 @@ export function recomputePmp(
 async function recomputeItemFromHistory(tx: Tx, itemId: string): Promise<void> {
   const lastLine = await tx.inventoryCountLine.findFirst({
     where: { itemId },
-    orderBy: [{ count: { date: 'desc' } }],
+    // Départage explicite à dates égales : plusieurs comptages peuvent partager
+    // un jour (correctifs). Sans ce second critère, « le dernier comptage »
+    // dépend du plan d'exécution.
+    orderBy: [{ count: { date: 'desc' } }, { count: { createdAt: 'desc' } }],
     include: { count: { select: { date: true } } },
   });
   let qty = lastLine ? num(lastLine.countedQuantity) : 0;
@@ -387,14 +395,91 @@ export async function cancelRestockBatch(batchId: string) {
 
 // ─── Comptage périodique ──────────────────────────────────────────────────────
 
+/**
+ * Enregistre un comptage physique.
+ *
+ * Les lectures sont GROUPÉES (4 requêtes, quel que soit le nombre de lignes) et
+ * le calcul est délégué à `lib/inventory-count-math.ts`. L'implémentation
+ * d'origine faisait 5 requêtes séquentielles PAR LIGNE : sur les 117 références
+ * du catalogue réel, cela frôlait le `timeout` de la transaction — et un
+ * comptage complet qui échoue à l'enregistrement est exactement ce qui décourage
+ * de le refaire.
+ *
+ * Les références absentes de `lines` ne sont pas touchées : un comptage partiel
+ * est un cas normal, pas une anomalie.
+ */
 export async function recordInventoryCount(
   input: unknown,
   createdById?: string
 ) {
   const data = batchCountSchema.parse(input);
   const date = parseDateOnlyToUTC(data.date)!;
+  const itemIds = data.lines.map((l) => l.itemId);
+
   return prisma.$transaction(
     async (tx) => {
+      // 1. PMP courant des articles comptés (et contrôle d'existence).
+      const items = await tx.inventoryItem.findMany({
+        where: { id: { in: itemIds } },
+        select: { id: true, avgUnitCost: true },
+      });
+      const avgUnitCostByItem = new Map(
+        items.map((it) => [it.id, it.avgUnitCost])
+      );
+      const missing = itemIds.find((id) => !avgUnitCostByItem.has(id));
+      if (missing) throw new Error(`Article introuvable : ${missing}`);
+
+      // 2. Tout l'historique de comptage antérieur des articles concernés. Le
+      //    volume est borné (nombre de comptages × références), la sélection du
+      //    plus récent par article se fait ensuite en mémoire.
+      const previousRows = await tx.inventoryCountLine.findMany({
+        where: { itemId: { in: itemIds }, count: { date: { lt: date } } },
+        select: {
+          itemId: true,
+          countedQuantity: true,
+          count: { select: { date: true, createdAt: true } },
+        },
+      });
+      const previousLines = previousRows.map((row) => ({
+        itemId: row.itemId,
+        countedQuantity: num(row.countedQuantity),
+        countDate: row.count.date,
+        sequence: row.count.createdAt.getTime(),
+      }));
+
+      // 3. Achats de la période. La borne basse diffère par article (chacun a
+      //    son propre comptage précédent) : on prend la plus ancienne pour une
+      //    requête unique, le filtrage fin est fait par le calcul pur.
+      const previousByItem = latestPreviousByItem(previousLines, date);
+      const since = earliestPreviousDate(previousByItem, itemIds);
+      const purchaseRows = await tx.inventoryPurchase.findMany({
+        where: {
+          itemId: { in: itemIds },
+          date: { ...(since ? { gt: since } : {}), lte: date },
+        },
+        select: {
+          itemId: true,
+          date: true,
+          quantity: true,
+          batch: { select: { canceledAt: true } },
+        },
+      });
+      const purchases = purchaseRows.map((row) => ({
+        itemId: row.itemId,
+        date: row.date,
+        quantity: num(row.quantity),
+        canceled: Boolean(row.batch?.canceledAt),
+      }));
+
+      const computed = computeCountLines({
+        date,
+        lines: data.lines,
+        previousLines,
+        purchases,
+        avgUnitCostByItem,
+      });
+
+      // 4. Écritures.
       const count = await tx.inventoryCount.create({
         data: {
           date,
@@ -403,54 +488,29 @@ export async function recordInventoryCount(
           createdById: createdById ?? null,
         },
       });
-      for (const l of data.lines) {
-        const item = await tx.inventoryItem.findUnique({
-          where: { id: l.itemId },
-          select: { avgUnitCost: true },
-        });
-        if (!item) throw new Error(`Article introuvable : ${l.itemId}`);
+      await tx.inventoryCountLine.createMany({
+        data: computed.map((line) => ({ ...line, countId: count.id })),
+      });
 
-        const prevLine = await tx.inventoryCountLine.findFirst({
-          where: { itemId: l.itemId, count: { date: { lt: date } } },
-          orderBy: [{ count: { date: 'desc' } }],
-          include: { count: { select: { date: true } } },
-        });
-        const isFirst = !prevLine;
-        const opening = prevLine ? num(prevLine.countedQuantity) : 0;
-        const since = prevLine?.count.date ?? null;
+      // `currentQuantity` diffère par article : un seul UPDATE joint sur une
+      // liste de VALUES, plutôt qu'un aller-retour par ligne.
+      await tx.$executeRaw`
+        UPDATE "inventory_item" AS i
+        SET "currentQuantity" = v.counted, "lastCountedAt" = ${date}::date
+        FROM (VALUES ${Prisma.join(
+          computed.map(
+            (line) =>
+              Prisma.sql`(${line.itemId}::text, ${line.countedQuantity}::numeric)`
+          )
+        )}) AS v(id, counted)
+        WHERE i.id = v.id
+      `;
 
-        const pAgg = await tx.inventoryPurchase.aggregate({
-          where: {
-            itemId: l.itemId,
-            date: { ...(since ? { gt: since } : {}), lte: date },
-            OR: [{ batchId: null }, { batch: { is: { canceledAt: null } } }],
-          },
-          _sum: { quantity: true },
-        });
-        const purchasesQuantity = num(pAgg._sum.quantity);
-        const counted = l.countedQuantity;
-        // Premier comptage = base ; pas de consommation à déduire.
-        const consumption = isFirst ? 0 : opening + purchasesQuantity - counted;
-
-        await tx.inventoryCountLine.create({
-          data: {
-            countId: count.id,
-            itemId: l.itemId,
-            openingQuantity: opening,
-            purchasesQuantity,
-            countedQuantity: counted,
-            consumption,
-            unitCostSnapshot: item.avgUnitCost,
-          },
-        });
-        await tx.inventoryItem.update({
-          where: { id: l.itemId },
-          data: { currentQuantity: counted, lastCountedAt: date },
-        });
-      }
-      return { countId: count.id, lineCount: data.lines.length };
+      return { countId: count.id, lineCount: computed.length };
     },
-    { timeout: 30000 }
+    // `maxWait` par défaut (2 s) : un comptage complet part souvent en même
+    // temps que la caisse, qui tient des connexions du pool.
+    { timeout: 30000, maxWait: 10000 }
   );
 }
 

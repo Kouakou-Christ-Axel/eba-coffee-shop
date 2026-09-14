@@ -1,7 +1,11 @@
-import { listInventoryItems } from '@/lib/inventory';
-import { InventoryCountGrid } from '../inventory-count-grid';
+import { getDaysSinceLastCount, listInventoryItems } from '@/lib/inventory';
+import { CountLauncher } from '../count-launcher';
 
 export async function CountSection() {
-  const items = await listInventoryItems();
-  return <InventoryCountGrid items={items} />;
+  const [items, daysSince] = await Promise.all([
+    listInventoryItems(),
+    getDaysSinceLastCount(),
+  ]);
+
+  return <CountLauncher total={items.length} daysSince={daysSince} />;
 }

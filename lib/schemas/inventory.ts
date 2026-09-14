@@ -167,7 +167,15 @@ export const batchCountSchema = z.object({
     .optional(),
   lines: z
     .array(inventoryCountLineSchema)
-    .min(1, 'Au moins une ligne de comptage'),
+    .min(1, 'Au moins une ligne de comptage')
+    // Une référence ne peut être comptée qu'une fois par comptage : c'est déjà
+    // l'invariant de `InventoryCountLine @@unique([countId, itemId])`, mais il
+    // ne s'y manifesterait que par une P2002 opaque en fin de transaction. Le
+    // calcul groupé de `recordInventoryCount` en dépend également.
+    .refine(
+      (lines) => new Set(lines.map((l) => l.itemId)).size === lines.length,
+      'Une même référence apparaît plusieurs fois dans le comptage'
+    ),
 });
 
 export type BatchCountInput = z.infer<typeof batchCountSchema>;

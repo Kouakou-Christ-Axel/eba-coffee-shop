@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Archive, Loader2, Pencil, Plus } from 'lucide-react';
+import { Archive, ArchiveRestore, Loader2, Pencil, Plus } from 'lucide-react';
 import { Select, SelectItem } from '@heroui/react';
 import {
   Table,
@@ -23,9 +23,12 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import type { InventoryItemView } from '@/lib/inventory';
+import { createFuzzyIndex } from '@/lib/fuzzy-search';
+import { useConfirmDialog } from '../_components/use-confirm-dialog';
 import {
   archiveInventoryItemAction,
   createInventoryItemAction,
+  restoreInventoryItemAction,
   updateInventoryItemAction,
 } from './actions';
 import {
@@ -53,18 +56,29 @@ function numOrUndef(s: string): number | undefined {
 
 export function InventoryTable({
   items,
+  archived,
   categories,
 }: {
   items: InventoryItemView[];
+  archived: InventoryItemView[];
   categories: string[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirmDialog();
+
+  // Une erreur par surface. Un seul état partagé faisait apparaître l'échec
+  // d'un archivage à la fois dans la barre d'outils ET dans les deux sheets
+  // ouverts, chacun l'attribuant à sa propre action.
+  const [listError, setListError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [showArchived, setShowArchived] = useState(false);
+
+  const visibleItems = showArchived ? archived : items;
 
   // Sheet de création.
   const [createOpen, setCreateOpen] = useState(false);
@@ -74,36 +88,47 @@ export function InventoryTable({
   const [editItem, setEditItem] = useState<InventoryItemView | null>(null);
   const [editValues, setEditValues] = useState<ItemFormValues>(emptyItem);
 
+  // Recherche partagée plutôt qu'un `includes()` maison : celui-ci était
+  // sensible aux accents (« cafe » ne trouvait pas « Café ») et à l'ordre des
+  // mots. Indexation mémoïsée sur la référence du tableau, jamais à la frappe.
+  const index = useMemo(
+    () =>
+      createFuzzyIndex(visibleItems, {
+        keys: [
+          { name: 'name' },
+          { name: 'sku', weight: 0.5 },
+          { name: 'category', weight: 0.3 },
+        ],
+      }),
+    [visibleItems]
+  );
+
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return items.filter((it) => {
-      if (categoryFilter !== 'all' && (it.category ?? '') !== categoryFilter) {
-        return false;
-      }
-      if (!q) return true;
-      return (
-        it.name.toLowerCase().includes(q) || it.sku.toLowerCase().includes(q)
-      );
-    });
-  }, [items, search, categoryFilter]);
+    const query = search.trim();
+    const base =
+      query === '' ? visibleItems : index.search(query).map((h) => h.item);
+    return base.filter(
+      (it) => categoryFilter === 'all' || (it.category ?? '') === categoryFilter
+    );
+  }, [visibleItems, index, search, categoryFilter]);
 
   function openCreate() {
-    setError(null);
+    setFormError(null);
     setCreateValues(emptyItem);
     setCreateOpen(true);
   }
 
   function openEdit(item: InventoryItemView) {
-    setError(null);
+    setFormError(null);
     setEditItem(item);
     setEditValues(itemFromView(item));
   }
 
   function submitCreate() {
-    setError(null);
+    setFormError(null);
     const v = createValues;
     if (!v.name.trim()) {
-      setError('Le nom est obligatoire.');
+      setFormError('Le nom est obligatoire.');
       return;
     }
     const input = {
@@ -120,7 +145,7 @@ export function InventoryTable({
     startTransition(async () => {
       const r = await createInventoryItemAction(input);
       if (!r.ok) {
-        setError(r.error);
+        setFormError(r.error);
         return;
       }
       setCreateOpen(false);
@@ -130,10 +155,10 @@ export function InventoryTable({
 
   function submitEdit() {
     if (!editItem) return;
-    setError(null);
+    setFormError(null);
     const v = editValues;
     if (!v.name.trim()) {
-      setError('Le nom est obligatoire.');
+      setFormError('Le nom est obligatoire.');
       return;
     }
     const input = {
@@ -149,7 +174,7 @@ export function InventoryTable({
     startTransition(async () => {
       const r = await updateInventoryItemAction(id, input);
       if (!r.ok) {
-        setError(r.error);
+        setFormError(r.error);
         return;
       }
       setEditItem(null);
@@ -157,21 +182,35 @@ export function InventoryTable({
     });
   }
 
-  function archive(item: InventoryItemView) {
-    if (
-      !window.confirm(
-        `Archiver la référence « ${item.name} » ? Elle n’apparaîtra plus dans la liste.`
-      )
-    ) {
-      return;
-    }
-    setError(null);
+  async function archive(item: InventoryItemView) {
+    const confirmed = await confirm({
+      title: 'Archiver la référence',
+      message: `« ${item.name} » n’apparaîtra plus dans la liste ni dans les comptages. Son historique est conservé et elle peut être restaurée.`,
+      confirmLabel: 'Archiver',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setListError(null);
     setPendingId(item.id);
     startTransition(async () => {
       const r = await archiveInventoryItemAction(item.id);
       setPendingId(null);
       if (!r.ok) {
-        setError(r.error);
+        setListError(r.error);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  function restore(item: InventoryItemView) {
+    setListError(null);
+    setPendingId(item.id);
+    startTransition(async () => {
+      const r = await restoreInventoryItemAction(item.id);
+      setPendingId(null);
+      if (!r.ok) {
+        setListError(r.error);
         return;
       }
       router.refresh();
@@ -206,6 +245,18 @@ export function InventoryTable({
             </>
           </>
         </Select>
+        {archived.length > 0 && (
+          <Button
+            size="sm"
+            variant={showArchived ? 'secondary' : 'ghost'}
+            onClick={() => setShowArchived((v) => !v)}
+            aria-pressed={showArchived}
+          >
+            {showArchived
+              ? 'Voir les actives'
+              : `Archivées (${archived.length})`}
+          </Button>
+        )}
         <div className="ml-auto">
           <Button size="sm" onClick={openCreate}>
             <Plus className="mr-1.5 h-4 w-4" />
@@ -214,7 +265,11 @@ export function InventoryTable({
         </div>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {listError && (
+        <p className="text-sm text-destructive" role="alert">
+          {listError}
+        </p>
+      )}
 
       <div className="overflow-x-auto">
         <Table>
@@ -277,14 +332,20 @@ export function InventoryTable({
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => archive(it)}
+                      onClick={() => (it.active ? archive(it) : restore(it))}
                       disabled={pendingId === it.id}
-                      aria-label="Archiver la référence"
+                      aria-label={
+                        it.active
+                          ? 'Archiver la référence'
+                          : 'Restaurer la référence'
+                      }
                     >
                       {pendingId === it.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
+                      ) : it.active ? (
                         <Archive className="h-4 w-4 text-destructive" />
+                      ) : (
+                        <ArchiveRestore className="h-4 w-4" />
                       )}
                     </Button>
                   </div>
@@ -297,7 +358,9 @@ export function InventoryTable({
                   colSpan={9}
                   className="py-8 text-center text-sm text-muted-foreground"
                 >
-                  Aucune référence.
+                  {showArchived
+                    ? 'Aucune référence archivée.'
+                    : 'Aucune référence.'}
                 </TableCell>
               </TableRow>
             )}
@@ -315,8 +378,17 @@ export function InventoryTable({
             </SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-4">
-            <ItemForm values={createValues} onChange={setCreateValues} isNew />
-            {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+            <ItemForm
+              values={createValues}
+              onChange={setCreateValues}
+              isNew
+              categories={categories}
+            />
+            {formError && (
+              <p className="mt-3 text-sm text-destructive" role="alert">
+                {formError}
+              </p>
+            )}
             <Button className="mt-4" onClick={submitCreate} disabled={pending}>
               {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Créer
@@ -344,8 +416,13 @@ export function InventoryTable({
               values={editValues}
               onChange={setEditValues}
               isNew={false}
+              categories={categories}
             />
-            {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+            {formError && (
+              <p className="mt-3 text-sm text-destructive" role="alert">
+                {formError}
+              </p>
+            )}
             <Button className="mt-4" onClick={submitEdit} disabled={pending}>
               {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Enregistrer
@@ -353,6 +430,8 @@ export function InventoryTable({
           </div>
         </SheetContent>
       </Sheet>
+
+      {confirmDialog}
     </div>
   );
 }

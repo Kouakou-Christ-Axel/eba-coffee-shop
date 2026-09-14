@@ -1,4 +1,5 @@
-'use client';
+import Link from 'next/link';
+import { ChevronRight } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -44,9 +45,21 @@ export function CountHistory({ counts }: { counts: Count[] }) {
             <TableBody>
               {counts.map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell>{c.date}</TableCell>
+                  <TableCell>
+                    {/* La ligne mène au rapport de période : `getInventoryCount`
+                        le calculait déjà, rien ne l'affichait. */}
+                    <Link
+                      href={`/dashboard/inventaire/comptages/${c.id}`}
+                      className="flex min-h-11 items-center gap-1 font-medium hover:underline"
+                    >
+                      {c.date}
+                      <ChevronRight className="size-4 text-muted-foreground" />
+                    </Link>
+                  </TableCell>
                   <TableCell>{c.label || '—'}</TableCell>
-                  <TableCell>{f.format(c.lineCount)}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {f.format(c.lineCount)}
+                  </TableCell>
                   <TableCell>{c.by || '—'}</TableCell>
                 </TableRow>
               ))}

@@ -182,6 +182,14 @@ export const ORDER_TRACKING_POLL_FAST_INTERVAL_MS = 5_000;
 export const CART_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * Péremption du brouillon de comptage d'inventaire
+ * (lib/hooks/use-inventory-count.ts). Plus long que le panier, et volontairement :
+ * un inventaire commencé le vendredi et fini le lundi est un cas normal sur 117
+ * références — une quinzaine, non.
+ */
+export const INVENTORY_COUNT_DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
  * Historique local « mes commandes » (lib/order-history.ts) : nombre max de
  * commandes conservées par appareil (localStorage, sans compte).
  */

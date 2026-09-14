@@ -50,7 +50,7 @@ import {
   BOTTOM_SHEET_PLACEMENT,
   SHEET_OVERLAY_TOP,
   bottomSheetClassNames,
-} from './_components/bottom-sheet';
+} from '@/lib/bottom-sheet';
 import { ShareProductButton } from './_components/share-product-button';
 
 type SupplementModalProps = {
@@ -285,7 +285,7 @@ function SupplementModal({
       isOpen={isOpen}
       onClose={onClose}
       // Bottom sheet plein écran sur mobile, dialogue centré sur desktop
-      // (voir _components/bottom-sheet.ts).
+      // (voir lib/bottom-sheet.ts).
       placement={BOTTOM_SHEET_PLACEMENT}
       size="md"
       scrollBehavior="inside"

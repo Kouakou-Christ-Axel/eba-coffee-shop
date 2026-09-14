@@ -172,6 +172,12 @@ export type InventorySummary = {
   lowStockCount: number;
   stockValue: number;
   neverCounted: number;
+  /**
+   * Références actives ayant un PMP non nul. `stockValue` ne vaut que ce que
+   * vaut ce compteur : tant qu'aucun réappro chiffré n'a été saisi, le PMP est
+   * à 0 partout et la valeur du stock est un zéro trompeur, pas une mesure.
+   */
+  valuedCount: number;
 };
 
 /** KPIs de l'inventaire (références actives). */
@@ -189,12 +195,14 @@ export async function getInventorySummary(): Promise<InventorySummary> {
   let lowStockCount = 0;
   let stockValue = 0;
   let neverCounted = 0;
+  let valuedCount = 0;
   for (const it of items) {
     const qty = num(it.currentQuantity);
     const threshold =
       it.reorderPoint === null ? num(it.safetyStock) : num(it.reorderPoint);
     if (threshold > 0 && qty <= threshold) lowStockCount++;
     stockValue += Math.round(qty * it.avgUnitCost);
+    if (it.avgUnitCost > 0) valuedCount++;
     if (!it.lastCountedAt) neverCounted++;
   }
   return {
@@ -202,7 +210,40 @@ export async function getInventorySummary(): Promise<InventorySummary> {
     lowStockCount,
     stockValue,
     neverCounted,
+    valuedCount,
   };
+}
+
+/**
+ * Dernier coût unitaire connu par référence, lots annulés exclus.
+ *
+ * Sert à proposer un prix au réappro. On ne peut pas se reposer sur
+ * `avgUnitCost` : le PMP vaut 0 tant qu'aucun achat chiffré n'a été saisi —
+ * c'est le cas de tout le catalogue aujourd'hui — et pré-remplir un coût à 0
+ * est pire que ne rien pré-remplir, puisque la valeur passe la validation et
+ * empoisonne le PMP en se faisant passer pour un prix décidé.
+ */
+export async function listLastPurchaseCosts(): Promise<
+  Map<string, { unitCost: number; date: string }>
+> {
+  const purchases = await prisma.inventoryPurchase.findMany({
+    where: {
+      unitCost: { gt: 0 },
+      OR: [{ batchId: null }, { batch: { is: { canceledAt: null } } }],
+    },
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    select: { itemId: true, unitCost: true, date: true },
+  });
+  const byItem = new Map<string, { unitCost: number; date: string }>();
+  for (const p of purchases) {
+    // Trié du plus récent au plus ancien : le premier vu par article gagne.
+    if (byItem.has(p.itemId)) continue;
+    byItem.set(p.itemId, {
+      unitCost: p.unitCost,
+      date: p.date.toISOString().slice(0, 10),
+    });
+  }
+  return byItem;
 }
 
 /** Références actives sous leur seuil (réappro/réorder, alerte). */

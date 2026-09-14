@@ -1,6 +1,11 @@
 'use client';
 
-import { Select, SelectItem } from '@heroui/react';
+import {
+  Autocomplete,
+  AutocompleteItem,
+  Select,
+  SelectItem,
+} from '@heroui/react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -57,10 +62,13 @@ export function ItemForm({
   values,
   onChange,
   isNew,
+  categories,
 }: {
   values: ItemFormValues;
   onChange: (v: ItemFormValues) => void;
   isNew: boolean;
+  /** Catégories déjà utilisées, proposées à la saisie. */
+  categories: string[];
 }) {
   function set<K extends keyof ItemFormValues>(
     key: K,
@@ -100,12 +108,29 @@ export function ItemForm({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="inv-category">Catégorie (optionnel)</Label>
-          <Input
+          {/* Saisie libre assistée, et non un simple champ texte : la catégorie
+              alimente les filtres ET les puces de zone du comptage. Une faute
+              de frappe ou une casse différente y créait durablement une zone
+              fantôme, sans que rien ne le signale. On garde la création à la
+              volée — `allowsCustomValue` — mais l'existant est proposé. */}
+          <Autocomplete
             id="inv-category"
-            value={values.category}
-            onChange={(e) => set('category', e.target.value)}
-            placeholder="Ex. Boissons"
-          />
+            aria-label="Catégorie"
+            allowsCustomValue
+            defaultItems={categories.map((c) => ({ key: c, label: c }))}
+            inputValue={values.category}
+            onInputChange={(v) => set('category', v)}
+            onSelectionChange={(key) => {
+              if (key !== null) set('category', String(key));
+            }}
+            placeholder="Ex. Emballage"
+          >
+            {(category: { key: string; label: string }) => (
+              <AutocompleteItem key={category.key}>
+                {category.label}
+              </AutocompleteItem>
+            )}
+          </Autocomplete>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="inv-safety">Stock de sécurité</Label>
