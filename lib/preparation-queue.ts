@@ -15,7 +15,7 @@ import { PRODUCTION_PLAN_DAYS } from '@/config/constants';
 import { coalesceAsyncByKey } from '@/lib/async-coalesce';
 import { getOrdersGeneration } from '@/lib/postgres-notify';
 import type { CartItem } from '@/lib/cart-store';
-import type { OrderType } from '@/generated/prisma/client';
+import type { OrderSource, OrderType } from '@/generated/prisma/client';
 
 export type PreparationOrder = {
   id: string;
@@ -28,6 +28,9 @@ export type PreparationOrder = {
   items: CartItem[];
   note: string | null;
   total: number;
+  // Origine de création : distingue en-ligne / caisse / MCP, même badge
+  // qu'en caisse (cf. `lib/cashier-queue.ts`).
+  source: OrderSource;
   // La cuisine voit les commandes EN cours (PREPARING), celles prêtes en
   // attente de récupération (READY) — pour emballer et suivre les clients qui
   // tardent — ET, depuis les commandes différées, les NEW À CRÉNEAU pas encore
@@ -133,6 +136,7 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     items: o.items as CartItem[],
     note: o.note,
     total: o.total,
+    source: o.source,
     status: o.status as 'NEW' | 'PREPARING' | 'READY',
     isPaid: o.isPaid,
     driverRequested: o.driverRequested,

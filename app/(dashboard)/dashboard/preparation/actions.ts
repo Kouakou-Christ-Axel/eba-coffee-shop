@@ -96,6 +96,24 @@ export async function markOrderRetrieved(id: string): Promise<void> {
 }
 
 /**
+ * Défait une récupération (COMPLETED → statut précédent, READY ou
+ * PREPARING selon d'où venait le geste — cf. `markOrderRetrieved` qui accepte
+ * les deux origines). Appelée par le toast « Annuler » de `useUndoToast`
+ * (10 s), sur le même principe que la caisse (`order-card-actions.tsx`).
+ */
+export async function revertOrderRetrieved(
+  id: string,
+  to: 'READY' | 'PREPARING'
+): Promise<void> {
+  const session = await requireKitchen();
+  await setOrderStatus(id, to, session.user.role as UserRole);
+
+  revalidatePath('/dashboard/preparation');
+  revalidatePath('/dashboard/caisse');
+  revalidatePath('/dashboard/commandes');
+}
+
+/**
  * DÉLIBÉRÉMENT laissée en `updateMany` brut, contrairement à `markOrderReady` :
  * `KITCHEN` n'appartient pas à `CASHIER_PLUS`, or PREPARING → CANCELLED est
  * réservé à `CASHIER_PLUS` (lib/order-permissions.ts). Passer par

@@ -15,8 +15,10 @@ import {
   markOrderReady,
   markOrderRetrieved,
   requestDriver,
+  revertOrderRetrieved,
   startPreparation,
 } from './actions';
+import { UndoToastProvider, useUndoToast } from '@/lib/hooks/use-undo-toast';
 import { useShortageConfirm } from '../_components/use-shortage-confirm';
 import { type PreparationOrder } from '@/lib/preparation-queue';
 import type { MenuCategory } from '@/config/menu';
@@ -67,7 +69,18 @@ function normalize(raw: unknown): PreparationOrder {
   return normalizeOrderDates(raw as RawPreparationOrder);
 }
 
-export function PreparationView({
+export function PreparationView(props: {
+  initialQueue: PreparationOrder[];
+  menu: MenuCategory[];
+}) {
+  return (
+    <UndoToastProvider>
+      <PreparationViewInner {...props} />
+    </UndoToastProvider>
+  );
+}
+
+function PreparationViewInner({
   initialQueue,
   menu,
 }: {
@@ -93,6 +106,7 @@ export function PreparationView({
   const { soundEnabled, soundEnabledRef, toggleSound } =
     useSoundPreference(SOUND_STORAGE_KEY);
   const { confirmShortage, shortageDialog } = useShortageConfirm();
+  const { pushUndo } = useUndoToast();
   const now = useNowTick(15_000);
 
   // Confirmation de création : `/dashboard/preparation/new` redirige ici avec
@@ -219,10 +233,23 @@ export function PreparationView({
 
   const handleRetrieved = useCallback(
     (id: string) => {
+      // Le statut précédent (READY normalement, PREPARING pour une
+      // récupération anticipée) détermine où revenir en cas d'« Annuler ».
+      const order = orders.find((o) => o.id === id);
+      const previousStatus = order?.status;
       setPending(id, true);
       startTransition(async () => {
         try {
           await markOrderRetrieved(id);
+          if (
+            order &&
+            (previousStatus === 'READY' || previousStatus === 'PREPARING')
+          ) {
+            pushUndo({
+              message: `Commande #${String(order.dailyNumber).padStart(3, '0')} marquée récupérée`,
+              onUndo: () => revertOrderRetrieved(id, previousStatus),
+            });
+          }
         } catch (err) {
           console.error('[preparation] markOrderRetrieved échoué :', err);
         } finally {
@@ -230,7 +257,7 @@ export function PreparationView({
         }
       });
     },
-    [setPending]
+    [setPending, orders, pushUndo]
   );
 
   /**
@@ -380,6 +407,7 @@ export function PreparationView({
                 onReady={handleReady}
                 onCancel={handleCancel}
                 onRequestDriver={handleRequestDriver}
+                onRetrieve={handleRetrieved}
               />
             ))}
           </div>

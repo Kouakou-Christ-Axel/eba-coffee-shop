@@ -32,7 +32,7 @@ import {
   buildWhatsAppLink,
 } from '@/lib/contact-links';
 import { OrderItemsEditor } from '../../_components/order-items-editor';
-import { ORDER_TYPE_META } from './prep-order-card';
+import { ORDER_TYPE_META, SOURCE_META } from './prep-order-card';
 import {
   elapsedMinutes,
   elapsedTone,
@@ -169,6 +169,16 @@ function OrderDetailBody({
                 <span className="truncate font-semibold">
                   {order.customerName ?? 'Client anonyme'}
                 </span>
+                {SOURCE_META[order.source] &&
+                  (() => {
+                    const { Icon, label } = SOURCE_META[order.source]!;
+                    return (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                        {label}
+                      </span>
+                    );
+                  })()}
               </p>
             </SheetDescription>
           </div>
@@ -322,28 +332,41 @@ function OrderDetailBody({
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-[1fr_2.5fr] gap-3">
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-[1fr_2.5fr] gap-3">
+              <button
+                type="button"
+                onClick={() => onCancel(order.id)}
+                disabled={pending}
+                aria-label="Annuler"
+                className="flex items-center justify-center rounded-xl border border-red-200 bg-red-50 py-4 text-red-700 transition-colors hover:bg-red-100 active:bg-red-200 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300"
+              >
+                <X className="h-7 w-7" strokeWidth={2.5} />
+              </button>
+              <button
+                type="button"
+                onClick={() => onReady(order.id)}
+                disabled={pending}
+                className="flex items-center justify-center gap-2 rounded-xl bg-green-600 py-4 text-xl font-bold text-white shadow-sm transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-50"
+              >
+                {pending ? (
+                  <ChefHat className="h-7 w-7 animate-pulse" />
+                ) : (
+                  <Check className="h-7 w-7" strokeWidth={3} />
+                )}
+                Prête
+              </button>
+            </div>
+            {/* Récupération anticipée : discrète, le client peut repartir
+                avant la fin de la préparation affichée à l'écran. */}
             <button
               type="button"
-              onClick={() => onCancel(order.id)}
+              onClick={() => onRetrieve(order.id)}
               disabled={pending}
-              aria-label="Annuler"
-              className="flex items-center justify-center rounded-xl border border-red-200 bg-red-50 py-4 text-red-700 transition-colors hover:bg-red-100 active:bg-red-200 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300"
+              className="flex items-center justify-center gap-1.5 rounded-xl py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
             >
-              <X className="h-7 w-7" strokeWidth={2.5} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onReady(order.id)}
-              disabled={pending}
-              className="flex items-center justify-center gap-2 rounded-xl bg-green-600 py-4 text-xl font-bold text-white shadow-sm transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-50"
-            >
-              {pending ? (
-                <ChefHat className="h-7 w-7 animate-pulse" />
-              ) : (
-                <Check className="h-7 w-7" strokeWidth={3} />
-              )}
-              Prête
+              <CheckCheck className="h-4 w-4" strokeWidth={2.5} />
+              Marquer récupérée
             </button>
           </div>
         )}
