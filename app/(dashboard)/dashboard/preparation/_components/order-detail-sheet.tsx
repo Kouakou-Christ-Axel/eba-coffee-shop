@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
-import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
+import { aggregateOrderSupplements, getPickupCode } from '@/lib/orders/format';
 import { formatPickup } from '@/lib/orders/scheduling';
 import { TrackingLinkButton } from '@/components/(dashboard)/tracking-link-button';
 import type { PreparationOrder } from '@/lib/preparation-queue';
@@ -144,6 +144,7 @@ function OrderDetailBody({
   const mins = elapsedMinutes(since, now);
   const prepTone = elapsedTone(mins, KITCHEN_WARN_MIN, KITCHEN_ALERT_MIN);
   const readyLate = isReady && mins >= READY_WAIT_ALERT_MINUTES;
+  const supplementLines = aggregateOrderSupplements(order.items);
 
   return (
     <>
@@ -234,21 +235,40 @@ function OrderDetailBody({
                   </span>
                 )}
               </span>
-              {item.supplements.length > 0 && (
-                <ul className="mt-1 pl-10">
-                  {item.supplements.map((s) => (
-                    <li
-                      key={`${s.groupName}:${s.optionName}`}
-                      className="text-lg font-semibold text-secondary-600"
-                    >
-                      + {formatSupplementLabel(s)}
-                    </li>
-                  ))}
-                </ul>
-              )}
             </li>
           ))}
         </ul>
+
+        {/* Zone Suppléments : séparée des articles, fusionnée par produit +
+            jeu de suppléments avec quantité totale explicite (voir
+            aggregateOrderSupplements) pour ne jamais lire "1" là où il y en
+            a 2. */}
+        {supplementLines.length > 0 && (
+          <div className="mt-4 rounded-xl border border-secondary-200 bg-secondary-50/60 p-4 dark:border-secondary-900 dark:bg-secondary-950/20">
+            <p className="text-sm font-bold uppercase tracking-wide text-secondary-700 dark:text-secondary-300">
+              Suppléments
+            </p>
+            <ul className="mt-2 space-y-2">
+              {supplementLines.map((line) => (
+                <li key={line.key} className="text-lg">
+                  <span className="font-bold">
+                    {line.productName}
+                    {line.quantity > 1 ? ` ×${line.quantity}` : ''}
+                  </span>{' '}
+                  <span className="font-semibold text-secondary-700 dark:text-secondary-300">
+                    {line.supplements
+                      .map((s) =>
+                        s.quantity > 1
+                          ? `${s.optionName} ×${s.quantity}`
+                          : s.optionName
+                      )
+                      .join(', ')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Actions fixes en bas */}
