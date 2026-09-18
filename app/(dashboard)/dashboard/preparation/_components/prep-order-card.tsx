@@ -3,9 +3,12 @@
 import { formatAbidjanTime } from '@/lib/timezone';
 import {
   Bike,
+  Bot,
   Check,
+  CheckCheck,
   ChefHat,
   Coffee,
+  Globe,
   Maximize2,
   ShoppingBag,
   StickyNote,
@@ -38,6 +41,16 @@ export const ORDER_TYPE_META: Record<
   TAKEAWAY: { label: 'À emporter', Icon: ShoppingBag },
 };
 
+// Origine de création : même patron que la caisse
+// (`app/(dashboard)/dashboard/caisse/order-card.tsx`) — le cas courant
+// CASHIER n'affiche rien, ONLINE/MCP se distinguent d'un coup d'œil.
+export const SOURCE_META: Partial<
+  Record<PreparationOrder['source'], { label: string; Icon: typeof Globe }>
+> = {
+  ONLINE: { label: 'En ligne', Icon: Globe },
+  MCP: { label: 'MCP', Icon: Bot },
+};
+
 type Props = {
   order: PreparationOrder;
   now: Date;
@@ -46,6 +59,7 @@ type Props = {
   onReady: (id: string) => void;
   onCancel: (id: string) => void;
   onRequestDriver: (id: string) => void;
+  onRetrieve: (id: string) => void;
 };
 
 export function PrepOrderCard({
@@ -56,6 +70,7 @@ export function PrepOrderCard({
   onReady,
   onCancel,
   onRequestDriver,
+  onRetrieve,
 }: Props) {
   const typeMeta = ORDER_TYPE_META[order.orderType];
   const TypeIcon = typeMeta.Icon;
@@ -116,6 +131,16 @@ export function PrepOrderCard({
               <span className="truncate font-medium">
                 {order.customerName ?? 'Client anonyme'}
               </span>
+              {SOURCE_META[order.source] &&
+                (() => {
+                  const { Icon, label } = SOURCE_META[order.source]!;
+                  return (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                      <Icon className="h-3 w-3" aria-hidden="true" />
+                      {label}
+                    </span>
+                  );
+                })()}
             </p>
           </div>
           <span
@@ -258,6 +283,18 @@ export function PrepOrderCard({
           Prête
         </button>
       </div>
+
+      {/* Récupération anticipée : discrète, pour ne pas concurrencer « Prête »
+          — le client peut repartir avant la fin de la préparation affichée. */}
+      <button
+        type="button"
+        onClick={() => onRetrieve(order.id)}
+        disabled={pending}
+        className="flex items-center justify-center gap-1 border-t py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
+      >
+        <CheckCheck className="h-3 w-3" strokeWidth={2.5} />
+        Marquer récupérée
+      </button>
     </article>
   );
 }

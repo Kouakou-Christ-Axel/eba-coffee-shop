@@ -54,10 +54,15 @@ describe('order-permissions — undo (transitions inverses, 10 s)', () => {
   it('la cuisine peut défaire les transitions qu’elle peut elle-même faire', () => {
     expect(canTransition('PREPARING', 'NEW', 'KITCHEN')).toBe(true);
     expect(canTransition('READY', 'PREPARING', 'KITCHEN')).toBe(true);
+    // La cuisine peut marquer une commande récupérée depuis READY ou
+    // directement depuis PREPARING (retrait anticipé) : elle doit pouvoir
+    // défaire chacun de ces deux gestes.
+    expect(canTransition('COMPLETED', 'READY', 'KITCHEN')).toBe(true);
+    expect(canTransition('COMPLETED', 'PREPARING', 'KITCHEN')).toBe(true);
   });
 
-  it('la cuisine ne peut pas défaire une remise (COMPLETED→READY)', () => {
-    expect(canTransition('COMPLETED', 'READY', 'KITCHEN')).toBe(false);
+  it('la cuisine peut récupérer directement une commande en préparation', () => {
+    expect(canTransition('PREPARING', 'COMPLETED', 'KITCHEN')).toBe(true);
   });
 
   it('un caissier peut annuler une annulation, vers n’importe quel statut antérieur', () => {

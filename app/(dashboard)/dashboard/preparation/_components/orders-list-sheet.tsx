@@ -17,7 +17,7 @@ import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
 import { formatPickup } from '@/lib/orders/scheduling';
 import { TrackingLinkButton } from '@/components/(dashboard)/tracking-link-button';
 import type { PreparationOrder } from '@/lib/preparation-queue';
-import { ORDER_TYPE_META } from './prep-order-card';
+import { ORDER_TYPE_META, SOURCE_META } from './prep-order-card';
 import { elapsedMinutes, formatElapsed } from './elapsed';
 
 export type OrdersListVariant = 'scheduled' | 'ready';
@@ -209,6 +209,16 @@ function OrdersListRow({
           <span className="truncate font-medium text-foreground">
             {order.customerName ?? 'Client anonyme'}
           </span>
+          {SOURCE_META[order.source] &&
+            (() => {
+              const { Icon, label } = SOURCE_META[order.source]!;
+              return (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  <Icon className="h-3 w-3" aria-hidden="true" />
+                  {label}
+                </span>
+              );
+            })()}
         </p>
 
         <ul className="text-base leading-snug">
@@ -275,6 +285,22 @@ function OrdersListRow({
           >
             <CheckCheck className="h-4 w-4" strokeWidth={2.5} />
             Récupérée
+          </button>
+        </div>
+      )}
+
+      {/* Récupération anticipée (commande déjà en cuisine mais programmée
+          loin) : discrète, le geste normal reste « Lancer »/« Prête ». */}
+      {!isReady && order.status === 'PREPARING' && (
+        <div className="px-4 pb-3">
+          <button
+            type="button"
+            onClick={() => onRetrieve(order.id)}
+            disabled={pending}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
+          >
+            <CheckCheck className="h-3.5 w-3.5" strokeWidth={2.5} />
+            Marquer récupérée
           </button>
         </div>
       )}

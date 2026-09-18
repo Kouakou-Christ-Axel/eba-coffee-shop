@@ -26,6 +26,11 @@ const TRANSITIONS: readonly Transition[] = [
   // KITCHEN inclus : le cuisinier peut aussi remettre la commande au client
   // et la marquer récupérée, sans attendre la caisse.
   { from: 'READY', to: 'COMPLETED', roles: [...CASHIER_PLUS, 'KITCHEN'] },
+  // Récupération directe depuis la cuisine, sans passer par « Prête » : le
+  // client peut repartir avec sa commande avant la fin de la préparation
+  // affichée à l'écran (ex. retrait anticipé). Bouton volontairement discret
+  // côté UI, mêmes rôles que la récupération normale.
+  { from: 'PREPARING', to: 'COMPLETED', roles: KITCHEN_PLUS },
 
   // Annulations / remboursements : tout caissier peut annuler une commande
   // active. Annuler une commande déjà payée vaut remboursement.
@@ -34,11 +39,14 @@ const TRANSITIONS: readonly Transition[] = [
   { from: 'READY', to: 'CANCELLED', roles: CASHIER_PLUS },
   { from: 'COMPLETED', to: 'CANCELLED', roles: CASHIER_PLUS },
 
-  // Annulations inverses (undo caisse, 10 s — cf. useUndoToast) : mêmes
-  // rôles que la transition qu'elles défont.
+  // Annulations inverses (undo caisse/cuisine, 10 s — cf. useUndoToast) :
+  // mêmes rôles que la transition qu'elles défont.
   { from: 'PREPARING', to: 'NEW', roles: KITCHEN_PLUS },
   { from: 'READY', to: 'PREPARING', roles: KITCHEN_PLUS },
-  { from: 'COMPLETED', to: 'READY', roles: CASHIER_PLUS },
+  // KITCHEN inclus : la cuisine doit pouvoir annuler sa propre récupération.
+  { from: 'COMPLETED', to: 'READY', roles: [...CASHIER_PLUS, 'KITCHEN'] },
+  // Undo de la récupération directe depuis PREPARING (cf. ci-dessus).
+  { from: 'COMPLETED', to: 'PREPARING', roles: KITCHEN_PLUS },
   { from: 'CANCELLED', to: 'NEW', roles: CASHIER_PLUS },
   { from: 'CANCELLED', to: 'PREPARING', roles: CASHIER_PLUS },
   { from: 'CANCELLED', to: 'READY', roles: CASHIER_PLUS },
