@@ -13,7 +13,7 @@ import {
   LAUNCH_ALERT_MINUTES,
   READY_WAIT_ALERT_MINUTES,
 } from '@/config/constants';
-import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
+import { aggregateOrderSupplements, getPickupCode } from '@/lib/orders/format';
 import { formatPickup } from '@/lib/orders/scheduling';
 import { TrackingLinkButton } from '@/components/(dashboard)/tracking-link-button';
 import type { PreparationOrder } from '@/lib/preparation-queue';
@@ -148,6 +148,7 @@ function OrdersListRow({
     awaitingLaunch &&
     untilPickup !== null &&
     untilPickup <= LAUNCH_ALERT_MINUTES;
+  const supplementLines = aggregateOrderSupplements(order.items);
 
   return (
     <li
@@ -227,16 +228,40 @@ function OrdersListRow({
               <span className="font-semibold text-foreground">
                 {item.quantity}× {item.productName}
               </span>
-              {item.supplements.length > 0 && (
-                <span className="ml-1 block pl-4 text-sm font-semibold text-secondary-600">
-                  {item.supplements
-                    .map((s) => `+ ${formatSupplementLabel(s)}`)
-                    .join('  ')}
-                </span>
-              )}
             </li>
           ))}
         </ul>
+
+        {/* Zone Suppléments : séparée des articles, fusionnée par produit +
+            jeu de suppléments avec quantité totale explicite (voir
+            aggregateOrderSupplements) pour ne jamais lire "1" là où il y en
+            a 2. */}
+        {supplementLines.length > 0 && (
+          <div className="rounded-lg border border-secondary-200 bg-secondary-50/60 p-2 dark:border-secondary-900 dark:bg-secondary-950/20">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-secondary-700 dark:text-secondary-300">
+              Suppléments
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              {supplementLines.map((line) => (
+                <li key={line.key} className="text-sm">
+                  <span className="font-semibold">
+                    {line.productName}
+                    {line.quantity > 1 ? ` ×${line.quantity}` : ''}
+                  </span>{' '}
+                  <span className="text-secondary-700 dark:text-secondary-300">
+                    {line.supplements
+                      .map((s) =>
+                        s.quantity > 1
+                          ? `${s.optionName} ×${s.quantity}`
+                          : s.optionName
+                      )
+                      .join(', ')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {readyLate && (
           <p className="text-sm font-semibold text-red-700 dark:text-red-300">
