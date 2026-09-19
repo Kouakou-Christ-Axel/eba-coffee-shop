@@ -14,6 +14,7 @@ import { PickupLocationForm } from './_components/pickup-location-form';
 import { GeneralSettingsForm } from './_components/general-settings-form';
 import { WeeklyHoursForm } from './_components/weekly-hours-form';
 import { DateOverridesForm } from './_components/date-overrides-form';
+import { ExtendClosingWidget } from './_components/extend-closing-widget';
 
 export function ParametresView({
   initialSettings,
@@ -67,6 +68,7 @@ export function ParametresView({
         </p>
       </header>
 
+      <ExtendClosingWidget settings={settings} onExtended={setSettings} />
       <PickupLocationForm settings={settings} onUpdate={update} />
       <GeneralSettingsForm settings={settings} onUpdate={update} />
       <WeeklyHoursForm
