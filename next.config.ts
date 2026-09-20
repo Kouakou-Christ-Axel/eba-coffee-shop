@@ -9,6 +9,9 @@ const isProduction = process.env.NODE_ENV === 'production';
 // domaines n'entrent dans la CSP que s'il est réellement configuré — pas de
 // script-src élargi « au cas où » sur une installation qui ne s'en sert pas.
 const hasMetaPixel = Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID);
+// OneSignal (push marketing, site public — cf. components/analytics/onesignal.tsx),
+// même logique conditionnelle : ses domaines n'entrent dans la CSP que si configuré.
+const hasOneSignal = Boolean(process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID);
 
 // ─── Content Security Policy ─────────────────────────────────────────────────
 //
@@ -41,6 +44,9 @@ const hasMetaPixel = Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID);
 //   Ads, TikTok Pixel…) ne suffira PAS : son domaine doit être ajouté ici, puis
 //   l'app redéployée, sinon le navigateur le bloque. Le pixel Meta, lui, est
 //   câblé nativement (variable d'env ci-dessus) — inutile de l'ajouter à GTM.
+// - OneSignal (`cdn.onesignal.com` pour le SDK/service worker, `onesignal.com`
+//   pour les appels API du SDK) : ouvert UNIQUEMENT si
+//   NEXT_PUBLIC_ONESIGNAL_APP_ID est configuré.
 const cspDirectives: Record<string, string[]> = {
   'default-src': ["'self'"],
   'script-src': [
@@ -49,6 +55,7 @@ const cspDirectives: Record<string, string[]> = {
     'https://static.cloudflareinsights.com',
     'https://www.googletagmanager.com',
     ...(hasMetaPixel ? ['https://connect.facebook.net'] : []),
+    ...(hasOneSignal ? ['https://cdn.onesignal.com'] : []),
     ...(isProduction ? [] : ["'unsafe-eval'"]),
   ],
   'style-src': ["'self'", "'unsafe-inline'"],
@@ -62,6 +69,7 @@ const cspDirectives: Record<string, string[]> = {
     'https://www.google-analytics.com',
     'https://*.google-analytics.com',
     ...(hasMetaPixel ? ['https://www.facebook.com'] : []),
+    ...(hasOneSignal ? ['https://cdn.onesignal.com'] : []),
   ],
   'font-src': ["'self'", 'data:'],
   'connect-src': [
@@ -73,11 +81,15 @@ const cspDirectives: Record<string, string[]> = {
     'https://*.google-analytics.com',
     'https://*.analytics.google.com',
     ...(hasMetaPixel ? ['https://www.facebook.com'] : []),
+    ...(hasOneSignal
+      ? ['https://onesignal.com', 'https://*.onesignal.com']
+      : []),
     ...(isProduction ? [] : ['ws:', 'wss:']),
   ],
   'frame-src': [
     'https://www.google.com',
     'https://www.tiktok.com',
+    ...(hasOneSignal ? ['https://onesignal.com'] : []),
     // Mode Aperçu de GTM (Tag Assistant) — hors production uniquement.
     ...(isProduction ? [] : ['https://tagassistant.google.com']),
   ],
