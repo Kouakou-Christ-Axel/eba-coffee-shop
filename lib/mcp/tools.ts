@@ -23,6 +23,11 @@ import {
   listProductWeeklySpecials,
 } from '@/lib/menu';
 import { getPendingDemand } from '@/lib/orders/pending-demand';
+import { extendClosingToday, getRangesForDay } from '@/lib/pickup-settings';
+import {
+  getPickupSettings,
+  updatePickupSettings,
+} from '@/lib/pickup-settings-db';
 import {
   getDailyStats,
   getRangeStats,
@@ -1696,6 +1701,42 @@ export const tools: McpTool[] = [
       const { id, ...rest } = args as { id: string } & Record<string, unknown>;
       await updateOrderDetails(id, rest);
       return { ok: true, id };
+    },
+  },
+  {
+    name: 'extend_today_closing',
+    toolset: 'commandes',
+    title: 'Repousser la fermeture du jour',
+    description:
+      "Repousse l'heure de fermeture d'AUJOURD'HUI de `minutes` minutes, pour " +
+      'garder la carte accessible côté client plus longtemps (popup « fermé » ' +
+      'et créneaux de retrait proposés au-delà de l’horaire habituel). Étend ' +
+      'le dernier créneau du jour (exception de date déjà en place pour ' +
+      "aujourd'hui, sinon horaires hebdomadaires par défaut), plafonné à " +
+      "23:59. Échoue si le magasin est marqué fermé aujourd'hui — ce n'est " +
+      'pas un moyen d’ouvrir un jour fermé. Revient automatiquement aux ' +
+      'horaires normaux dès demain (exception ponctuelle par date, pas un ' +
+      'changement permanent des horaires hebdomadaires).',
+    inputSchema: z.object({
+      minutes: z
+        .number()
+        .int()
+        .min(1)
+        .max(720)
+        .describe('Minutes à ajouter à la fermeture du jour (1 à 720).'),
+    }),
+    readOnly: false,
+    handler: async (args) => {
+      const { minutes } = args as { minutes: number };
+      const settings = await getPickupSettings();
+      const next = extendClosingToday(settings, minutes);
+      await updatePickupSettings(next);
+      const ranges = getRangesForDay(new Date(), next);
+      const newClosingTime = ranges.reduce(
+        (max, r) => (r.end > max ? r.end : max),
+        '00:00'
+      );
+      return { newClosingTime };
     },
   },
   {

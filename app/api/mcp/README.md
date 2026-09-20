@@ -244,6 +244,7 @@ réduite, voire vide, ce n'est pas une erreur.
 | `mark_order_paid`                | commandes  | écriture | Encaisser une commande (CASH/WAVE/ORANGE_MONEY/OTHER)                              |
 | `update_order`                   | commandes  | écriture | Modifier détails (paiement, type, créneau, note)                                   |
 | `apply_order_discount`           | commandes  | écriture | Appliquer une remise de ligne (FCFA)                                               |
+| `extend_today_closing`           | commandes  | écriture | Repousser la fermeture du jour de N minutes (garde la carte accessible)            |
 | `list_customers`                 | crm        | lecture  | Lister / rechercher des clients (+ stats)                                          |
 | `get_customer`                   | crm        | lecture  | Détail d’un client (par `id` ou `phone`)                                           |
 | `get_ardoise`                    | crm        | lecture  | Ardoise : récupérées non payées par client + anomalies à vérifier                  |
@@ -512,6 +513,13 @@ dashboard cette édition est **réservée à l'ADMIN**.
 (montant fixe FCFA, plafonnée) à une ou plusieurs lignes ciblées par leur
 `cartId` (visible dans les `items` de `list_orders`) et recalcule le total
 (0 pour retirer une remise ; refusé sur une commande terminée/annulée).
+`extend_today_closing` repousse l'heure de fermeture **d'aujourd'hui** de
+`minutes` minutes (plafonné à 23:59), pour garder la carte accessible côté
+client (popup « fermé » et créneaux de retrait) sans attendre le lendemain :
+il étend le dernier créneau du jour (exception de date déjà en place,
+sinon horaires hebdomadaires) via une exception de date ponctuelle — refusé
+si le magasin est marqué fermé aujourd'hui, et sans effet sur les jours
+suivants qui reprennent automatiquement les horaires normaux.
 
 Les outils **clients** (CRM, lecture seule) exposent les clients identifiés par
 **téléphone** (clé normalisée) avec leurs stats (nb de commandes, total dépensé,

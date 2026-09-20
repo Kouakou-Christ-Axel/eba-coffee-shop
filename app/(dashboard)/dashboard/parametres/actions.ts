@@ -4,9 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/auth-helpers';
 import {
   pickupSettingsSchema,
+  extendClosingToday,
   type PickupSettings,
 } from '@/lib/pickup-settings';
-import { updatePickupSettings } from '@/lib/pickup-settings-db';
+import {
+  getPickupSettings,
+  updatePickupSettings,
+} from '@/lib/pickup-settings-db';
 import {
   loyaltySettingsSchema,
   type LoyaltySettings,
@@ -33,6 +37,27 @@ export async function savePickupSettings(
   revalidatePath('/dashboard/parametres');
   revalidatePath('/carte');
   return { ok: true };
+}
+
+export async function extendTodayClosing(
+  minutes: number
+): Promise<
+  { ok: true; settings: PickupSettings } | { ok: false; error: string }
+> {
+  await requireAdmin();
+  try {
+    const settings = await getPickupSettings();
+    const next = extendClosingToday(settings, minutes);
+    await updatePickupSettings(next);
+    revalidatePath('/dashboard/parametres');
+    revalidatePath('/carte');
+    return { ok: true, settings: next };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erreur inattendue',
+    };
+  }
 }
 
 export async function saveLoyaltySettings(

@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { ABIDJAN_TZ, parseDateOnlyToUTC, todayDateString } from '@/lib/timezone';
+import {
+  ABIDJAN_TZ,
+  parseDateOnlyToUTC,
+  todayDateString,
+} from '@/lib/timezone';
 
 const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -115,6 +119,71 @@ export function isShopOpenNow(
     hour12: false,
   }).format(now);
   return ranges.some((r) => r.start <= hhmm && hhmm <= r.end);
+}
+
+/** "21:30" → 21*60+30 minutes depuis minuit ; pour comparer/additionner des HH:MM. */
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function minutesToTime(minutes: number): string {
+  const h = String(Math.floor(minutes / 60)).padStart(2, '0');
+  const m = String(minutes % 60).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+/**
+ * Repousse la fermeture d'AUJOURD'HUI de `minutes` minutes, pour garder la
+ * carte accessible côté client (popup "fermé" de `/api/shop-status` +
+ * créneaux de `generatePickupSlots`) sans attendre le lendemain — les deux
+ * lisent `getRangesForDay`, qui donne priorité à `dateOverrides` sur
+ * `weeklyHours`.
+ *
+ * Étend le dernier créneau du jour (override déjà présent pour aujourd'hui,
+ * sinon horaires hebdomadaires) ; plafonné à 23:59. Lève si le jour est
+ * marqué fermé (`ranges` vide) — ce raccourci prolonge une ouverture
+ * existante, il n'en crée pas.
+ */
+export function extendClosingToday(
+  settings: PickupSettings,
+  minutes: number,
+  today: Date = new Date()
+): PickupSettings {
+  const ranges = getRangesForDay(today, settings);
+  if (ranges.length === 0) {
+    throw new Error(
+      "Le magasin est marqué fermé aujourd'hui — impossible de repousser une fermeture qui n'existe pas."
+    );
+  }
+
+  const lastIndex = ranges.reduce(
+    (best, r, i) =>
+      timeToMinutes(r.end) > timeToMinutes(ranges[best].end) ? i : best,
+    0
+  );
+  const newEndMinutes = Math.min(
+    timeToMinutes(ranges[lastIndex].end) + minutes,
+    23 * 60 + 59
+  );
+  const newRanges = ranges.map((r, i) =>
+    i === lastIndex ? { ...r, end: minutesToTime(newEndMinutes) } : r
+  );
+
+  const todayKey = formatDateKey(today);
+  const overrideExists = settings.dateOverrides.some(
+    (o) => o.date === todayKey
+  );
+  const dateOverrides = overrideExists
+    ? settings.dateOverrides.map((o) =>
+        o.date === todayKey ? { ...o, closed: false, ranges: newRanges } : o
+      )
+    : [
+        ...settings.dateOverrides,
+        { date: todayKey, closed: false, ranges: newRanges },
+      ];
+
+  return { ...settings, dateOverrides };
 }
 
 const WEEK_ORDER = ['1', '2', '3', '4', '5', '6', '0'];

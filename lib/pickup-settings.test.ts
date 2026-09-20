@@ -1,7 +1,11 @@
 // lib/pickup-settings.test.ts
 import { describe, it, expect } from 'vitest';
-import { summarizeOpenDays } from './pickup-settings';
-import type { WeeklyHours } from './pickup-settings';
+import {
+  summarizeOpenDays,
+  extendClosingToday,
+  DEFAULT_SETTINGS,
+} from './pickup-settings';
+import type { WeeklyHours, PickupSettings } from './pickup-settings';
 
 const RANGE = [{ start: '08:30', end: '19:00' }];
 
@@ -62,5 +66,92 @@ describe('summarizeOpenDays', () => {
     expect(
       summarizeOpenDays(openOn('2', '3', '4', '5', '6', '0')).length
     ).toBeLessThan(40);
+  });
+});
+
+describe('extendClosingToday', () => {
+  const today = new Date(2026, 0, 5); // date arbitraire, fixe pour le test
+  const weekday = String(today.getDay());
+  const todayKey = '2026-01-05';
+
+  function baseSettings(overrides: Partial<PickupSettings> = {}) {
+    return {
+      ...DEFAULT_SETTINGS,
+      weeklyHours: { ...DEFAULT_SETTINGS.weeklyHours, [weekday]: RANGE },
+      dateOverrides: [],
+      ...overrides,
+    };
+  }
+
+  it('repousse la fin du dernier créneau des horaires hebdomadaires', () => {
+    const next = extendClosingToday(baseSettings(), 60, today);
+    expect(next.dateOverrides).toEqual([
+      {
+        date: todayKey,
+        closed: false,
+        ranges: [{ start: '08:30', end: '20:00' }],
+      },
+    ]);
+    // Les horaires hebdo restent inchangés : seule une exception de date est ajoutée.
+    expect(next.weeklyHours[weekday]).toEqual(RANGE);
+  });
+
+  it("étend le dernier créneau d'un override déjà présent pour aujourd'hui, au lieu de repartir des horaires hebdo", () => {
+    const settings = baseSettings({
+      dateOverrides: [
+        {
+          date: todayKey,
+          closed: false,
+          ranges: [{ start: '09:00', end: '21:30' }],
+        },
+      ],
+    });
+    const next = extendClosingToday(settings, 90, today);
+    expect(next.dateOverrides).toEqual([
+      {
+        date: todayKey,
+        closed: false,
+        ranges: [{ start: '09:00', end: '23:00' }],
+      },
+    ]);
+  });
+
+  it('étend uniquement le dernier créneau quand plusieurs plages existent', () => {
+    const settings = baseSettings({
+      weeklyHours: {
+        ...DEFAULT_SETTINGS.weeklyHours,
+        [weekday]: [
+          { start: '07:00', end: '10:00' },
+          { start: '11:00', end: '14:00' },
+        ],
+      },
+    });
+    const next = extendClosingToday(settings, 30, today);
+    expect(next.dateOverrides[0].ranges).toEqual([
+      { start: '07:00', end: '10:00' },
+      { start: '11:00', end: '14:30' },
+    ]);
+  });
+
+  it('plafonne à 23:59', () => {
+    const settings = baseSettings({
+      weeklyHours: {
+        ...DEFAULT_SETTINGS.weeklyHours,
+        [weekday]: [{ start: '08:00', end: '23:30' }],
+      },
+    });
+    const next = extendClosingToday(settings, 120, today);
+    expect(next.dateOverrides[0].ranges).toEqual([
+      { start: '08:00', end: '23:59' },
+    ]);
+  });
+
+  it("refuse de repousser la fermeture d'un jour marqué fermé", () => {
+    const settings = baseSettings({
+      dateOverrides: [{ date: todayKey, closed: true, ranges: [] }],
+    });
+    expect(() => extendClosingToday(settings, 60, today)).toThrow(
+      /marqué fermé/
+    );
   });
 });
