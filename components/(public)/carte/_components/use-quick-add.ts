@@ -9,7 +9,7 @@
 // un produit en pause ou épuisé ne part jamais.
 
 import { useState } from 'react';
-import { useCartStore } from '@/lib/cart-store';
+import { useCartStore, type CartItemDraft } from '@/lib/cart-store';
 import {
   isPausedNow,
   isAvailableToday,
@@ -23,7 +23,25 @@ import type { Product } from '@/config/menu';
 /** Durée de l'accusé de réception visuel (✓) après un ajout direct. */
 const ADDED_FEEDBACK_MS = 1200;
 
-export function useQuickAdd(product: Product) {
+/**
+ * Destination de l'ajout, quand ce n'est pas « une ligne de plus dans le
+ * panier » — ex. remplacer une ligne épuisée à sa place
+ * (`sold-out-resolver.tsx`). Appelée UNE fois par geste avec la quantité
+ * totale et le plafond de stock (le panier, lui, ajoute unité par unité).
+ */
+export type QuickAddSink = (
+  item: CartItemDraft,
+  quantity: number,
+  maxQuantity: number | undefined
+) => void;
+
+export function useQuickAdd(
+  product: Product,
+  {
+    sink,
+    quantity: sinkQuantity = 1,
+  }: { sink?: QuickAddSink; quantity?: number } = {}
+) {
   const addItem = useCartStore((s) => s.addItem);
   const [isModalOpen, setModalOpen] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
@@ -67,27 +85,28 @@ export function useQuickAdd(product: Product) {
    * sur le stock restant et fusionne les lignes identiques : on peut donc
    * appeler `addItem` en boucle sans dupliquer sa logique de garde-fou.
    */
-  function addDirect(quantity = 1) {
-    for (let i = 0; i < quantity; i++) {
-      addItem(
-        {
-          productId: product.id,
-          productName: product.name,
-          basePrice: product.price,
-          coutMatiere: product.coutMatiere ?? 0,
-          coutEmballage: product.coutEmballage ?? 0,
-          supplements: [],
-          advanceOrderDays: product.advanceOrderDays,
-          availableDays: product.availableDays,
-          weeklySpecialPeriods: product.weeklySpecialPeriods,
-          soldOutToday: soldOut || undefined,
-          requiresDeposit: product.requiresDeposit,
-        },
-        // ⚠️ Pas de plafond pour un article épuisé : `addItem` refuse
-        // SILENCIEUSEMENT l'ajout quand `maxQuantity <= 0` (cf. cart-store.ts).
-        // C'est le stock du jour, il ne s'applique pas à un retrait ultérieur.
-        soldOut ? undefined : (product.remaining ?? undefined)
-      );
+  function addDirect(quantity = sink ? sinkQuantity : 1) {
+    const item: CartItemDraft = {
+      productId: product.id,
+      productName: product.name,
+      basePrice: product.price,
+      coutMatiere: product.coutMatiere ?? 0,
+      coutEmballage: product.coutEmballage ?? 0,
+      supplements: [],
+      advanceOrderDays: product.advanceOrderDays,
+      availableDays: product.availableDays,
+      weeklySpecialPeriods: product.weeklySpecialPeriods,
+      soldOutToday: soldOut || undefined,
+      requiresDeposit: product.requiresDeposit,
+    };
+    // ⚠️ Pas de plafond pour un article épuisé : `addItem` refuse
+    // SILENCIEUSEMENT l'ajout quand `maxQuantity <= 0` (cf. cart-store.ts).
+    // C'est le stock du jour, il ne s'applique pas à un retrait ultérieur.
+    const maxQuantity = soldOut ? undefined : (product.remaining ?? undefined);
+    if (sink) {
+      sink(item, quantity, maxQuantity);
+    } else {
+      for (let i = 0; i < quantity; i++) addItem(item, maxQuantity);
     }
     // UN seul événement pour le geste, avec la quantité — pas un par tour de
     // boucle, sinon GA4 compte N ajouts distincts pour un seul clic.
