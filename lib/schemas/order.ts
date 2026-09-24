@@ -395,3 +395,41 @@ export const orderPaymentsSchema = z
   .min(1, 'Au moins un moyen de paiement');
 
 export type OrderPaymentLineInput = z.infer<typeof orderPaymentLineSchema>;
+
+// ─── Erreurs du checkout public (POST /api/commandes) ─────────────────────────
+//
+// Chaque réponse d'erreur de la route porte un `code` stable : le client
+// (`submitCheckout`, lib/hooks/use-checkout-form.ts) aiguille dessus plutôt
+// que de chercher des sous-chaînes dans le message — un message reformulé ne
+// doit jamais faire retomber le client sur « Une erreur est survenue ».
+
+export const checkoutErrorCodeSchema = z.enum([
+  'INVALID_BODY',
+  'VALIDATION',
+  'SOLD_OUT_TODAY',
+  'ADVANCE_ORDER_REQUIRED',
+  'SCHEDULE_UNAVAILABLE',
+  'LOYALTY_REWARD_UNAVAILABLE',
+  'SERVER_ERROR',
+]);
+
+export type CheckoutErrorCode = z.infer<typeof checkoutErrorCodeSchema>;
+
+/**
+ * Ligne du panier refusée par `SoldOutTodayError` (lib/orders.ts) : le
+ * `cartId` permet au client de marquer PRÉCISÉMENT la ligne fautive et de
+ * proposer une résolution (remplacer / retirer / passer à demain).
+ */
+export const soldOutLineSchema = z.object({
+  cartId: z.string(),
+  productId: z.string(),
+  productName: z.string(),
+  /** Le produit lui-même manque (sinon, seuls des goûts sont en cause). */
+  missingProduct: z.boolean(),
+  /** Goûts/options épuisés sur cette ligne. */
+  missingOptionNames: z.array(z.string()),
+  /** Stock restant du produit (`null` = illimité, absent = produit supprimé). */
+  remaining: z.number().int().nullable().optional(),
+});
+
+export type SoldOutLine = z.infer<typeof soldOutLineSchema>;

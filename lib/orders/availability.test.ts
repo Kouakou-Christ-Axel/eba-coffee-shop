@@ -1,7 +1,14 @@
 // lib/orders/availability.test.ts
 import { describe, it, expect } from 'vitest';
 import type { CartItem } from '@/lib/cart-store';
-import { findScheduleBlockedItem, type ScheduleMap } from './availability';
+import {
+  buildSoldOutLines,
+  computeOrderItemsAvailability,
+  findScheduleBlockedItem,
+  optionKey,
+  type ScheduleMap,
+  type StockSnapshot,
+} from './availability';
 
 // Mercredi (getDay() === 3).
 const WEDNESDAY = new Date('2026-08-05T10:00:00.000Z');
@@ -139,5 +146,54 @@ describe('findScheduleBlockedItem', () => {
     expect(findScheduleBlockedItem(items, snapshot, null, WEDNESDAY)).toBe(
       items[1]
     );
+  });
+});
+
+describe('buildSoldOutLines', () => {
+  it('ne renvoie que les lignes indisponibles, dans l’ordre du panier, avec le stock restant', () => {
+    const items = [
+      makeItem('capuccino'),
+      makeItem('cookie', { quantity: 3 }),
+      makeItem('sponge', {
+        supplements: [{ groupName: 'Goût', optionName: 'Vanille', price: 0 }],
+      }),
+    ];
+    const stock: StockSnapshot = {
+      products: new Map<string, number | null>([
+        ['capuccino', null],
+        ['cookie', 2],
+        ['sponge', 5],
+      ]),
+      options: new Map([[optionKey('sponge', 'Goût', 'Vanille'), 0]]),
+    };
+    const availability = computeOrderItemsAvailability(items, stock);
+
+    expect(buildSoldOutLines(items, availability.items, stock)).toEqual([
+      {
+        cartId: 'cart-cookie',
+        productId: 'cookie',
+        productName: 'Produit cookie',
+        missingProduct: true,
+        missingOptionNames: [],
+        remaining: 2,
+      },
+      {
+        cartId: 'cart-sponge',
+        productId: 'sponge',
+        productName: 'Produit sponge',
+        missingProduct: false,
+        missingOptionNames: ['Vanille'],
+        remaining: 5,
+      },
+    ]);
+  });
+
+  it('signale un produit supprimé (absent de l’instantané) sans stock restant', () => {
+    const items = [makeItem('gone')];
+    const stock: StockSnapshot = { products: new Map(), options: new Map() };
+    const availability = computeOrderItemsAvailability(items, stock);
+
+    const [line] = buildSoldOutLines(items, availability.items, stock);
+    expect(line).toMatchObject({ missingProduct: true, remaining: undefined });
   });
 });
