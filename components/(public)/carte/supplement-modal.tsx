@@ -52,6 +52,7 @@ import {
   bottomSheetClassNames,
 } from '@/lib/bottom-sheet';
 import { ShareProductButton } from './_components/share-product-button';
+import type { QuickAddSink } from './_components/use-quick-add';
 
 type SupplementModalProps = {
   product: Product;
@@ -63,6 +64,16 @@ type SupplementModalProps = {
   /** Jeton qui force la réinitialisation des sélections quand il change (ex.
    * cartId de la ligne dupliquée). Laisser indéfini en ajout normal. */
   editToken?: string;
+  /** Destination de l'ajout à la place du panier (ex. remplacer une ligne
+   * épuisée à sa position — `sold-out-resolver.tsx`). Appelée une fois avec
+   * la quantité choisie. */
+  onConfirm?: QuickAddSink;
+  /** Retrait AUJOURD'HUI obligatoire : les options épuisées deviennent non
+   * sélectionnables, et `ignoreSoldOut` est coupé pour les QUATRE helpers de
+   * sélection (cf. CLAUDE.md, « SupplementRules.ignoreSoldOut »). */
+  strictStock?: boolean;
+  /** Quantité de départ (ex. celle de la ligne remplacée). Défaut : 1. */
+  initialQuantity?: number;
 };
 
 /** Options épuisées reléguées en fin de groupe : elles restent consultables
@@ -92,6 +103,9 @@ function SupplementModal({
   onClose,
   initialSupplements,
   editToken,
+  onConfirm,
+  strictStock = false,
+  initialQuantity = 1,
 }: SupplementModalProps) {
   const { addItem } = useCartStore();
   const groups = product.supplements ?? [];
@@ -124,7 +138,10 @@ function SupplementModal({
   );
   // Quantité de la modale : sans elle, commander trois fois le même gâteau
   // impose de rouvrir et reconfigurer la modale trois fois.
-  const [quantity, setQuantity] = useResettableState<number>(resetKey, () => 1);
+  const [quantity, setQuantity] = useResettableState<number>(
+    resetKey,
+    () => initialQuantity
+  );
 
   // `view_item` : ouvrir la modale d'options est la consultation de fiche
   // produit la plus proche qu'offre le site (la carte est une liste unique).
@@ -181,7 +198,11 @@ function SupplementModal({
   // jour », donc ses goûts épuisés le sont aussi. Les goûts épuisés d'un
   // produit DISPONIBLE, eux, restent sélectionnables pour la même raison —
   // c'est le sélecteur de créneau qui traduira ça en « pas aujourd'hui ».
-  const rules = { ignoreSoldOut: true };
+  // Sauf en `strictStock` (remplacement pour un retrait immédiat) : là, un
+  // goût épuisé ne compte pas — et la MÊME constante alimente les quatre
+  // helpers ci-dessous, sans quoi un goût validé à l'écran disparaîtrait à
+  // l'ajout.
+  const rules = { ignoreSoldOut: !strictStock };
 
   const canSubmit = canSubmitSelections(product, selections, rules);
 
@@ -236,28 +257,31 @@ function SupplementModal({
   function handleAdd() {
     if (!canSubmit) return;
     const supplements = getSelectedSupplements(product, selections, rules);
-    // `addItem` ajoute une unité et fusionne les lignes strictement identiques :
-    // N appels donnent bien UNE ligne à quantité N, tout en conservant le
-    // plafond de stock du store. Pas besoin de toucher lib/cart-store.ts.
-    for (let i = 0; i < quantity; i++) {
-      addItem(
-        {
-          productId: product.id,
-          productName: product.name,
-          basePrice: product.price,
-          coutMatiere: product.coutMatiere ?? 0,
-          coutEmballage: product.coutEmballage ?? 0,
-          supplements,
-          advanceOrderDays: product.advanceOrderDays,
-          availableDays: product.availableDays,
-          weeklySpecialPeriods: product.weeklySpecialPeriods,
-          soldOutToday: soldOutForLater || undefined,
-          requiresDeposit: product.requiresDeposit,
-        },
-        // Pas de plafond quand l'article part pour un autre jour : `addItem`
-        // refuse SILENCIEUSEMENT un ajout avec `maxQuantity <= 0`.
-        soldOutForLater ? undefined : (product.remaining ?? undefined)
-      );
+    const item = {
+      productId: product.id,
+      productName: product.name,
+      basePrice: product.price,
+      coutMatiere: product.coutMatiere ?? 0,
+      coutEmballage: product.coutEmballage ?? 0,
+      supplements,
+      advanceOrderDays: product.advanceOrderDays,
+      availableDays: product.availableDays,
+      weeklySpecialPeriods: product.weeklySpecialPeriods,
+      soldOutToday: soldOutForLater || undefined,
+      requiresDeposit: product.requiresDeposit,
+    };
+    // Pas de plafond quand l'article part pour un autre jour : `addItem`
+    // refuse SILENCIEUSEMENT un ajout avec `maxQuantity <= 0`.
+    const stockCap = soldOutForLater
+      ? undefined
+      : (product.remaining ?? undefined);
+    if (onConfirm) {
+      onConfirm(item, quantity, stockCap);
+    } else {
+      // `addItem` ajoute une unité et fusionne les lignes strictement
+      // identiques : N appels donnent bien UNE ligne à quantité N, tout en
+      // conservant le plafond de stock du store.
+      for (let i = 0; i < quantity; i++) addItem(item, stockCap);
     }
     // Un seul événement pour le geste, suppléments inclus dans `item_variant`
     // et prix unitaire options comprises (cf. lib/analytics.ts).
@@ -494,7 +518,11 @@ function SupplementModal({
                 onValueChange={(v) => setSingle(group.name, v)}
               >
                 {options.map((opt) => (
-                  <Radio key={opt.name} value={opt.name} isDisabled={false}>
+                  <Radio
+                    key={opt.name}
+                    value={opt.name}
+                    isDisabled={strictStock && opt.soldOut === true}
+                  >
                     <span className="flex items-center justify-between gap-4">
                       <span className="text-sm">
                         {opt.name}
@@ -528,7 +556,9 @@ function SupplementModal({
                 {options.map((opt) => {
                   const current = multipleSelection(selections, group.name);
                   const isChecked = current.includes(opt.name);
-                  const isDisabled = !isChecked && count >= max;
+                  const isDisabled =
+                    (!isChecked && count >= max) ||
+                    (strictStock && opt.soldOut === true);
                   return (
                     <Checkbox
                       key={opt.name}
@@ -563,8 +593,11 @@ function SupplementModal({
                   // totale) ET stock restant de l'option elle-même — la
                   // plus stricte des deux gagne.
                   // Le stock du jour ne plafonne pas une commande pour plus tard.
+                  // Sauf en `strictStock` : retrait immédiat, l'épuisé est à 0.
                   const optionCap = opt.soldOut
-                    ? Infinity
+                    ? strictStock
+                      ? 0
+                      : Infinity
                     : (opt.remaining ?? Infinity);
                   const canIncrement = count < max && qty < optionCap;
                   return (

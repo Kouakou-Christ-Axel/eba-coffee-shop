@@ -19,6 +19,7 @@ import { getLoyaltyCard, getLoyaltyCardByPhone } from '@/lib/loyalty';
 import {
   createOrderSchema as baseCreateOrderSchema,
   orderDriverFieldsSchema,
+  type SoldOutLine,
 } from '@/lib/schemas/order';
 import { normalizeIvorianPhone } from '@/lib/phone';
 import { ROLE_GROUPS } from '@/lib/auth-helpers';
@@ -28,6 +29,7 @@ import { parseOrderSearchTerm } from '@/lib/orders/search';
 import {
   fetchStockSnapshot,
   computeOrderItemsAvailability,
+  buildSoldOutLines,
   fetchAdvanceOrderSnapshot,
   maxRequiredAdvanceOrderDays,
   fetchScheduleSnapshot,
@@ -78,11 +80,18 @@ export class ScheduleUnavailableError extends Error {
  * qui n'existe plus — le flux public ne vérifiait aucun stock à la création.
  */
 export class SoldOutTodayError extends Error {
-  constructor(public readonly productNames: string[]) {
+  /** Noms dédoublonnés (une ligne par variante de goûts partage le nom). */
+  public readonly productNames: string[];
+
+  /** `lines` : une entrée par ligne du panier refusée — renvoyée au client
+   * (409 `SOLD_OUT_TODAY`) pour qu'il propose une résolution ligne à ligne. */
+  constructor(public readonly lines: SoldOutLine[]) {
+    const productNames = [...new Set(lines.map((l) => l.productName))];
     super(
       `${productNames.join(', ')} : épuisé aujourd’hui. Choisissez un retrait à partir de demain.`
     );
     this.name = 'SoldOutTodayError';
+    this.productNames = productNames;
   }
 }
 
@@ -178,17 +187,9 @@ export async function createOrder(input: CreateOrderInput) {
     const stock = await fetchStockSnapshot([items]);
     const availability = computeOrderItemsAvailability(items, stock);
     if (!availability.fulfillable) {
-      const unavailableCartIds = new Set(
-        availability.items.filter((a) => !a.available).map((a) => a.cartId)
+      throw new SoldOutTodayError(
+        buildSoldOutLines(items, availability.items, stock)
       );
-      const names = [
-        ...new Set(
-          items
-            .filter((i) => unavailableCartIds.has(i.cartId))
-            .map((i) => i.productName)
-        ),
-      ];
-      throw new SoldOutTodayError(names);
     }
   }
 

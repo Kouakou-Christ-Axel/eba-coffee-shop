@@ -25,7 +25,12 @@ import {
   readLastContact,
   saveLastContact,
 } from '@/lib/order-history';
-import { createOrderSchema } from '@/lib/schemas/order';
+import {
+  createOrderSchema,
+  type CheckoutErrorCode,
+  type SoldOutLine,
+} from '@/lib/schemas/order';
+import { extractApiError } from '@/lib/api-error';
 import {
   effectiveItemAdvanceDays,
   isAvailableToday,
@@ -59,7 +64,19 @@ export type CheckoutFormErrors = Partial<
 
 export type CheckoutSubmitOutcome =
   | { ok: true; orderId: string; reference: string }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /** Code serveur (`checkoutErrorCodeSchema`) — absent pour une erreur
+       * réseau ou une réponse illisible. */
+      code?: CheckoutErrorCode;
+      /** Champ du formulaire auquel rattacher `error` plutôt qu'au bas du
+       * formulaire (ex. le créneau pour un délai à l'avance). */
+      field?: 'pickupTime';
+      /** Lignes épuisées (`SOLD_OUT_TODAY`) : ouvrent le panneau
+       * « Résoudre » au lieu d'un simple message. */
+      soldOutLines?: SoldOutLine[];
+    };
 
 /**
  * Récompense fidélité appliquée à la soumission. Passée à `submit()` (et non
@@ -84,6 +101,10 @@ export type UseCheckoutFormResult = {
   submit: (
     loyaltyReward?: CheckoutLoyaltyReward | null
   ) => Promise<CheckoutSubmitOutcome>;
+  /** Lignes refusées par la dernière soumission (rupture du jour) — vide
+   * sinon. Le panneau « Résoudre » s'ouvre tant qu'il y en a. */
+  soldOutLines: SoldOutLine[];
+  clearSoldOutLines: () => void;
 };
 
 export type UseCheckoutFormOptions = {
@@ -210,6 +231,63 @@ export function validateCheckoutForm(
 
 // ─── Submission HTTP (pure / mockable) ───────────────────────────────────────
 
+/** Message quand le serveur a échoué (5xx) : on rassure sur l'état — rien
+ * n'a été enregistré, réessayer ne créera pas de doublon. */
+export const SERVER_ERROR_MESSAGE =
+  'Petit souci de notre côté : ta commande n’a pas été enregistrée. Réessaie dans un instant.';
+
+/**
+ * Traduit une réponse d'erreur de POST /api/commandes en issue affichable.
+ * Aiguille sur le `code` stable renvoyé par la route — jamais sur le texte
+ * du message, qu'on doit pouvoir reformuler sans casser le client.
+ */
+export function mapCheckoutError(
+  status: number,
+  data: { code?: CheckoutErrorCode; error?: unknown; items?: SoldOutLine[] }
+): Extract<CheckoutSubmitOutcome, { ok: false }> {
+  const message = extractApiError(data.error);
+  switch (data.code) {
+    case 'SOLD_OUT_TODAY':
+      return {
+        ok: false,
+        code: data.code,
+        error: message ?? 'Un article de votre panier est épuisé aujourd’hui.',
+        soldOutLines: data.items ?? [],
+      };
+    // Délai à l'avance / planning : le serveur nomme déjà l'article et la
+    // règle ; on rattache le message au sélecteur de créneau, là où le
+    // client peut agir.
+    case 'ADVANCE_ORDER_REQUIRED':
+    case 'SCHEDULE_UNAVAILABLE':
+      return {
+        ok: false,
+        code: data.code,
+        field: 'pickupTime',
+        error: message ?? 'Choisissez une autre date de retrait.',
+      };
+    // Récompense consommée entre-temps (ex. au comptoir).
+    case 'LOYALTY_REWARD_UNAVAILABLE':
+      return {
+        ok: false,
+        code: data.code,
+        error:
+          'Récompense fidélité indisponible — réessaie sans la récompense.',
+      };
+    case 'VALIDATION':
+      return {
+        ok: false,
+        code: data.code,
+        error: message
+          ? `Certaines informations sont invalides (${message}).`
+          : 'Certaines informations sont invalides.',
+      };
+  }
+  if (status >= 500) {
+    return { ok: false, code: data.code, error: SERVER_ERROR_MESSAGE };
+  }
+  return { ok: false, error: 'Une erreur est survenue. Veuillez réessayer.' };
+}
+
 type SubmitArgs = {
   values: CheckoutFormValues;
   items: CartItem[];
@@ -252,42 +330,12 @@ export async function submitCheckout({
   }
 
   if (!response.ok) {
-    // Récompense fidélité consommée entre-temps (ex. au comptoir) : message
-    // actionnable plutôt qu'une erreur générique.
-    if (response.status === 400) {
-      const data = (await response.json().catch(() => ({}))) as {
-        error?: unknown;
-      };
-      if (
-        typeof data.error === 'string' &&
-        data.error.includes('Récompense fidélité')
-      ) {
-        return {
-          ok: false,
-          error:
-            'Récompense fidélité indisponible — réessaie sans la récompense.',
-        };
-      }
-      // Délai de commande à l'avance non respecté (voir
-      // `AdvanceOrderRequiredError`, lib/orders.ts) — message déjà explicite
-      // côté serveur, on le remonte tel quel.
-      if (typeof data.error === 'string' && data.error.includes("à l'avance")) {
-        return { ok: false, error: data.error };
-      }
-      // Article hors planning récurrent / fenêtre « spécialité de la
-      // semaine » à la date choisie (voir `ScheduleUnavailableError`,
-      // lib/orders.ts) — message déjà explicite côté serveur, idem.
-      if (
-        typeof data.error === 'string' &&
-        data.error.includes("n'est pas disponible à cette date")
-      ) {
-        return { ok: false, error: data.error };
-      }
-    }
-    return {
-      ok: false,
-      error: 'Une erreur est survenue. Veuillez réessayer.',
+    const data = (await response.json().catch(() => ({}))) as {
+      code?: CheckoutErrorCode;
+      error?: unknown;
+      items?: SoldOutLine[];
     };
+    return mapCheckoutError(response.status, data);
   }
 
   try {
@@ -322,6 +370,8 @@ export function useCheckoutForm({
   });
   const [errors, setErrors] = useState<CheckoutFormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [soldOutLines, setSoldOutLines] = useState<SoldOutLine[]>([]);
+  const clearSoldOutLines = useCallback(() => setSoldOutLines([]), []);
 
   const setField = useCallback<UseCheckoutFormResult['setField']>(
     (key, value) => {
@@ -343,6 +393,9 @@ export function useCheckoutForm({
       const validation = validateCheckoutForm(values, items, total);
       if (Object.keys(validation).length > 0) {
         setErrors(validation);
+        // Erreur à corriger dans le formulaire : on referme le panneau
+        // « Résoudre » s'il était ouvert, sinon il la masquerait.
+        setSoldOutLines([]);
         const first =
           validation.customerName ??
           validation.customerPhone ??
@@ -361,8 +414,21 @@ export function useCheckoutForm({
         loyaltyRewardId: loyaltyReward?.id ?? null,
       });
       setIsSubmitting(false);
+      // Le panneau « Résoudre » reste ouvert pendant un renvoi et se referme
+      // de lui-même selon l'issue : nouvelles lignes épuisées, ou rien.
+      setSoldOutLines(
+        !outcome.ok && outcome.soldOutLines ? outcome.soldOutLines : []
+      );
       if (!outcome.ok) {
-        setErrors({ submit: outcome.error });
+        // Rupture : pas de message en bas du formulaire, le panneau prend le
+        // relais ligne par ligne.
+        if (!outcome.soldOutLines?.length) {
+          setErrors(
+            outcome.field
+              ? { [outcome.field]: outcome.error }
+              : { submit: outcome.error }
+          );
+        }
       } else {
         // Total réellement dû (le serveur a déduit la récompense).
         const netTotal = total - Math.min(loyaltyReward?.capAmount ?? 0, total);
@@ -393,5 +459,13 @@ export function useCheckoutForm({
     [values, items, total]
   );
 
-  return { values, errors, isSubmitting, setField, submit };
+  return {
+    values,
+    errors,
+    isSubmitting,
+    setField,
+    submit,
+    soldOutLines,
+    clearSoldOutLines,
+  };
 }

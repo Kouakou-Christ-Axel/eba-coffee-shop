@@ -11,10 +11,12 @@
 // Les données retrait (créneaux, horaires d'ouverture, adresse) sont chargées
 // une seule fois via `usePickupInfo` et partagées entre les blocs 1 et 3.
 
-import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@heroui/react';
 import { ArrowLeft, Sparkles } from 'lucide-react';
-import type { CartItem } from '@/lib/cart-store';
+import { useCartStore, type CartItem } from '@/lib/cart-store';
+import { cartItemToAnalyticsItem, trackRemoveFromCart } from '@/lib/analytics';
 import { effectiveItemAdvanceDays } from '@/lib/supplements';
 import { useCheckoutForm } from '@/lib/hooks/use-checkout-form';
 import { usePickupInfo } from '@/lib/hooks/use-pickup-info';
@@ -25,6 +27,13 @@ import { LoyaltyRewardBanner } from './_components/loyalty-reward-banner';
 import { PickupModeCards } from './_components/pickup-mode-cards';
 import { NoteField } from './_components/note-field';
 import { SlotPicker } from './_components/slot-picker';
+
+// Panneau « Résoudre » (rupture du jour) : chargé seulement quand le serveur
+// refuse une commande — la plupart des clients ne le verront jamais.
+const SoldOutResolver = dynamic(
+  () => import('./_components/sold-out-resolver'),
+  { ssr: false }
+);
 
 type Props = {
   items: CartItem[];
@@ -47,10 +56,20 @@ export function CheckoutForm({
   // pour une prochaine commande via le Switch du bandeau.
   const [rewardApplied, setRewardApplied] = useState(true);
 
-  const { values, errors, isSubmitting, setField, submit } = useCheckoutForm({
-    items,
-    total,
-  });
+  const {
+    values,
+    errors,
+    isSubmitting,
+    setField,
+    submit,
+    soldOutLines,
+    clearSoldOutLines,
+  } = useCheckoutForm({ items, total });
+  const replaceItem = useCartStore((s) => s.replaceItem);
+  const updateQuantity = useCartStore((s) => s.updateQuantity);
+  const removeItem = useCartStore((s) => s.removeItem);
+  const patchItems = useCartStore((s) => s.patchItems);
+  const slotRef = useRef<HTMLDivElement>(null);
   // Plus grand délai de commande à l'avance requis par le panier (voir
   // `CartItem.advanceOrderDays`, lib/cart-store.ts) : étend l'horizon de
   // créneaux et contraint le sélecteur (voir SlotPicker).
@@ -86,10 +105,42 @@ export function CheckoutForm({
     onLoyaltyDiscountChange?.(discount);
   }, [discount, onLoyaltyDiscountChange]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function send() {
     const outcome = await submit(activeReward);
     if (outcome.ok) onSuccess(outcome.orderId);
+    // Récompense consommée entre-temps : on la retire pour que le prochain
+    // envoi passe sans elle (le message l'explique au client).
+    if (!outcome.ok && outcome.code === 'LOYALTY_REWARD_UNAVAILABLE') {
+      setRewardApplied(false);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await send();
+  }
+
+  // Résolution d'une rupture — le panier est la source de vérité : une ligne
+  // remplacée ou retirée en disparaît, une ligne reportée y est marquée
+  // `soldOutToday` (J+1 minimum via `effectiveItemAdvanceDays`).
+  function handleRemove(cartId: string) {
+    const item = items.find((i) => i.cartId === cartId);
+    if (item) trackRemoveFromCart([cartItemToAnalyticsItem(item)]);
+    removeItem(cartId);
+  }
+
+  function handleDeferAll(cartIds: string[]) {
+    patchItems(
+      Object.fromEntries(cartIds.map((id) => [id, { soldOutToday: true }]))
+    );
+    clearSoldOutLines();
+    // Le sélecteur bascule seul en « Planifier » dès qu'un article exige
+    // J+1 ; on y amène le client pour qu'il choisisse son créneau.
+    setField('timing', 'scheduled');
+    setField('pickupTime', null);
+    requestAnimationFrame(() =>
+      slotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    );
   }
 
   return (
@@ -140,17 +191,19 @@ export function CheckoutForm({
         </p>
       )}
 
-      <SlotPicker
-        timing={values.timing}
-        onTimingChange={(t) => setField('timing', t)}
-        value={values.pickupTime}
-        onChange={(iso) => setField('pickupTime', iso)}
-        error={errors.pickupTime}
-        info={pickupInfo}
-        items={items}
-        minAdvanceOrderDays={minAdvanceOrderDays}
-        soldOutRestricted={soldOutRestricted}
-      />
+      <div ref={slotRef} className="scroll-mt-28">
+        <SlotPicker
+          timing={values.timing}
+          onTimingChange={(t) => setField('timing', t)}
+          value={values.pickupTime}
+          onChange={(iso) => setField('pickupTime', iso)}
+          error={errors.pickupTime}
+          info={pickupInfo}
+          items={items}
+          minAdvanceOrderDays={minAdvanceOrderDays}
+          soldOutRestricted={soldOutRestricted}
+        />
+      </div>
 
       <NoteField
         value={values.note}
@@ -159,6 +212,21 @@ export function CheckoutForm({
       />
 
       {errors.submit && <p className="text-sm text-danger">{errors.submit}</p>}
+
+      {soldOutLines.length > 0 && (
+        <SoldOutResolver
+          isOpen
+          onClose={clearSoldOutLines}
+          lines={soldOutLines}
+          items={items}
+          onReplace={replaceItem}
+          onReduce={updateQuantity}
+          onRemove={handleRemove}
+          onDeferAll={handleDeferAll}
+          onSubmit={() => void send()}
+          isSubmitting={isSubmitting}
+        />
+      )}
 
       <Button
         type="submit"

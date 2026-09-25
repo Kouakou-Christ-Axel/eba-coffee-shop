@@ -62,6 +62,21 @@ export type CartItem = {
   requiresDeposit?: boolean;
 };
 
+/** Ligne à ajouter : le store attribue lui-même `cartId` et `quantity`. */
+export type CartItemDraft = Omit<CartItem, 'cartId' | 'quantity'>;
+
+/** Même produit + mêmes suppléments = même ligne (fusionnées par le store). */
+function isSameLine(a: CartItemDraft, b: CartItemDraft): boolean {
+  return (
+    a.productId === b.productId &&
+    JSON.stringify(a.supplements) === JSON.stringify(b.supplements)
+  );
+}
+
+function newCartId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
 /** Total net d'une ligne (après remise). Voir lib/orders/totals.ts. */
 export function getItemTotal(item: CartItem): number {
   return getItemNet(item);
@@ -95,10 +110,24 @@ type CartStore = {
    * simplement pas être proposé par l'appelant (product-card/supplement-modal
    * désactivent déjà l'ajout dans ce cas).
    */
-  addItem: (
-    item: Omit<CartItem, 'cartId' | 'quantity'>,
+  addItem: (item: CartItemDraft, maxQuantity?: number | null) => void;
+  /**
+   * Remplace la ligne `cartId` par `item` × `quantity`, À LA MÊME POSITION
+   * (résolution d'une rupture : le client échange l'article, il ne le
+   * « rajoute » pas en bas du panier). Si une ligne identique existe déjà
+   * ailleurs, on fusionne dedans comme `addItem`. `maxQuantity` plafonne la
+   * ligne résultante ; un plafond ≤ 0 ou une ligne `cartId` introuvable
+   * laisse le panier inchangé.
+   */
+  replaceItem: (
+    cartId: string,
+    item: CartItemDraft,
+    quantity: number,
     maxQuantity?: number | null
   ) => void;
+  /** Modifie des champs de plusieurs lignes d'un coup (ex. marquer des lignes
+   * `soldOutToday` quand le client choisit de tout passer à demain). */
+  patchItems: (patches: Record<string, Partial<CartItemDraft>>) => void;
   removeItem: (cartId: string) => void;
   updateQuantity: (cartId: string, quantity: number) => void;
   clearCart: () => void;
@@ -116,11 +145,7 @@ export const useCartStore = create<CartStore>()(
       addItem: (item, maxQuantity) =>
         set((state) => {
           const cap = maxQuantity ?? Infinity;
-          const existing = state.items.find(
-            (i) =>
-              i.productId === item.productId &&
-              JSON.stringify(i.supplements) === JSON.stringify(item.supplements)
-          );
+          const existing = state.items.find((i) => isSameLine(i, item));
           if (existing) {
             const nextQuantity = Math.min(existing.quantity + 1, cap);
             if (nextQuantity <= existing.quantity) return state;
@@ -134,12 +159,49 @@ export const useCartStore = create<CartStore>()(
             };
           }
           if (cap <= 0) return state;
-          const cartId = Math.random().toString(36).slice(2, 10);
           return {
-            items: [...state.items, { ...item, cartId, quantity: 1 }],
+            items: [
+              ...state.items,
+              { ...item, cartId: newCartId(), quantity: 1 },
+            ],
             updatedAt: Date.now(),
           };
         }),
+
+      replaceItem: (cartId, item, quantity, maxQuantity) =>
+        set((state) => {
+          const cap = maxQuantity ?? Infinity;
+          const index = state.items.findIndex((i) => i.cartId === cartId);
+          if (index === -1 || cap <= 0 || quantity <= 0) return state;
+
+          const rest = state.items.filter((i) => i.cartId !== cartId);
+          const twin = rest.find((i) => isSameLine(i, item));
+          if (twin) {
+            return {
+              items: rest.map((i) =>
+                i.cartId === twin.cartId
+                  ? { ...i, quantity: Math.min(i.quantity + quantity, cap) }
+                  : i
+              ),
+              updatedAt: Date.now(),
+            };
+          }
+          const items = [...state.items];
+          items[index] = {
+            ...item,
+            cartId: newCartId(),
+            quantity: Math.min(quantity, cap),
+          };
+          return { items, updatedAt: Date.now() };
+        }),
+
+      patchItems: (patches) =>
+        set((state) => ({
+          items: state.items.map((i) =>
+            patches[i.cartId] ? { ...i, ...patches[i.cartId] } : i
+          ),
+          updatedAt: Date.now(),
+        })),
 
       removeItem: (cartId) =>
         set((state) => ({

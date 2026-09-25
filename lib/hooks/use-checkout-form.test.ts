@@ -257,7 +257,10 @@ describe('submitCheckout', () => {
   it('mappe le 400 « récompense indisponible » sur un message actionnable', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue(
       new Response(
-        JSON.stringify({ error: 'Récompense fidélité indisponible' }),
+        JSON.stringify({
+          code: 'LOYALTY_REWARD_UNAVAILABLE',
+          error: 'Récompense fidélité indisponible',
+        }),
         {
           status: 400,
         }
@@ -288,6 +291,84 @@ describe('submitCheckout', () => {
 
     expect(out.ok).toBe(false);
     if (!out.ok) expect(out.error).toMatch(/erreur/i);
+  });
+
+  it('SOLD_OUT_TODAY (409) remonte les lignes épuisées, sans message générique', async () => {
+    const line = {
+      cartId: 'abc',
+      productId: 'prod-1',
+      productName: 'Cappuccino',
+      missingProduct: true,
+      missingOptionNames: [],
+      remaining: 0,
+    };
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          code: 'SOLD_OUT_TODAY',
+          error: 'Cappuccino : épuisé aujourd’hui.',
+          items: [line],
+        }),
+        { status: 409 }
+      )
+    );
+
+    const out = await submitCheckout({
+      values: validValues,
+      items: mockItems,
+      total: 3500,
+    });
+
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      expect(out.code).toBe('SOLD_OUT_TODAY');
+      expect(out.soldOutLines).toEqual([line]);
+      expect(out.error).not.toMatch(/une erreur est survenue/i);
+    }
+  });
+
+  it('rattache un délai à l’avance au sélecteur de créneau', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          code: 'ADVANCE_ORDER_REQUIRED',
+          error:
+            "Cet article doit être commandé au moins 2 jour(s) à l'avance.",
+          requiredDays: 2,
+        }),
+        { status: 400 }
+      )
+    );
+
+    const out = await submitCheckout({
+      values: validValues,
+      items: mockItems,
+      total: 3500,
+    });
+
+    expect(out).toMatchObject({
+      ok: false,
+      field: 'pickupTime',
+      error: expect.stringContaining('2 jour(s)'),
+    });
+  });
+
+  it('une 500 rassure : la commande n’a pas été enregistrée', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({ code: 'SERVER_ERROR', error: 'Erreur serveur' }),
+        { status: 500 }
+      )
+    );
+
+    const out = await submitCheckout({
+      values: validValues,
+      items: mockItems,
+      total: 3500,
+    });
+
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error).toMatch(/pas été enregistrée/);
   });
 
   it('retourne { ok: false, error } sur erreur réseau', async () => {
