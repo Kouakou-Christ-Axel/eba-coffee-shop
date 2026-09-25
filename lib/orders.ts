@@ -36,6 +36,7 @@ import {
   findScheduleBlockedItem,
 } from '@/lib/orders/availability';
 import { isDeferredPickup } from '@/lib/orders/scheduling';
+import { canCustomerSelfServe } from '@/lib/orders/self-service';
 import { isPickupDateAllowed } from '@/lib/supplements';
 import { ORDERS_PAGE_SIZE, PHONE_SEARCH_MIN_DIGITS } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
@@ -143,6 +144,58 @@ export function generateOrderReference(date: Date = new Date()): string {
 
 const MAX_DAILY_NUMBER_RETRIES = 3;
 
+/**
+ * Règles du flux PUBLIC sur des articles et une date de retrait : délai de
+ * commande à l'avance, planning/fenêtre « spécialité », et stock pour un
+ * retrait aujourd'hui. Partagé par la création (`createOrder`) et le
+ * libre-service après commande (`lib/order-self-service.ts` : remplacer un
+ * article, changer de créneau) — une commande modifiée par le client obéit
+ * aux mêmes règles qu'une commande neuve. Lecture seule.
+ *
+ * Lève `AdvanceOrderRequiredError`, `ScheduleUnavailableError` ou
+ * `SoldOutTodayError`.
+ */
+export async function assertPublicOrderConstraints(
+  items: CartItem[],
+  pickupTime: Date | string | null
+): Promise<void> {
+  const advanceSnapshot = await fetchAdvanceOrderSnapshot(items);
+  const requiredAdvanceDays = maxRequiredAdvanceOrderDays(
+    items,
+    advanceSnapshot
+  );
+  if (
+    requiredAdvanceDays > 0 &&
+    !isPickupDateAllowed(requiredAdvanceDays, pickupTime)
+  ) {
+    throw new AdvanceOrderRequiredError(requiredAdvanceDays);
+  }
+
+  const scheduleSnapshot = await fetchScheduleSnapshot(items);
+  const scheduleBlockedItem = findScheduleBlockedItem(
+    items,
+    scheduleSnapshot,
+    pickupTime
+  );
+  if (scheduleBlockedItem) {
+    throw new ScheduleUnavailableError(scheduleBlockedItem.productName);
+  }
+
+  // Stock : un article épuisé reste commandable, mais jamais pour AUJOURD'HUI.
+  // Ce contrôle n'existait pas — le flux public ne regardait aucun stock à la
+  // création — et il devient nécessaire dès lors que la carte laisse ajouter un
+  // produit épuisé. La réservation réelle, elle, reste à l'entrée en cuisine.
+  if (!isDeferredPickup(pickupTime)) {
+    const stock = await fetchStockSnapshot([items]);
+    const availability = computeOrderItemsAvailability(items, stock);
+    if (!availability.fulfillable) {
+      throw new SoldOutTodayError(
+        buildSoldOutLines(items, availability.items, stock)
+      );
+    }
+  }
+}
+
 // ASYMÉTRIE VOULUE — ne pas « corriger » :
 // `createCashierOrder` (lib/order-mutations.ts) envoie DIRECTEMENT en cuisine,
 // sans encaissement, la commande d'un client de confiance
@@ -156,42 +209,10 @@ export async function createOrder(input: CreateOrderInput) {
 
   // Contrôle en lecture seule, non racy — inutile de le refaire à chaque
   // tentative de retry (collision de numéro quotidien) ci-dessous.
-  const items = input.items as CartItem[];
-  const advanceSnapshot = await fetchAdvanceOrderSnapshot(items);
-  const requiredAdvanceDays = maxRequiredAdvanceOrderDays(
-    items,
-    advanceSnapshot
-  );
-  if (
-    requiredAdvanceDays > 0 &&
-    !isPickupDateAllowed(requiredAdvanceDays, input.pickupTime ?? null)
-  ) {
-    throw new AdvanceOrderRequiredError(requiredAdvanceDays);
-  }
-
-  const scheduleSnapshot = await fetchScheduleSnapshot(items);
-  const scheduleBlockedItem = findScheduleBlockedItem(
-    items,
-    scheduleSnapshot,
+  await assertPublicOrderConstraints(
+    input.items as CartItem[],
     input.pickupTime ?? null
   );
-  if (scheduleBlockedItem) {
-    throw new ScheduleUnavailableError(scheduleBlockedItem.productName);
-  }
-
-  // Stock : un article épuisé reste commandable, mais jamais pour AUJOURD'HUI.
-  // Ce contrôle n'existait pas — le flux public ne regardait aucun stock à la
-  // création — et il devient nécessaire dès lors que la carte laisse ajouter un
-  // produit épuisé. La réservation réelle, elle, reste à l'entrée en cuisine.
-  if (!isDeferredPickup(input.pickupTime ?? null)) {
-    const stock = await fetchStockSnapshot([items]);
-    const availability = computeOrderItemsAvailability(items, stock);
-    if (!availability.fulfillable) {
-      throw new SoldOutTodayError(
-        buildSoldOutLines(items, availability.items, stock)
-      );
-    }
-  }
 
   for (let attempt = 0; attempt < MAX_DAILY_NUMBER_RETRIES; attempt++) {
     try {
@@ -403,6 +424,15 @@ export type PublicOrderView = {
    * identifié (pas de téléphone exploitable) — toujours résolu par
    * téléphone (clé unique de `Customer`), jamais par le nom. */
   loyalty: PublicOrderLoyaltyView | null;
+  /** Ce que le client peut faire SEUL depuis la page de suivi (voir
+   * `canCustomerSelfServe`, lib/orders/self-service.ts) — l'interface
+   * n'affiche que ces actions ; le serveur les revérifie à l'écriture. */
+  selfService: {
+    canCancel: boolean;
+    canReschedule: boolean;
+    /** Remplacer/retirer : seulement s'il y a un article indisponible. */
+    canEditItems: boolean;
+  };
 };
 
 /**
@@ -446,6 +476,7 @@ export async function getPublicOrder(
   }
 
   const loyalty = await getPublicOrderLoyalty(order);
+  const selfServe = canCustomerSelfServe(order);
 
   return {
     id: order.id,
@@ -469,6 +500,11 @@ export async function getPublicOrder(
     driverPhone: order.driverPhone,
     createdAt: order.createdAt.toISOString(),
     loyalty,
+    selfService: {
+      canCancel: selfServe,
+      canReschedule: selfServe,
+      canEditItems: selfServe && !fulfillable,
+    },
   };
 }
 

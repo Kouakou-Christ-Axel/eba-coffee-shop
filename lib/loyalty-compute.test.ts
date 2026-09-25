@@ -1,6 +1,10 @@
 // lib/loyalty-compute.test.ts
 import { describe, it, expect } from 'vitest';
-import { computeStampAward, type LoyaltyConfig } from '@/lib/loyalty-compute';
+import {
+  computeStampAward,
+  computeStampRevert,
+  type LoyaltyConfig,
+} from '@/lib/loyalty-compute';
 
 const cfg: LoyaltyConfig = {
   stampsPerCard: 10,
@@ -38,5 +42,27 @@ describe('computeStampAward', () => {
     const r = computeStampAward(9, single);
     expect(r.newStampCount).toBe(0);
     expect(r.rewards).toEqual([{ tier: 10, capAmount: 2500 }]);
+  });
+});
+
+describe('computeStampRevert', () => {
+  it('retire simplement le tampon en cours de carte', () => {
+    expect(computeStampRevert(3, { stampsPerCard: 10 })).toBe(2);
+  });
+
+  it('défait un tampon qui avait bouclé la carte (0 → avant-dernière case)', () => {
+    const cfg = { stampsPerCard: 10 };
+    const { newStampCount } = computeStampAward(9, {
+      ...cfg,
+      tier1Stamps: 5,
+      tier1RewardCap: 1000,
+      tier2RewardCap: 2000,
+    });
+    expect(newStampCount).toBe(0);
+    expect(computeStampRevert(newStampCount, cfg)).toBe(9);
+  });
+
+  it('ne devient jamais négatif', () => {
+    expect(computeStampRevert(0, { stampsPerCard: 0 })).toBe(0);
   });
 });
