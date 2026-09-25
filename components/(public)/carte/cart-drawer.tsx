@@ -20,6 +20,8 @@ import {
   trackRemoveFromCart,
 } from '@/lib/analytics';
 import SupplementModal from './supplement-modal';
+import { useCartAvailability } from '@/lib/hooks/use-cart-availability';
+import { CartLineStatusChip } from './_components/cart-line-status';
 import { ProductMedia } from './_components/product-media';
 import { CartUpsell, selectUpsellProducts } from './_components/cart-upsell';
 import {
@@ -55,6 +57,12 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
       .then((data: MenuCategory[] | null) => setMenu(data ?? []))
       .catch(() => setMenu([]));
   }, [isOpen, menu]);
+
+  // Revérification du panier contre le menu frais : une rupture survenue
+  // depuis l'ajout se voit ICI, pas au clic sur « Confirmer ».
+  const availability = useCartAvailability(menu);
+  const soldOutCount = availability?.soldOutLines.length ?? 0;
+  const goneCount = availability?.goneCartIds.length ?? 0;
 
   const [duplicateItem, setDuplicateItem] = useState<CartItem | null>(null);
   const duplicateProduct: Product | null = duplicateItem
@@ -170,6 +178,9 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                                   .join(', ')}
                               </p>
                             )}
+                            <CartLineStatusChip
+                              status={availability?.status[item.cartId]}
+                            />
                             <p className="mt-1 text-sm font-medium text-primary">
                               {priceFormatter.format(getItemTotal(item))}
                               &nbsp;F
@@ -242,6 +253,21 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
 
           {items.length > 0 && (
             <ModalFooter className="flex-col gap-3">
+              {goneCount > 0 ? (
+                <p className="w-full rounded-xl bg-danger-50 px-3 py-2 text-sm text-danger-700">
+                  {goneCount > 1
+                    ? 'Des articles ne sont plus disponibles : retire-les pour continuer.'
+                    : 'Un article n’est plus disponible : retire-le pour continuer.'}
+                </p>
+              ) : (
+                soldOutCount > 0 && (
+                  <p className="w-full rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-700">
+                    {soldOutCount > 1
+                      ? 'Des articles viennent d’être épuisés : tu pourras les remplacer à l’étape suivante.'
+                      : 'Un article vient d’être épuisé : tu pourras le remplacer à l’étape suivante.'}
+                  </p>
+                )
+              )}
               <div className="flex w-full items-center justify-between">
                 <span className="text-base font-semibold">Total</span>
                 <span className="text-lg font-bold text-primary">
@@ -254,6 +280,7 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                 className="w-full"
                 size="lg"
                 onPress={goToCheckout}
+                isDisabled={goneCount > 0}
               >
                 Passer la commande
               </Button>

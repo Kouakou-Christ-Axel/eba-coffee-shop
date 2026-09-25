@@ -104,6 +104,9 @@ export type UseCheckoutFormResult = {
   /** Lignes refusées par la dernière soumission (rupture du jour) — vide
    * sinon. Le panneau « Résoudre » s'ouvre tant qu'il y en a. */
   soldOutLines: SoldOutLine[];
+  /** Ouvre le panneau « Résoudre » sans aller-retour serveur, avec des
+   * lignes détectées côté client (`checkCartAgainstMenu`). */
+  showSoldOutLines: (lines: SoldOutLine[]) => void;
   clearSoldOutLines: () => void;
 };
 
@@ -466,6 +469,7 @@ export function useCheckoutForm({
     setField,
     submit,
     soldOutLines,
+    showSoldOutLines: setSoldOutLines,
     clearSoldOutLines,
   };
 }

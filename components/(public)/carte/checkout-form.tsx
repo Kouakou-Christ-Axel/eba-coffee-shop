@@ -14,10 +14,13 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@heroui/react';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Sparkles } from 'lucide-react';
 import { useCartStore, type CartItem } from '@/lib/cart-store';
 import { cartItemToAnalyticsItem, trackRemoveFromCart } from '@/lib/analytics';
 import { effectiveItemAdvanceDays } from '@/lib/supplements';
+import { isDeferredPickup } from '@/lib/orders/scheduling';
+import type { CartAvailability } from '@/lib/cart-availability';
+import type { MenuCategory } from '@/config/menu';
 import { useCheckoutForm } from '@/lib/hooks/use-checkout-form';
 import { usePickupInfo } from '@/lib/hooks/use-pickup-info';
 import { useLoyaltyReward } from '@/lib/hooks/use-loyalty-reward';
@@ -28,8 +31,8 @@ import { PickupModeCards } from './_components/pickup-mode-cards';
 import { NoteField } from './_components/note-field';
 import { SlotPicker } from './_components/slot-picker';
 
-// Panneau « Résoudre » (rupture du jour) : chargé seulement quand le serveur
-// refuse une commande — la plupart des clients ne le verront jamais.
+// Panneau « Résoudre » (rupture du jour) : chargé seulement quand une rupture
+// est détectée — la plupart des clients ne le verront jamais.
 const SoldOutResolver = dynamic(
   () => import('./_components/sold-out-resolver'),
   { ssr: false }
@@ -43,6 +46,10 @@ type Props = {
   onSuccess: (orderId: string) => void;
   /** Remonte la remise fidélité appliquée pour le récap de la page. */
   onLoyaltyDiscountChange?: (discount: number) => void;
+  /** Menu frais chargé par la page (partagé avec le panneau « Résoudre »). */
+  menu?: MenuCategory[] | null;
+  /** Panier revérifié contre ce menu (`useCartAvailability`). */
+  availability?: CartAvailability | null;
 };
 
 export function CheckoutForm({
@@ -51,6 +58,8 @@ export function CheckoutForm({
   onBack,
   onSuccess,
   onLoyaltyDiscountChange,
+  menu,
+  availability,
 }: Props) {
   // Récompense appliquée par défaut (frictionless) ; le client peut la garder
   // pour une prochaine commande via le Switch du bandeau.
@@ -63,6 +72,7 @@ export function CheckoutForm({
     setField,
     submit,
     soldOutLines,
+    showSoldOutLines,
     clearSoldOutLines,
   } = useCheckoutForm({ items, total });
   const replaceItem = useCartStore((s) => s.replaceItem);
@@ -105,7 +115,29 @@ export function CheckoutForm({
     onLoyaltyDiscountChange?.(discount);
   }, [discount, onLoyaltyDiscountChange]);
 
+  // Ruptures détectées AVANT l'envoi (menu frais) : elles ne comptent que
+  // pour un retrait aujourd'hui — un retrait planifié un autre jour laisse le
+  // temps de produire (même règle que `createOrder`, lib/orders.ts).
+  const deferredPickup = isDeferredPickup(
+    values.timing === 'scheduled' ? values.pickupTime : null
+  );
+  const preSoldOutLines = deferredPickup
+    ? []
+    : (availability?.soldOutLines ?? []);
+  const goneItems = items.filter((i) =>
+    availability?.goneCartIds.includes(i.cartId)
+  );
+
   async function send() {
+    // Un article retiré de la carte bloque : rien à proposer d'autre que de
+    // le retirer (le bandeau en haut du formulaire le dit).
+    if (goneItems.length > 0) return;
+    // Rupture connue : on ouvre directement le panneau « Résoudre » plutôt
+    // que d'attendre le 409 du serveur.
+    if (preSoldOutLines.length > 0) {
+      showSoldOutLines(preSoldOutLines);
+      return;
+    }
     const outcome = await submit(activeReward);
     if (outcome.ok) onSuccess(outcome.orderId);
     // Récompense consommée entre-temps : on la retire pour que le prochain
@@ -153,6 +185,55 @@ export function CheckoutForm({
         <ArrowLeft className="h-3.5 w-3.5" />
         Retour au panier
       </button>
+
+      {goneItems.length > 0 && (
+        <div className="rounded-xl bg-danger-50 p-3 text-sm text-danger-700">
+          <p className="flex items-center gap-2 font-medium">
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {goneItems.length > 1
+              ? 'Ces articles ne sont plus disponibles'
+              : 'Cet article n’est plus disponible'}
+          </p>
+          <ul className="mt-1.5">
+            {goneItems.map((item) => (
+              <li
+                key={item.cartId}
+                className="flex items-center justify-between gap-2"
+              >
+                <span className="min-w-0 truncate">{item.productName}</span>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  color="danger"
+                  className="min-h-9"
+                  onPress={() => handleRemove(item.cartId)}
+                >
+                  Retirer
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {goneItems.length === 0 && preSoldOutLines.length > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-warning-50 p-3 text-sm text-warning-700">
+          <p className="flex min-w-0 items-center gap-2 font-medium">
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {preSoldOutLines.length > 1
+              ? `${preSoldOutLines.length} articles épuisés aujourd’hui`
+              : `${preSoldOutLines[0].productName} : épuisé aujourd’hui`}
+          </p>
+          <Button
+            size="sm"
+            color="warning"
+            className="min-h-9 shrink-0"
+            onPress={() => showSoldOutLines(preSoldOutLines)}
+          >
+            Résoudre
+          </Button>
+        </div>
+      )}
 
       <PickupModeCards
         mode={values.pickupMode}
@@ -225,6 +306,7 @@ export function CheckoutForm({
           onDeferAll={handleDeferAll}
           onSubmit={() => void send()}
           isSubmitting={isSubmitting}
+          menu={menu}
         />
       )}
 

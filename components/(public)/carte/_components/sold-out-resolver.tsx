@@ -63,14 +63,20 @@ export type SoldOutResolverProps = {
   /** Renvoie la commande une fois tout résolu. */
   onSubmit: () => void;
   isSubmitting: boolean;
+  /** Menu déjà chargé par l'appelant (page de commande) : évite une seconde
+   * requête. Absent = chargé à l'ouverture. */
+  menu?: MenuCategory[] | null;
 };
 
-/** Menu frais (stock compris) chargé à l'ouverture du panneau — la page de
- * commande n'embarque pas le menu. `null` = en cours, `[]` = échec. */
-function useMenuWhenOpen(isOpen: boolean): MenuCategory[] | null {
+/** Menu frais (stock compris) : celui de l'appelant s'il l'a déjà chargé,
+ * sinon chargé à l'ouverture du panneau. `null` = en cours, `[]` = échec. */
+function useMenuWhenOpen(
+  isOpen: boolean,
+  preloaded: MenuCategory[] | null | undefined
+): MenuCategory[] | null {
   const [menu, setMenu] = useState<MenuCategory[] | null>(null);
   useEffect(() => {
-    if (!isOpen || menu) return;
+    if (!isOpen || menu || preloaded) return;
     let cancelled = false;
     fetch('/api/menu')
       .then((res) => (res.ok ? res.json() : null))
@@ -83,8 +89,8 @@ function useMenuWhenOpen(isOpen: boolean): MenuCategory[] | null {
     return () => {
       cancelled = true;
     };
-  }, [isOpen, menu]);
-  return menu;
+  }, [isOpen, menu, preloaded]);
+  return preloaded ?? menu;
 }
 
 export default function SoldOutResolver({
@@ -98,8 +104,9 @@ export default function SoldOutResolver({
   onDeferAll,
   onSubmit,
   isSubmitting,
+  menu: preloadedMenu,
 }: SoldOutResolverProps) {
-  const menu = useMenuWhenOpen(isOpen);
+  const menu = useMenuWhenOpen(isOpen, preloadedMenu);
   // Lignes dont la quantité a été réduite au stock restant : toujours dans
   // le panier, mais réglées.
   const [reduced, setReduced] = useState<Set<string>>(() => new Set());
