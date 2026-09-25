@@ -11,11 +11,14 @@ vi.mock('@/lib/daily-numbering', () => ({
   todayDailyDate: () => new Date('2026-09-25T00:00:00.000Z'),
 }));
 
-import { revokeLoyaltyForOrder } from './loyalty-mutations';
+import {
+  restoreLoyaltyForOrder,
+  revokeLoyaltyForOrder,
+} from './loyalty-mutations';
 
 const tx = {
   loyaltyReward: { findMany: vi.fn(), update: vi.fn(), delete: vi.fn() },
-  loyaltyLedger: { findFirst: vi.fn(), create: vi.fn() },
+  loyaltyLedger: { findMany: vi.fn(), create: vi.fn() },
   customer: { findUnique: vi.fn(), update: vi.fn() },
   loyaltySettings: { findUnique: vi.fn() },
 };
@@ -30,7 +33,7 @@ const args = {
 beforeEach(() => {
   vi.clearAllMocks();
   tx.loyaltyReward.findMany.mockResolvedValue([]);
-  tx.loyaltyLedger.findFirst.mockResolvedValue(null);
+  tx.loyaltyLedger.findMany.mockResolvedValue([]);
   tx.loyaltySettings.findUnique.mockResolvedValue(null);
 });
 
@@ -42,7 +45,9 @@ describe('revokeLoyaltyForOrder', () => {
   });
 
   it('retire le tampon du jour et relâche la règle « un par jour »', async () => {
-    tx.loyaltyLedger.findFirst.mockResolvedValue({ id: 'l1' });
+    tx.loyaltyLedger.findMany.mockResolvedValue([
+      { type: 'STAMP_EARNED', stamps: 1 },
+    ]);
     tx.customer.findUnique.mockResolvedValue({
       stampCount: 4,
       lastStampDate: new Date('2026-09-25T00:00:00.000Z'),
@@ -97,5 +102,63 @@ describe('revokeLoyaltyForOrder', () => {
       where: { id: 'r-self' },
     });
     expect(tx.loyaltyReward.update).not.toHaveBeenCalled();
+  });
+
+  it('ne retire jamais deux fois le même tampon (annuler, rétablir, ré-annuler)', async () => {
+    tx.loyaltyLedger.findMany.mockResolvedValue([
+      { type: 'STAMP_EARNED', stamps: 1 },
+      { type: 'ADJUSTMENT', stamps: -1 },
+    ]);
+    await revokeLoyaltyForOrder(tx as never, args);
+    expect(tx.customer.update).not.toHaveBeenCalled();
+  });
+
+  it('annulation par le staff : la récompense appliquée reste sur la commande', async () => {
+    tx.loyaltyReward.findMany.mockResolvedValue([
+      { id: 'r-self', status: 'USED', usedOrderId: 'o1', capAmount: 1000 },
+    ]);
+    await revokeLoyaltyForOrder(tx as never, {
+      ...args,
+      usedRewardId: 'r-self',
+      keepUsedReward: true,
+    });
+    expect(tx.loyaltyReward.delete).not.toHaveBeenCalled();
+    expect(tx.loyaltyReward.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('restoreLoyaltyForOrder', () => {
+  const restoreArgs = { orderId: 'o1', customerId: 'c1', orderTotal: 3500 };
+
+  it('ne fait rien si le tampon est toujours compté, ou n’a jamais été gagné', async () => {
+    tx.loyaltyLedger.findMany.mockResolvedValueOnce([
+      { type: 'STAMP_EARNED', stamps: 1 },
+    ]);
+    await restoreLoyaltyForOrder(tx as never, restoreArgs);
+    tx.loyaltyLedger.findMany.mockResolvedValueOnce([]);
+    await restoreLoyaltyForOrder(tx as never, restoreArgs);
+    expect(tx.customer.update).not.toHaveBeenCalled();
+  });
+
+  it('rend le tampon retiré, selon les règles normales', async () => {
+    tx.loyaltyLedger.findMany.mockResolvedValue([
+      { type: 'STAMP_EARNED', stamps: 1 },
+      { type: 'ADJUSTMENT', stamps: -1 },
+    ]);
+    tx.customer.findUnique.mockResolvedValue({
+      stampCount: 3,
+      lastStampDate: null,
+    });
+
+    await restoreLoyaltyForOrder(tx as never, restoreArgs);
+
+    expect(tx.customer.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ stampCount: 4 }),
+      })
+    );
+    expect(tx.loyaltyLedger.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ type: 'STAMP_EARNED', orderId: 'o1' }),
+    });
   });
 });

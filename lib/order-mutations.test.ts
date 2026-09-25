@@ -65,6 +65,8 @@ vi.mock('@/lib/loyalty-mutations', () => ({
   awardLoyaltyForOrder: vi.fn().mockResolvedValue({ rewards: [] }),
   consumeLoyaltyReward: vi.fn().mockResolvedValue(undefined),
   resolveLoyaltyReward: vi.fn().mockResolvedValue(null),
+  revokeLoyaltyForOrder: vi.fn().mockResolvedValue(undefined),
+  restoreLoyaltyForOrder: vi.fn().mockResolvedValue(undefined),
   LoyaltyRewardUnavailableError: class LoyaltyRewardUnavailableError extends Error {},
 }));
 
@@ -79,6 +81,7 @@ import {
   updateOrderFulfillment,
   setOrderCustomer,
   setOrderLoyaltyReward,
+  setOrderStatus,
   updateOrderItems,
   OrderMutationError,
   StockShortageError,
@@ -87,6 +90,8 @@ import {
   awardLoyaltyForOrder,
   consumeLoyaltyReward,
   resolveLoyaltyReward,
+  restoreLoyaltyForOrder,
+  revokeLoyaltyForOrder,
 } from '@/lib/loyalty-mutations';
 import type { CartItem } from '@/lib/cart-store';
 
@@ -1764,5 +1769,75 @@ describe('updateOrderItems — delta de stock, cas complémentaires', () => {
     await expect(updateOrderItems('order1', [productItem()])).rejects.toThrow(
       OrderMutationError
     );
+  });
+});
+
+// ─── Fidélité à l'annulation par le staff ────────────────────────────────────
+
+describe('setOrderStatus — fidélité à l’annulation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOrderUpdateMany.mockResolvedValue({ count: 1 });
+  });
+
+  it('annuler retire le tampon, en gardant la récompense appliquée sur la commande', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'NEW',
+      dailyNumber: 3,
+      customerId: 'cust-1',
+      isPaid: false,
+      total: 3500,
+      loyaltyRewardId: 'r1',
+    } as never);
+
+    await setOrderStatus('o1', 'CANCELLED', 'ADMIN');
+
+    expect(revokeLoyaltyForOrder).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        orderId: 'o1',
+        customerId: 'cust-1',
+        usedRewardId: 'r1',
+        keepUsedReward: true,
+      })
+    );
+    expect(restoreLoyaltyForOrder).not.toHaveBeenCalled();
+  });
+
+  it('rétablir une commande annulée lui rend son tampon', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'CANCELLED',
+      dailyNumber: 3,
+      customerId: 'cust-1',
+      isPaid: false,
+      total: 3500,
+      loyaltyRewardId: null,
+    } as never);
+
+    await setOrderStatus('o1', 'NEW', 'ADMIN');
+
+    expect(restoreLoyaltyForOrder).toHaveBeenCalledWith(expect.anything(), {
+      orderId: 'o1',
+      customerId: 'cust-1',
+      orderTotal: 3500,
+    });
+    expect(revokeLoyaltyForOrder).not.toHaveBeenCalled();
+  });
+
+  it('ne touche pas à la fidélité si un autre caissier a déjà changé le statut', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'NEW',
+      dailyNumber: 3,
+      customerId: 'cust-1',
+      isPaid: false,
+      total: 3500,
+      loyaltyRewardId: null,
+    } as never);
+    mockOrderUpdateMany.mockResolvedValue({ count: 0 });
+
+    await expect(setOrderStatus('o1', 'CANCELLED', 'ADMIN')).rejects.toThrow(
+      OrderMutationError
+    );
+    expect(revokeLoyaltyForOrder).not.toHaveBeenCalled();
   });
 });

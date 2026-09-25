@@ -196,6 +196,23 @@ export async function awardLoyaltyForOrder(
   return { rewards: createdRewards };
 }
 
+/** Solde de tampons tracé au ledger pour UNE commande (+1 à l'attribution,
+ * −1 à chaque retrait). Rend les retraits/restitutions idempotents : annuler,
+ * rétablir, ré-annuler ne retire jamais deux fois le même tampon. */
+async function orderStampBalance(
+  tx: Prisma.TransactionClient,
+  orderId: string
+): Promise<{ net: number; everEarned: boolean }> {
+  const rows = await tx.loyaltyLedger.findMany({
+    where: { orderId, type: { in: ['STAMP_EARNED', 'ADJUSTMENT'] } },
+    select: { type: true, stamps: true },
+  });
+  return {
+    net: rows.reduce((sum, r) => sum + r.stamps, 0),
+    everEarned: rows.some((r) => r.type === 'STAMP_EARNED'),
+  };
+}
+
 /**
  * Défait, DANS la transaction d'annulation, tout ce que la commande a produit
  * côté fidélité — sans quoi « commander puis annuler » deviendrait une ferme à
@@ -208,7 +225,12 @@ export async function awardLoyaltyForOrder(
  *   3. le tampon gagné est retiré (`computeStampRevert`), et la règle « un
  *      tampon par jour » est relâchée si ce tampon était celui du jour.
  * Tout est tracé au ledger (`ADJUSTMENT`). No-op si la commande n'avait rien
- * produit.
+ * produit (ou si c'est déjà défait : idempotent).
+ *
+ * `keepUsedReward` (annulation par le STAFF) : la récompense appliquée à la
+ * commande y reste attachée — la commande a pu être encaissée avec cette
+ * remise, et une annulation peut être défaite ; on ne touche qu'au tampon et
+ * aux récompenses débloquées encore disponibles.
  */
 export async function revokeLoyaltyForOrder(
   tx: Prisma.TransactionClient,
@@ -219,6 +241,7 @@ export async function revokeLoyaltyForOrder(
     usedRewardId: string | null;
     note: string;
     actorId?: string | null;
+    keepUsedReward?: boolean;
   }
 ): Promise<void> {
   const { orderId, customerId, note } = args;
@@ -231,7 +254,11 @@ export async function revokeLoyaltyForOrder(
   const earnedIds = new Set(earned.map((r) => r.id));
 
   // 1. Récompense utilisée sur cette commande (et non débloquée par elle).
-  if (args.usedRewardId && !earnedIds.has(args.usedRewardId)) {
+  if (
+    !args.keepUsedReward &&
+    args.usedRewardId &&
+    !earnedIds.has(args.usedRewardId)
+  ) {
     await tx.loyaltyReward.update({
       where: { id: args.usedRewardId },
       data: {
@@ -258,6 +285,9 @@ export async function revokeLoyaltyForOrder(
       r.status === 'USED' &&
       r.usedOrderId !== null &&
       r.usedOrderId !== orderId;
+    const keptOnThisOrder =
+      args.keepUsedReward && r.status === 'USED' && r.usedOrderId === orderId;
+    if (keptOnThisOrder) continue;
     if (usedElsewhere) {
       await tx.loyaltyLedger.create({
         data: {
@@ -282,12 +312,9 @@ export async function revokeLoyaltyForOrder(
     });
   }
 
-  // 3. Tampon gagné par cette commande.
-  const stamp = await tx.loyaltyLedger.findFirst({
-    where: { orderId, type: 'STAMP_EARNED' },
-    select: { id: true },
-  });
-  if (stamp) {
+  // 3. Tampon gagné par cette commande — seulement s'il est encore compté.
+  const { net } = await orderStampBalance(tx, orderId);
+  if (net > 0) {
     const [customer, settingsRow] = await Promise.all([
       tx.customer.findUnique({
         where: { id: customerId },
@@ -319,6 +346,32 @@ export async function revokeLoyaltyForOrder(
       });
     }
   }
+}
+
+/**
+ * Inverse de `revokeLoyaltyForOrder` quand le STAFF rétablit une commande
+ * annulée : si son tampon avait été retiré, on le lui ré-attribue selon les
+ * règles normales (`awardLoyaltyForOrder` : programme actif, montant min,
+ * un tampon par jour). Idempotent : no-op si le tampon est déjà compté, ou si
+ * la commande n'en avait jamais gagné.
+ */
+export async function restoreLoyaltyForOrder(
+  tx: Prisma.TransactionClient,
+  args: {
+    orderId: string;
+    customerId: string;
+    orderTotal: number;
+    actorId?: string | null;
+  }
+): Promise<void> {
+  const { net, everEarned } = await orderStampBalance(tx, args.orderId);
+  if (!everEarned || net > 0) return;
+  await awardLoyaltyForOrder(tx, {
+    customerId: args.customerId,
+    orderId: args.orderId,
+    orderTotal: args.orderTotal,
+    actorId: args.actorId ?? null,
+  });
 }
 
 /** Ajustement manuel (admin) du compteur de tampons. Tracé au ledger. */
