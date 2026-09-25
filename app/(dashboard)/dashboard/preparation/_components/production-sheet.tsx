@@ -68,7 +68,7 @@ export function ProductionSheet({ plan, open, onOpenChange }: Props) {
             <ClipboardList className="h-5 w-5" />À produire
           </SheetTitle>
           <SheetDescription>
-            Commandes déjà en cuisine, pas encore prêtes
+            Commandes en cuisine, et celles programmées pas encore lancées
           </SheetDescription>
         </SheetHeader>
 
@@ -131,6 +131,14 @@ export function ProductionSheet({ plan, open, onOpenChange }: Props) {
                         <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-900 dark:bg-indigo-950 dark:text-indigo-100">
                           dont {line.scheduledQuantity} programmée
                           {line.scheduledQuantity > 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {/* Commandes à créneau pas encore lancées (ex. épuisé
+                          hier, reporté) : à produire, stock pas encore
+                          décompté — il le sera au lancement. */}
+                      {line.toLaunchQuantity > 0 && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+                          dont {line.toLaunchQuantity} à lancer
                         </span>
                       )}
                     </p>

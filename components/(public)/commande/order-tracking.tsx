@@ -14,6 +14,7 @@ import { Button, Chip } from '@heroui/react';
 import { m, useReducedMotion } from 'framer-motion';
 import {
   Bike,
+  CalendarClock,
   Check,
   CheckCircle2,
   ChefHat,
@@ -32,6 +33,7 @@ import { PaymentSection } from '@/components/(public)/commande/payment-section';
 import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
 import { getItemGross } from '@/lib/orders/totals';
 import { formatPickupTime } from '@/lib/format-order';
+import { deferredPickupLabel } from '@/lib/orders/scheduling';
 import { priceFormatter } from '@/config/menu';
 import {
   buildDriverShareMessage,
@@ -101,10 +103,10 @@ export function OrderTracking({
   const isCancelled = order.status === 'CANCELLED';
   const isFinal = order.status === 'COMPLETED' || isCancelled;
   const pickupCode = getPickupCode(order.reference);
-  // Le stock n'est réservé qu'AU PAIEMENT (voir lib/orders/availability.ts) :
-  // tant que la commande n'est pas payée, un article peut devenir indisponible
-  // entre-temps (un autre client a payé la dernière unité). Une fois payée,
-  // `fulfillable` est toujours vrai (stock déjà réservé pour ce client).
+  // Le stock n'est réservé qu'à l'ENTRÉE EN CUISINE (voir
+  // lib/orders/availability.ts) : d'ici là, un article peut devenir
+  // indisponible (un autre client a pris la dernière unité). Une commande
+  // pour un autre jour n'est jamais signalée : son stock sera celui du jour J.
   const hasUnavailableItem = !order.isPaid && !order.fulfillable;
 
   // ── Polling léger : statut/paiement/livreur en direct tant que la commande
@@ -147,6 +149,9 @@ export function OrderTracking({
   }, [refresh, isFinal, awaitingProofValidation]);
 
   const currentStep = STATUS_INDEX[order.status] ?? 0;
+  // Retrait un jour ultérieur : la commande reste « Reçue » jusqu'au jour J.
+  // Sans le dire, le client croit qu'elle est oubliée.
+  const deferred = deferredPickupLabel(order, new Date());
   const { canCancel, canReschedule, canEditItems } = order.selfService;
   const canSelfServe = canCancel || canReschedule || canEditItems;
 
@@ -166,6 +171,25 @@ export function OrderTracking({
         </div>
       ) : (
         <StatusTimeline currentStep={currentStep} reduceMotion={reduceMotion} />
+      )}
+
+      {/* ── Commande pour un autre jour ── */}
+      {!isCancelled && deferred && (
+        <div className="flex items-center gap-3 rounded-xl border border-indigo-300/60 bg-indigo-50 p-4 dark:border-indigo-800 dark:bg-indigo-950/30">
+          <CalendarClock
+            className="h-6 w-6 shrink-0 text-indigo-700 dark:text-indigo-300"
+            aria-hidden="true"
+          />
+          <div>
+            <p className="font-semibold text-indigo-900 dark:text-indigo-100">
+              Prévue pour {deferred.day} à {deferred.time}
+            </p>
+            <p className="text-sm text-foreground/60">
+              Ta commande sera préparée le jour du retrait. Cette page passera à
+              « En préparation » dès qu’on s’y met.
+            </p>
+          </div>
+        </div>
       )}
 
       {/* ── Notifications push (statuts en direct) ── */}

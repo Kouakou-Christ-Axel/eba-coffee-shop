@@ -9,14 +9,20 @@
 // aucune requête supplémentaire, et le panneau se rafraîchit avec le reste de
 // l'écran.
 //
-// PÉRIMÈTRE = commandes déjà EN CUISINE (`status === 'PREPARING'`), pas
-// encore prêtes. Une commande `NEW` (ex. une livraison qui attend encore
-// l'encaissement) n'est pas « à produire » : elle n'a pas commencé. Une
+// PÉRIMÈTRE = ce que la cuisine DOIT produire :
+//   - les commandes déjà EN CUISINE (`status === 'PREPARING'`), pas encore
+//     prêtes ;
+//   - les commandes À CRÉNEAU PAS ENCORE LANCÉES (`isAwaitingKitchenLaunch`) :
+//     une commande pour demain — typiquement un produit épuisé aujourd'hui,
+//     reporté — est déjà une charge de production connue. Sans elle, « 12
+//     Sponge cakes demain » ne se voyait nulle part avant qu'on lance chaque
+//     ticket le jour J.
+// Une commande `NEW` SANS créneau (ex. une livraison qui attend encore
+// l'encaissement) n'est pas « à produire » : rien n'est planifié. Une
 // commande `READY`/`COMPLETED`/`CANCELLED` non plus : c'est fait, ou ça ne
-// se fera pas. Conséquence voulue : le compteur descend quand la cuisine
-// marque « Prête », pas au lancement — c'est un agrégat de la file en cours,
-// utile pour préparer par lot (« 12 croissants au total ») plutôt que de
-// lire chaque ticket un par un.
+// se fera pas. Le compteur descend quand la cuisine marque « Prête » — c'est
+// un agrégat utile pour préparer par lot (« 12 croissants au total ») plutôt
+// que de lire chaque ticket un par un.
 //
 // Deux tags CHIFFRÉS par ligne, tous deux inclus dans `quantity` (jamais en
 // plus) :
@@ -27,10 +33,16 @@
 //   - `scheduledQuantity` : part venant d'une commande « programmée en
 //     avance » (`isScheduledAhead`) — déjà lancée en cuisine pour un retrait
 //     plus tard, mais pas pour le service immédiat.
+//   - `toLaunchQuantity` : part venant de commandes pas encore lancées en
+//     cuisine — à produire, mais dont le stock n'est pas encore décompté.
 
 import type { CartItem } from '@/lib/cart-store';
 import type { OrderStatus } from '@/generated/prisma/client';
-import { isScheduledAhead, orderProductionDay } from './scheduling';
+import {
+  isAwaitingKitchenLaunch,
+  isScheduledAhead,
+  orderProductionDay,
+} from './scheduling';
 
 export type ProductionFlavour = {
   groupName: string;
@@ -47,6 +59,8 @@ export type ProductionLine = {
   addedLaterQuantity: number;
   /** Part de `quantity` venant de commandes programmées, déjà lancées en avance. */
   scheduledQuantity: number;
+  /** Part de `quantity` venant de commandes à créneau pas encore lancées. */
+  toLaunchQuantity: number;
   /** Ventilation par goût (« 5 Vanille · 7 Coco »), vide si le produit n'en a pas. */
   flavours: ProductionFlavour[];
   /** Commandes à l'origine de cette ligne — traçabilité « ça vient d'où ? ». */
@@ -88,10 +102,11 @@ export function buildProductionPlan(
   const byDay = new Map<string, Map<string, ProductionLine>>();
 
   for (const order of orders) {
-    // Périmètre = en cuisine, pas encore prête (cf. en-tête du fichier).
-    if (order.status !== 'PREPARING') continue;
+    // Périmètre = en cuisine, ou à créneau pas encore lancée (cf. en-tête).
+    const toLaunch = isAwaitingKitchenLaunch(order);
+    if (order.status !== 'PREPARING' && !toLaunch) continue;
 
-    const scheduledAhead = isScheduledAhead(order, now);
+    const scheduledAhead = !toLaunch && isScheduledAhead(order, now);
     const day = orderProductionDay(order);
     let lines = byDay.get(day);
     if (!lines) {
@@ -108,6 +123,7 @@ export function buildProductionPlan(
           quantity: 0,
           addedLaterQuantity: 0,
           scheduledQuantity: 0,
+          toLaunchQuantity: 0,
           flavours: [],
           orderIds: [],
         };
@@ -116,6 +132,7 @@ export function buildProductionPlan(
       line.quantity += item.quantity;
       if (item.addedLater) line.addedLaterQuantity += item.quantity;
       if (scheduledAhead) line.scheduledQuantity += item.quantity;
+      if (toLaunch) line.toLaunchQuantity += item.quantity;
       if (!line.orderIds.includes(order.id)) line.orderIds.push(order.id);
 
       for (const supplement of item.supplements) {
