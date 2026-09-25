@@ -8,7 +8,11 @@ import prisma from '@/lib/prisma';
 import { todayDailyDate } from '@/lib/daily-numbering';
 import { loyaltySettingsFromRow } from '@/lib/loyalty-settings';
 import { getLoyaltySettings } from '@/lib/loyalty-settings-db';
-import { computeStampAward, type EarnedReward } from '@/lib/loyalty-compute';
+import {
+  computeStampAward,
+  computeStampRevert,
+  type EarnedReward,
+} from '@/lib/loyalty-compute';
 
 type AwardArgs = {
   customerId: string;
@@ -190,6 +194,131 @@ export async function awardLoyaltyForOrder(
   }
 
   return { rewards: createdRewards };
+}
+
+/**
+ * Défait, DANS la transaction d'annulation, tout ce que la commande a produit
+ * côté fidélité — sans quoi « commander puis annuler » deviendrait une ferme à
+ * tampons :
+ *   1. la récompense utilisée SUR cette commande redevient disponible (le
+ *      client ne la perd pas pour une commande qui n'a pas eu lieu) ;
+ *   2. les récompenses débloquées PAR cette commande sont supprimées — sauf
+ *      si le client en a déjà profité sur une AUTRE commande : on la lui
+ *      laisse (le geste est fait) et on le trace ;
+ *   3. le tampon gagné est retiré (`computeStampRevert`), et la règle « un
+ *      tampon par jour » est relâchée si ce tampon était celui du jour.
+ * Tout est tracé au ledger (`ADJUSTMENT`). No-op si la commande n'avait rien
+ * produit.
+ */
+export async function revokeLoyaltyForOrder(
+  tx: Prisma.TransactionClient,
+  args: {
+    orderId: string;
+    customerId: string;
+    /** Récompense appliquée à la commande (`Order.loyaltyRewardId`). */
+    usedRewardId: string | null;
+    note: string;
+    actorId?: string | null;
+  }
+): Promise<void> {
+  const { orderId, customerId, note } = args;
+  const actorId = args.actorId ?? null;
+
+  const earned = await tx.loyaltyReward.findMany({
+    where: { earnedOrderId: orderId },
+    select: { id: true, status: true, usedOrderId: true, capAmount: true },
+  });
+  const earnedIds = new Set(earned.map((r) => r.id));
+
+  // 1. Récompense utilisée sur cette commande (et non débloquée par elle).
+  if (args.usedRewardId && !earnedIds.has(args.usedRewardId)) {
+    await tx.loyaltyReward.update({
+      where: { id: args.usedRewardId },
+      data: {
+        status: 'AVAILABLE',
+        usedOrderId: null,
+        usedAt: null,
+        redeemedAsGift: false,
+      },
+    });
+    await tx.loyaltyLedger.create({
+      data: {
+        customerId,
+        type: 'ADJUSTMENT',
+        orderId,
+        actorId,
+        note: `${note} — récompense restituée`,
+      },
+    });
+  }
+
+  // 2. Récompenses débloquées par cette commande.
+  for (const r of earned) {
+    const usedElsewhere =
+      r.status === 'USED' &&
+      r.usedOrderId !== null &&
+      r.usedOrderId !== orderId;
+    if (usedElsewhere) {
+      await tx.loyaltyLedger.create({
+        data: {
+          customerId,
+          type: 'ADJUSTMENT',
+          orderId,
+          actorId,
+          note: `${note} — récompense ${r.capAmount} F déjà utilisée sur une autre commande, conservée`,
+        },
+      });
+      continue;
+    }
+    await tx.loyaltyReward.delete({ where: { id: r.id } });
+    await tx.loyaltyLedger.create({
+      data: {
+        customerId,
+        type: 'ADJUSTMENT',
+        orderId,
+        actorId,
+        note: `${note} — récompense ${r.capAmount} F retirée`,
+      },
+    });
+  }
+
+  // 3. Tampon gagné par cette commande.
+  const stamp = await tx.loyaltyLedger.findFirst({
+    where: { orderId, type: 'STAMP_EARNED' },
+    select: { id: true },
+  });
+  if (stamp) {
+    const [customer, settingsRow] = await Promise.all([
+      tx.customer.findUnique({
+        where: { id: customerId },
+        select: { stampCount: true, lastStampDate: true },
+      }),
+      tx.loyaltySettings.findUnique({ where: { id: 'singleton' } }),
+    ]);
+    if (customer) {
+      const settings = loyaltySettingsFromRow(settingsRow);
+      const today = todayDailyDate();
+      await tx.customer.update({
+        where: { id: customerId },
+        data: {
+          stampCount: computeStampRevert(customer.stampCount, settings),
+          ...(customer.lastStampDate?.getTime() === today.getTime()
+            ? { lastStampDate: null }
+            : {}),
+        },
+      });
+      await tx.loyaltyLedger.create({
+        data: {
+          customerId,
+          type: 'ADJUSTMENT',
+          stamps: -1,
+          orderId,
+          actorId,
+          note,
+        },
+      });
+    }
+  }
 }
 
 /** Ajustement manuel (admin) du compteur de tampons. Tracé au ledger. */

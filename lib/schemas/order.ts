@@ -9,6 +9,7 @@
 
 import { z } from 'zod';
 import {
+  CART_ITEM_QUANTITY_MAX,
   MAX_LINE_DISCOUNT_RATIO,
   ORDER_CUSTOMER_NAME_MAX,
   ORDER_CUSTOMER_PHONE_MAX,
@@ -410,6 +411,10 @@ export const checkoutErrorCodeSchema = z.enum([
   'ADVANCE_ORDER_REQUIRED',
   'SCHEDULE_UNAVAILABLE',
   'LOYALTY_REWARD_UNAVAILABLE',
+  // Libre-service après commande (app/api/commandes/[id]/*).
+  'NOT_FOUND',
+  'CONFLICT',
+  'RATE_LIMITED',
   'SERVER_ERROR',
 ]);
 
@@ -433,3 +438,46 @@ export const soldOutLineSchema = z.object({
 });
 
 export type SoldOutLine = z.infer<typeof soldOutLineSchema>;
+
+// ─── Libre-service client (page de suivi) ─────────────────────────────────────
+//
+// Routes publiques `app/api/commandes/[id]/{annulation,articles,creneau}` : le
+// client n'envoie que des RÉFÉRENCES (produit + goûts par nom) — jamais un
+// prix, une remise ni un coût. Les montants sont résolus côté serveur depuis
+// le menu (`buildOrderItemsFromMenu`, lib/order-mutations.ts).
+
+export const orderItemRefSchema = z.object({
+  productId: z.string().min(1),
+  quantity: z.number().int().min(1).max(CART_ITEM_QUANTITY_MAX),
+  supplements: z
+    .array(
+      z.object({
+        groupName: z.string().min(1),
+        optionName: z.string().min(1),
+        quantity: z.number().int().positive().optional(),
+      })
+    )
+    .max(30)
+    .optional(),
+});
+
+export const customerItemChangeSchema = z.discriminatedUnion('action', [
+  z.object({ cartId: z.string().min(1), action: z.literal('remove') }),
+  z.object({
+    cartId: z.string().min(1),
+    action: z.literal('replace'),
+    with: orderItemRefSchema,
+  }),
+]);
+
+export const customerItemChangesSchema = z.object({
+  changes: z.array(customerItemChangeSchema).min(1).max(20),
+});
+
+/** `null` = « dès que possible ». */
+export const customerRescheduleSchema = z.object({
+  pickupTime: z.string().datetime().nullable(),
+});
+
+export type OrderItemRefInput = z.infer<typeof orderItemRefSchema>;
+export type CustomerItemChange = z.infer<typeof customerItemChangeSchema>;

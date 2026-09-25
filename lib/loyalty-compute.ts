@@ -49,3 +49,17 @@ export function computeStampAward(
 
   return { newStampCount: count, rewards };
 }
+
+/**
+ * Inverse de `computeStampAward` pour UN tampon : retire le tampon d'une
+ * commande annulée. Si ce tampon avait bouclé la carte (retour à 0), on
+ * revient à l'avant-dernière case — le client retrouve exactement la carte
+ * qu'il avait avant de commander. Jamais négatif.
+ */
+export function computeStampRevert(
+  currentStampCount: number,
+  cfg: Pick<LoyaltyConfig, 'stampsPerCard'>
+): number {
+  if (currentStampCount > 0) return currentStampCount - 1;
+  return Math.max(0, cfg.stampsPerCard - 1);
+}
