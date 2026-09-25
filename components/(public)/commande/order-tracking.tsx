@@ -8,6 +8,7 @@
 // localisation, paiement Wave + preuve. Le client n'identifie plus son
 // livreur : il lui suffit de lui donner le code de retrait.
 
+import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Button, Chip } from '@heroui/react';
 import { m, useReducedMotion } from 'framer-motion';
@@ -42,6 +43,14 @@ import {
   ORDER_TRACKING_POLL_INTERVAL_MS,
 } from '@/config/constants';
 import { cn } from '@/lib/utils';
+
+// Libre-service (remplacer, changer de créneau, annuler) : chargé seulement
+// quand la commande le permet — une commande payée ou en cuisine n'embarque
+// rien de ce code.
+const OrderSelfService = dynamic(
+  () => import('@/components/(public)/commande/order-self-service'),
+  { ssr: false }
+);
 
 type Props = {
   initialOrder: PublicOrderView;
@@ -79,6 +88,7 @@ export function OrderTracking({
   whatsapp,
 }: Props) {
   const [order, setOrder] = useState<PublicOrderView>(initialOrder);
+  const [resolveOpen, setResolveOpen] = useState(false);
   const reduceMotion = useReducedMotion();
   // URL de suivi, indisponible au rendu serveur (snapshot '') — partagée
   // entre le partage du lien (code de retrait) et le bloc livreur.
@@ -137,6 +147,8 @@ export function OrderTracking({
   }, [refresh, isFinal, awaitingProofValidation]);
 
   const currentStep = STATUS_INDEX[order.status] ?? 0;
+  const { canCancel, canReschedule, canEditItems } = order.selfService;
+  const canSelfServe = canCancel || canReschedule || canEditItems;
 
   return (
     <div className="flex flex-col gap-5">
@@ -168,15 +180,26 @@ export function OrderTracking({
       {!isCancelled && hasUnavailableItem && (
         <div className="flex items-center gap-3 rounded-xl border border-warning/30 bg-warning/15 p-4">
           <XCircle className="h-6 w-6 shrink-0 text-warning-700 dark:text-warning" />
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="font-semibold text-warning-700 dark:text-warning">
               Un article n&apos;est plus disponible
             </p>
             <p className="text-sm text-foreground/60">
-              Contacte-nous ou choisis autre chose avant de payer — un autre
-              client a pris la dernière quantité.
+              {canEditItems
+                ? 'Un autre client a pris la dernière quantité : remplace-le ou retire-le avant de payer.'
+                : 'Contacte-nous ou choisis autre chose avant de payer — un autre client a pris la dernière quantité.'}
             </p>
           </div>
+          {canEditItems && (
+            <Button
+              color="warning"
+              size="sm"
+              className="min-h-9 shrink-0"
+              onPress={() => setResolveOpen(true)}
+            >
+              Remplacer
+            </Button>
+          )}
         </div>
       )}
 
@@ -235,6 +258,16 @@ export function OrderTracking({
         )}
       </div>
 
+      {/* ── Libre-service : créneau, annulation, remplacement ── */}
+      {!isCancelled && canSelfServe && (
+        <OrderSelfService
+          order={order}
+          onOrderChange={setOrder}
+          resolveOpen={resolveOpen}
+          onResolveOpenChange={setResolveOpen}
+        />
+      )}
+
       {/* ── Fidélité ── */}
       {!isCancelled && order.loyalty && (
         <LoyaltySection loyalty={order.loyalty} />
@@ -273,7 +306,10 @@ export function OrderTracking({
                 className="flex items-start justify-between gap-2 text-sm"
               >
                 <div className="min-w-0">
-                  <p className="font-medium">
+                  {/* `div` et non `p` : le Chip rend un <div>, interdit dans un
+                      <p> — l'hydratation échouait dès qu'un article était
+                      indisponible, et les premiers clics étaient perdus. */}
+                  <div className="font-medium">
                     {item.productName}{' '}
                     <span className="text-foreground/50">x{item.quantity}</span>
                     {unavailable && (
@@ -286,7 +322,7 @@ export function OrderTracking({
                         Indisponible
                       </Chip>
                     )}
-                  </p>
+                  </div>
                   {item.supplements.length > 0 && (
                     <p className="text-xs text-foreground/50">
                       {item.supplements.map(formatSupplementLabel).join(', ')}

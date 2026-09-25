@@ -27,7 +27,7 @@ import {
   OrderMutationError,
   buildOrderItemsFromMenu,
 } from '@/lib/order-mutations';
-import { assertPublicOrderConstraints } from '@/lib/orders';
+import { SoldOutTodayError, assertPublicOrderConstraints } from '@/lib/orders';
 import {
   computeOrderItemsAvailability,
   fetchStockSnapshot,
@@ -249,7 +249,18 @@ export async function replaceUnavailableItems(
     );
   }
 
-  await assertPublicOrderConstraints(newItems, order.pickupTime);
+  // Le client résout ligne par ligne : une AUTRE ligne encore indisponible,
+  // qu'il n'a pas touchée, ne doit pas bloquer ce remplacement (la commande
+  // n'est pas moins servable qu'avant). Seul un remplaçant lui-même épuisé
+  // est refusé.
+  try {
+    await assertPublicOrderConstraints(newItems, order.pickupTime);
+  } catch (err) {
+    if (!(err instanceof SoldOutTodayError)) throw err;
+    const newCartIds = new Set([...replacements.values()].map((r) => r.cartId));
+    const blocking = err.lines.filter((l) => newCartIds.has(l.cartId));
+    if (blocking.length > 0) throw new SoldOutTodayError(blocking);
+  }
 
   await prisma.$transaction(async (tx) => {
     // Remise fidélité recalculée sur le nouveau brut : un remplaçant moins
