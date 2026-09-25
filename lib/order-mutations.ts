@@ -55,6 +55,8 @@ import {
   consumeLoyaltyReward,
   LoyaltyRewardUnavailableError,
   resolveLoyaltyReward,
+  restoreLoyaltyForOrder,
+  revokeLoyaltyForOrder,
 } from '@/lib/loyalty-mutations';
 import { getOrderLoyaltyOutcome } from '@/lib/loyalty';
 import { getLoyaltySettings } from '@/lib/loyalty-settings-db';
@@ -1233,6 +1235,8 @@ export async function setOrderStatus(
       dailyNumber: true,
       customerId: true,
       isPaid: true,
+      total: true,
+      loyaltyRewardId: true,
     },
   });
   if (!order) {
@@ -1251,9 +1255,21 @@ export async function setOrderStatus(
   // `sendOrderToKitchen` la refait — c'est volontairement redondant : elle
   // reste ainsi correcte quand elle est appelée directement (ardoise).
   if (newStatus === 'PREPARING') {
-    return sendOrderToKitchen(id, role, {
+    await sendOrderToKitchen(id, role, {
       coverShortage: opts?.coverShortage,
     });
+    // Reprise d'une commande annulée : son tampon lui revient.
+    if (order.status === 'CANCELLED' && order.customerId) {
+      const customerId = order.customerId;
+      await prisma.$transaction((tx) =>
+        restoreLoyaltyForOrder(tx, {
+          orderId: id,
+          customerId,
+          orderTotal: order.total,
+        })
+      );
+    }
+    return;
   }
 
   // Remettre une commande ANNULÉE « à encaisser » n'a de sens que si elle n'a
@@ -1283,24 +1299,51 @@ export async function setOrderStatus(
     }
   }
 
-  const result = await prisma.order.updateMany({
-    where: { id, status: order.status },
-    data: {
-      status: newStatus,
-      // Horodatage du minuteur « prête depuis X ». L'amorce du chrono « en
-      // cuisine depuis X » (`preparingStartedAt`) vit dans
-      // `sendOrderToKitchen`, seul chemin vers PREPARING (voir le court-circuit
-      // ci-dessus).
-      ...(newStatus === 'READY' ? { readyAt: new Date() } : {}),
-      // Retour en NEW (undo d'une mise en cuisine, ou reprise d'une commande
-      // annulée) : on remet les minuteurs à zéro. Sinon la commande revient
-      // avec un « en cuisine depuis 3 h » périmé et, pire, pollue la clé de tri
-      // FIFO cuisine (`preparingStartedAt`, cf. lib/orders/queue-order.ts) dès
-      // sa prochaine entrée en cuisine.
-      ...(newStatus === 'NEW'
-        ? { preparingStartedAt: null, readyAt: null }
-        : {}),
-    },
+  // Fidélité, dans la MÊME transaction que le changement de statut :
+  //   - annulation → le tampon gagné par la commande est retiré (sinon
+  //     « commander puis faire annuler » fabriquerait des tampons). La
+  //     récompense appliquée reste sur la commande (`keepUsedReward`) : elle a
+  //     pu être encaissée avec cette remise, et l'annulation peut être défaite ;
+  //   - reprise d'une commande annulée → le tampon est rendu.
+  // Les deux sont idempotents (solde de tampons de la commande au ledger).
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.order.updateMany({
+      where: { id, status: order.status },
+      data: {
+        status: newStatus,
+        // Horodatage du minuteur « prête depuis X ». L'amorce du chrono « en
+        // cuisine depuis X » (`preparingStartedAt`) vit dans
+        // `sendOrderToKitchen`, seul chemin vers PREPARING (voir le court-circuit
+        // ci-dessus).
+        ...(newStatus === 'READY' ? { readyAt: new Date() } : {}),
+        // Retour en NEW (undo d'une mise en cuisine, ou reprise d'une commande
+        // annulée) : on remet les minuteurs à zéro. Sinon la commande revient
+        // avec un « en cuisine depuis 3 h » périmé et, pire, pollue la clé de tri
+        // FIFO cuisine (`preparingStartedAt`, cf. lib/orders/queue-order.ts) dès
+        // sa prochaine entrée en cuisine.
+        ...(newStatus === 'NEW'
+          ? { preparingStartedAt: null, readyAt: null }
+          : {}),
+      },
+    });
+    if (updated.count > 0 && order.customerId) {
+      if (newStatus === 'CANCELLED') {
+        await revokeLoyaltyForOrder(tx, {
+          orderId: id,
+          customerId: order.customerId,
+          usedRewardId: order.loyaltyRewardId,
+          note: 'Commande annulée par le staff',
+          keepUsedReward: true,
+        });
+      } else if (order.status === 'CANCELLED') {
+        await restoreLoyaltyForOrder(tx, {
+          orderId: id,
+          customerId: order.customerId,
+          orderTotal: order.total,
+        });
+      }
+    }
+    return updated;
   });
 
   if (result.count === 0) {
