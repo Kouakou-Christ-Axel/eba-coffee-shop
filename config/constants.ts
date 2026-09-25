@@ -339,6 +339,14 @@ export const INVENTORY_IMPORT_MAX_ROWS = 1000;
 export const LOW_STOCK_THRESHOLD = 5;
 
 /**
+ * Alerte « Préviens-moi quand c'est de retour » (lib/restock-alerts.ts) :
+ * durée de vie d'une alerte en attente (au-delà, l'envie est passée — on ne
+ * notifie plus), et nombre maximal d'alertes par appareil (anti-abus).
+ */
+export const RESTOCK_ALERT_TTL_DAYS = 7;
+export const RESTOCK_ALERT_MAX_PER_ENDPOINT = 20;
+
+/**
  * Sondages (vote générique + suggestions de la communauté). Longueurs max des
  * champs de saisie. `POLL_VOTER_TOKEN_MAX` borne le token anonyme généré côté
  * client (garde-fou de taille, pas une limite de sécurité).

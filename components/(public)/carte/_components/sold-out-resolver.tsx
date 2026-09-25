@@ -47,6 +47,9 @@ const SupplementModal = dynamic(
   () => import('@/components/(public)/carte/supplement-modal'),
   { ssr: false }
 );
+const RestockAlertButton = dynamic(() => import('./restock-alert-button'), {
+  ssr: false,
+});
 
 export type SoldOutResolverProps = {
   isOpen: boolean;
@@ -305,6 +308,20 @@ function ResolveRow({
     [menu, flavourOnly, item, productIdsInCart]
   );
 
+  // Cible de l'alerte « de retour » : le goût manquant s'il est seul en
+  // cause (et identifiable dans la ligne), sinon le produit.
+  const missingFlavourGroup = flavourOnly
+    ? item.supplements.find((s) => s.optionName === line.missingOptionNames[0])
+        ?.groupName
+    : undefined;
+  const alertTarget = missingFlavourGroup
+    ? {
+        productId: line.productId,
+        groupName: missingFlavourGroup,
+        optionName: line.missingOptionNames[0],
+      }
+    : { productId: line.productId };
+
   const reason = line.missingProduct
     ? canReduce
       ? `Il n’en reste que ${line.remaining}`
@@ -395,6 +412,10 @@ function ResolveRow({
             )}
           </>
         )}
+
+        {/* Rien ne convient ? Être prévenu du retour de CE qui manque —
+            le goût précis s'il n'y a que lui, sinon le produit. */}
+        <RestockAlertButton className="mt-2" target={alertTarget} />
 
         {canReduce && (
           <Button

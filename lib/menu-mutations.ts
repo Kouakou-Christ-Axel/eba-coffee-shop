@@ -9,6 +9,7 @@ import {
 } from '@/lib/schemas/menu';
 import { imageUrlSchema } from '@/lib/schemas/upload';
 import { syncSupplementGroups } from '@/lib/supplement-groups-sync';
+import { triggerRestockAlerts } from '@/lib/restock-alerts';
 
 // ─── Slugify ──────────────────────────────────────────────────────────────────
 
@@ -360,11 +361,21 @@ export async function updateProduct(id: string, input: ProductUpdate) {
 
   // Les groupes de suppléments ne sont remplacés QUE s'ils sont fournis. Absents
   // → on ne touche pas aux suppléments existants (pas de transaction inutile).
-  if (data.supplementGroups === undefined) {
-    return prisma.product.update({ where: { id }, data: scalar });
-  }
+  const updated =
+    data.supplementGroups === undefined
+      ? await prisma.product.update({ where: { id }, data: scalar })
+      : await updateSupplementGroups(id, scalar, data.supplementGroups);
 
-  return updateSupplementGroups(id, scalar, data.supplementGroups);
+  // Stock, pause ou goûts modifiés : un article attendu est peut-être de
+  // retour (lib/restock-alerts.ts).
+  if (
+    data.stockQuantity !== undefined ||
+    data.unavailableUntil !== undefined ||
+    data.supplementGroups !== undefined
+  ) {
+    triggerRestockAlerts();
+  }
+  return updated;
 }
 
 // Synchronise les groupes/options de suppléments d'un produit (voir
@@ -473,6 +484,9 @@ export async function toggleProductFeatured(id: string) {
 // le dashboard et les outils MCP, sans dupliquer la logique de décrément à
 // l'entrée en cuisine (qui vit dans `lib/order-mutations.ts`, hors périmètre de
 // ce fichier).
+//
+// Chaque geste qui peut remettre un article en vente déclenche les alertes
+// « de retour » en attente (`triggerRestockAlerts`, lib/restock-alerts.ts).
 
 // Définit ABSOLUMENT le stock d'un produit (« définir le matin »), par
 // opposition à l'incrément relatif de `restockProduct` (« + nouvelle fournée »
@@ -480,20 +494,24 @@ export async function toggleProductFeatured(id: string) {
 export async function setProductStock(id: string, quantity: number | null) {
   const p = await prisma.product.findUnique({ where: { id } });
   if (!p) throw new Error('Produit introuvable');
-  return prisma.product.update({
+  const updated = await prisma.product.update({
     where: { id },
     data: { stockQuantity: quantity },
   });
+  triggerRestockAlerts();
+  return updated;
 }
 
 // Équivalent de `setProductStock` pour une option de supplément (« goût »).
 export async function setOptionStock(id: string, quantity: number | null) {
   const o = await prisma.supplementOption.findUnique({ where: { id } });
   if (!o) throw new Error('Option introuvable');
-  return prisma.supplementOption.update({
+  const updated = await prisma.supplementOption.update({
     where: { id },
     data: { stockQuantity: quantity },
   });
+  triggerRestockAlerts();
+  return updated;
 }
 
 // Incrémente (ou décrémente si `delta` est négatif) le stock d'un produit.
@@ -511,10 +529,12 @@ export async function restockProduct(id: string, delta: number) {
       'Produit à stock illimité : impossible de réapprovisionner'
     );
   }
-  return prisma.product.update({
+  const updated = await prisma.product.update({
     where: { id },
     data: { stockQuantity: { increment: delta } },
   });
+  triggerRestockAlerts();
+  return updated;
 }
 
 // Équivalent de `restockProduct` pour une option de supplément (« goût »).
@@ -527,10 +547,12 @@ export async function restockOption(id: string, delta: number) {
   if (o.stockQuantity === null) {
     throw new Error('Option à stock illimité : impossible de réapprovisionner');
   }
-  return prisma.supplementOption.update({
+  const updated = await prisma.supplementOption.update({
     where: { id },
     data: { stockQuantity: { increment: delta } },
   });
+  triggerRestockAlerts();
+  return updated;
 }
 
 // Réappro caisse d'une option (« goût ») : le caissier DÉFINIT directement le
@@ -565,6 +587,7 @@ export async function setOptionStockByRef(input: {
     data: { stockQuantity: input.stock },
     select: { stockQuantity: true },
   });
+  triggerRestockAlerts();
   return { stockQuantity: updated.stockQuantity };
 }
 
@@ -585,6 +608,7 @@ export async function setProductStockById(input: {
     data: { stockQuantity: input.stock },
     select: { stockQuantity: true },
   });
+  triggerRestockAlerts();
   return { stockQuantity: updated.stockQuantity };
 }
 
@@ -604,10 +628,12 @@ export async function pauseProduct(id: string, until: Date) {
 export async function resumeProduct(id: string) {
   const p = await prisma.product.findUnique({ where: { id } });
   if (!p) throw new Error('Produit introuvable');
-  return prisma.product.update({
+  const updated = await prisma.product.update({
     where: { id },
     data: { unavailableUntil: null },
   });
+  triggerRestockAlerts();
+  return updated;
 }
 
 // ─── Plannings récurrents (« à la cal.com ») ────────────────────────────────

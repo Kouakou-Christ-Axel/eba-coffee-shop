@@ -744,6 +744,7 @@ model Product {
   // de dupliquer un second mécanisme — voir `Order.depositRequired` et
   // `sendOrderToKitchen` (lib/order-mutations.ts).
   requiresDeposit  Boolean           @default(false)
+  restockAlerts    RestockAlert[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
@@ -787,6 +788,33 @@ model ProductWeeklySpecial {
 
   @@index([productId])
   @@map("product_weekly_special")
+}
+
+// Alerte « Préviens-moi quand c'est de retour » (carte publique) : un
+// appareil (abonnement Web Push, sans compte) attend le retour en stock d'un
+// produit épuisé, ou d'un goût précis (`groupName` + `optionName` : le client
+// ne connaît que les noms, comme le panier). À usage unique : supprimée dès
+// l'envoi, et purgée après `RESTOCK_ALERT_TTL_DAYS` (lib/restock-alerts.ts).
+// Table distincte de `PushSubscription`, dont l'`endpoint` est unique et
+// dédié à UN usage (staff ou suivi d'une commande).
+model RestockAlert {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  groupName  String?
+  optionName String?
+  // `productId` ou `productId|groupe|option` : clé d'unicité par appareil
+  // (les NULL de `groupName`/`optionName` ne seraient pas dédoublonnés).
+  targetKey  String
+  endpoint   String
+  p256dh     String
+  auth       String
+  createdAt  DateTime @default(now())
+
+  @@unique([endpoint, targetKey])
+  @@index([productId])
+  @@index([createdAt])
+  @@map("restock_alert")
 }
 
 model SupplementGroup {
