@@ -368,7 +368,13 @@ export async function getOrder(id: string) {
 // composant client de polling.
 
 /** Article de commande enrichi de sa disponibilité courante (voir plus bas). */
-export type PublicOrderItemView = CartItem & { available: boolean };
+export type PublicOrderItemView = CartItem & {
+  available: boolean;
+  /** Détail d'une ligne indisponible (panneau « Remplacer » de la page de
+   * suivi) : le produit lui-même manque, ou seulement certains goûts. */
+  missingProduct?: boolean;
+  missingOptionNames?: string[];
+};
 
 /** Avancement de la carte fidélité du client, pour la page de suivi. */
 export type PublicOrderLoyaltyView = {
@@ -465,13 +471,18 @@ export async function getPublicOrder(
   } else {
     const stock = await fetchStockSnapshot([items]);
     const availability = computeOrderItemsAvailability(items, stock);
-    const availableByCartId = new Map(
-      availability.items.map((a) => [a.cartId, a.available])
-    );
-    itemsView = items.map((item) => ({
-      ...item,
-      available: availableByCartId.get(item.cartId) ?? true,
-    }));
+    const byCartId = new Map(availability.items.map((a) => [a.cartId, a]));
+    itemsView = items.map((item) => {
+      const a = byCartId.get(item.cartId);
+      return a && !a.available
+        ? {
+            ...item,
+            available: false,
+            missingProduct: a.missingProduct,
+            missingOptionNames: a.missingOptionNames,
+          }
+        : { ...item, available: true };
+    });
     fulfillable = availability.fulfillable;
   }
 

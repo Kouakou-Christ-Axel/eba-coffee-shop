@@ -29,7 +29,10 @@ vi.mock('@/lib/order-mutations', () => {
   }
   return { OrderMutationError, buildOrderItemsFromMenu: vi.fn() };
 });
-vi.mock('@/lib/orders', () => ({ assertPublicOrderConstraints: vi.fn() }));
+vi.mock('@/lib/orders', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/orders')>()),
+  assertPublicOrderConstraints: vi.fn(),
+}));
 vi.mock('@/lib/orders/availability', async () => ({
   fetchStockSnapshot: vi.fn(),
   computeOrderItemsAvailability: (
@@ -48,7 +51,7 @@ vi.mock('@/lib/loyalty-mutations', () => ({ revokeLoyaltyForOrder: vi.fn() }));
 
 import prisma from '@/lib/prisma';
 import { buildOrderItemsFromMenu } from '@/lib/order-mutations';
-import { assertPublicOrderConstraints } from '@/lib/orders';
+import { SoldOutTodayError, assertPublicOrderConstraints } from '@/lib/orders';
 import { fetchStockSnapshot } from '@/lib/orders/availability';
 import { getMenu } from '@/lib/menu';
 import {
@@ -239,6 +242,59 @@ describe('replaceUnavailableItems', () => {
     expect(data.total).toBe(0);
     expect(where.updatedAt).toEqual(new Date('2026-09-25T10:00:00Z'));
     expect(assertPublicOrderConstraints).toHaveBeenCalled();
+  });
+
+  it('laisse passer un remplacement même si une AUTRE ligne reste épuisée', async () => {
+    findUnique.mockResolvedValue(order() as never);
+    vi.mocked(assertPublicOrderConstraints).mockRejectedValueOnce(
+      new SoldOutTodayError([
+        {
+          cartId: 'autre-ligne',
+          productId: 'x',
+          productName: 'X',
+          missingProduct: true,
+          missingOptionNames: [],
+        },
+      ])
+    );
+
+    await replaceUnavailableItems('o1', [
+      {
+        cartId: 'b',
+        action: 'replace',
+        with: { productId: 'brownie', quantity: 1 },
+      },
+    ]);
+    expect(tx.order.updateMany).toHaveBeenCalled();
+  });
+
+  it('refuse un remplaçant lui-même épuisé', async () => {
+    findUnique.mockResolvedValue(order() as never);
+    vi.mocked(assertPublicOrderConstraints).mockImplementationOnce(
+      async (items) => {
+        const replacement = items.find((i) => i.productId === 'brownie')!;
+        throw new SoldOutTodayError([
+          {
+            cartId: replacement.cartId,
+            productId: 'brownie',
+            productName: 'Brownie',
+            missingProduct: true,
+            missingOptionNames: [],
+          },
+        ]);
+      }
+    );
+
+    await expect(
+      replaceUnavailableItems('o1', [
+        {
+          cartId: 'b',
+          action: 'replace',
+          with: { productId: 'brownie', quantity: 1 },
+        },
+      ])
+    ).rejects.toBeInstanceOf(SoldOutTodayError);
+    expect(tx.order.updateMany).not.toHaveBeenCalled();
   });
 
   it('refuse de vider la commande (il faut l’annuler)', async () => {
