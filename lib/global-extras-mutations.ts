@@ -22,6 +22,7 @@ import {
   type SupplementOptionInput,
 } from '@/lib/schemas/menu';
 import { syncSupplementGroups } from '@/lib/supplement-groups-sync';
+import { triggerRestockAlerts } from '@/lib/restock-alerts';
 
 export async function createGlobalExtraGroup(input: GlobalExtraGroupInput) {
   const data = globalExtraGroupInputSchema.parse(input);
@@ -51,9 +52,12 @@ export async function createGlobalExtraGroup(input: GlobalExtraGroupInput) {
 // `create/update/delete_global_extra_*` ci-dessous.
 export async function updateGlobalExtraGroups(groups: SupplementGroupInput[]) {
   const parsed = z.array(supplementGroupSchema).parse(groups);
-  return prisma.$transaction((tx) =>
+  const result = await prisma.$transaction((tx) =>
     syncSupplementGroups(tx, { isGlobal: true }, parsed)
   );
+  // Un extra attendu est peut-être de retour (lib/restock-alerts.ts).
+  triggerRestockAlerts();
+  return result;
 }
 
 async function requireGlobalGroup(id: string) {
@@ -133,7 +137,7 @@ export async function updateGlobalExtraOption(
 ) {
   const data = globalExtraOptionUpdateSchema.parse(input);
   await requireGlobalOption(id);
-  return prisma.supplementOption.update({
+  const updated = await prisma.supplementOption.update({
     where: { id },
     data: {
       ...(data.name !== undefined && { name: data.name }),
@@ -144,6 +148,10 @@ export async function updateGlobalExtraOption(
       }),
     },
   });
+  if (data.stockQuantity !== undefined || data.available !== undefined) {
+    triggerRestockAlerts();
+  }
+  return updated;
 }
 
 export async function deleteGlobalExtraOption(id: string) {

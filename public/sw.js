@@ -158,9 +158,13 @@ self.addEventListener('notificationclick', (event) => {
         type: 'window',
         includeUncontrolled: true,
       });
-      const existing = allClients.find(
-        (c) => new URL(c.url).pathname === targetUrl
-      );
+      // Chemin ET paramètres : `/carte?p=<id>` (alerte « de retour ») doit
+      // ouvrir la fiche du produit, pas seulement remettre au premier plan
+      // un onglet `/carte` quelconque.
+      const existing = allClients.find((c) => {
+        const url = new URL(c.url);
+        return url.pathname + url.search === targetUrl;
+      });
       if (existing) {
         await existing.focus();
         return;

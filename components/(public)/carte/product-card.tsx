@@ -42,6 +42,12 @@ const SupplementModal = dynamic(
   { ssr: false }
 );
 
+// Alerte « de retour » : chargée seulement quand un produit est épuisé.
+const RestockAlertButton = dynamic(
+  () => import('./_components/restock-alert-button'),
+  { ssr: false }
+);
+
 type ProductCardProps = {
   product: Product;
 };
@@ -200,6 +206,13 @@ function ProductCard({ product }: ProductCardProps) {
                 </Chip>
               )}
             </div>
+          )}
+          {soldOut && (
+            <RestockAlertButton
+              target={{ productId: product.id }}
+              compact
+              className="mt-1.5"
+            />
           )}
         </div>
       </div>

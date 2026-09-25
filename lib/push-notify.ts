@@ -91,6 +91,18 @@ async function sendToSubscriptions(
 }
 
 /**
+ * Envoi à des abonnements bruts qui ne vivent PAS dans `PushSubscription`
+ * (ex. alertes de retour en stock, lib/restock-alerts.ts) : aucun nettoyage
+ * automatique ici, l'appelant gère le cycle de vie de ses lignes.
+ */
+export async function sendPushToEndpoints(
+  subscriptions: { endpoint: string; p256dh: string; auth: string }[],
+  payload: PushPayload
+): Promise<void> {
+  await sendToSubscriptions(subscriptions, payload);
+}
+
+/**
  * Envoie `payload` à tout le staff dont le rôle figure dans `roles`. Nettoie
  * automatiquement les abonnements expirés (404/410 renvoyés par le navigateur).
  */
