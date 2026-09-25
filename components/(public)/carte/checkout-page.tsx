@@ -8,7 +8,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCartStore, useCartHydration, getItemTotal } from '@/lib/cart-store';
-import { priceFormatter } from '@/config/menu';
+import { priceFormatter, type MenuCategory } from '@/config/menu';
+import { useCartAvailability } from '@/lib/hooks/use-cart-availability';
+import { CartLineStatusChip } from './_components/cart-line-status';
 import { formatSupplementLabel } from '@/lib/orders/format';
 import { CheckoutForm } from './checkout-form';
 
@@ -28,6 +30,27 @@ export function CheckoutPage() {
     []
   );
   const netTotal = Math.max(0, totalPrice - loyaltyDiscount);
+
+  // Menu frais (stock compris), une fois au montage : revérifie le panier
+  // pour signaler une rupture AVANT le clic sur « Confirmer », et nourrit le
+  // panneau « Résoudre » sans seconde requête. Un échec n'empêche rien — le
+  // serveur revérifie de toute façon à l'envoi.
+  const [menu, setMenu] = useState<MenuCategory[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/menu')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: MenuCategory[] | null) => {
+        if (!cancelled) setMenu(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setMenu([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const availability = useCartAvailability(menu);
 
   // Panier vide (accès direct à l'URL ou commande déjà envoyée) : rien à
   // finaliser, on renvoie vers la carte — mais seulement une fois le panier
@@ -66,6 +89,9 @@ export function CheckoutPage() {
                     {item.supplements.map(formatSupplementLabel).join(', ')}
                   </p>
                 )}
+                <CartLineStatusChip
+                  status={availability?.status[item.cartId]}
+                />
               </div>
               <p className="shrink-0 text-sm font-medium text-primary">
                 {priceFormatter.format(getItemTotal(item))}&nbsp;F
@@ -97,6 +123,8 @@ export function CheckoutPage() {
           onBack={() => router.push('/carte')}
           onSuccess={handleSuccess}
           onLoyaltyDiscountChange={handleLoyaltyDiscountChange}
+          menu={menu}
+          availability={availability}
         />
       </div>
     </div>
