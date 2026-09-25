@@ -22,6 +22,7 @@ import { UndoToastProvider, useUndoToast } from '@/lib/hooks/use-undo-toast';
 import { useShortageConfirm } from '../_components/use-shortage-confirm';
 import { type PreparationOrder } from '@/lib/preparation-queue';
 import type { MenuCategory } from '@/config/menu';
+import type { ContactSettings } from '@/lib/contact-settings';
 import {
   playNewOrderChime,
   useOrdersStream,
@@ -72,6 +73,7 @@ function normalize(raw: unknown): PreparationOrder {
 export function PreparationView(props: {
   initialQueue: PreparationOrder[];
   menu: MenuCategory[];
+  contactSettings: Pick<ContactSettings, 'yangoLandmark' | 'phone'>;
 }) {
   return (
     <UndoToastProvider>
@@ -83,9 +85,11 @@ export function PreparationView(props: {
 function PreparationViewInner({
   initialQueue,
   menu,
+  contactSettings,
 }: {
   initialQueue: PreparationOrder[];
   menu: MenuCategory[];
+  contactSettings: Pick<ContactSettings, 'yangoLandmark' | 'phone'>;
 }) {
   const [isPending, startTransition] = useTransition();
   // Commandes masquées optimistiquement (annulation) le temps que le serveur
@@ -403,6 +407,7 @@ function PreparationViewInner({
                 order={order}
                 now={now}
                 pending={pendingIds.has(order.id) || isPending}
+                contactSettings={contactSettings}
                 onExpand={setSelectedId}
                 onReady={handleReady}
                 onCancel={handleCancel}
@@ -420,6 +425,7 @@ function PreparationViewInner({
         menu={menu}
         now={now}
         pending={selected ? pendingIds.has(selected.id) || isPending : false}
+        contactSettings={contactSettings}
         onClose={() => setSelectedId(null)}
         onReady={(id) => {
           setSelectedId(null);

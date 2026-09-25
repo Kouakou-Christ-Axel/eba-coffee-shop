@@ -27,6 +27,7 @@ import { formatPickup } from '@/lib/orders/scheduling';
 import { TrackingLinkButton } from '@/components/(dashboard)/tracking-link-button';
 import type { PreparationOrder } from '@/lib/preparation-queue';
 import type { MenuCategory } from '@/config/menu';
+import type { ContactSettings } from '@/lib/contact-settings';
 import {
   buildDriverRequestMessage,
   buildWhatsAppLink,
@@ -47,6 +48,7 @@ type Props = {
   menu: MenuCategory[];
   now: Date;
   pending: boolean;
+  contactSettings: Pick<ContactSettings, 'yangoLandmark' | 'phone'>;
   onClose: () => void;
   onReady: (id: string) => void;
   onCancel: (id: string) => void;
@@ -66,6 +68,7 @@ export function OrderDetailSheet({
   menu,
   now,
   pending,
+  contactSettings,
   onClose,
   onReady,
   onCancel,
@@ -91,6 +94,7 @@ export function OrderDetailSheet({
             menu={menu}
             now={now}
             pending={pending}
+            contactSettings={contactSettings}
             onReady={onReady}
             onCancel={onCancel}
             onRequestDriver={onRequestDriver}
@@ -107,6 +111,7 @@ function OrderDetailBody({
   menu,
   now,
   pending,
+  contactSettings,
   onReady,
   onCancel,
   onRequestDriver,
@@ -116,6 +121,7 @@ function OrderDetailBody({
   menu: MenuCategory[];
   now: Date;
   pending: boolean;
+  contactSettings: Pick<ContactSettings, 'yangoLandmark' | 'phone'>;
   onReady: (id: string) => void;
   onCancel: (id: string) => void;
   onRequestDriver: (id: string) => void;
@@ -134,6 +140,8 @@ function OrderDetailBody({
     buildDriverRequestMessage({
       customerName: order.customerName,
       dailyNumber: order.dailyNumber,
+      yangoLandmark: contactSettings.yangoLandmark,
+      phone: contactSettings.phone,
     })
   );
 

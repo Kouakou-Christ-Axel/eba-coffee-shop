@@ -22,6 +22,7 @@ import {
   buildWhatsAppLink,
 } from '@/lib/contact-links';
 import type { PreparationOrder } from '@/lib/preparation-queue';
+import type { ContactSettings } from '@/lib/contact-settings';
 import type { OrderType } from '@/generated/prisma/client';
 import {
   elapsedMinutes,
@@ -55,6 +56,7 @@ type Props = {
   order: PreparationOrder;
   now: Date;
   pending: boolean;
+  contactSettings: Pick<ContactSettings, 'yangoLandmark' | 'phone'>;
   onExpand: (id: string) => void;
   onReady: (id: string) => void;
   onCancel: (id: string) => void;
@@ -66,6 +68,7 @@ export function PrepOrderCard({
   order,
   now,
   pending,
+  contactSettings,
   onExpand,
   onReady,
   onCancel,
@@ -80,6 +83,8 @@ export function PrepOrderCard({
     buildDriverRequestMessage({
       customerName: order.customerName,
       dailyNumber: order.dailyNumber,
+      yangoLandmark: contactSettings.yangoLandmark,
+      phone: contactSettings.phone,
     })
   );
   // Chrono « en cuisine depuis X » : depuis l'entrée en cuisine, repli createdAt
