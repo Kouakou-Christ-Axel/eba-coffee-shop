@@ -5,13 +5,8 @@ import { CalendarClock, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { OrderCard } from '../order-card';
 import { OrderCardActions } from '../order-card-actions';
-import {
-  formatPickup,
-  getUrgencyLevel,
-  isAwaitingKitchenLaunch,
-  minutesUntilPickup,
-} from '../urgency';
-import { LAUNCH_ALERT_MINUTES } from '@/config/constants';
+import { formatPickup, getUrgencyLevel } from '../urgency';
+import { kitchenLaunchState } from '@/lib/orders/scheduling';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
 import type { ContactSettings } from '@/lib/contact-settings';
@@ -34,9 +29,10 @@ type Props = {
  * commande à créneau pas encore lancée en cuisine (cf. `filterScheduledAhead`).
  * Repliée par défaut : elle signale leur présence sans encombrer le flux actif.
  *
- * MAIS elle s'ouvre d'elle-même dès qu'une commande y devient urgente — repliée,
- * elle rendait l'alerte invisible au moment précis où elle compte. La bordure
- * passe alors au rouge, et l'en-tête annonce combien sont à lancer.
+ * MAIS elle s'ouvre d'elle-même dès qu'une commande est à lancer AUJOURD'HUI
+ * (ambre, dès l'ouverture — cf. `kitchenLaunchState`), et passe au rouge quand
+ * l'une d'elles devient urgente (retrait dans 30 min). Repliée, elle rendait
+ * l'alerte invisible au moment précis où elle compte.
  */
 export function ScheduledSection({
   orders,
@@ -49,16 +45,14 @@ export function ScheduledSection({
   if (orders.length === 0) return null;
 
   const next = orders[0]?.pickupTime;
-  // Commandes à créneau non lancées dont le retrait approche : c'est le signal
-  // « il faut s'en occuper maintenant ».
-  const toLaunch = orders.filter((o) => {
-    if (!isAwaitingKitchenLaunch(o)) return false;
-    const m = minutesUntilPickup(o, now);
-    return m !== null && m <= LAUNCH_ALERT_MINUTES;
-  }).length;
-  const urgent = toLaunch > 0;
+  // Commandes à créneau non lancées dont le retrait tombe aujourd'hui : à
+  // lancer dans la journée ; urgentes si le retrait est dans 30 min.
+  const states = orders.map((o) => kitchenLaunchState(o, now));
+  const toLaunch = states.filter((st) => st === 'today' || st === 'now').length;
+  const urgent = states.includes('now');
+  const dueToday = toLaunch > 0 && !urgent;
   // Un choix explicite du caissier prime toujours sur l'ouverture automatique.
-  const open = manuallyToggled ?? urgent;
+  const open = manuallyToggled ?? toLaunch > 0;
 
   return (
     <section
@@ -66,7 +60,9 @@ export function ScheduledSection({
         'rounded-2xl border-2',
         urgent
           ? 'border-red-400 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20'
-          : 'border-indigo-300 bg-indigo-50/40 dark:border-indigo-800 dark:bg-indigo-950/20'
+          : dueToday
+            ? 'border-amber-400 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20'
+            : 'border-indigo-300 bg-indigo-50/40 dark:border-indigo-800 dark:bg-indigo-950/20'
       )}
     >
       <button
@@ -80,7 +76,9 @@ export function ScheduledSection({
             'flex items-center gap-2 text-sm font-semibold',
             urgent
               ? 'text-red-900 dark:text-red-100'
-              : 'text-indigo-900 dark:text-indigo-100'
+              : dueToday
+                ? 'text-amber-900 dark:text-amber-100'
+                : 'text-indigo-900 dark:text-indigo-100'
           )}
         >
           <CalendarClock className="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -88,7 +86,11 @@ export function ScheduledSection({
           <span
             className={cn(
               'rounded-full px-1.5 text-xs font-semibold tabular-nums text-white',
-              urgent ? 'bg-red-600' : 'bg-indigo-600'
+              urgent
+                ? 'bg-red-600'
+                : dueToday
+                  ? 'bg-amber-600'
+                  : 'bg-indigo-600'
             )}
           >
             {orders.length}
@@ -96,6 +98,10 @@ export function ScheduledSection({
           {urgent ? (
             <span className="font-semibold text-red-700 dark:text-red-300">
               · {toLaunch} à lancer maintenant
+            </span>
+          ) : dueToday ? (
+            <span className="font-semibold text-amber-800 dark:text-amber-300">
+              · {toLaunch} à lancer aujourd’hui
             </span>
           ) : (
             next && (
@@ -110,7 +116,9 @@ export function ScheduledSection({
             'h-5 w-5 shrink-0 transition-transform',
             urgent
               ? 'text-red-700 dark:text-red-300'
-              : 'text-indigo-700 dark:text-indigo-300',
+              : dueToday
+                ? 'text-amber-700 dark:text-amber-300'
+                : 'text-indigo-700 dark:text-indigo-300',
             open && 'rotate-180'
           )}
           aria-hidden="true"

@@ -8,6 +8,7 @@
 
 import {
   DEFERRED_PICKUP_DEFAULT_TIME,
+  LAUNCH_ALERT_MINUTES,
   SCHEDULED_LEAD_IN_MINUTES,
 } from '@/config/constants';
 import {
@@ -167,6 +168,31 @@ export function isAwaitingKitchenLaunch(order: SchedulableOrder): boolean {
 }
 
 /**
+ * Où en est une commande à créneau PAS ENCORE LANCÉE en cuisine
+ * (`isAwaitingKitchenLaunch`) — `null` pour toute autre commande :
+ *   - `later` : retrait un jour ultérieur, rien à faire aujourd'hui ;
+ *   - `today` : retrait AUJOURD'HUI (ou déjà dépassé) — elle passe « à
+ *     lancer » dès l'ouverture, pas seulement au dernier moment : la cuisine
+ *     organise sa journée autour (une commande épuisée hier et reportée à
+ *     aujourd'hui doit être produite, pas découverte 30 min avant) ;
+ *   - `now` : retrait dans `LAUNCH_ALERT_MINUTES` ou moins — urgent.
+ * Partagé par la caisse (« Programmées ») et la cuisine, pour que les deux
+ * écrans parlent de la même échéance.
+ */
+export type KitchenLaunchState = 'later' | 'today' | 'now';
+
+export function kitchenLaunchState(
+  order: SchedulableOrder,
+  now: Date
+): KitchenLaunchState | null {
+  if (!isAwaitingKitchenLaunch(order)) return null;
+  const minutes = minutesUntilPickup(order, now);
+  if (minutes !== null && minutes <= LAUNCH_ALERT_MINUTES) return 'now';
+  const offset = pickupDayOffset(order.pickupTime, now);
+  return offset !== null && offset <= 0 ? 'today' : 'later';
+}
+
+/**
  * True si la commande est une commande programmée encore « en avance » : créneau de retrait
  * défini, à plus de `SCHEDULED_LEAD_IN_MINUTES` minutes, et toujours active (NEW/PREPARING).
  * Ces commandes vivent dans une section « Programmées » et n'entrent pas encore dans le flux
@@ -194,4 +220,40 @@ export function formatPickup(pickup: Date, now: Date): string {
     month: '2-digit',
   }).format(pickup);
   return `${date} ${time}`;
+}
+
+/**
+ * Jour de retrait en toutes lettres, pour le CLIENT : « aujourd’hui »,
+ * « demain », sinon « samedi 26 septembre » (Abidjan).
+ */
+export function formatPickupDayLabel(pickup: Date, now: Date): string {
+  const dayDiff = localDayDiff(pickup, now);
+  if (dayDiff <= 0) return 'aujourd’hui';
+  if (dayDiff === 1) return 'demain';
+  return new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Africa/Abidjan',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(pickup);
+}
+
+/**
+ * Commande en ligne pas encore partie en cuisine et prévue un JOUR
+ * ULTÉRIEUR : `{ day, time }` pour la dire au client (« préparée demain pour
+ * ton retrait à 11:00 »), `null` sinon. Une commande différée reste `NEW`
+ * jusqu'au lancement le jour J — même payée : les textes « part en
+ * préparation » seraient faux.
+ */
+export function deferredPickupLabel(
+  order: { status: OrderStatus; pickupTime: Date | string | null },
+  now: Date
+): { day: string; time: string } | null {
+  if (order.status !== 'NEW' || !order.pickupTime) return null;
+  const pickup = toDate(order.pickupTime);
+  if (!isDeferredPickup(pickup, now)) return null;
+  return {
+    day: formatPickupDayLabel(pickup, now),
+    time: formatAbidjanTime(pickup),
+  };
 }
