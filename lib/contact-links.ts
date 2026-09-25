@@ -255,15 +255,30 @@ export function buildFeedbackMessage(params: {
   return `${greeting}, merci pour ta commande EBA Coffee Shop ! Comment as-tu trouvé ? Ton retour nous aide à nous améliorer. À bientôt ☕`;
 }
 
-/** Message pour demander au client d'envoyer son livreur. */
+/**
+ * Message pour demander au client d'envoyer son livreur (entrée en
+ * préparation) : repère Yango à donner au livreur et numéro du commerce à
+ * joindre en cas de souci, + rappel d'envoyer la capture de la commande.
+ */
 export function buildDriverRequestMessage(params: {
   customerName: string | null;
   dailyNumber: number;
+  /** Repère à indiquer comme destination dans l'appli Yango. */
+  yangoLandmark: string;
+  /** Numéro du commerce à joindre par le livreur. */
+  phone: string;
 }): string {
-  const { customerName, dailyNumber } = params;
+  const { customerName, dailyNumber, yangoLandmark, phone } = params;
   const greeting = customerName ? `Bonjour ${customerName}` : 'Bonjour';
   const number = String(dailyNumber).padStart(3, '0');
-  return `${greeting}, ta commande EBA #${number} est bientôt prête. Tu peux envoyer ton livreur dès maintenant.`;
+  return [
+    `${greeting}, ta commande EBA #${number} est bientôt prête.`,
+    '',
+    'Tu peux envoyer ton livreur.',
+    `Localisation : ${yangoLandmark}`,
+    `Le numéro : ${phone}`,
+    'Et envoie la capture pour le livreur.',
+  ].join('\n');
 }
 
 /**
