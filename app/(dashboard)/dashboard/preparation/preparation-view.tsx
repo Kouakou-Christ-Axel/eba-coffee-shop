@@ -33,13 +33,10 @@ import { normalizeOrderDates } from '@/lib/orders/format';
 import {
   isAwaitingKitchenLaunch,
   isScheduledAhead,
-  minutesUntilPickup,
+  kitchenLaunchState,
 } from '@/lib/orders/scheduling';
 import { buildProductionPlan } from '@/lib/orders/production-plan';
-import {
-  LAUNCH_ALERT_MINUTES,
-  READY_WAIT_ALERT_MINUTES,
-} from '@/config/constants';
+import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
 import { PreparationHeader } from './_components/preparation-header';
 import { EmptyState } from './_components/empty-state';
 import { PrepOrderCard } from './_components/prep-order-card';
@@ -173,23 +170,24 @@ function PreparationViewInner({
         ),
     [visible, now]
   );
-  // « À produire » : dérivé des commandes non encore lancées, groupé par jour.
+  // « À produire » : commandes en cuisine + programmées pas encore lancées,
+  // groupées par jour de retrait.
   // Aucune requête dédiée — le flux SSE porte déjà tout ce qu'il faut.
   const productionPlan = useMemo(
     () => buildProductionPlan(visible, now),
     [visible, now]
   );
-  // Commandes programmées dont le retrait approche sans qu'elles soient
-  // lancées : c'est le signal « il faut s'y mettre maintenant ».
-  const toLaunchCount = useMemo(
-    () =>
-      scheduled.filter((o) => {
-        if (!isAwaitingKitchenLaunch(o)) return false;
-        const m = minutesUntilPickup(o, now);
-        return m !== null && m <= LAUNCH_ALERT_MINUTES;
-      }).length,
-    [scheduled, now]
-  );
+  // Commandes à créneau pas encore lancées dont le retrait tombe AUJOURD'HUI :
+  // « à lancer » dès l'ouverture, pas seulement 30 min avant (cf.
+  // `kitchenLaunchState`) — rouge quand l'une d'elles devient urgente.
+  const { toLaunchCount, toLaunchUrgent } = useMemo(() => {
+    const states = scheduled.map((o) => kitchenLaunchState(o, now));
+    return {
+      toLaunchCount: states.filter((st) => st === 'today' || st === 'now')
+        .length,
+      toLaunchUrgent: states.includes('now'),
+    };
+  }, [scheduled, now]);
   const ready = useMemo(
     () => visible.filter((o) => o.status === 'READY'),
     [visible]
@@ -346,6 +344,7 @@ function PreparationViewInner({
         }}
         readyAlert={readyAlert}
         toLaunchCount={toLaunchCount}
+        toLaunchUrgent={toLaunchUrgent}
         connState={connState}
         isStale={isStale}
         lastSync={lastSync}

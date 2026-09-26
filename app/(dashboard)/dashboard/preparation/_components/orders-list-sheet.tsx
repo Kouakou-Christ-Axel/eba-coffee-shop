@@ -9,12 +9,9 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-import {
-  LAUNCH_ALERT_MINUTES,
-  READY_WAIT_ALERT_MINUTES,
-} from '@/config/constants';
+import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
 import { aggregateOrderSupplements, getPickupCode } from '@/lib/orders/format';
-import { formatPickup } from '@/lib/orders/scheduling';
+import { formatPickup, kitchenLaunchState } from '@/lib/orders/scheduling';
 import { TrackingLinkButton } from '@/components/(dashboard)/tracking-link-button';
 import type { PreparationOrder } from '@/lib/preparation-queue';
 import { ORDER_TYPE_META, SOURCE_META } from './prep-order-card';
@@ -141,13 +138,11 @@ function OrdersListRow({
   // Encore NEW : elle attend le geste humain. C'est le seul chemin qui décompte
   // le stock — jamais d'automatisme, pour qu'un manque se voie tout de suite.
   const awaitingLaunch = order.status === 'NEW';
-  const untilPickup = order.pickupTime
-    ? Math.round((order.pickupTime.getTime() - now.getTime()) / 60_000)
-    : null;
-  const launchNow =
-    awaitingLaunch &&
-    untilPickup !== null &&
-    untilPickup <= LAUNCH_ALERT_MINUTES;
+  // `now` : retrait dans 30 min ou moins ; `today` : retrait aujourd'hui,
+  // à lancer dans la journée (cf. `kitchenLaunchState`).
+  const launchState = kitchenLaunchState(order, now);
+  const launchNow = launchState === 'now';
+  const launchToday = launchState === 'today';
   const supplementLines = aggregateOrderSupplements(order.items);
 
   return (
@@ -160,7 +155,9 @@ function OrdersListRow({
             : 'border-green-300 dark:border-green-800'
           : launchNow
             ? 'border-red-300 dark:border-red-800'
-            : 'border-border'
+            : launchToday
+              ? 'border-amber-300 dark:border-amber-800'
+              : 'border-border'
       )}
     >
       <button
@@ -274,12 +271,16 @@ function OrdersListRow({
               'text-sm font-semibold',
               launchNow
                 ? 'text-red-700 dark:text-red-300'
-                : 'text-muted-foreground'
+                : launchToday
+                  ? 'text-amber-700 dark:text-amber-300'
+                  : 'text-muted-foreground'
             )}
           >
             {launchNow
               ? 'À lancer maintenant'
-              : 'Pas encore en cuisine — le stock sera décompté au lancement'}
+              : launchToday
+                ? 'À lancer aujourd’hui — retrait prévu ce jour'
+                : 'Pas encore en cuisine — le stock sera décompté au lancement'}
             {!order.isPaid && ' · non encaissée'}
           </p>
         )}

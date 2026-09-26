@@ -15,7 +15,8 @@
 //                       capture. `PENDING` (analyse indisponible) N'EST PAS
 //                       un rejet, reste `proof_pending` (caisse tranche à la
 //                       main) ;
-//   - `validated`     : paiement confirmé, la commande part en préparation ;
+//   - `validated`     : paiement confirmé, la commande part en préparation
+//                       (ou le jour du retrait, pour une commande différée) ;
 //   - `nothing_due`   : récompense fidélité couvrant tout le total.
 
 import { useRef, useState, useSyncExternalStore } from 'react';
@@ -46,6 +47,7 @@ import {
 } from '@/lib/cloudinary-client';
 import { PAYMENT_PROOF_MAX_SIZE_BYTES } from '@/config/constants';
 import { cn } from '@/lib/utils';
+import { deferredPickupLabel } from '@/lib/orders/scheduling';
 
 type PaymentUiState =
   | 'awaiting'
@@ -153,6 +155,12 @@ export function PaymentSection({
   const uiState = getPaymentUiState(order);
   const depositOutstanding = isDepositOutstanding(order);
   const amountDue = getAmountDue(order);
+  // Retrait un jour ultérieur : la commande reste « Reçue » jusqu'au jour J,
+  // même payée — « part en préparation » serait faux.
+  const deferred = deferredPickupLabel(order, new Date());
+  const deferredText = deferred
+    ? `${deferred.day} pour ton retrait à ${deferred.time}`
+    : null;
   const waveLink = buildWaveLink(amountDue);
   const waveOpened = useSyncExternalStore(
     subscribeWaveOpened,
@@ -263,7 +271,9 @@ export function PaymentSection({
           >
             <CheckCircle2 className="h-6 w-6 shrink-0 text-success-700 dark:text-success" />
             <p className="text-sm font-medium text-success-700 dark:text-success">
-              Paiement validé 🎉 — ta commande part en préparation.
+              {deferredText
+                ? `Paiement validé 🎉 — ta commande sera préparée ${deferredText}.`
+                : 'Paiement validé 🎉 — ta commande part en préparation.'}
             </p>
           </m.div>
         ) : uiState === 'nothing_due' ? (
@@ -290,8 +300,8 @@ export function PaymentSection({
             <CheckCircle2 className="h-6 w-6 shrink-0 text-success-700 dark:text-success" />
             <p className="text-sm font-medium text-success-700 dark:text-success">
               Acompte reçu ✓ — le solde de{' '}
-              {priceFormatter.format(order.total - (order.depositPaid ?? 0))}{' '}
-              F se règle au comptoir, au retrait.
+              {priceFormatter.format(order.total - (order.depositPaid ?? 0))} F
+              se règle au comptoir, au retrait.
             </p>
           </m.div>
         ) : uiState === 'rejected' ? (
@@ -409,7 +419,9 @@ export function PaymentSection({
             <p className="rounded-lg bg-warning/15 px-3 py-2 text-sm font-medium text-warning-700 dark:text-warning">
               {depositOutstanding
                 ? `Commande spéciale : un acompte de ${priceFormatter.format(amountDue)} F est requis pour la prise en compte. Le solde se règlera au retrait — deux petites étapes :`
-                : 'Ta commande part en préparation dès que le paiement est confirmé — deux petites étapes :'}
+                : deferredText
+                  ? `Paye maintenant pour réserver ta commande : elle sera préparée ${deferredText}. Deux petites étapes :`
+                  : 'Ta commande part en préparation dès que le paiement est confirmé — deux petites étapes :'}
             </p>
 
             {/* Étape 1 — payer avec Wave */}

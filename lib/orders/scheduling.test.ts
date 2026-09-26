@@ -5,6 +5,9 @@ import {
   isDeferredPickup,
   isPickupAt,
   isScheduledAhead,
+  deferredPickupLabel,
+  formatPickupDayLabel,
+  kitchenLaunchState,
   minutesUntilPickup,
   orderProductionDay,
   pickupDayOffset,
@@ -95,6 +98,32 @@ describe('isAwaitingKitchenLaunch', () => {
     expect(
       isAwaitingKitchenLaunch(order('2026-06-14T10:00:00Z', 'PREPARING'))
     ).toBe(false);
+  });
+});
+
+describe('kitchenLaunchState', () => {
+  it('demain : plus tard, rien à faire aujourd’hui', () => {
+    expect(kitchenLaunchState(order('2026-06-14T10:00:00Z'), NOW)).toBe(
+      'later'
+    );
+  });
+
+  it('aujourd’hui, même dans plusieurs heures : à lancer dès maintenant dans la journée', () => {
+    expect(kitchenLaunchState(order('2026-06-13T19:00:00Z'), NOW)).toBe(
+      'today'
+    );
+  });
+
+  it('dans 30 min ou moins (ou déjà passé) : urgent', () => {
+    expect(kitchenLaunchState(order('2026-06-13T14:30:00Z'), NOW)).toBe('now');
+    expect(kitchenLaunchState(order('2026-06-13T13:00:00Z'), NOW)).toBe('now');
+  });
+
+  it('ne concerne que les commandes à créneau pas encore lancées', () => {
+    expect(kitchenLaunchState(order(null), NOW)).toBeNull();
+    expect(
+      kitchenLaunchState(order('2026-06-13T19:00:00Z', 'PREPARING'), NOW)
+    ).toBeNull();
   });
 });
 
@@ -205,5 +234,28 @@ describe('isPickupAt', () => {
     // `isoToAbidjanDatetimeLocal` tronque à la minute : une commande posée avec
     // des secondes non nulles reste reconnue comme « demain 11h ».
     expect(isPickupAt('2026-06-14T11:00:45.000Z', '2026-06-14')).toBe(true);
+  });
+});
+
+describe('libellés client d’une commande différée', () => {
+  it('dit « demain », puis le jour en toutes lettres', () => {
+    expect(formatPickupDayLabel(new Date('2026-06-14T10:00:00Z'), NOW)).toBe(
+      'demain'
+    );
+    expect(formatPickupDayLabel(new Date('2026-06-16T10:00:00Z'), NOW)).toBe(
+      'mardi 16 juin'
+    );
+  });
+
+  it('ne parle de report que pour une commande NEW prévue un jour ultérieur', () => {
+    expect(deferredPickupLabel(order('2026-06-14T11:00:00Z'), NOW)).toEqual({
+      day: 'demain',
+      time: '11h00',
+    });
+    expect(deferredPickupLabel(order('2026-06-13T18:00:00Z'), NOW)).toBeNull();
+    expect(
+      deferredPickupLabel(order('2026-06-14T11:00:00Z', 'PREPARING'), NOW)
+    ).toBeNull();
+    expect(deferredPickupLabel(order(null), NOW)).toBeNull();
   });
 });

@@ -91,10 +91,11 @@ describe('buildProductionPlan', () => {
     expect(buildProductionPlan([], NOW)).toEqual([]);
   });
 
-  it('exclut les commandes annulées, pas encore lancées ou déjà prêtes/terminées', () => {
+  it('exclut les commandes annulées, sans créneau pas encore lancées, ou déjà prêtes/terminées', () => {
     const plan = buildProductionPlan(
       [
         order('o1', [item('p1', 'Sponge cake', 5)], { status: 'CANCELLED' }),
+        // NEW sans créneau (ex. livraison qui attend l'encaissement).
         order('o2', [item('p1', 'Sponge cake', 3)], { status: 'NEW' }),
         order('o3', [item('p1', 'Sponge cake', 7)], { status: 'READY' }),
         order('o4', [item('p1', 'Sponge cake', 9)], { status: 'COMPLETED' }),
@@ -104,6 +105,33 @@ describe('buildProductionPlan', () => {
     );
     expect(plan[0].totalItems).toBe(1);
     expect(plan[0].lines[0].orderIds).toEqual(['o5']);
+  });
+
+  it('compte les commandes à créneau PAS ENCORE LANCÉES, par jour de retrait, avec leur part à lancer', () => {
+    const tomorrow = new Date('2026-06-14T11:00:00Z');
+    const plan = buildProductionPlan(
+      [
+        // Épuisé aujourd'hui, reporté à demain : pas encore en cuisine.
+        order('o1', [item('p1', 'Sponge cake', 8)], {
+          status: 'NEW',
+          pickupTime: tomorrow,
+        }),
+        order('o2', [item('p1', 'Sponge cake', 4)], {
+          status: 'NEW',
+          pickupTime: tomorrow,
+        }),
+        // Déjà lancée la veille pour demain.
+        order('o3', [item('p1', 'Sponge cake', 1)], { pickupTime: tomorrow }),
+      ],
+      NOW
+    );
+
+    expect(plan).toHaveLength(1);
+    expect(plan[0].date).toBe('2026-06-14');
+    const line = plan[0].lines[0];
+    expect(line.quantity).toBe(13);
+    expect(line.toLaunchQuantity).toBe(12);
+    expect(line.scheduledQuantity).toBe(1);
   });
 
   it('additionne les quantités du même produit à travers plusieurs commandes', () => {
