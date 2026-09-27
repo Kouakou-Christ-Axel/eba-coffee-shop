@@ -1,3 +1,5 @@
+'use client';
+
 import { Button, Card, CardBody, CardHeader, Link } from '@heroui/react';
 
 export default function RootNotFound() {
