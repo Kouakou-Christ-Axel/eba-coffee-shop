@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { ZodError } from 'zod';
-import { requireManager } from '@/lib/auth-helpers';
+import { requireMenu } from '@/lib/auth-helpers';
 import * as menu from '@/lib/menu-mutations';
 import type {
   ProductInput,
@@ -29,7 +29,7 @@ import type { SupplementGroupInput } from '@/lib/schemas/menu';
 // RÈGLE : toute action de ce fichier déclenchable par un clic renvoie
 // `ActionResult`, jamais `void` et jamais un throw pour une erreur métier.
 // L'UI peut ainsi afficher systématiquement un toast de succès ou d'échec
-// (cf. `lib/hooks/use-undo-toast.tsx`). Seul `requireManager()` lance encore —
+// (cf. `lib/hooks/use-undo-toast.tsx`). Seul `requireMenu()` lance encore —
 // volontairement : il est HORS du `try`, une tentative non autorisée n'est pas
 // un cas attendu à afficher mais une erreur de programmation ou une attaque.
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -74,7 +74,7 @@ function revalidateMenu() {
 
 /** Exécute une mutation sous garde d'autorisation et normalise le résultat. */
 async function run(mutate: () => Promise<unknown>): Promise<ActionResult> {
-  await requireManager();
+  await requireMenu();
   try {
     await mutate();
   } catch (err) {
@@ -94,7 +94,7 @@ async function runWith<TRaw, TOut>(
   mutate: () => Promise<TRaw>,
   select: (raw: TRaw) => TOut
 ): Promise<ActionResultWith<TOut>> {
-  await requireManager();
+  await requireMenu();
   let raw: TRaw;
   try {
     raw = await mutate();
