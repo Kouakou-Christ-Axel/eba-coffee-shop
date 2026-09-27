@@ -131,31 +131,23 @@ export function buildWaveRequestMessage(params: {
   const number = String(dailyNumber).padStart(3, '0');
   const itemsBlock = items.map(formatItemLine).join('\n');
   const waveLink = buildWaveLink(amount);
-  const linkBlock = waveLink
-    ? `Paye via Wave en cliquant sur ce lien :\n${waveLink}`
-    : 'Paye via Wave : [lien à compléter]';
+  const waveLine = waveLink
+    ? `Wave : ${waveLink}`
+    : 'Wave : [lien à compléter]';
 
-  const lines = [
-    `${greeting},`,
-    '',
-    `Voici le récap de ta commande EBA #${number} :`,
-    itemsBlock,
-  ];
+  const lines = [`${greeting}, ta commande EBA #${number} :`, itemsBlock];
   if (loyaltyDiscount && loyaltyDiscount > 0) {
-    lines.push(
-      `Récompense fidélité 🎁 : -${priceFormatter.format(loyaltyDiscount)} F`
-    );
+    lines.push(`Fidélité 🎁 : -${priceFormatter.format(loyaltyDiscount)} F`);
   }
-  lines.push('', `Total : ${priceFormatter.format(amount)} F`, '');
-  lines.push(`Code de retrait à annoncer : ${getPickupCode(reference)}`);
-  if (trackingUrl) lines.push(`Suivi de ta commande : ${trackingUrl}`);
+  lines.push(`Total : ${priceFormatter.format(amount)} F`);
+  lines.push(`Code de retrait : ${getPickupCode(reference)}`);
+  if (trackingUrl) lines.push(`Suivi : ${trackingUrl}`);
   lines.push(
     '',
-    linkBlock,
-    `Ou directement au numéro Wave ${wavePaymentNumber} / Orange Money ${orangeMoneyPaymentNumber}`,
+    waveLine,
+    `Sinon : Wave ${wavePaymentNumber} / Orange Money ${orangeMoneyPaymentNumber}`,
     '',
-    "⚠️ Ne commande pas encore ton Yango : attends qu'on te dise que c'est prêt.",
-    `Quand ce sera bon, indique « ${yangoLandmark} » comme point de repère sur Yango.`,
+    `⚠️ Yango seulement quand c'est prêt — repère : « ${yangoLandmark} »`,
     `Itinéraire : ${mapsDirectionsUrl}`
   );
   if (loyaltyTeaser?.settings.enabled) {
@@ -188,9 +180,8 @@ export function buildPaymentProofMessage(params: {
   const greeting = customerName ? `Bonjour, ici ${customerName}` : 'Bonjour';
   const number = String(dailyNumber).padStart(3, '0');
   return [
-    `${greeting}.`,
-    `Je viens de payer ma commande EBA #${number} (${priceFormatter.format(amount)} F).`,
-    "Je t'envoie la capture de mon paiement juste après ce message.",
+    `${greeting}, je viens de payer ma commande EBA #${number} (${priceFormatter.format(amount)} F).`,
+    'Capture juste après.',
   ].join('\n');
 }
 
@@ -237,12 +228,11 @@ export function buildPickupReadyMessage(params: {
   const lines = [
     confirmation,
     '',
-    `Commande EBA #${number} · Code de retrait à annoncer : ${getPickupCode(reference)}`,
-    `Tu peux venir directement, ou commander ton Yango maintenant : indique « ${yangoLandmark} » comme point de repère.`,
-    `Itinéraire : ${mapsDirectionsUrl}`,
+    `Commande EBA #${number} · Code : ${getPickupCode(reference)}`,
+    `Viens, ou Yango (repère : « ${yangoLandmark} ») : ${mapsDirectionsUrl}`,
   ];
-  if (trackingUrl) lines.push('', `Suivi de ta commande : ${trackingUrl}`);
-  lines.push('', 'À tout de suite !');
+  if (trackingUrl) lines.push(`Suivi : ${trackingUrl}`);
+  lines.push('À tout de suite !');
   return lines.join('\n');
 }
 
@@ -252,7 +242,7 @@ export function buildFeedbackMessage(params: {
 }): string {
   const { customerName } = params;
   const greeting = customerName ? `Bonjour ${customerName}` : 'Bonjour';
-  return `${greeting}, merci pour ta commande EBA Coffee Shop ! Comment as-tu trouvé ? Ton retour nous aide à nous améliorer. À bientôt ☕`;
+  return `${greeting}, merci pour ta commande EBA ! Comment as-tu trouvé ? ☕`;
 }
 
 /**
@@ -294,10 +284,8 @@ export function buildTrackingShareMessage(params: {
   const { pickupCode, customerName, trackingUrl } = params;
   const who = customerName ? `la commande de ${customerName}` : 'ma commande';
   return [
-    `Suivi en direct de ${who} chez EBA Coffee Shop :`,
-    trackingUrl,
-    '',
-    `Code de retrait à annoncer au comptoir : ${pickupCode}`,
+    `Suivi de ${who} (EBA) : ${trackingUrl}`,
+    `Code de retrait : ${pickupCode}`,
   ].join('\n');
 }
 
@@ -324,15 +312,11 @@ export function buildDriverShareMessage(params: {
   const who = customerName ? `la commande de ${customerName}` : 'ma commande';
 
   const lines = [
-    `Bonjour, tu récupères ${who} chez EBA Coffee Shop.`,
-    '',
-    `Code de retrait à donner au comptoir : ${pickupCode}`,
+    `Tu récupères ${who} chez EBA Coffee Shop.`,
+    `Code de retrait : ${pickupCode}`,
   ];
   if (pickupAddress) lines.push(`Adresse : ${pickupAddress}`);
   if (pickupMapsUrl) lines.push(`Localisation : ${pickupMapsUrl}`);
-  lines.push(
-    '',
-    `Statut en direct (pars quand c'est « Prête ») : ${trackingUrl}`
-  );
+  lines.push(`Statut (pars quand « Prête ») : ${trackingUrl}`);
   return lines.join('\n');
 }
