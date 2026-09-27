@@ -135,7 +135,7 @@ const navItems: NavItem[] = [
     label: 'Menu',
     href: '/dashboard/menu',
     icon: UtensilsCrossed,
-    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER'],
+    roles: ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER', 'CASHIER'],
   },
   {
     label: 'Inventaire',

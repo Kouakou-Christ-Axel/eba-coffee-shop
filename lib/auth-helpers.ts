@@ -21,6 +21,15 @@ export type AuthorizedSession = {
 // SANS les modules finance (dépenses, investissements, régularisations) et
 // sans accès au serveur MCP (cf. `MCP_ROLES` dans `app/api/mcp/route.ts`).
 const MANAGER_ROLES: UserRole[] = ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER'];
+// Gestion du menu (catégories, produits, stock, plannings, extras globaux,
+// carte PDF) : MANAGER_ROLES + CASHIER, qui doit pouvoir corriger le menu
+// (rupture, prix, nouveau produit) sans dépendre d'un manager sur place.
+const MENU_ROLES: UserRole[] = [
+  'ADMIN',
+  'MANAGER',
+  'ASSISTANT_MANAGER',
+  'CASHIER',
+];
 const FINANCE_ROLES: UserRole[] = ['ADMIN', 'MANAGER', 'COMPTABLE'];
 const STATS_ROLES: UserRole[] = [
   'ADMIN',
@@ -171,6 +180,11 @@ export async function requireManager(): Promise<AuthorizedSession> {
   return requireRole(MANAGER_ROLES);
 }
 
+/** ADMIN, MANAGER, ASSISTANT_MANAGER ou CASHIER (gestion complète du menu). */
+export async function requireMenu(): Promise<AuthorizedSession> {
+  return requireRole(MENU_ROLES);
+}
+
 /** ADMIN, MANAGER ou COMPTABLE (gestion financière). */
 export async function requireFinance(): Promise<AuthorizedSession> {
   return requireRole(FINANCE_ROLES);
@@ -222,6 +236,7 @@ export async function requireOrdersView(): Promise<AuthorizedSession> {
 export const ROLE_GROUPS = {
   DASHBOARD: DASHBOARD_ROLES,
   MANAGER_PLUS: MANAGER_ROLES,
+  MENU: MENU_ROLES,
   FINANCE: FINANCE_ROLES,
   STATS: STATS_ROLES,
   CASHIER_PLUS: CASHIER_ROLES,

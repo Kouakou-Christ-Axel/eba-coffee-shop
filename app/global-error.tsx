@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
+import { reloadOnChunkError } from '@/lib/chunk-error';
 import './globals.css';
 
 // Ne couvre que les erreurs du root layout lui-même (Providers, polices,
@@ -17,6 +18,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error('[app/global-error]', error);
+    reloadOnChunkError(error);
   }, [error]);
 
   return (
