@@ -17,6 +17,14 @@ vi.mock('@/lib/orders', async (importOriginal) => ({
   createOrder: vi.fn(),
 }));
 
+// Rate-limiting testé séparément (route.rate-limit.test.ts) : ici, plusieurs
+// requêtes partent de la même IP absente (clé `unknown`) et ne doivent pas
+// se faire bloquer entre elles.
+vi.mock('@/lib/order-create-rate-limit', () => ({
+  allowOrderCreate: vi.fn(() => true),
+  orderCreateRateKey: vi.fn(() => 'test'),
+}));
+
 import {
   AdvanceOrderRequiredError,
   ScheduleUnavailableError,
@@ -29,7 +37,7 @@ import { POST } from './route';
 const mockCreateOrder = vi.mocked(createOrder);
 
 const validBody = {
-  customerName: 'Kofi',
+  customerName: 'Kofi Yao',
   customerPhone: '07001234',
   pickupTime: null,
   items: [

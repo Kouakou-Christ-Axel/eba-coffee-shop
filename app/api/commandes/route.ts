@@ -7,12 +7,24 @@ import {
   publicOrderError,
   publicOrderErrorResponse,
 } from '@/lib/orders/public-error-response';
+import {
+  allowOrderCreate,
+  orderCreateRateKey,
+} from '@/lib/order-create-rate-limit';
 
 // Réponses d'erreur : toujours un `code` stable (voir `checkoutErrorCodeSchema`,
 // lib/schemas/order.ts) — le client aiguille dessus, le `error` reste le
 // message lisible. Mapping partagé avec le libre-service après commande.
 
 export async function POST(req: NextRequest) {
+  if (!allowOrderCreate(orderCreateRateKey(req))) {
+    return publicOrderError(
+      429,
+      'RATE_LIMITED',
+      'Trop de commandes : réessaie dans quelques minutes.'
+    );
+  }
+
   let body: unknown;
   try {
     body = await req.json();

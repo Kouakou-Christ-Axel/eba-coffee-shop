@@ -70,7 +70,7 @@ describe('generateOrderReference', () => {
 // ─── createOrderSchema ────────────────────────────────────────────────────────
 
 const validInput = {
-  customerName: 'Kofi',
+  customerName: 'Kofi Yao',
   customerPhone: '07001234',
   pickupTime: new Date(Date.now() + 3_600_000).toISOString(),
   items: [
@@ -123,9 +123,30 @@ describe('createOrderSchema', () => {
     ).toBe(false);
   });
 
-  it('rejette customerName trop court (< 2 chars)', () => {
+  it('rejette customerName à un seul mot (pas de prénom)', () => {
     expect(
       createOrderSchema.safeParse({ ...validInput, customerName: 'K' }).success
+    ).toBe(false);
+    expect(
+      createOrderSchema.safeParse({ ...validInput, customerName: 'GH' }).success
+    ).toBe(false);
+  });
+
+  it('rejette customerName avec trop de mots', () => {
+    expect(
+      createOrderSchema.safeParse({
+        ...validInput,
+        customerName: 'Un Deux Trois Quatre Cinq Six',
+      }).success
+    ).toBe(false);
+  });
+
+  it('rejette customerPhone au format invalide', () => {
+    expect(
+      createOrderSchema.safeParse({
+        ...validInput,
+        customerPhone: '00000000',
+      }).success
     ).toBe(false);
   });
 });
@@ -185,7 +206,7 @@ describe('createOrder', () => {
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          customerName: 'Kofi',
+          customerName: 'Kofi Yao',
           customerPhone: '07001234',
           total: 3500,
         }),
