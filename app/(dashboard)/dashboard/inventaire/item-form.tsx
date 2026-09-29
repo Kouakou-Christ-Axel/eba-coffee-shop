@@ -138,7 +138,8 @@ export function ItemForm({
             id="inv-safety"
             type="number"
             min={0}
-            inputMode="numeric"
+            step="any"
+            inputMode="decimal"
             value={values.safetyStock}
             onChange={(e) => set('safetyStock', e.target.value)}
             placeholder="0"
@@ -150,7 +151,8 @@ export function ItemForm({
             id="inv-reorder"
             type="number"
             min={0}
-            inputMode="numeric"
+            step="any"
+            inputMode="decimal"
             value={values.reorderPoint}
             onChange={(e) => set('reorderPoint', e.target.value)}
             placeholder="—"
@@ -179,6 +181,7 @@ export function ItemForm({
                 id="inv-qty"
                 type="number"
                 min={0}
+                step="any"
                 inputMode="decimal"
                 value={values.initialQuantity}
                 onChange={(e) => set('initialQuantity', e.target.value)}
@@ -191,6 +194,7 @@ export function ItemForm({
                 id="inv-cost"
                 type="number"
                 min={0}
+                step="any"
                 inputMode="numeric"
                 value={values.initialUnitCost}
                 onChange={(e) => set('initialUnitCost', e.target.value)}
