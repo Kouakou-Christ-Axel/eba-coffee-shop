@@ -7,6 +7,7 @@ import DashboardFabMount from '@/components/layouts/dashboard-fab-mount';
 import ConsentBoot from '@/components/analytics/consent-boot';
 import CookieConsent from '@/components/analytics/cookie-consent';
 import MetaPixel from '@/components/analytics/meta-pixel';
+import OneSignalInit from '@/components/analytics/onesignal';
 import { getContactSettings } from '@/lib/contact-settings-db';
 
 // La mesure d'audience est montée ICI et non dans app/layout.tsx : le
@@ -19,6 +20,7 @@ async function PublicLayout({ children }: { children: React.ReactNode }) {
   const contact = await getContactSettings();
   const gtmId = process.env.NEXT_PUBLIC_GTM_ID;
   const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+  const onesignalAppId = process.env.NEXT_PUBLIC_ONESIGNAL_APP_ID;
   // La bannière conditionne les DEUX traceurs : le pixel Meta ne se charge
   // qu'après acceptation, il lui faut donc un moyen d'être accepté même si GTM
   // n'est pas configuré.
@@ -39,6 +41,7 @@ async function PublicLayout({ children }: { children: React.ReactNode }) {
       {gtmId ? <ConsentBoot /> : null}
       {gtmId ? <GoogleTagManager gtmId={gtmId} /> : null}
       {metaPixelId ? <MetaPixel pixelId={metaPixelId} /> : null}
+      {onesignalAppId ? <OneSignalInit appId={onesignalAppId} /> : null}
       <Navbar />
       <main>{children}</main>
       <SiteFooter contact={contact} />

@@ -12,6 +12,10 @@
  * d'API ni l'authentification — ces contenus doivent toujours venir du réseau.
  */
 
+// Fusionné ici (pas de fichier séparé) pour éviter un conflit de scope avec
+// le SW PWA existant ; ses listeners s'ajoutent à ceux du push VAPID plus bas.
+importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
+
 const CACHE_VERSION = 'v1';
 const CACHE_NAME = `eba-pwa-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline';
