@@ -5,19 +5,30 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  extensions = [citext]
 }
 
 model User {
   id    String   @id @default(uuid())
-  email String   @unique
+  // citext : comparaisons et contrainte unique insensibles à la casse au
+  // niveau base de données — nécessaire pour couvrir aussi les recherches
+  // internes de Better Auth (connexion par OTP) qu'on ne peut pas intercepter
+  // côté application.
+  email String   @unique @db.Citext
   name  String?
   role  UserRole @default(USER)
+
+  // Désactivation (soft) : non null = compte bloqué à la connexion, mais
+  // conservé avec tout son historique (cf. `getSession` dans lib/auth-helpers.ts
+  // et le contrôle du serveur MCP dans app/api/mcp/route.ts).
+  disabledAt DateTime?
 
   createdAt                 DateTime                @default(now())
   updatedAt                 DateTime                @updatedAt
@@ -282,8 +293,8 @@ model Order {
   // `paymentProofAnalysis` conserve le détail structuré (montant/opérateur/
   // référence/raisonnement/modèle) pour affichage caisse. Un signal, jamais
   // une validation automatique : `isPaid` reste un geste caisse manuel.
-  paymentProofVerdict   PaymentProofVerdict?
-  paymentProofAnalysis  Json?
+  paymentProofVerdict    PaymentProofVerdict?
+  paymentProofAnalysis   Json?
   paymentProofAnalyzedAt DateTime?
 
   // Origine de création (cf. enum OrderSource ci-dessus). Défaut CASHIER pour
@@ -665,24 +676,24 @@ model PollSuggestion {
 }
 
 model MenuCategory {
-  id        String    @id @default(cuid())
-  name      String
-  slug      String    @unique
-  sortOrder Int       @default(0)
-  available Boolean   @default(true)
+  id               String           @id @default(cuid())
+  name             String
+  slug             String           @unique
+  sortOrder        Int              @default(0)
+  available        Boolean          @default(true)
   // Soft delete : `deletedAt` non nul = catégorie « supprimée » (masquée partout
   // mais conservée en base, ainsi que ses produits). Le `slug` est dé-collisionné
   // à la suppression pour pouvoir réutiliser le même nom ensuite.
-  deletedAt DateTime?
-  products  Product[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  deletedAt        DateTime?
+  products         Product[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
   // Planning récurrent (ex. « menu brunch » uniquement le week-end). `null` =
   // pas de planning, disponible tous les jours (comportement historique). Se
   // combine par intersection avec le planning propre à chaque produit — voir
   // `intersectAvailableDays` (lib/menu.ts).
-  scheduleId String?
-  schedule   ProductSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  scheduleId       String?
+  schedule         ProductSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
   // Commande à l'avance obligatoire : délai MINIMUM (jours civils) entre la
   // commande et la date de retrait pour tout produit de cette catégorie.
   // `null` = pas de contrainte. Se combine avec celle du produit par MAXIMUM
@@ -694,17 +705,17 @@ model MenuCategory {
 }
 
 model Product {
-  id               String            @id @default(cuid())
+  id               String                 @id @default(cuid())
   name             String
   description      String
   price            Int
-  coutMatiere      Int               @default(0)
-  coutEmballage    Int               @default(0)
+  coutMatiere      Int                    @default(0)
+  coutEmballage    Int                    @default(0)
   imageUrl         String?
-  available        Boolean           @default(true)
-  sortOrder        Int               @default(0)
-  featured         Boolean           @default(false)
-  featuredOrder    Int               @default(0)
+  available        Boolean                @default(true)
+  sortOrder        Int                    @default(0)
+  featured         Boolean                @default(false)
+  featuredOrder    Int                    @default(0)
   featuredBadge    String?
   // Stock vendable courant. `null` = illimité (comportement historique,
   // jamais suivi ni bloqué) ; entier = quantité restante suivie ; `0` = épuisé
@@ -718,14 +729,14 @@ model Product {
   // conservé). Posé aussi en cascade quand sa catégorie est supprimée.
   deletedAt        DateTime?
   categoryId       String
-  category         MenuCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category         MenuCategory           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   supplementGroups SupplementGroup[]
   // Planning récurrent (ex. « jour du chocolat » = mercredi uniquement). `null`
   // = pas de planning, disponible tous les jours. Se combine par intersection
   // avec le planning éventuel de la catégorie — voir `intersectAvailableDays`
   // (lib/menu.ts). Supprimer le planning désassigne juste le produit (`SetNull`).
   scheduleId       String?
-  schedule         ProductSchedule?  @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  schedule         ProductSchedule?       @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
   // Historique structuré des passages « spécialité de la semaine » : le produit
   // n'est commandable QUE dans une fenêtre active (voir `isWithinAnyPeriod`,
   // lib/supplements.ts) dès qu'au moins une ligne existe. Peut être reconduit
@@ -743,10 +754,10 @@ model Product {
   // cuisine. Se combine avec `advanceOrderDays` (délai de commande) plutôt que
   // de dupliquer un second mécanisme — voir `Order.depositRequired` et
   // `sendOrderToKitchen` (lib/order-mutations.ts).
-  requiresDeposit  Boolean           @default(false)
+  requiresDeposit  Boolean                @default(false)
   restockAlerts    RestockAlert[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
 
   @@index([featured, featuredOrder])
   @@index([deletedAt])
