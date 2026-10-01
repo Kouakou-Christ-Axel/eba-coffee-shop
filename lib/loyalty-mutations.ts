@@ -133,6 +133,14 @@ export async function awardLoyaltyForOrder(
   if (!settings.enabled) return { rewards: [] };
   if (orderTotal < settings.minOrderAmount) return { rewards: [] };
 
+  // Verrou de ligne AVANT la lecture de `lastStampDate` : sans lui, N commandes
+  // validées en même temps (double-tap, plusieurs onglets, relances réseau)
+  // lisent toutes « aucun tampon aujourd'hui » et créditent chacune un tampon —
+  // la règle « 1 tampon/jour » ne tient alors pas. Le verrou sérialise les
+  // transactions : la 2e relit la ligne déjà tamponnée et s'arrête. Il protège
+  // aussi `stampCount` d'une mise à jour perdue quand `oneStampPerDay` est off.
+  await tx.$queryRaw`SELECT "id" FROM "Customer" WHERE "id" = ${customerId} FOR UPDATE`;
+
   const customer = await tx.customer.findUnique({
     where: { id: customerId },
     select: { stampCount: true, lastStampDate: true },

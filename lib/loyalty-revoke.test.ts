@@ -17,6 +17,7 @@ import {
 } from './loyalty-mutations';
 
 const tx = {
+  $queryRaw: vi.fn(),
   loyaltyReward: { findMany: vi.fn(), update: vi.fn(), delete: vi.fn() },
   loyaltyLedger: { findMany: vi.fn(), create: vi.fn() },
   customer: { findUnique: vi.fn(), update: vi.fn() },
