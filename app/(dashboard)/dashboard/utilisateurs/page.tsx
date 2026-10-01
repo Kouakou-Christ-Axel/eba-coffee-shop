@@ -6,7 +6,7 @@ import type { UserRole } from '@/generated/prisma/client';
 export const dynamic = 'force-dynamic';
 
 export default async function UsersPage() {
-  await requireAdmin();
+  const session = await requireAdmin();
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: 'desc' },
@@ -16,6 +16,7 @@ export default async function UsersPage() {
       name: true,
       role: true,
       createdAt: true,
+      disabledAt: true,
     },
   });
 
@@ -29,12 +30,14 @@ export default async function UsersPage() {
         </p>
       </div>
       <UsersClient
+        currentUserId={session.user.id}
         users={users.map((u) => ({
           id: u.id,
           email: u.email,
           name: u.name,
           role: u.role as UserRole,
           createdAt: u.createdAt.toISOString(),
+          disabledAt: u.disabledAt ? u.disabledAt.toISOString() : null,
         }))}
       />
     </div>

@@ -242,9 +242,10 @@ function withRoleGuard(
   return withMcpAuth(auth, async (req, session) => {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
-      select: { role: true },
+      select: { role: true, disabledAt: true },
     });
-    if (!user || !MCP_ROLES.includes(user.role)) return forbidden();
+    if (!user || user.disabledAt || !MCP_ROLES.includes(user.role))
+      return forbidden();
     const roleAllowedTools =
       user.role === 'COMPTABLE'
         ? FINANCE_TOOL_NAMES

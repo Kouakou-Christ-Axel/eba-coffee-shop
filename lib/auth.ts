@@ -8,7 +8,14 @@ import { sendOtpEmail } from '@/lib/email';
 
 export async function promoteAdminIfMatch(user: { id: string; email: string }) {
   const adminEmail = process.env.ADMIN_EMAIL;
-  if (adminEmail && user.email === adminEmail) {
+  // Comparaison insensible à la casse : la colonne `email` est en `citext`
+  // (insensible à la casse côté base), mais cette égalité JS pure ne l'est
+  // pas — sans ce `.toLowerCase()`, un ADMIN_EMAIL saisi avec une casse
+  // différente de celle utilisée à l'inscription ne serait jamais promu.
+  if (
+    adminEmail &&
+    user.email.trim().toLowerCase() === adminEmail.trim().toLowerCase()
+  ) {
     await prisma.user.update({
       where: { id: user.id },
       data: { role: 'ADMIN' },
@@ -54,6 +61,13 @@ export const auth = betterAuth({
         defaultValue: 'USER',
         input: false,
       },
+      // Exposé dans la session pour que `getSession` (lib/auth-helpers.ts)
+      // puisse bloquer un compte désactivé sans requête Prisma séparée.
+      disabledAt: {
+        type: 'date',
+        required: false,
+        input: false,
+      },
     },
   },
   plugins: [
@@ -76,6 +90,12 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
+        // `citext` gère la casse au niveau base, mais pas les espaces
+        // superflus — on les retire avant insertion pour éviter des
+        // "doublons" visuels (" foo@bar.com" vs "foo@bar.com").
+        before: async (user) => ({
+          data: { ...user, email: user.email.trim() },
+        }),
         after: promoteAdminIfMatch,
       },
     },

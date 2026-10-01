@@ -10,6 +10,7 @@ type SessionUser = {
   email: string;
   name: string | null;
   role: UserRole;
+  disabledAt: Date | null;
 };
 
 export type AuthorizedSession = {
@@ -109,6 +110,7 @@ export const authorizedSessionSchema = z.object({
       'ASSISTANT_MANAGER',
       'ANALYSTE',
     ]),
+    disabledAt: z.coerce.date().nullable(),
   }),
 });
 
@@ -138,6 +140,18 @@ const getSession = cache(async (): Promise<AuthorizedSession | null> => {
       (session as { user?: { role?: unknown } }).user?.role,
       (session as { user?: { name?: unknown } }).user?.name,
       parsed.error.flatten()
+    );
+    return null;
+  }
+  if (parsed.data.user.disabledAt) {
+    // Compte désactivé (cf. `disableUser`, app/(dashboard)/dashboard/utilisateurs/actions.ts) :
+    // traité comme non connecté. Le cookie de session reste valide côté
+    // Better Auth, mais `disableUser` purge déjà les lignes `Session` du
+    // compte — ce check couvre le court instant avant cette purge et toute
+    // session recréée entre-temps.
+    console.warn(
+      '[auth-helpers] getSession: compte désactivé (id=%s)',
+      parsed.data.user.id
     );
     return null;
   }
