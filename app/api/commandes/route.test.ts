@@ -25,6 +25,14 @@ vi.mock('@/lib/email', () => ({
   sendNewOrderEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Rate-limiting testé séparément (route.rate-limit.test.ts) : ici, la
+// plupart des tests envoient plusieurs requêtes depuis la même IP absente
+// (clé `unknown`) et ne doivent pas se faire bloquer entre elles.
+vi.mock('@/lib/order-create-rate-limit', () => ({
+  allowOrderCreate: vi.fn(() => true),
+  orderCreateRateKey: vi.fn(() => 'test'),
+}));
+
 import prisma from '@/lib/prisma';
 import { sendNewOrderEmail } from '@/lib/email';
 import { POST } from './route';
@@ -40,7 +48,7 @@ const mockSendNewOrderEmail = sendNewOrderEmail as MockedFunction<
 >;
 
 const validBody = {
-  customerName: 'Kofi',
+  customerName: 'Kofi Yao',
   customerPhone: '07001234',
   pickupTime: new Date(Date.now() + 3_600_000).toISOString(),
   items: [

@@ -153,6 +153,15 @@ export const ORDER_CUSTOMER_PHONE_MAX = 30;
 export const ORDER_NOTE_MAX = 500;
 
 /**
+ * Commande en ligne (checkout public) : nombre de mots max du nom client. Le
+ * nom doit compter au moins 2 mots (nom + prénom) — ce qui exclut déjà les
+ * initiales isolées type « GH » — sans exiger de longueur minimale par mot
+ * (un prénom court reste légitime). Ce plafond borne l'autre sens : une
+ * chaîne de mots aberrante. Source : lib/orders.ts (createOrderSchema).
+ */
+export const ORDER_CUSTOMER_NAME_MAX_WORDS = 5;
+
+/**
  * Longueur max du motif « client de confiance » (`Customer.trustedNote`) :
  * texte libre saisi par la gérance pour tracer la raison de l'octroi ou le
  * plafond d'ardoise convenu avec le client.
