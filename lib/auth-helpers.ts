@@ -10,7 +10,7 @@ type SessionUser = {
   email: string;
   name: string | null;
   role: UserRole;
-  disabledAt: Date | null;
+  disabledAt?: Date | null;
 };
 
 export type AuthorizedSession = {
@@ -110,7 +110,10 @@ export const authorizedSessionSchema = z.object({
       'ASSISTANT_MANAGER',
       'ANALYSTE',
     ]),
-    disabledAt: z.coerce.date().nullable(),
+    // `.nullish()` plutôt que `.nullable()` : une session qui ne porte pas
+    // ce champ (mocks de test, ancienne session Better Auth avant l'ajout du
+    // additionalField) doit être traitée comme "non désactivé", pas rejetée.
+    disabledAt: z.coerce.date().nullish(),
   }),
 });
 
