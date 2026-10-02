@@ -119,7 +119,7 @@ async function reassignUserReferences(
   });
 }
 
-async function mergeDuplicates(prisma: PrismaClient) {
+export async function mergeDuplicates(prisma: PrismaClient) {
   const users = await prisma.user.findMany({
     select: {
       id: true,
@@ -173,6 +173,15 @@ async function mergeDuplicates(prisma: PrismaClient) {
       for (const duplicate of duplicates) {
         await reassignUserReferences(tx, duplicate.id, primary.id);
       }
+      // Doublons supprimés AVANT la mise à jour du survivant : son email
+      // normalisé peut être identique à celui d'un doublon, ce qui violerait
+      // la contrainte unique tant que ce dernier existe.
+      await tx.user.deleteMany({
+        where: { id: { in: duplicates.map((d) => d.id) } },
+      });
+      // `select` obligatoire : sans lui Prisma relit TOUTES les colonnes du
+      // modèle, y compris celles que `db:push` n'a pas encore créées (ex.
+      // `disabledAt`) — le script tourne justement AVANT `db:push`.
       await tx.user.update({
         where: { id: primary.id },
         data: {
@@ -180,9 +189,7 @@ async function mergeDuplicates(prisma: PrismaClient) {
           role: mergedRole,
           emailVerified: mergedEmailVerified,
         },
-      });
-      await tx.user.deleteMany({
-        where: { id: { in: duplicates.map((d) => d.id) } },
+        select: { id: true },
       });
     });
 
