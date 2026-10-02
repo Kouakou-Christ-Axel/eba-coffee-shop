@@ -41,6 +41,10 @@ jobs:
             fi
 
             pnpm install --frozen-lockfile
+            # Idempotent (sans doublon de casse, ne fait rien). Doit précéder
+            # db:push : la colonne email en citext rejetterait le push tant
+            # qu'il reste des comptes qui ne diffèrent que par la casse.
+            pnpm db:merge-duplicate-emails
             pnpm db:push
             pnpm db:trigger
 
