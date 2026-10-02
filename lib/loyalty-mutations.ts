@@ -139,7 +139,9 @@ export async function awardLoyaltyForOrder(
   // la règle « 1 tampon/jour » ne tient alors pas. Le verrou sérialise les
   // transactions : la 2e relit la ligne déjà tamponnée et s'arrête. Il protège
   // aussi `stampCount` d'une mise à jour perdue quand `oneStampPerDay` est off.
-  await tx.$queryRaw`SELECT "id" FROM "Customer" WHERE "id" = ${customerId} FOR UPDATE`;
+  // SQL brut : nom RÉEL de la table (`@@map("customer")`), pas celui du modèle
+  // — cf. `lib/raw-sql-tables.test.ts`.
+  await tx.$queryRaw`SELECT "id" FROM "customer" WHERE "id" = ${customerId} FOR UPDATE`;
 
   const customer = await tx.customer.findUnique({
     where: { id: customerId },

@@ -37,6 +37,10 @@ describe('awardLoyaltyForOrder', () => {
     await awardLoyaltyForOrder(tx as never, args);
 
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    // Nom réel de la table (`@@map("customer")`) : « Customer » → 42P01 en base.
+    const sql = (tx.$queryRaw.mock.calls[0][0] as string[]).join('?');
+    expect(sql).toContain('FROM "customer"');
+    expect(sql).toContain('FOR UPDATE');
     expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
       tx.customer.findUnique.mock.invocationCallOrder[0]
     );
