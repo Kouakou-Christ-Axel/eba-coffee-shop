@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/prisma', () => ({
   default: {
-    order: { findUnique: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
+    order: { findUnique: vi.fn(), update: vi.fn() },
   },
 }));
 vi.mock('./client', async (importOriginal) => ({
@@ -26,8 +26,8 @@ import { JekoApiError, createJekoPaymentRequest } from './client';
 import { PaymentNotPendingError, startJekoPayment } from './start-payment';
 
 const findOrder = vi.mocked(prisma.order.findUnique);
-const claim = vi.mocked(prisma.order.updateMany);
-const saveRequest = vi.mocked(prisma.order.update);
+const claim = vi.mocked(prisma.order.update);
+const saveRequest = claim;
 const createRequest = vi.mocked(createJekoPaymentRequest);
 
 const now = new Date('2026-10-03T12:00:00.000Z');
@@ -53,11 +53,10 @@ const pending = {
 describe('startJekoPayment', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    findOrder
-      .mockResolvedValueOnce(pending as never)
-      .mockResolvedValueOnce({ paymentAttempts: 1 } as never);
-    claim.mockResolvedValue({ count: 1 });
-    saveRequest.mockResolvedValue({} as never);
+    findOrder.mockResolvedValue(pending as never);
+    // Réclamation et numéro de tentative en une requête (`update`), puis
+    // mémorisation de la demande Jèko (`update` aussi).
+    claim.mockResolvedValue({ paymentAttempts: 1 } as never);
     createRequest.mockResolvedValue({
       id: 'pr_1',
       status: 'pending',
@@ -68,7 +67,7 @@ describe('startJekoPayment', () => {
   it("réclame la commande de façon atomique et relance l'échéance de 15 min", async () => {
     const result = await startJekoPayment(args);
 
-    expect(claim).toHaveBeenCalledWith({
+    expect(claim).toHaveBeenNthCalledWith(1, {
       where: {
         id: 'o1',
         isPaid: false,
@@ -81,6 +80,7 @@ describe('startJekoPayment', () => {
         // Montant demandé à Jèko, figé : `total` peut changer ensuite.
         paymentAmountDue: 3485,
       },
+      select: { paymentAttempts: true },
     });
     expect(result.expiresAt).toEqual(new Date('2026-10-03T12:15:00.000Z'));
   });
@@ -101,10 +101,7 @@ describe('startJekoPayment', () => {
   });
 
   it('numérote la tentative suivante pour une relance', async () => {
-    findOrder
-      .mockReset()
-      .mockResolvedValueOnce(pending as never)
-      .mockResolvedValueOnce({ paymentAttempts: 3 } as never);
+    claim.mockResolvedValueOnce({ paymentAttempts: 3 } as never);
 
     await startJekoPayment(args);
 
@@ -116,9 +113,13 @@ describe('startJekoPayment', () => {
 
   it('mémorise la dernière demande Jèko sur la commande', async () => {
     await startJekoPayment(args);
-    expect(saveRequest).toHaveBeenCalledWith({
+    expect(saveRequest).toHaveBeenLastCalledWith({
       where: { id: 'o1' },
-      data: { paymentRequestId: 'pr_1' },
+      data: {
+        paymentRequestId: 'pr_1',
+        // Historique complet : un paiement peut aboutir sur une ancienne tentative.
+        paymentRequestIds: { push: 'pr_1' },
+      },
     });
   });
 
@@ -146,7 +147,10 @@ describe('startJekoPayment', () => {
   );
 
   it('refuse quand la commande est réglée ou expirée entre la lecture et la réclamation', async () => {
-    claim.mockResolvedValue({ count: 0 });
+    // P2025 : plus aucune ligne ne satisfait la garde de la réclamation.
+    claim.mockRejectedValue(
+      Object.assign(new Error('not found'), { code: 'P2025' })
+    );
 
     await expect(startJekoPayment(args)).rejects.toMatchObject({
       reason: 'conflict',
@@ -160,7 +164,8 @@ describe('startJekoPayment', () => {
     );
 
     await expect(startJekoPayment(args)).rejects.toBeInstanceOf(JekoApiError);
-    expect(saveRequest).not.toHaveBeenCalled();
+    // Seule la réclamation a eu lieu : aucune demande n'est mémorisée.
+    expect(saveRequest).toHaveBeenCalledTimes(1);
   });
 
   it('est une erreur identifiable', () => {

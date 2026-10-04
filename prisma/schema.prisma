@@ -330,6 +330,10 @@ model Order {
   onlineFee        Int?
   gatewayFee       Int?
   paymentRequestId String?
+  // TOUTES les demandes Jèko créées (une par tentative) : un paiement peut
+  // aboutir sur une tentative antérieure à la dernière (webhook perdu), la
+  // vérification et l'expiration doivent donc les interroger toutes.
+  paymentRequestIds String[] @default([])
   paymentExpiresAt DateTime?
   // Nombre de tentatives de paiement lancées (incrémenté de façon atomique à
   // chaque demande Jèko) : numérote la référence `<commande>-<n>`, unique par

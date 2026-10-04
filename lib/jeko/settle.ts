@@ -30,6 +30,17 @@ export type SettleOutcome =
   | 'shortage'
   | 'ignored';
 
+// Sort la commande de l'attente de paiement. Renvoie vrai si CET appel a fait la
+// bascule : les relectures (webhook rejoué, vérification, expiration) retombent
+// sur le même cas limite, et seule la première doit alerter le staff.
+async function leaveWaiting(orderId: string): Promise<boolean> {
+  const { count } = await prisma.order.updateMany({
+    where: { id: orderId, paymentExpiresAt: { not: null } },
+    data: { paymentExpiresAt: null },
+  });
+  return count > 0;
+}
+
 const ORDER_SELECT = {
   id: true,
   isPaid: true,
@@ -68,7 +79,11 @@ export async function settleJekoTransaction(
   // `onlineFee` nul = commande née hors paiement en ligne : pas la nôtre.
   if (!order || order.onlineFee === null) return 'ignored';
 
+  // `paymentExpiresAt` à nul : une commande payée n'attend plus rien. Sans ça,
+  // la dépayer la rendrait invisible du staff (visible = échéance nulle OU payée)
+  // puis l'expiration la reprendrait une fois l'échéance passée.
   const fees = {
+    paymentExpiresAt: null,
     gatewayFee: Math.round(tx.gatewayFeeFcfa),
     paymentRequestId: tx.paymentRequestId ?? undefined,
     paymentTransactionId: tx.transactionId,
@@ -104,15 +119,13 @@ export async function settleJekoTransaction(
     // On sort la commande de l'attente : sinon l'expiration la reprendrait à
     // chaque passage (relecture Jèko, nouvelle alerte), sans jamais l'annuler.
     // Elle devient une commande normale que le staff voit et tranche.
-    await prisma.order.update({
-      where: { id: order.id },
-      data: { paymentExpiresAt: null },
-    });
-    alertStaff(
-      order.id,
-      order.dailyNumber,
-      `Montant reçu ${tx.amountFcfa} F au lieu de ${due} F : commande non encaissée, à vérifier.`
-    );
+    if (await leaveWaiting(order.id)) {
+      alertStaff(
+        order.id,
+        order.dailyNumber,
+        `Montant reçu ${tx.amountFcfa} F au lieu de ${due} F : commande non encaissée, à vérifier.`
+      );
+    }
     return 'amount_mismatch';
   }
 
@@ -134,15 +147,13 @@ export async function settleJekoTransaction(
     // qu'elle devienne une commande à encaisser normale (la caisse sait gérer
     // la pénurie), avec une alerte « déjà payée ».
     if (err instanceof StockShortageError) {
-      await prisma.order.update({
-        where: { id: order.id },
-        data: { paymentExpiresAt: null },
-      });
-      alertStaff(
-        order.id,
-        order.dailyNumber,
-        `Payée en ligne (${tx.amountFcfa} F) mais stock insuffisant : ne pas la faire payer deux fois.`
-      );
+      if (await leaveWaiting(order.id)) {
+        alertStaff(
+          order.id,
+          order.dailyNumber,
+          `Payée en ligne (${tx.amountFcfa} F) mais stock insuffisant : ne pas la faire payer deux fois.`
+        );
+      }
       return 'shortage';
     }
     // Deux livraisons simultanées : la seconde trouve la commande déjà payée.

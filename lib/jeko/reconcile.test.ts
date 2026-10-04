@@ -10,11 +10,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/prisma', () => ({
   default: { order: { findUnique: vi.fn() } },
 }));
-vi.mock('./client', () => ({ getJekoPaymentRequest: vi.fn() }));
+vi.mock('./client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./client')>()),
+  getJekoPaymentRequest: vi.fn(),
+}));
 vi.mock('./settle', () => ({ settleJekoTransaction: vi.fn() }));
 
 import prisma from '@/lib/prisma';
-import { getJekoPaymentRequest } from './client';
+import { JekoApiError, getJekoPaymentRequest } from './client';
 import { settleJekoTransaction } from './settle';
 import { PaymentNotPendingError } from './start-payment';
 import { reconcileOrderPayment, settleFromRemote } from './reconcile';
@@ -76,6 +79,7 @@ describe('reconcileOrderPayment', () => {
     findOrder.mockResolvedValue({
       isPaid: false,
       paymentRequestId: 'pr_1',
+      paymentRequestIds: ['pr_1'],
     } as never);
     getRequest.mockResolvedValue(success as never);
     settle.mockResolvedValue('paid');
@@ -94,6 +98,7 @@ describe('reconcileOrderPayment', () => {
     findOrder.mockResolvedValue({
       isPaid: true,
       paymentRequestId: 'pr_1',
+      paymentRequestIds: ['pr_1'],
     } as never);
 
     await expect(reconcileOrderPayment('o1', config)).resolves.toMatchObject({
@@ -135,6 +140,7 @@ describe('reconcileOrderPayment', () => {
     findOrder.mockResolvedValue({
       isPaid: false,
       paymentRequestId: null,
+      paymentRequestIds: [],
     } as never);
     await expect(reconcileOrderPayment('o1', config)).rejects.toBeInstanceOf(
       PaymentNotPendingError
@@ -146,5 +152,39 @@ describe('reconcileOrderPayment', () => {
     await expect(reconcileOrderPayment('o1', config)).rejects.toThrow(
       'Jèko indisponible'
     );
+  });
+
+  it('règle un paiement abouti sur une tentative ANTÉRIEURE à la dernière', async () => {
+    findOrder.mockResolvedValue({
+      isPaid: false,
+      paymentRequestId: 'pr_2',
+      paymentRequestIds: ['pr_1', 'pr_2'],
+    } as never);
+    getRequest.mockImplementation((async (_c: unknown, id: string) =>
+      id === 'pr_2' ? { id: 'pr_2', status: 'pending' } : success) as never);
+
+    await expect(reconcileOrderPayment('o1', config)).resolves.toEqual({
+      status: 'success',
+      errorReason: null,
+    });
+    expect(getRequest).toHaveBeenCalledWith(config, 'pr_2');
+    expect(getRequest).toHaveBeenCalledWith(config, 'pr_1');
+    expect(settle).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignore une demande inconnue de Jèko (404) et lit les autres', async () => {
+    findOrder.mockResolvedValue({
+      isPaid: false,
+      paymentRequestId: 'pr_2',
+      paymentRequestIds: ['pr_1', 'pr_2'],
+    } as never);
+    getRequest.mockImplementation((async (_c: unknown, id: string) => {
+      if (id === 'pr_2') throw new JekoApiError(404, 'not_found', 'inconnue');
+      return success;
+    }) as never);
+
+    await expect(reconcileOrderPayment('o1', config)).resolves.toMatchObject({
+      status: 'success',
+    });
   });
 });

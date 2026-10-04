@@ -43,6 +43,7 @@ const overdue = {
   customerId: 'c1',
   loyaltyRewardId: 'r1',
   paymentRequestId: 'pr_1',
+  paymentRequestIds: ['pr_1'],
 };
 
 // Chaque test avance l'horloge de 2 min : le garde « 1 passage par minute » est un
@@ -61,6 +62,31 @@ describe('expirePendingOrders', () => {
     transaction.mockImplementation((async (cb: (tx: unknown) => unknown) =>
       cb({ order: { updateMany } })) as never);
     revoke.mockResolvedValue(undefined);
+  });
+
+  it("règle au lieu d'expirer quand l'ancienne tentative a été payée (webhook perdu)", async () => {
+    findMany.mockResolvedValue([
+      {
+        ...overdue,
+        paymentRequestId: 'pr_2',
+        paymentRequestIds: ['pr_1', 'pr_2'],
+      },
+    ] as never);
+    getRequest.mockImplementation((async (_c: unknown, id: string) =>
+      id === 'pr_2'
+        ? { id: 'pr_2', status: 'pending' }
+        : {
+            id: 'pr_1',
+            status: 'success',
+            reference: 'EBA-20261003-AB12-1',
+            amountFcfa: 3485,
+          }) as never);
+    settle.mockResolvedValue('paid');
+
+    const result = await expirePendingOrders(nextNow());
+
+    expect(result).toEqual({ expired: 0, settled: 1, skipped: 0 });
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it('expire une commande dont Jèko confirme qu’elle est toujours en attente', async () => {
@@ -159,7 +185,7 @@ describe('expirePendingOrders', () => {
 
   it("expire sans interroger Jèko quand la demande n'a jamais été créée", async () => {
     findMany.mockResolvedValue([
-      { ...overdue, paymentRequestId: null },
+      { ...overdue, paymentRequestId: null, paymentRequestIds: [] },
     ] as never);
 
     await expect(expirePendingOrders(nextNow())).resolves.toMatchObject({

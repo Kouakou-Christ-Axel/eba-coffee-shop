@@ -33,7 +33,9 @@ vi.mock('@/lib/order-mutations', () => ({
   StockShortageError,
 }));
 vi.mock('@/lib/prisma', () => ({
-  default: { order: { findUnique: vi.fn(), update: vi.fn() } },
+  default: {
+    order: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+  },
 }));
 vi.mock('@/lib/push-notify', () => ({ sendPushToRoles: vi.fn() }));
 vi.mock('./notify-paid', () => ({ announcePaidOrder: vi.fn() }));
@@ -50,6 +52,7 @@ import type { JekoTransaction } from './webhook-payload';
 
 const findOrder = vi.mocked(prisma.order.findUnique);
 const updateOrder = vi.mocked(prisma.order.update);
+const leaveWaiting = vi.mocked(prisma.order.updateMany);
 const pay = vi.mocked(setOrderPayment);
 const push = vi.mocked(sendPushToRoles);
 const announce = vi.mocked(announcePaidOrder);
@@ -82,6 +85,7 @@ describe('settleJekoTransaction', () => {
     announce.mockResolvedValue(undefined);
     findOrder.mockResolvedValue(order as never);
     updateOrder.mockResolvedValue({} as never);
+    leaveWaiting.mockResolvedValue({ count: 1 });
     pay.mockResolvedValue({ startedPreparation: true });
   });
 
@@ -100,6 +104,8 @@ describe('settleJekoTransaction', () => {
     expect(updateOrder).toHaveBeenCalledWith({
       where: { id: 'o1' },
       data: {
+        // Payée : plus d'échéance (sinon dépayer la cache du staff).
+        paymentExpiresAt: null,
         gatewayFee: 52,
         paymentRequestId: 'pr_1',
         paymentTransactionId: 'txn_1',
@@ -174,8 +180,8 @@ describe('settleJekoTransaction', () => {
 
     await expect(settleJekoTransaction(tx)).resolves.toBe('shortage');
 
-    expect(updateOrder).toHaveBeenCalledWith({
-      where: { id: 'o1' },
+    expect(leaveWaiting).toHaveBeenCalledWith({
+      where: { id: 'o1', paymentExpiresAt: { not: null } },
       data: { paymentExpiresAt: null },
     });
     expect(push).toHaveBeenCalledTimes(1);
@@ -254,8 +260,8 @@ describe('settleJekoTransaction', () => {
       settleJekoTransaction({ ...tx, amountFcfa: 3450 })
     ).resolves.toBe('amount_mismatch');
 
-    expect(updateOrder).toHaveBeenCalledWith({
-      where: { id: 'o1' },
+    expect(leaveWaiting).toHaveBeenCalledWith({
+      where: { id: 'o1', paymentExpiresAt: { not: null } },
       data: { paymentExpiresAt: null },
     });
   });
@@ -298,6 +304,8 @@ describe('settleJekoTransaction', () => {
     expect(updateOrder).toHaveBeenCalledWith({
       where: { id: 'o1' },
       data: {
+        // Payée : plus d'échéance (sinon dépayer la cache du staff).
+        paymentExpiresAt: null,
         gatewayFee: 52,
         paymentRequestId: 'pr_1',
         paymentTransactionId: 'txn_1',
@@ -319,5 +327,20 @@ describe('settleJekoTransaction', () => {
   it('relance toute autre erreur pour que Jèko réessaie la livraison', async () => {
     pay.mockRejectedValue(new Error('connexion perdue'));
     await expect(settleJekoTransaction(tx)).rejects.toThrow('connexion perdue');
+  });
+
+  it("n'alerte qu'une fois : une relecture (webhook rejoué, vérification, expiration) retombe sur le même cas limite", async () => {
+    pay.mockRejectedValue(new StockShortageError('Stock insuffisant'));
+    leaveWaiting.mockResolvedValueOnce({ count: 1 }).mockResolvedValue({
+      count: 0,
+    });
+
+    await settleJekoTransaction(tx);
+    await settleJekoTransaction(tx);
+    await settleJekoTransaction({ ...tx, amountFcfa: 1 });
+    await settleJekoTransaction({ ...tx, amountFcfa: 1 });
+
+    // 1 alerte pour la rupture ; le montant erroné bascule déjà à vide (count 0).
+    expect(push).toHaveBeenCalledTimes(1);
   });
 });

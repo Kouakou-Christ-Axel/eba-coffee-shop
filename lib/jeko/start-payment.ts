@@ -70,27 +70,38 @@ export async function startJekoPayment(args: {
     throw new PaymentNotPendingError('expired');
 
   const expiresAt = new Date(now.getTime() + PAYMENT_EXPIRY_MINUTES * 60_000);
-  const claimed = await prisma.order.updateMany({
-    where: {
-      id: order.id,
-      isPaid: false,
-      status: 'NEW',
-      paymentExpiresAt: { gt: now },
-    },
-    data: {
-      paymentAttempts: { increment: 1 },
-      paymentExpiresAt: expiresAt,
-      // Figé à la tentative : `total` peut changer ensuite (annulation par le
-      // client), alors que ce montant est celui que Jèko encaissera.
-      paymentAmountDue: order.total + order.onlineFee,
-    },
-  });
-  if (claimed.count === 0) throw new PaymentNotPendingError('conflict');
-
-  const { paymentAttempts } = (await prisma.order.findUnique({
-    where: { id: order.id },
-    select: { paymentAttempts: true },
-  })) as { paymentAttempts: number };
+  // Réclamation ET lecture du numéro de tentative en une seule requête : relire
+  // après coup laisserait deux démarrages concurrents obtenir le même numéro,
+  // donc la même référence (409 chez Jèko).
+  let paymentAttempts: number;
+  try {
+    ({ paymentAttempts } = await prisma.order.update({
+      where: {
+        id: order.id,
+        isPaid: false,
+        status: 'NEW',
+        paymentExpiresAt: { gt: now },
+      },
+      data: {
+        paymentAttempts: { increment: 1 },
+        paymentExpiresAt: expiresAt,
+        // Figé à la tentative : `total` peut changer ensuite (annulation par le
+        // client), alors que ce montant est celui que Jèko encaissera.
+        paymentAmountDue: order.total + order.onlineFee,
+      },
+      select: { paymentAttempts: true },
+    }));
+  } catch (err) {
+    // P2025 : aucune ligne ne satisfait plus la garde (payée, annulée, échue).
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      (err as { code?: string }).code === 'P2025'
+    ) {
+      throw new PaymentNotPendingError('conflict');
+    }
+    throw err;
+  }
 
   const request = await createJekoPaymentRequest(config, {
     reference: buildJekoReference(order.reference, paymentAttempts),
@@ -102,7 +113,10 @@ export async function startJekoPayment(args: {
 
   await prisma.order.update({
     where: { id: order.id },
-    data: { paymentRequestId: request.id },
+    data: {
+      paymentRequestId: request.id,
+      paymentRequestIds: { push: request.id },
+    },
   });
 
   return { redirectUrl: request.redirectUrl, expiresAt };

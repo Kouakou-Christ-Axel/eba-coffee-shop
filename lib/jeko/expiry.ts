@@ -18,9 +18,8 @@
 
 import prisma from '@/lib/prisma';
 import { revokeLoyaltyForOrder } from '@/lib/loyalty-mutations';
-import { JekoApiError, getJekoPaymentRequest } from './client';
 import { jekoConfig } from './config';
-import { settleFromRemote } from './reconcile';
+import { requestIdsToCheck, settleOrderRequests } from './reconcile';
 
 // Marge après `paymentExpiresAt` : laisse le temps au webhook d'une tentative
 // juste à l'échéance.
@@ -36,6 +35,7 @@ type Overdue = {
   customerId: string | null;
   loyaltyRewardId: string | null;
   paymentRequestId: string | null;
+  paymentRequestIds: string[];
 };
 
 export type ExpiryResult = {
@@ -88,6 +88,7 @@ export async function expirePendingOrders(
       customerId: true,
       loyaltyRewardId: true,
       paymentRequestId: true,
+      paymentRequestIds: true,
     },
     orderBy: { paymentExpiresAt: 'asc' },
     take: BATCH_SIZE,
@@ -97,24 +98,19 @@ export async function expirePendingOrders(
 
   for (const order of overdue) {
     try {
-      if (config && order.paymentRequestId) {
-        // 404 : Jèko ne connaît pas la demande, il n'y a rien à encaisser. Sans
-        // ce cas la commande resterait « reportée » à chaque passage, à jamais.
-        const remote = await getJekoPaymentRequest(
-          config,
-          order.paymentRequestId
-        ).catch((err) => {
-          if (err instanceof JekoApiError && err.status === 404) return null;
-          throw err;
-        });
-        if (remote?.status === 'success') {
-          if ((await settleFromRemote(remote)) === 'unreadable') {
-            // Succès sans détail de transaction : on ne peut ni régler ni
-            // expirer sans risque, on laisse la main au prochain passage.
-            result.skipped++;
-          } else {
-            result.settled++;
-          }
+      if (config && requestIdsToCheck(order).length > 0) {
+        // Toutes les tentatives sont lues (un paiement peut avoir abouti sur une
+        // ancienne). 404 : Jèko ne connaît pas la demande, rien à encaisser —
+        // sans ce cas la commande resterait « reportée » à chaque passage.
+        const { settled } = await settleOrderRequests(order, config);
+        if (settled === 'unreadable') {
+          // Succès sans détail de transaction : on ne peut ni régler ni
+          // expirer sans risque, on laisse la main au prochain passage.
+          result.skipped++;
+          continue;
+        }
+        if (settled) {
+          result.settled++;
           continue;
         }
       }
