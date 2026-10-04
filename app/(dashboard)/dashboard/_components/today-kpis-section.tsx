@@ -18,6 +18,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { compareDays, type Delta } from '@/lib/stats-compare';
+import { PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard } from '@/components/(dashboard)/kpi-card';
@@ -106,6 +107,28 @@ export async function TodayKpisSection() {
               count={stats.countByPaymentMode.ORANGE_MONEY}
               revenue={stats.revenueByPaymentMode.ORANGE_MONEY}
             />
+            {/* Moyens du paiement en ligne : affichés seulement s'ils ont servi. */}
+            {(
+              [
+                ['MTN_MONEY', Smartphone],
+                ['MOOV_MONEY', Smartphone],
+                ['DJAMO', Wallet],
+              ] as const
+            )
+              .filter(
+                ([mode]) =>
+                  stats.countByPaymentMode[mode] > 0 ||
+                  stats.revenueByPaymentMode[mode] !== 0
+              )
+              .map(([mode, Icon]) => (
+                <BreakdownRow
+                  key={mode}
+                  Icon={Icon}
+                  label={PAYMENT_MODE_LABELS[mode]}
+                  count={stats.countByPaymentMode[mode]}
+                  revenue={stats.revenueByPaymentMode[mode]}
+                />
+              ))}
             <BreakdownRow
               Icon={MoreHorizontal}
               label="Autre"

@@ -231,3 +231,49 @@ describe('getDailySeries avec régularisations', () => {
     expect(series[0].orders).toBe(1);
   });
 });
+
+describe('modes de paiement mobiles (MTN, Moov, Djamo)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('comptent et cumulent leur CA, et le détail par mode somme au CA total', async () => {
+    mockOrderFindMany.mockResolvedValue([
+      {
+        id: 'o1',
+        status: 'COMPLETED',
+        orderType: 'TAKEAWAY',
+        isPaid: true,
+        paymentMode: 'MTN_MONEY',
+        total: 1500,
+      },
+      {
+        id: 'o2',
+        status: 'COMPLETED',
+        orderType: 'TAKEAWAY',
+        isPaid: true,
+        paymentMode: 'DJAMO',
+        total: 2500,
+      },
+    ]);
+    mockOrderPaymentGroupBy.mockResolvedValue([
+      { mode: 'MTN_MONEY', _sum: { amount: 1500 } },
+      { mode: 'DJAMO', _sum: { amount: 2500 } },
+    ]);
+    mockAdjGroupBy.mockResolvedValue([]);
+    mockAdjFindMany.mockResolvedValue([]);
+
+    const stats = await getRangeStats(from, to);
+
+    expect(stats.countByPaymentMode.MTN_MONEY).toBe(1);
+    expect(stats.countByPaymentMode.DJAMO).toBe(1);
+    expect(stats.revenueByPaymentMode.MTN_MONEY).toBe(1500);
+    expect(stats.revenueByPaymentMode.DJAMO).toBe(2500);
+    expect(stats.revenueByPaymentMode.MOOV_MONEY).toBe(0);
+    const sumByMode = Object.values(stats.revenueByPaymentMode).reduce(
+      (a, b) => a + b,
+      0
+    );
+    expect(sumByMode).toBe(stats.revenue);
+  });
+});

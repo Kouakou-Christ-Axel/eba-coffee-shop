@@ -8,6 +8,7 @@
 import { Prisma } from '@/generated/prisma/client';
 import type { PaymentMode } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
+import { emptyModeRecord } from '@/lib/payment-modes';
 import { formatLocalDateOnly } from '@/lib/timezone';
 
 export interface RevenueAdjustmentFilters {
@@ -118,12 +119,7 @@ export async function sumAdjustmentsByDay(
 function toModeRecord(
   grouped: { paymentMode: PaymentMode; _sum: { amount: number | null } }[]
 ): Record<PaymentMode, number> {
-  const rec: Record<PaymentMode, number> = {
-    CASH: 0,
-    WAVE: 0,
-    ORANGE_MONEY: 0,
-    OTHER: 0,
-  };
+  const rec = emptyModeRecord();
   for (const g of grouped) rec[g.paymentMode] = g._sum.amount ?? 0;
   return rec;
 }
