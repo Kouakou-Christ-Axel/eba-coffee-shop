@@ -2,7 +2,7 @@
 //
 // Anti-abus des routes de libre-service client
 // (`app/api/commandes/[id]/{annulation,articles,creneau}`). Clé
-// `ip:orderId` (même convention que lib/payment-proof-rate-limit.ts) : freine
+// `ip:orderId` (même convention que lib/order-payment-rate-limit.ts) : freine
 // les rafales sur UNE commande sans pénaliser un autre client du même réseau.
 // Mémoire du process, pas de garantie multi-instance (cf. lib/rate-limit.ts) :
 // le vrai rempart reste la garde d'éligibilité côté serveur.

@@ -7,9 +7,9 @@
 //
 // Les fichiers sont écrits dans `public/uploads/<subdir>/` et exposés en
 // same-origin sous `/uploads/<subdir>/<uuid>.<ext>` (rendu sous CSP `'self'`).
-// Trois familles aujourd'hui : `products` (images produit), `receipts`
-// (justificatifs de dépense) et `payment-proofs` (preuves de paiement de
-// commande envoyées par les clients).
+// Familles : `products` (images produit), `receipts` (justificatifs de dépense),
+// sondages et TikTok. Les anciennes preuves de paiement (`payment-proofs`) ne sont
+// plus écrites : leurs fichiers restent servis pour l'historique des commandes.
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -34,6 +34,8 @@ const REMOTE_FETCH_TIMEOUT_MS = 15000;
 export type UploadSubdir =
   | 'products'
   | 'receipts'
+  // Historique : plus rien n'y écrit, mais le backfill Cloudinary rapatrie encore les
+  // anciennes captures de paiement (prisma/backfill-cloudinary-uploads.ts).
   | 'payment-proofs'
   | 'poll-options'
   | 'polls'
@@ -303,10 +305,6 @@ export const saveReceiptImageFromBase64 = (input: string, mimeType?: string) =>
 /** Justificatif de dépense/apport rapatrié depuis une URL distante (MCP). */
 export const saveReceiptImageFromUrl = (url: string) =>
   saveImageFromUrl(url, 'receipts');
-
-/** Preuve de paiement d'une commande (capture Wave, page publique de suivi). */
-export const savePaymentProofImage = (buffer: Buffer, mimeType: string) =>
-  saveImage(buffer, mimeType, 'payment-proofs');
 
 /** Image d'une option de sondage (multipart dashboard). */
 export const savePollOptionImage = (buffer: Buffer, mimeType: string) =>

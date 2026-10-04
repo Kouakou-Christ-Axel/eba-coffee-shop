@@ -166,26 +166,6 @@ export function buildWaveRequestMessage(params: {
 }
 
 /**
- * Message que le CLIENT envoie à la boutique (depuis la page de suivi)
- * pour signaler son paiement — il joint sa capture d'écran dans WhatsApp
- * juste après (un lien wa.me ne peut pas joindre une image automatiquement).
- * Permet à la caisse de valider manuellement dans le dashboard.
- */
-export function buildPaymentProofMessage(params: {
-  customerName: string | null;
-  dailyNumber: number;
-  amount: number;
-}): string {
-  const { customerName, dailyNumber, amount } = params;
-  const greeting = customerName ? `Bonjour, ici ${customerName}` : 'Bonjour';
-  const number = String(dailyNumber).padStart(3, '0');
-  return [
-    `${greeting}, je viens de payer ma commande EBA #${number} (${priceFormatter.format(amount)} F).`,
-    'Capture juste après.',
-  ].join('\n');
-}
-
-/**
  * Message "ta commande est prête" via WhatsApp. Ouvre sur la confirmation de
  * retrait — combinée à la reconnaissance fidélité si cette commande a
  * effectivement crédité un tampon (`loyalty`, cf. `lib/loyalty-messaging.ts` :

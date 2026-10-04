@@ -4,8 +4,8 @@
 // une vidéo embarquée (légende d'origine, auteur, miniature) à partir de sa
 // seule URL — l'admin n'a rien à ressaisir. Ne doit JAMAIS bloquer la
 // création/mise à jour d'une vidéo : toute erreur réseau/format dégrade
-// silencieusement vers `null`, même posture que `lib/ai/payment-proof.ts`
-// pour les appels IA en arrière-plan.
+// silencieusement vers `null` : une métadonnée facultative ne doit jamais faire
+// échouer l'opération qui la demande.
 
 const TIKTOK_OEMBED_TIMEOUT_MS = 8000;
 

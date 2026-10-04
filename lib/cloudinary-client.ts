@@ -110,7 +110,7 @@ export async function uploadRawToCloudinary(
 
 /**
  * Confirme une image déjà uploadée vers Cloudinary auprès d'une route
- * publique en capability-URL (`.../preuve-paiement`, `.../photo`) : ces
+ * publique en capability-URL (`.../photo`) : ces
  * routes persistent l'URL en base après re-vérification de l'état métier
  * (commande/suggestion toujours éligible), au lieu de recevoir directement
  * le fichier.
