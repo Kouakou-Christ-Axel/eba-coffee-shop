@@ -1,10 +1,10 @@
 // lib/orders.ts
 import { z } from 'zod';
+import { withStaffVisible } from '@/lib/orders/visibility';
 import type {
   OrderStatus,
   OrderType,
   PaymentMode,
-  PaymentProofVerdict,
 } from '@/generated/prisma/client';
 import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
@@ -38,9 +38,14 @@ import {
 } from '@/lib/orders/availability';
 import { isDeferredPickup } from '@/lib/orders/scheduling';
 import { canCustomerSelfServe } from '@/lib/orders/self-service';
+import { getPaymentView, type PaymentView } from '@/lib/orders/payment-view';
 import { isPickupDateAllowed } from '@/lib/supplements';
 import { ORDERS_PAGE_SIZE, PHONE_SEARCH_MIN_DIGITS } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
+import type { AdminMenuCategory } from '@/lib/menu';
+import { computeOnlineFee } from '@/lib/online-fee';
+import { JEKO_PAYMENT_METHODS } from '@/lib/jeko/payment-methods';
+import { assertCartMatchesMenu } from '@/lib/orders/cart-verification';
 
 /**
  * Au moins un article du panier exige un délai de commande à l'avance (voir
@@ -140,6 +145,9 @@ export const createOrderSchema = baseCreateOrderSchema
       }),
     pickupTime: z.string().datetime().nullable().optional(),
     orderType: z.enum(['TAKEAWAY', 'DELIVERY']).optional(),
+    // Moyen choisi pour payer en ligne (Jèko). Exigé par la route dès que le
+    // paiement en ligne est configuré ; ignoré sinon (flux historique).
+    paymentMethod: z.enum(JEKO_PAYMENT_METHODS).optional(),
   })
   .extend(orderDriverFieldsSchema.partial().shape)
   .refine(
@@ -229,8 +237,31 @@ export async function assertPublicOrderConstraints(
 // confiance au checkout. Auto-envoyer de la nourriture non payée en cuisine
 // sans humain dans la boucle offrirait des repas gratuits à quiconque connaît
 // un numéro. L'ardoise reste donc un geste STAFF, décidé devant le client.
-export async function createOrder(input: CreateOrderInput) {
+/**
+ * Paiement en ligne (Jèko). Absent = commande historique, strictement inchangée.
+ * Présent : le panier est vérifié contre `menu` AVANT toute écriture, les frais
+ * (`feePercent` du total NET) et l'échéance de paiement sont posés dans la
+ * transaction de création, et la commande n'est pas annoncée au staff — elle est
+ * invisible tant qu'elle n'est pas payée (cf. lib/orders/visibility.ts).
+ */
+export type OnlinePaymentOptions = {
+  feePercent: number;
+  expiresAt: Date;
+  menu: AdminMenuCategory[];
+};
+
+export async function createOrder(
+  input: CreateOrderInput,
+  opts?: { onlinePayment?: OnlinePaymentOptions }
+) {
   const dailyDate = todayDailyDate();
+  const online = opts?.onlinePayment;
+
+  // Le navigateur n'est cru sur RIEN dès qu'un paiement automatique est en jeu :
+  // un total falsifié à 1 F serait encaissé tel quel puis envoyé en cuisine.
+  if (online) {
+    assertCartMatchesMenu(input.items as CartItem[], online.menu, input.total);
+  }
 
   // Contrôle en lecture seule, non racy — inutile de le refaire à chaque
   // tentative de retry (collision de numéro quotidien) ci-dessous.
@@ -340,6 +371,20 @@ export async function createOrder(input: CreateOrderInput) {
           }
         }
 
+        // Paiement en ligne : frais sur le total NET (après récompense, y
+        // compris celle que cette commande vient de débloquer) et échéance, dans
+        // la MÊME transaction. Une commande entièrement couverte par une
+        // récompense n'a rien à payer : elle reste une commande normale.
+        if (online && finalOrder.total > 0) {
+          finalOrder = await tx.order.update({
+            where: { id: finalOrder.id },
+            data: {
+              onlineFee: computeOnlineFee(finalOrder.total, online.feePercent),
+              paymentExpiresAt: online.expiresAt,
+            },
+          });
+        }
+
         return finalOrder;
       });
 
@@ -347,6 +392,9 @@ export async function createOrder(input: CreateOrderInput) {
       // arrivent sans personne devant l'écran caisse — c'est le cas qui
       // justifie la notification (le walk-in est notifié par
       // createCashierOrder, lib/order-mutations.ts).
+      // Une commande en attente de paiement est invisible du staff : elle sera
+      // annoncée au règlement (lib/jeko/settle.ts), pas ici.
+      if (created.paymentExpiresAt != null) return created;
       sendPushToRoles(ROLE_GROUPS.DASHBOARD, {
         title: 'Nouvelle commande en ligne',
         body:
@@ -421,15 +469,9 @@ export type PublicOrderView = {
   status: OrderStatus;
   orderType: OrderType;
   isPaid: boolean;
-  paymentProofUrl: string | null;
-  /** Verdict de la dernière pré-analyse IA de `paymentProofUrl`
-   * (lib/ai/payment-proof.ts). `MISMATCH`/`UNREADABLE` signalent au client
-   * que sa capture a été refusée et qu'il doit en renvoyer une autre ;
-   * `PENDING` (analyse indisponible) n'EST PAS un rejet — la caisse tranche
-   * manuellement, l'expérience client reste « en cours de validation ». Le
-   * rapport détaillé (raisonnement libre de l'IA) reste volontairement
-   * interne (backoffice caisse, cf. order-card.tsx) — jamais exposé ici. */
-  paymentProofVerdict: PaymentProofVerdict | null;
+  /** Paiement en ligne (Jèko) : état, frais, montant dû, échéance — voir
+   * `getPaymentView` (lib/orders/payment-view.ts). */
+  payment: PaymentView;
   customerName: string | null;
   pickupTime: string | null;
   items: PublicOrderItemView[];
@@ -513,6 +555,10 @@ export async function getPublicOrder(
 
   const loyalty = await getPublicOrderLoyalty(order);
   const selfServe = canCustomerSelfServe(order);
+  const payment = getPaymentView(order);
+  // Tant que le paiement est en cours, le panier et le créneau sont figés : les
+  // changer modifierait le montant déjà demandé à Jèko. Annuler reste possible.
+  const payable = payment.state !== 'pending';
 
   return {
     id: order.id,
@@ -521,8 +567,7 @@ export async function getPublicOrder(
     status: order.status,
     orderType: order.orderType,
     isPaid: order.isPaid,
-    paymentProofUrl: order.paymentProofUrl,
-    paymentProofVerdict: order.paymentProofVerdict,
+    payment,
     customerName: order.customerName,
     pickupTime: order.pickupTime?.toISOString() ?? null,
     items: itemsView,
@@ -538,8 +583,8 @@ export async function getPublicOrder(
     loyalty,
     selfService: {
       canCancel: selfServe,
-      canReschedule: selfServe,
-      canEditItems: selfServe && !fulfillable,
+      canReschedule: selfServe && payable,
+      canEditItems: selfServe && payable && !fulfillable,
     },
   };
 }
@@ -562,7 +607,7 @@ async function getPublicOrderLoyalty(order: {
   if (!card || !card.settings.enabled) return null;
 
   const ordersCount = await prisma.order.count({
-    where: { customerId: card.customer.id },
+    where: withStaffVisible({ customerId: card.customer.id }),
   });
 
   return {
@@ -680,12 +725,12 @@ export async function listOrders({ page, sort, ...filters }: ListOrdersParams) {
 
   const [orders, total] = await Promise.all([
     prisma.order.findMany({
-      where,
+      where: withStaffVisible(where),
       orderBy: ORDER_BY[sort ?? 'recent'],
       skip,
       take: pageSize,
     }),
-    prisma.order.count({ where }),
+    prisma.order.count({ where: withStaffVisible(where) }),
   ]);
 
   return { orders, total, pageSize };
@@ -698,7 +743,7 @@ export async function listOrders({ page, sort, ...filters }: ListOrdersParams) {
  */
 export async function getOrdersForExport(filters: OrderFilters) {
   return prisma.order.findMany({
-    where: buildOrdersWhere(filters),
+    where: withStaffVisible(buildOrdersWhere(filters)),
     orderBy: { createdAt: 'asc' },
   });
 }

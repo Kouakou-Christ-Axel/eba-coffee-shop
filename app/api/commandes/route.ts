@@ -2,6 +2,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createOrder, createOrderSchema } from '@/lib/orders';
 import { sendNewOrderEmail } from '@/lib/email';
+import { PAYMENT_EXPIRY_MINUTES } from '@/config/constants';
+import { jekoConfig, onlineFeePercent } from '@/lib/jeko/config';
+import { expirePendingOrders } from '@/lib/jeko/expiry';
+import { startJekoPayment } from '@/lib/jeko/start-payment';
+import { getMenuAdmin } from '@/lib/menu';
+import { siteUrl } from '@/lib/site-url';
 import type { CartItem } from '@/lib/cart-store';
 import {
   publicOrderError,
@@ -37,8 +43,70 @@ export async function POST(req: NextRequest) {
     return publicOrderError(400, 'VALIDATION', parsed.error.flatten());
   }
 
+  // Nettoyage opportuniste des commandes en attente expirées (pas de cron) : une
+  // nouvelle commande est le signe que le site vit, donc un bon moment. Jamais
+  // bloquant — la réponse n'en dépend pas.
+  void expirePendingOrders().catch(() => {});
+
+  // Paiement en ligne (Jèko) : actif dès que sa config est complète ; sinon la
+  // commande suit le flux historique, inchangé.
+  const jeko = jekoConfig();
+  const { paymentMethod } = parsed.data;
+  if (jeko && !paymentMethod) {
+    return publicOrderError(400, 'VALIDATION', {
+      fieldErrors: { paymentMethod: ['Choisis un moyen de paiement'] },
+    });
+  }
+
   try {
-    const order = await createOrder(parsed.data);
+    const order = await createOrder(
+      parsed.data,
+      jeko
+        ? {
+            onlinePayment: {
+              feePercent: onlineFeePercent(),
+              expiresAt: new Date(Date.now() + PAYMENT_EXPIRY_MINUTES * 60_000),
+              menu: await getMenuAdmin(),
+            },
+          }
+        : undefined
+    );
+
+    // Commande en attente de paiement : le paiement démarre ici, et le staff
+    // n'en est informé qu'au règlement (lib/jeko/settle.ts).
+    if (jeko && paymentMethod && order.paymentExpiresAt) {
+      try {
+        const payment = await startJekoPayment({
+          orderId: order.id,
+          paymentMethod,
+          config: jeko,
+          siteUrl: siteUrl(),
+        });
+        return NextResponse.json(
+          {
+            id: order.id,
+            reference: order.reference,
+            paymentUrl: payment.redirectUrl,
+            expiresAt: payment.expiresAt.toISOString(),
+          },
+          { status: 201 }
+        );
+      } catch (err) {
+        // La commande existe : on la rend quand même, sans URL. Le client
+        // arrive sur la page de suivi, où « Réessayer » relance le paiement.
+        console.error('[POST /api/commandes] démarrage du paiement :', err);
+        return NextResponse.json(
+          {
+            id: order.id,
+            reference: order.reference,
+            paymentUrl: null,
+            paymentError: 'PAYMENT_PROVIDER_ERROR',
+          },
+          { status: 201 }
+        );
+      }
+    }
+
     sendNewOrderEmail({
       ...order,
       items: order.items as CartItem[],
@@ -46,7 +114,7 @@ export async function POST(req: NextRequest) {
       console.error('[email] Échec notification propriétaire :', err);
     });
     return NextResponse.json(
-      { id: order.id, reference: order.reference },
+      { id: order.id, reference: order.reference, paymentUrl: null },
       { status: 201 }
     );
   } catch (err) {
