@@ -16,13 +16,16 @@ vi.mock('@/lib/prisma', () => ({
 }));
 vi.mock('@/lib/loyalty-mutations', () => ({ revokeLoyaltyForOrder: vi.fn() }));
 vi.mock('./config', () => ({ jekoConfig: vi.fn() }));
-vi.mock('./client', () => ({ getJekoPaymentRequest: vi.fn() }));
+vi.mock('./client', async (importActual) => ({
+  ...(await importActual<typeof import('./client')>()),
+  getJekoPaymentRequest: vi.fn(),
+}));
 vi.mock('./settle', () => ({ settleJekoTransaction: vi.fn() }));
 
 import prisma from '@/lib/prisma';
 import { revokeLoyaltyForOrder } from '@/lib/loyalty-mutations';
 import { jekoConfig } from './config';
-import { getJekoPaymentRequest } from './client';
+import { JekoApiError, getJekoPaymentRequest } from './client';
 import { settleJekoTransaction } from './settle';
 import { expirePendingOrders } from './expiry';
 
@@ -127,6 +130,16 @@ describe('expirePendingOrders', () => {
 
     expect(result).toEqual({ expired: 0, settled: 0, skipped: 1 });
     expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it('expire quand Jèko ne connaît pas la demande (404) au lieu de réessayer à chaque passage', async () => {
+    getRequest.mockRejectedValue(
+      new JekoApiError(404, 'not_found', 'Demande introuvable')
+    );
+
+    const result = await expirePendingOrders(nextNow());
+
+    expect(result).toEqual({ expired: 1, settled: 0, skipped: 0 });
   });
 
   it("n'expire pas un succès dont Jèko ne détaille pas la transaction", async () => {
