@@ -106,15 +106,32 @@ async function call(
   }
 }
 
+// 422 : `extras.errors` dit QUEL champ est refusé et pourquoi. Sans lui, le
+// journal ne montre qu'un « 422 » inexploitable.
+function validationDetail(body: Record<string, unknown>): string {
+  const extras = body.extras as { errors?: unknown } | undefined;
+  if (!Array.isArray(extras?.errors)) return '';
+  return extras.errors
+    .map((e: { field?: string; rule?: string; message?: string }) =>
+      [e.field, e.rule, e.message].filter(Boolean).join(' ')
+    )
+    .join('; ');
+}
+
 async function parseOrThrow(res: Response): Promise<Record<string, unknown>> {
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
     throw new JekoApiError(
       res.status,
       typeof body.id === 'string' ? body.id : 'unknown',
-      typeof body.message === 'string'
-        ? body.message
-        : `Jèko a répondu ${res.status}`
+      [
+        typeof body.message === 'string'
+          ? body.message
+          : `Jèko a répondu ${res.status}`,
+        validationDetail(body),
+      ]
+        .filter(Boolean)
+        .join(' — ')
     );
   }
   return body;

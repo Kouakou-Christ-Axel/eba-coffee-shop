@@ -75,7 +75,10 @@ aussi en local ; en test, changer l'en-tête `x-forwarded-for` suffit.
 
 1. Utiliser un **magasin dédié aux tests** (pas de sandbox).
 2. Exposer l'application en HTTPS public (tunnel `cloudflared`/`ngrok`) : Jèko ne
-   joint pas `localhost`. Saisir `https://<tunnel>/api/webhooks/jeko` dans le dashboard.
+   joint pas `localhost` pour le webhook, et **refuse les URLs de retour en
+   `localhost` (422, vérifié)**. Mettre l'URL du tunnel dans `NEXT_PUBLIC_SITE_URL`,
+   puis saisir `https://<tunnel>/api/webhooks/jeko` dans le dashboard. Next.js en
+   dev demande aussi l'hôte du tunnel dans `allowedDevOrigins`.
 3. Faire un **premier paiement de 100 centimes (1 FCFA)** : `amountCents` est censé
    valoir FCFA × 100 d'après la doc, ce test lève le doute avant tout vrai client.
 

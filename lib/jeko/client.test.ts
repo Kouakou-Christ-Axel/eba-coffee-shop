@@ -107,6 +107,26 @@ describe('createJekoPaymentRequest', () => {
     });
   });
 
+  it('met le détail de validation d’un 422 dans le message (champ + règle)', async () => {
+    const fetchFn = vi.fn().mockResolvedValue(
+      json(
+        {
+          message: 'Validation failure',
+          extras: {
+            errors: [
+              { field: 'successUrl', rule: 'url', message: 'URL invalide' },
+            ],
+          },
+        },
+        422
+      )
+    );
+
+    await expect(
+      createJekoPaymentRequest(config, input, fetchFn)
+    ).rejects.toThrow(/successUrl.*url.*URL invalide/);
+  });
+
   it("refuse une référence trop courte sans appeler l'API", async () => {
     const fetchFn = vi.fn();
     await expect(
