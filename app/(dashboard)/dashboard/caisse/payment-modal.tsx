@@ -32,6 +32,9 @@ const MODES: {
   { value: 'CASH', label: 'Espèces', Icon: Banknote },
   { value: 'WAVE', label: 'Wave', Icon: Smartphone },
   { value: 'ORANGE_MONEY', label: 'Orange Money', Icon: Wallet },
+  { value: 'MTN_MONEY', label: 'MTN Money', Icon: Smartphone },
+  { value: 'MOOV_MONEY', label: 'Moov Money', Icon: Smartphone },
+  { value: 'DJAMO', label: 'Djamo', Icon: Wallet },
   { value: 'OTHER', label: 'Autre', Icon: MoreHorizontal },
 ];
 

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PAYMENT_MODES } from '@/lib/payment-modes';
 import { Bike, Coffee, ShoppingBag, Globe, Bot } from 'lucide-react';
 import { requireOrdersView, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { listOrders } from '@/lib/orders';
@@ -134,13 +135,7 @@ const VALID_STATUSES = new Set<OrderStatus>([
   'CANCELLED',
 ]);
 
-const VALID_PAYMENTS = new Set<PaymentFilter>([
-  'unpaid',
-  'CASH',
-  'WAVE',
-  'ORANGE_MONEY',
-  'OTHER',
-]);
+const VALID_PAYMENTS = new Set<PaymentFilter>(['unpaid', ...PAYMENT_MODES]);
 
 const VALID_SORTS = new Set<OrderSort>([
   'recent',

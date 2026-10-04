@@ -67,6 +67,7 @@ export async function getAvailablePickupSlots(
     return candidates;
   }
 
+  // staff-visibility: exempt — une commande en attente de paiement garde son créneau ; l'expiration (CANCELLED) le libère
   const orders = await prisma.order.findMany({
     where: {
       status: { in: ['NEW', 'PREPARING', 'READY'] },

@@ -444,8 +444,9 @@ export function OrderCardActions({
     handleStatusChange('PREPARING', { onAccount: true });
   }
 
-  // Annule un encaissement posé AUTOMATIQUEMENT par l'IA (verdict MATCH,
-  // cf. lib/ai/payment-proof.ts) — ne touche qu'au paiement (isPaid → false),
+  // Annule un encaissement posé AUTOMATIQUEMENT par l'ancienne pré-analyse IA des
+  // captures (supprimée : ne concerne plus que des commandes historiques) — ne
+  // touche qu'au paiement (isPaid → false),
   // jamais au statut : la commande peut déjà être en cuisine, voire prête,
   // et ce n'est pas à cette action d'en décider. Toujours disponible tant
   // que `paymentAutoValidatedByAi` est vrai — pas de fenêtre de 10 s comme

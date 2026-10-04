@@ -133,10 +133,9 @@ const VERDICT_META: Record<
   },
 };
 
-// Applications de paiement que la pré-analyse IA sait nommer (cf.
-// PAYMENT_PROOF_OPERATORS dans lib/ai/payment-proof-rules.ts) — le client
-// peut payer depuis n'importe laquelle, l'afficher évite au caissier de
-// deviner à quoi ressemble la capture avant de l'ouvrir.
+// Applications de paiement que l'ancienne pré-analyse IA des captures savait
+// nommer. Ce flux n'existe plus (le paiement passe par Jèko) ; ces libellés
+// servent encore à relire l'historique des commandes qui portent une capture.
 const PAYMENT_APP_LABELS: Record<string, string> = {
   WAVE: 'Wave',
   ORANGE_MONEY: 'Orange Money',
@@ -147,8 +146,9 @@ const PAYMENT_APP_LABELS: Record<string, string> = {
   OTHER: 'Autre application',
 };
 
-// `paymentProofAnalysis` est un JSON libre (lib/ai/payment-proof.ts) — lu ici
-// en `unknown` défensif. `autoValidation.reason` explique POURQUOI un
+// `paymentProofAnalysis` est un JSON libre, écrit par l'ancienne pré-analyse IA
+// (supprimée, la colonne reste pour l'historique) — lu ici en `unknown`
+// défensif. `autoValidation.reason` explique POURQUOI un
 // encaissement automatique n'a pas été posé (confiance insuffisante, échec
 // technique) — non null uniquement quand `applied` est faux.
 function autoValidationReason(analysis: unknown): string | undefined {
