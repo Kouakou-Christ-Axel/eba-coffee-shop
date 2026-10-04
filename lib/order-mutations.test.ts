@@ -1404,6 +1404,74 @@ describe('commande différée — encaissement purement financier', () => {
   });
 });
 
+describe('setOrderPayment — course avec l’expiration d’un paiement en ligne', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-1' } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOrderPaymentCreateMany.mockResolvedValue({ count: 1 } as never);
+  });
+
+  it('garde sur le statut NEW l’encaissement qui pousse la commande en cuisine', async () => {
+    mockOrderUpdateManyWithClaim(1);
+    mockOrderFindUnique.mockResolvedValue({
+      ...orderWithOneItem(),
+      pickupTime: null,
+    } as never);
+
+    await setOrderPayment('order1', true, [{ mode: 'WAVE', amount: 2500 }]);
+
+    expect(businessWrites()[0]?.[0]).toEqual(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'order1',
+          isPaid: false,
+          status: 'NEW',
+        }),
+      })
+    );
+  });
+
+  it('une commande annulée entre la lecture et l’écriture n’est PAS ressuscitée en cuisine', async () => {
+    // Simule la base : l'expiration a déjà passé la commande à CANCELLED, donc
+    // une écriture gardée sur `status: 'NEW'` ne trouve plus rien.
+    mockOrderUpdateMany.mockImplementation((async (args: {
+      where?: { status?: string };
+    }) =>
+      isReservationClaim(args)
+        ? { count: 1 }
+        : { count: args.where?.status === 'NEW' ? 0 : 1 }) as never);
+    mockOrderFindUnique.mockResolvedValue({
+      ...orderWithOneItem(),
+      pickupTime: null,
+    } as never);
+
+    await expect(
+      setOrderPayment('order1', true, [{ mode: 'WAVE', amount: 2500 }])
+    ).rejects.toMatchObject({ httpStatus: 409 });
+    expect(mockOrderPaymentCreateMany).not.toHaveBeenCalled();
+  });
+
+  it('une commande déjà annulée reste encaissable (paiement tardif) : pas de garde de statut', async () => {
+    mockOrderUpdateManyWithClaim(1);
+    mockOrderFindUnique.mockResolvedValue({
+      ...orderWithOneItem({}, { status: 'CANCELLED' }),
+      pickupTime: null,
+    } as never);
+
+    const res = await setOrderPayment('order1', true, [
+      { mode: 'WAVE', amount: 2500 },
+    ]);
+
+    expect(res.startedPreparation).toBe(false);
+    const where = businessWrites()[0]?.[0] as {
+      where: Record<string, unknown>;
+    };
+    expect(where.where).not.toHaveProperty('status');
+  });
+});
+
 describe('payAndComplete — refus explicite sur une commande différée', () => {
   beforeEach(() => {
     vi.clearAllMocks();
