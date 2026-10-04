@@ -6,6 +6,7 @@
 // d'instants équivalent [from 00:00, to+1j 00:00[ (Abidjan = UTC+0).
 
 import prisma from '@/lib/prisma';
+import { withStaffVisible } from '@/lib/orders/visibility';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -65,11 +66,11 @@ export async function getCustomerRangeStats(
     }),
     prisma.order.groupBy({
       by: ['customerId'],
-      where: { ...orderWhere, customerId: { not: null } },
+      where: withStaffVisible({ ...orderWhere, customerId: { not: null } }),
       _count: true,
       _sum: { total: true },
     }),
-    prisma.order.count({ where: orderWhere }),
+    prisma.order.count({ where: withStaffVisible(orderWhere) }),
     prisma.loyaltyLedger.groupBy({
       by: ['type'],
       where: { createdAt: { gte: from, lt: toExclusive } },

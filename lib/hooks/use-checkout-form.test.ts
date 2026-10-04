@@ -19,6 +19,7 @@ const validValues: CheckoutFormValues = {
   timing: 'scheduled',
   pickupTime: '2026-05-11T10:00:00.000Z',
   note: '',
+  paymentMethod: null,
 };
 
 const mockItems: CartItem[] = [
@@ -219,6 +220,9 @@ describe('submitCheckout', () => {
       ok: true,
       orderId: 'clo123',
       reference: 'EBA-20260730-AB12',
+      // Pas de paiement en ligne (flux historique) : rien vers quoi rediriger.
+      paymentUrl: null,
+      paymentError: false,
     });
   });
 
@@ -382,5 +386,151 @@ describe('submitCheckout', () => {
 
     expect(out.ok).toBe(false);
     if (!out.ok) expect(out.error).toMatch(/serveur/i);
+  });
+});
+
+// ─── Paiement en ligne (Jèko) ────────────────────────────────────────────────
+
+describe('validateCheckoutForm — moyen de paiement', () => {
+  it('exige un moyen de paiement quand le paiement en ligne est actif', () => {
+    const errors = validateCheckoutForm(validValues, mockItems, 3500, {
+      paymentRequired: true,
+    });
+    expect(errors.paymentMethod).toMatch(/moyen de paiement/i);
+  });
+
+  it('accepte quand le moyen est choisi', () => {
+    const errors = validateCheckoutForm(
+      { ...validValues, paymentMethod: 'wave' },
+      mockItems,
+      3500,
+      { paymentRequired: true }
+    );
+    expect(errors.paymentMethod).toBeUndefined();
+  });
+
+  it("n'exige rien quand le paiement en ligne est inactif (flux historique)", () => {
+    expect(
+      validateCheckoutForm(validValues, mockItems, 3500).paymentMethod
+    ).toBeUndefined();
+    expect(
+      validateCheckoutForm(validValues, mockItems, 3500, {
+        paymentRequired: false,
+      }).paymentMethod
+    ).toBeUndefined();
+  });
+});
+
+describe('submitCheckout — paiement en ligne', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('envoie le moyen choisi, et l’omet sans paiement en ligne', async () => {
+    const spy = vi.spyOn(global, 'fetch').mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ id: 'o1', reference: 'EBA-1' }), {
+          status: 201,
+        })
+    );
+
+    await submitCheckout({
+      values: { ...validValues, paymentMethod: 'orange' },
+      items: mockItems,
+      total: 3500,
+    });
+    await submitCheckout({
+      values: validValues,
+      items: mockItems,
+      total: 3500,
+    });
+
+    expect(spy.mock.calls[0][1]?.body as string).toContain(
+      '"paymentMethod":"orange"'
+    );
+    expect(spy.mock.calls[1][1]?.body as string).not.toContain('paymentMethod');
+  });
+
+  it("renvoie l'URL de paiement vers laquelle rediriger", async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'o1',
+          reference: 'EBA-1',
+          paymentUrl: 'https://pay.jeko.africa/pay_request/pr/x',
+          expiresAt: '2026-10-03T12:15:00.000Z',
+        }),
+        { status: 201 }
+      )
+    );
+
+    const out = await submitCheckout({
+      values: { ...validValues, paymentMethod: 'wave' },
+      items: mockItems,
+      total: 3500,
+    });
+
+    expect(out).toEqual({
+      ok: true,
+      orderId: 'o1',
+      reference: 'EBA-1',
+      paymentUrl: 'https://pay.jeko.africa/pay_request/pr/x',
+      paymentError: false,
+    });
+  });
+
+  it("signale que le paiement n'a pas démarré quand Jèko est tombé après la création", async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'o1',
+          reference: 'EBA-1',
+          paymentUrl: null,
+          paymentError: 'PAYMENT_PROVIDER_ERROR',
+        }),
+        { status: 201 }
+      )
+    );
+
+    const out = await submitCheckout({
+      values: { ...validValues, paymentMethod: 'wave' },
+      items: mockItems,
+      total: 3500,
+    });
+
+    // La commande existe : le client ira sur la page de suivi, où « Réessayer »
+    // relance le paiement.
+    expect(out).toEqual({
+      ok: true,
+      orderId: 'o1',
+      reference: 'EBA-1',
+      paymentUrl: null,
+      paymentError: true,
+    });
+  });
+
+  it('CART_CHANGED (409) demande de recharger la carte, sans créer de commande', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          code: 'CART_CHANGED',
+          reason: 'price_changed',
+          error: 'Le prix de « Cappuccino » a changé',
+        }),
+        { status: 409 }
+      )
+    );
+
+    const out = await submitCheckout({
+      values: { ...validValues, paymentMethod: 'wave' },
+      items: mockItems,
+      total: 3500,
+    });
+
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      expect(out.code).toBe('CART_CHANGED');
+      expect(out.error).toMatch(/prix|menu|carte/i);
+    }
   });
 });

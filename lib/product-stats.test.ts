@@ -10,6 +10,7 @@ import {
   beforeEach,
   type MockedFunction,
 } from 'vitest';
+import { unwrapStaffVisible } from '@/lib/orders/visibility.test-utils';
 
 vi.mock('@/lib/prisma', () => ({
   default: { order: { findMany: vi.fn() } },
@@ -191,13 +192,10 @@ describe('getProductStats', () => {
 
     await getProductStats('p1', from, to);
 
-    expect(mockFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          status: { not: 'CANCELLED' },
-          dailyDate: { gte: from, lte: to },
-        }),
-      })
-    );
+    const args = mockFindMany.mock.calls.at(-1)?.[0] as { where: unknown };
+    expect(unwrapStaffVisible(args.where)).toMatchObject({
+      status: { not: 'CANCELLED' },
+      dailyDate: { gte: from, lte: to },
+    });
   });
 });

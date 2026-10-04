@@ -5,6 +5,7 @@
 // filtres de la page Commandes (from/to/range/status/search) via getOrdersForExport.
 
 import type { NextRequest } from 'next/server';
+import { PAYMENT_MODES } from '@/lib/payment-modes';
 import { getCurrentSession, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { getOrdersForExport } from '@/lib/orders';
 import { toCsv, csvResponse } from '@/lib/csv';
@@ -41,13 +42,7 @@ const VALID_STATUSES = new Set<OrderStatus>([
   'CANCELLED',
 ]);
 
-const VALID_PAYMENTS = new Set<PaymentFilter>([
-  'unpaid',
-  'CASH',
-  'WAVE',
-  'ORANGE_MONEY',
-  'OTHER',
-]);
+const VALID_PAYMENTS = new Set<PaymentFilter>(['unpaid', ...PAYMENT_MODES]);
 
 const dateTimeFmt = new Intl.DateTimeFormat('fr-FR', {
   timeZone: ABIDJAN_TZ,

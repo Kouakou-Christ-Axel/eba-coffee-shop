@@ -17,6 +17,13 @@ vi.mock('@/lib/orders', async (importOriginal) => ({
   createOrder: vi.fn(),
 }));
 
+// Paiement en ligne (Jèko) non configuré : ces tests couvrent le flux historique.
+// `ENV` de varlock n'existe que dans le runtime Next (cf. lib/site-url.ts).
+vi.mock('@/lib/jeko/config', () => ({
+  jekoConfig: vi.fn(() => null),
+  onlineFeePercent: vi.fn(() => 1),
+}));
+
 // Rate-limiting testé séparément (route.rate-limit.test.ts) : ici, plusieurs
 // requêtes partent de la même IP absente (clé `unknown`) et ne doivent pas
 // se faire bloquer entre elles.

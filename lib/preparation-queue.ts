@@ -9,6 +9,7 @@
 // L'auth est de la responsabilité de l'appelant.
 
 import prisma from '@/lib/prisma';
+import { withStaffVisible } from '@/lib/orders/visibility';
 import { compareKitchenFifo } from '@/lib/orders/queue-order';
 import { endOfLocalDay, startOfLocalDay } from '@/lib/timezone';
 import { PRODUCTION_PLAN_DAYS } from '@/config/constants';
@@ -93,7 +94,7 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
   // ⚠️ Une seule clé `OR` par littéral d'objet : deux `OR` frères dans le même
   // objet JS, la seconde écrase la première EN SILENCE. D'où le `AND` explicite.
   const orders = await prisma.order.findMany({
-    where: {
+    where: withStaffVisible({
       OR: [
         {
           AND: [
@@ -121,7 +122,7 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
           ],
         },
       ],
-    },
+    }),
     orderBy: { createdAt: 'asc' },
   });
 

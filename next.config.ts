@@ -107,7 +107,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['eba.otw.ci'],
+  allowedDevOrigins: ['eba.otw.ci', '127.0.0.1'],
   // NB : pas d'`experimental.optimizePackageImports` ici. Le réflexe serait de
   // l'activer pour `@heroui/react` (barrel importé par 72 fichiers), mais la
   // mesure donne un bundle identique à l'octet près : Turbopack, utilisé par

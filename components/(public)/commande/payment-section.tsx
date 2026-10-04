@@ -2,31 +2,27 @@
 
 // components/(public)/commande/payment-section.tsx
 //
-// Bloc « Paiement » de la page publique de suivi (/commande/:id), extrait de
-// order-tracking.tsx. Cinq états explicites pour guider le client (le flux
-// Wave reste un simple deep link + preuve par capture — pas d'API) :
+// Bloc « Paiement » de la page publique de suivi (/commande/:id). Le client paie
+// en ligne via Jèko (Wave, Orange, MTN, Moov, Djamo) puis revient ici. La logique
+// de décision (quel état, compte à rebours, messages) vit dans
+// lib/orders/payment-panel.ts, testée ; ce composant n'ajoute que le JSX et les
+// appels réseau.
 //
-//   - `awaiting`      : checklist numérotée « 1. Payer avec Wave » puis
-//                       « 2. Envoyer ta capture » (ou payer au comptoir) ;
-//   - `proof_pending` : preuve reçue, la caisse (ou l'IA) valide — le bouton
-//                       Wave disparaît (fini le doute « dois-je repayer ? ») ;
-//   - `rejected`      : la pré-analyse IA a jugé la capture invalide
-//                       (MISMATCH/UNREADABLE) — on demande une nouvelle
-//                       capture. `PENDING` (analyse indisponible) N'EST PAS
-//                       un rejet, reste `proof_pending` (caisse tranche à la
-//                       main) ;
-//   - `validated`     : paiement confirmé, la commande part en préparation
-//                       (ou le jour du retrait, pour une commande différée) ;
-//   - `nothing_due`   : récompense fidélité couvrant tout le total.
+// États (cf. `PaymentPanelKind`) :
+//   - pending      : compte à rebours, choix du moyen, « Payer … F » ;
+//   - verifying    : de retour de chez Jèko avec succès, on confirme ;
+//   - failed       : retour avec échec, le client peut réessayer ;
+//   - expired      : délai dépassé, il faut recommander ;
+//   - paid / late_paid / nothing_due / deposit_paid : issues positives ;
+//   - counter      : aucun paiement en ligne, on règle au comptoir.
 
-import { useRef, useState, useSyncExternalStore } from 'react';
-import { MediaImage as Image } from '@/components/ui/media-image';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import Link from 'next/link';
 import { Button, Chip } from '@heroui/react';
 import { AnimatePresence, m, useReducedMotion } from 'framer-motion';
 import {
-  Camera,
-  Check,
   CheckCircle2,
+  Clock,
   Gift,
   Loader2,
   MessageCircle,
@@ -35,184 +31,218 @@ import {
 } from 'lucide-react';
 import type { PublicOrderView } from '@/lib/orders';
 import { priceFormatter } from '@/config/menu';
-import {
-  buildPaymentProofMessage,
-  buildWaveLink,
-  buildWhatsAppLink,
-} from '@/lib/contact-links';
-import { compressImage } from '@/lib/image-compress';
-import {
-  uploadToCloudinary,
-  confirmCloudinaryUrl,
-} from '@/lib/cloudinary-client';
-import { PAYMENT_PROOF_MAX_SIZE_BYTES } from '@/config/constants';
-import { cn } from '@/lib/utils';
+import { buildWhatsAppLink } from '@/lib/contact-links';
 import { deferredPickupLabel } from '@/lib/orders/scheduling';
+import {
+  JEKO_PAYMENT_METHODS,
+  type JekoPaymentMethod,
+} from '@/lib/jeko/payment-methods';
+import {
+  formatCountdown,
+  getPaymentPanelKind,
+  paymentStartErrorMessage,
+  type PaymentReturn,
+} from '@/lib/orders/payment-panel';
+import { useNowTick } from '@/lib/hooks/use-now-tick';
+import { PaymentMethodPicker } from '@/components/(public)/carte/_components/payment-method-picker';
 
-type PaymentUiState =
-  | 'awaiting'
-  | 'proof_pending'
-  | 'rejected'
-  | 'validated'
-  | 'deposit_paid'
-  | 'nothing_due';
+// Pendant la confirmation, on relit le paiement chez Jèko toutes les 25 s (la route
+// accepte 30 vérifications par 10 min et par commande) ; au bout de 45 s sans
+// réponse définitive on propose de réessayer plutôt que de laisser attendre.
+const VERIFY_INTERVAL_MS = 25_000;
+const VERIFY_SLOW_AFTER_MS = 45_000;
 
-/**
- * Vrai si la commande exige un acompte (cf. `Order.depositRequired`) et que
- * celui-ci n'est pas encore intégralement versé. Tant que c'est le cas, le
- * montant demandé au client (Wave, capture) est celui de l'ACOMPTE, jamais le
- * total — voir `getAmountDue`.
- */
-function isDepositOutstanding(order: PublicOrderView): boolean {
+// `true` côté client, `false` au rendu serveur : le compte à rebours dépend de
+// l'heure du navigateur et ne doit pas se rendre côté serveur (mismatch
+// d'hydratation).
+const subscribeNoop = () => () => {};
+const useMounted = () =>
+  useSyncExternalStore(
+    subscribeNoop,
+    () => true,
+    () => false
+  );
+
+function Panel({
+  id,
+  className,
+  children,
+}: {
+  id: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const reduceMotion = useReducedMotion();
   return (
-    order.depositRequired != null &&
-    (order.depositPaid ?? 0) < order.depositRequired
+    <m.div
+      key={id}
+      initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      className={className}
+    >
+      {children}
+    </m.div>
   );
 }
 
-/** Montant à régler MAINTENANT (acompte tant qu'il n'est pas couvert, sinon
- * le total). Le solde après acompte ne se règle jamais en ligne — toujours en
- * caisse, au retrait. */
-function getAmountDue(order: PublicOrderView): number {
-  if (isDepositOutstanding(order)) {
-    return order.depositRequired! - (order.depositPaid ?? 0);
-  }
-  return order.total;
-}
-
-function getPaymentUiState(order: PublicOrderView): PaymentUiState {
-  if (order.isPaid) return 'validated';
-  // Récompense fidélité couvrant tout le total : rien à régler (proposer
-  // « Payer 0 F » n'aurait aucun sens). Le comptoir clôturera au retrait.
-  if (order.total <= 0) return 'nothing_due';
-  // Acompte déjà couvert (commande spéciale à l'avance) : le solde se règle
-  // en caisse au retrait, jamais en ligne — plus rien à faire ici.
-  if (order.depositRequired != null && !isDepositOutstanding(order)) {
-    return 'deposit_paid';
-  }
-  if (
-    order.paymentProofUrl &&
-    (order.paymentProofVerdict === 'MISMATCH' ||
-      order.paymentProofVerdict === 'UNREADABLE')
-  ) {
-    return 'rejected';
-  }
-  if (order.paymentProofUrl) return 'proof_pending';
-  return 'awaiting';
-}
-
-// ─── « Wave ouvert » (étape 1 cochée) ─────────────────────────────────────────
-//
-// Mémorisé en sessionStorage par commande : l'aller-retour vers l'app Wave (ou
-// un refresh) ne décoche pas l'étape. Exposé en store externe
-// (useSyncExternalStore) — pas de setState-dans-effet ni de mismatch
-// d'hydratation (snapshot serveur `false`).
-
-const waveOpenedListeners = new Set<() => void>();
-
-function waveOpenedKey(orderId: string): string {
-  return `eba-wave-opened-${orderId}`;
-}
-
-function subscribeWaveOpened(listener: () => void): () => void {
-  waveOpenedListeners.add(listener);
-  return () => waveOpenedListeners.delete(listener);
-}
-
-function readWaveOpened(orderId: string): boolean {
-  try {
-    return window.sessionStorage.getItem(waveOpenedKey(orderId)) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function markWaveOpened(orderId: string): void {
-  try {
-    window.sessionStorage.setItem(waveOpenedKey(orderId), '1');
-  } catch {
-    // sessionStorage indisponible : l'étape restera simplement non cochée.
-  }
-  waveOpenedListeners.forEach((l) => l());
-}
-
-// ─── Composant ────────────────────────────────────────────────────────────────
+const SUCCESS_BOX =
+  'mt-4 flex items-center gap-3 rounded-lg bg-success/15 px-3 py-3';
+const SUCCESS_TEXT = 'text-sm font-medium text-success-700 dark:text-success';
 
 export function PaymentSection({
   order,
   whatsapp,
-  onOrderChange,
+  paymentReturn,
+  onRefresh,
 }: {
   order: PublicOrderView;
   whatsapp: string;
-  onOrderChange: (o: PublicOrderView) => void;
+  /** Retour de chez Jèko lu dans `?paiement=` (null = arrivée normale). */
+  paymentReturn: PaymentReturn;
+  /** Recharge la commande (après une vérification ou un paiement relancé). */
+  onRefresh: () => void;
 }) {
-  const [uploading, setUploading] = useState(false);
+  const mounted = useMounted();
+  const now = useNowTick(1000);
+  const [method, setMethod] = useState<JekoPaymentMethod | null>(null);
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const reduceMotion = useReducedMotion();
+  const [remoteFailed, setRemoteFailed] = useState(false);
+  const [slow, setSlow] = useState(false);
 
-  const uiState = getPaymentUiState(order);
-  const depositOutstanding = isDepositOutstanding(order);
-  const amountDue = getAmountDue(order);
-  // Retrait un jour ultérieur : la commande reste « Reçue » jusqu'au jour J,
-  // même payée — « part en préparation » serait faux.
+  const baseKind = getPaymentPanelKind(order, paymentReturn);
+  const msLeft =
+    mounted && order.payment.expiresAt
+      ? new Date(order.payment.expiresAt).getTime() - now.getTime()
+      : null;
+  // Le délai est écoulé côté navigateur avant que le serveur ne l'ait constaté.
+  const expiredLocally =
+    baseKind === 'pending' && msLeft !== null && msLeft <= 0;
+  const kind = expiredLocally
+    ? 'expired'
+    : baseKind === 'verifying' && remoteFailed
+      ? 'failed'
+      : baseKind;
+
+  // Quand le délai tombe, on laisse le serveur constater (il annulera au prochain
+  // passage) et on relit l'état.
+  useEffect(() => {
+    if (expiredLocally) onRefresh();
+  }, [expiredLocally, onRefresh]);
+
+  // ── Confirmation au retour de chez Jèko ──────────────────────────────────
+  const verify = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/commandes/${order.id}/paiement/verifier`, {
+        method: 'POST',
+      });
+      if (!res.ok) return; // Jèko ou le réseau : on retentera au prochain tour.
+      const data = (await res.json()) as { status?: string };
+      if (data.status === 'success') onRefresh();
+      if (data.status === 'error') setRemoteFailed(true);
+    } catch {
+      // Réseau instable : on retentera.
+    }
+  }, [order.id, onRefresh]);
+
+  const verifying = kind === 'verifying';
+  useEffect(() => {
+    if (!verifying) return;
+    // Première vérification tout de suite, mais depuis un rappel : lancer
+    // `verify()` dans le corps de l'effet déclencherait un `setState`
+    // synchrone (règle react-hooks/set-state-in-effect).
+    const first = setTimeout(() => void verify(), 0);
+    const poll = setInterval(() => void verify(), VERIFY_INTERVAL_MS);
+    const slowTimer = setTimeout(() => setSlow(true), VERIFY_SLOW_AFTER_MS);
+    return () => {
+      clearTimeout(first);
+      clearInterval(poll);
+      clearTimeout(slowTimer);
+    };
+  }, [verifying, verify]);
+
+  // ── Payer / réessayer ────────────────────────────────────────────────────
+  async function pay() {
+    if (!method) {
+      setError('Choisis un moyen de paiement.');
+      return;
+    }
+    setError(null);
+    setStarting(true);
+    try {
+      const res = await fetch(`/api/commandes/${order.id}/paiement`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentMethod: method }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        code?: string;
+        reason?: string;
+        paymentUrl?: string;
+      };
+      if (!res.ok || !data.paymentUrl) {
+        setError(paymentStartErrorMessage(res.status, data));
+        // La commande a pu expirer ou être réglée entre-temps : on relit l'état.
+        if (data.code === 'CONFLICT') onRefresh();
+        setStarting(false);
+        return;
+      }
+      // On part chez Jèko (autre site) : navigation « dure », le bouton reste
+      // occupé jusqu'au changement de page.
+      window.location.assign(data.paymentUrl);
+    } catch {
+      setError(paymentStartErrorMessage(0, {}));
+      setStarting(false);
+    }
+  }
+
   const deferred = deferredPickupLabel(order, new Date());
   const deferredText = deferred
     ? `${deferred.day} pour ton retrait à ${deferred.time}`
     : null;
-  const waveLink = buildWaveLink(amountDue);
-  const waveOpened = useSyncExternalStore(
-    subscribeWaveOpened,
-    () => readWaveOpened(order.id),
-    () => false
-  );
-  const paymentProofWhatsAppLink = buildWhatsAppLink(
+  const { amountDue, onlineFee } = order.payment;
+  const depositOutstanding =
+    order.depositRequired != null &&
+    (order.depositPaid ?? 0) < order.depositRequired;
+  const lateWhatsApp = buildWhatsAppLink(
     whatsapp,
-    buildPaymentProofMessage({
-      customerName: order.customerName,
-      dailyNumber: order.dailyNumber,
-      amount: amountDue,
-    })
+    `Bonjour, j'ai payé ${priceFormatter.format(order.total + (onlineFee ?? 0))} F en ligne pour la commande ${order.reference}, mais elle apparaît annulée. Pouvez-vous la rétablir ?`
   );
 
-  async function onPickFile(file: File) {
-    setError(null);
-    setUploading(true);
-    try {
-      // Compression navigateur (capture Wave 1-4 Mo → ~100-300 Ko) ; repli sur
-      // le fichier original si le navigateur ne sait pas le décoder.
-      const compressed = await compressImage(file);
-      const toSend = compressed ?? file;
-      if (toSend.size > PAYMENT_PROOF_MAX_SIZE_BYTES) {
-        throw new Error(
-          'Image trop lourde (max 1 Mo) — réessaie avec une capture d’écran'
-        );
-      }
-
-      const url = await uploadToCloudinary(
-        toSend,
-        `/api/commandes/${order.id}/preuve-paiement/sign`
-      );
-      await confirmCloudinaryUrl(
-        `/api/commandes/${order.id}/preuve-paiement`,
-        url
-      );
-      // Patch optimiste du verdict à null : le serveur le réinitialise déjà
-      // (setOrderPaymentProof), mais sans ça l'état `rejected` resterait
-      // affiché ici jusqu'au prochain polling — un ré-upload doit repasser
-      // IMMÉDIATEMENT en « en cours de validation ».
-      onOrderChange({
-        ...order,
-        paymentProofUrl: url,
-        paymentProofVerdict: null,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Échec de l’envoi');
-    } finally {
-      setUploading(false);
-    }
-  }
+  const picker = (
+    <div className="mt-4 flex flex-col gap-3">
+      <PaymentMethodPicker
+        methods={[...JEKO_PAYMENT_METHODS]}
+        value={method}
+        onChange={(mth) => {
+          setMethod(mth);
+          setError(null);
+        }}
+      />
+      {error && (
+        <p role="alert" className="text-sm text-danger">
+          {error}
+        </p>
+      )}
+      <Button
+        color="primary"
+        size="lg"
+        className="w-full"
+        isLoading={starting}
+        isDisabled={starting}
+        onPress={() => void pay()}
+      >
+        Payer {priceFormatter.format(amountDue)} F
+      </Button>
+      {onlineFee != null && onlineFee > 0 && (
+        <p className="text-center text-xs text-foreground/50">
+          Dont {priceFormatter.format(onlineFee)} F de frais de paiement en
+          ligne.
+        </p>
+      )}
+    </div>
+  );
 
   return (
     <div className="rounded-xl border border-foreground/10 bg-default-50 p-5">
@@ -221,25 +251,27 @@ export function PaymentSection({
           <Wallet className="h-4 w-4" />
           Paiement
         </p>
-        {uiState === 'validated' ? (
+        {kind === 'paid' ||
+        kind === 'deposit_paid' ||
+        kind === 'nothing_due' ? (
           <Chip color="success" variant="flat" size="sm">
-            Paiement validé
+            {kind === 'paid'
+              ? 'Paiement validé'
+              : kind === 'deposit_paid'
+                ? 'Acompte versé'
+                : 'Rien à payer'}
           </Chip>
-        ) : uiState === 'deposit_paid' ? (
-          <Chip color="success" variant="flat" size="sm">
-            Acompte versé
-          </Chip>
-        ) : uiState === 'nothing_due' ? (
-          <Chip color="success" variant="flat" size="sm">
-            Rien à payer
-          </Chip>
-        ) : uiState === 'rejected' ? (
-          <Chip color="danger" variant="flat" size="sm">
-            Capture refusée
-          </Chip>
-        ) : uiState === 'proof_pending' ? (
+        ) : kind === 'late_paid' ? (
           <Chip color="warning" variant="flat" size="sm">
-            En cours de validation
+            Payée, commande annulée
+          </Chip>
+        ) : kind === 'failed' || kind === 'expired' ? (
+          <Chip color="danger" variant="flat" size="sm">
+            {kind === 'expired' ? 'Délai dépassé' : 'Paiement échoué'}
+          </Chip>
+        ) : kind === 'verifying' ? (
+          <Chip color="warning" variant="flat" size="sm">
+            Confirmation en cours
           </Chip>
         ) : (
           <Chip color="default" variant="flat" size="sm">
@@ -248,289 +280,124 @@ export function PaymentSection({
         )}
       </div>
 
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onPickFile(f);
-          e.target.value = '';
-        }}
-      />
-
       <AnimatePresence mode="wait" initial={false}>
-        {uiState === 'validated' ? (
-          <m.div
-            key="validated"
-            initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className="mt-4 flex items-center gap-3 rounded-lg bg-success/15 px-3 py-3"
-          >
+        {kind === 'paid' ? (
+          <Panel id="paid" className={SUCCESS_BOX}>
             <CheckCircle2 className="h-6 w-6 shrink-0 text-success-700 dark:text-success" />
-            <p className="text-sm font-medium text-success-700 dark:text-success">
+            <p className={SUCCESS_TEXT}>
               {deferredText
                 ? `Paiement validé 🎉 — ta commande sera préparée ${deferredText}.`
                 : 'Paiement validé 🎉 — ta commande part en préparation.'}
             </p>
-          </m.div>
-        ) : uiState === 'nothing_due' ? (
-          <m.div
-            key="nothing-due"
-            initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className="mt-4 flex items-center gap-3 rounded-lg bg-success/15 px-3 py-3"
-          >
+          </Panel>
+        ) : kind === 'late_paid' ? (
+          <Panel id="late-paid" className="mt-4 flex flex-col gap-3">
+            <p className="rounded-lg bg-warning/15 px-3 py-3 text-sm font-medium text-warning-700 dark:text-warning">
+              Ton paiement est bien reçu, mais la commande avait expiré avant
+              qu’il n’arrive. Le comptoir va la rétablir ou te rembourser : ne
+              repaie surtout pas.
+            </p>
+            {lateWhatsApp && (
+              <Button
+                as="a"
+                href={lateWhatsApp}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="bordered"
+                size="lg"
+                startContent={<MessageCircle className="h-4 w-4" />}
+              >
+                Prévenir le comptoir sur WhatsApp
+              </Button>
+            )}
+          </Panel>
+        ) : kind === 'nothing_due' ? (
+          <Panel id="nothing-due" className={SUCCESS_BOX}>
             <Gift className="h-6 w-6 shrink-0 text-success-700 dark:text-success" />
-            <p className="text-sm font-medium text-success-700 dark:text-success">
+            <p className={SUCCESS_TEXT}>
               Rien à payer 🎉 — ta récompense fidélité couvre toute la commande.
             </p>
-          </m.div>
-        ) : uiState === 'deposit_paid' ? (
-          <m.div
-            key="deposit-paid"
-            initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className="mt-4 flex items-center gap-3 rounded-lg bg-success/15 px-3 py-3"
-          >
+          </Panel>
+        ) : kind === 'deposit_paid' ? (
+          <Panel id="deposit-paid" className={SUCCESS_BOX}>
             <CheckCircle2 className="h-6 w-6 shrink-0 text-success-700 dark:text-success" />
-            <p className="text-sm font-medium text-success-700 dark:text-success">
+            <p className={SUCCESS_TEXT}>
               Acompte reçu ✓ — le solde de{' '}
               {priceFormatter.format(order.total - (order.depositPaid ?? 0))} F
               se règle au comptoir, au retrait.
             </p>
-          </m.div>
-        ) : uiState === 'rejected' ? (
-          <m.div
-            key="rejected"
-            initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className="mt-4 flex flex-col gap-3"
-          >
-            <div className="flex items-center gap-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-3">
-              {order.paymentProofUrl && (
-                <Image
-                  src={order.paymentProofUrl}
-                  alt="Preuve de paiement refusée"
-                  width={48}
-                  height={48}
-                  className="size-12 shrink-0 rounded-md object-cover opacity-60"
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1.5 text-sm font-medium text-danger">
-                  <XCircle className="h-4 w-4 shrink-0" />
-                  {order.paymentProofVerdict === 'UNREADABLE'
-                    ? 'Capture illisible — renvoie une photo plus nette.'
-                    : "Cette capture n'a pas pu être validée."}
+          </Panel>
+        ) : kind === 'verifying' ? (
+          <Panel id="verifying" className="mt-4 flex flex-col gap-3">
+            <div className="flex items-center gap-3 rounded-lg bg-warning/15 px-3 py-3">
+              <Loader2 className="h-5 w-5 shrink-0 animate-spin text-warning-700 dark:text-warning" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-warning-700 dark:text-warning">
+                  On vérifie ton paiement…
                 </p>
                 <p className="mt-0.5 text-xs text-foreground/60">
-                  Envoie une nouvelle capture pour qu&apos;on puisse valider ton
-                  paiement.
+                  Quelques secondes — cette page se met à jour toute seule.
                 </p>
               </div>
             </div>
-            <Button
-              color="danger"
-              size="lg"
-              isDisabled={uploading}
-              onPress={() => fileRef.current?.click()}
-              startContent={
-                uploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Camera className="h-4 w-4" />
-                )
-              }
-            >
-              Envoyer une nouvelle capture
-            </Button>
-            {paymentProofWhatsAppLink && (
-              <Button
-                as="a"
-                href={paymentProofWhatsAppLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                variant="light"
-                size="sm"
-                startContent={<MessageCircle className="h-4 w-4" />}
-              >
-                Ou l’envoyer sur WhatsApp
-              </Button>
+            {slow && (
+              <>
+                <p className="text-sm text-foreground/60">
+                  La confirmation prend plus de temps que prévu. Si tu n’as pas
+                  été débité, tu peux réessayer :
+                </p>
+                {picker}
+              </>
             )}
-            {error && <p className="text-xs text-danger">{error}</p>}
-          </m.div>
-        ) : uiState === 'proof_pending' ? (
-          <m.div
-            key="proof-pending"
-            initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className="mt-4 flex flex-col gap-3"
-          >
-            <div className="flex items-center gap-3 rounded-lg bg-warning/15 px-3 py-3">
-              {order.paymentProofUrl && (
-                <Image
-                  src={order.paymentProofUrl}
-                  alt="Preuve de paiement"
-                  width={48}
-                  height={48}
-                  className="size-12 shrink-0 rounded-md object-cover"
-                />
+          </Panel>
+        ) : kind === 'failed' ? (
+          <Panel id="failed" className="mt-4 flex flex-col gap-3">
+            <p className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-3 text-sm font-medium text-danger">
+              <XCircle className="h-4 w-4 shrink-0" />
+              Le paiement n’a pas abouti. Tu n’as pas été débité : tu peux
+              réessayer, avec le même moyen ou un autre.
+            </p>
+            {picker}
+          </Panel>
+        ) : kind === 'expired' ? (
+          <Panel id="expired" className="mt-4 flex flex-col gap-3">
+            <p className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-3 text-sm font-medium text-danger">
+              <XCircle className="h-4 w-4 shrink-0" />
+              Le délai de paiement est dépassé : cette commande a expiré. Rien
+              n’a été débité.
+            </p>
+            <Button as={Link} href="/carte" color="primary" size="lg">
+              Commander à nouveau
+            </Button>
+          </Panel>
+        ) : kind === 'pending' ? (
+          <Panel id="pending" className="mt-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-warning/15 px-3 py-3">
+              <p className="text-sm font-medium text-warning-700 dark:text-warning">
+                {deferredText
+                  ? `Paye maintenant pour réserver ta commande : elle sera préparée ${deferredText}.`
+                  : 'Ta commande part en préparation dès que le paiement est confirmé.'}
+              </p>
+              {msLeft !== null && (
+                <span
+                  className="flex shrink-0 items-center gap-1 font-mono text-sm font-semibold text-warning-700 dark:text-warning"
+                  aria-label="Temps restant pour payer"
+                >
+                  <Clock className="h-4 w-4" aria-hidden="true" />
+                  {formatCountdown(msLeft)}
+                </span>
               )}
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-warning-700 dark:text-warning">
-                  Preuve reçue ✓ — la caisse vérifie ton paiement.
-                </p>
-                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-foreground/60">
-                  <m.span
-                    aria-hidden
-                    animate={reduceMotion ? {} : { opacity: [1, 0.3, 1] }}
-                    transition={{ duration: 1.6, repeat: Infinity }}
-                    className="inline-block h-1.5 w-1.5 rounded-full bg-warning"
-                  />
-                  Quelques minutes — cette page se met à jour toute seule.
-                </p>
-              </div>
-              <Button
-                variant="light"
-                size="sm"
-                isDisabled={uploading}
-                onPress={() => fileRef.current?.click()}
-              >
-                Remplacer
-              </Button>
             </div>
-            {error && <p className="text-xs text-danger">{error}</p>}
-          </m.div>
+            {picker}
+          </Panel>
         ) : (
-          <m.div
-            key="awaiting"
-            initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className="mt-4 flex flex-col gap-3"
-          >
+          <Panel id="counter" className="mt-4 flex flex-col gap-3">
             <p className="rounded-lg bg-warning/15 px-3 py-2 text-sm font-medium text-warning-700 dark:text-warning">
               {depositOutstanding
-                ? `Commande spéciale : un acompte de ${priceFormatter.format(amountDue)} F est requis pour la prise en compte. Le solde se règlera au retrait — deux petites étapes :`
-                : deferredText
-                  ? `Paye maintenant pour réserver ta commande : elle sera préparée ${deferredText}. Deux petites étapes :`
-                  : 'Ta commande part en préparation dès que le paiement est confirmé — deux petites étapes :'}
+                ? `Commande spéciale : un acompte de ${priceFormatter.format(order.depositRequired! - (order.depositPaid ?? 0))} F est à régler au comptoir pour la prise en compte.`
+                : 'Paye au comptoir à la récupération (espèces ou mobile money) — rien d’autre à faire ici.'}
             </p>
-
-            {/* Étape 1 — payer avec Wave */}
-            {waveLink && (
-              <div
-                className={cn(
-                  'rounded-lg border-2 p-3 transition-colors',
-                  waveOpened ? 'border-success/40' : 'border-primary/30'
-                )}
-              >
-                <p className="flex items-center gap-2 text-xs font-semibold text-foreground/60">
-                  <span
-                    className={cn(
-                      'flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold',
-                      waveOpened
-                        ? 'bg-success text-success-foreground'
-                        : 'bg-primary text-primary-foreground'
-                    )}
-                  >
-                    {waveOpened ? (
-                      <Check className="h-3 w-3" strokeWidth={3} />
-                    ) : (
-                      '1'
-                    )}
-                  </span>
-                  Étape 1 — Payer avec Wave
-                </p>
-                <Button
-                  as="a"
-                  href={waveLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  color="primary"
-                  size="lg"
-                  variant={waveOpened ? 'bordered' : 'solid'}
-                  className="mt-2 w-full"
-                  onPress={() => markWaveOpened(order.id)}
-                >
-                  {waveOpened
-                    ? 'Rouvrir Wave si besoin'
-                    : `Payer ${priceFormatter.format(amountDue)} F avec Wave`}
-                </Button>
-              </div>
-            )}
-
-            {/* Étape 2 — envoyer la capture */}
-            <div
-              className={cn(
-                'rounded-lg border-2 p-3 transition-colors',
-                waveOpened || !waveLink
-                  ? 'border-primary/30'
-                  : 'border-foreground/10'
-              )}
-            >
-              <p className="flex items-center gap-2 text-xs font-semibold text-foreground/60">
-                <span
-                  className={cn(
-                    'flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold',
-                    waveOpened || !waveLink
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-foreground/15 text-foreground/60'
-                  )}
-                >
-                  {waveLink ? '2' : '1'}
-                </span>
-                {waveLink ? 'Étape 2 — ' : ''}Envoyer ta capture de paiement
-              </p>
-              <p className="mt-1 text-xs text-foreground/50">
-                C’est la capture qui permet à la caisse de valider ton paiement.
-              </p>
-              <Button
-                variant="bordered"
-                size="lg"
-                className="mt-2 w-full"
-                isDisabled={uploading}
-                onPress={() => fileRef.current?.click()}
-                startContent={
-                  uploading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Camera className="h-4 w-4" />
-                  )
-                }
-              >
-                Envoyer ma capture ici
-              </Button>
-              {paymentProofWhatsAppLink && (
-                <Button
-                  as="a"
-                  href={paymentProofWhatsAppLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  variant="light"
-                  size="sm"
-                  className="mt-2 w-full"
-                  startContent={<MessageCircle className="h-4 w-4" />}
-                >
-                  Ou l’envoyer sur WhatsApp
-                </Button>
-              )}
-            </div>
-
-            <p className="text-xs text-foreground/50">
-              Ou paye au comptoir à la récupération (espèces ou mobile money) —
-              rien d’autre à faire ici.
-            </p>
-
-            {error && <p className="text-xs text-danger">{error}</p>}
-          </m.div>
+          </Panel>
         )}
       </AnimatePresence>
     </div>

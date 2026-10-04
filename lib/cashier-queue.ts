@@ -10,6 +10,7 @@
 // Importable par server actions ET route handlers (pas de 'use server').
 
 import prisma from '@/lib/prisma';
+import { withStaffVisible } from '@/lib/orders/visibility';
 import type { CartItem } from '@/lib/cart-store';
 import {
   fetchStockSnapshot,
@@ -66,9 +67,8 @@ export type CashierOrder = {
    * si `isPaid` est faux. */
   paymentAutoValidatedByAi: boolean;
   paymentProofUrl: string | null;
-  /** Verdict de la pré-analyse IA de `paymentProofUrl` (lib/ai/payment-proof.ts).
-   * Null tant que pas analysée (ou fonctionnalité inactive) — signal caisse
-   * uniquement, ne remplace jamais la validation manuelle. */
+  /** Verdict de l'ancienne pré-analyse IA de `paymentProofUrl` (supprimée : ne
+   * concerne plus que des commandes historiques). Null si non analysée. */
   paymentProofVerdict: PaymentProofVerdict | null;
   /** Détail structuré de l'analyse IA (montant/opérateur/référence détectés). */
   paymentProofAnalysis: unknown;
@@ -119,7 +119,7 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
   const dayEnd = endOfLocalDay(now);
 
   const orders = await prisma.order.findMany({
-    where: {
+    where: withStaffVisible({
       // Une commande annulée (ou remboursée) quitte la file caisse.
       status: { not: 'CANCELLED' },
       AND: [
@@ -139,7 +139,7 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
           ],
         },
       ],
-    },
+    }),
     // `include` (et non `select`) : on conserve TOUS les champs scalaires
     // consommés par le mapper ci-dessous, en n'ajoutant que le drapeau
     // « client de confiance » de la fiche liée.

@@ -31,6 +31,7 @@ import {
   type SoldOutLine,
 } from '@/lib/schemas/order';
 import { extractApiError } from '@/lib/api-error';
+import type { JekoPaymentMethod } from '@/lib/jeko/payment-methods';
 import {
   effectiveItemAdvanceDays,
   isAvailableToday,
@@ -56,6 +57,9 @@ export type CheckoutFormValues = {
   timing: PickupTiming;
   pickupTime: string | null;
   note: string;
+  // Moyen choisi pour payer en ligne (Jèko). `null` tant que rien n'est choisi,
+  // et sans objet quand le paiement en ligne est inactif (flux historique).
+  paymentMethod: JekoPaymentMethod | null;
 };
 
 export type CheckoutFormErrors = Partial<
@@ -63,7 +67,17 @@ export type CheckoutFormErrors = Partial<
 >;
 
 export type CheckoutSubmitOutcome =
-  | { ok: true; orderId: string; reference: string }
+  | {
+      ok: true;
+      orderId: string;
+      reference: string;
+      /** Page de paiement vers laquelle rediriger ; `null` sans paiement en ligne
+       * ou quand il n'a pas pu démarrer (cf. `paymentError`). */
+      paymentUrl: string | null;
+      /** La commande existe mais Jèko n'a pas pu démarrer le paiement : le client
+       * ira sur la page de suivi, où « Réessayer » le relance. */
+      paymentError: boolean;
+    }
   | {
       ok: false;
       error: string;
@@ -114,6 +128,9 @@ export type UseCheckoutFormOptions = {
   items: CartItem[];
   /** Total BRUT du panier ; le serveur déduit lui-même la récompense. */
   total: number;
+  /** Le paiement en ligne est actif : un moyen de paiement est obligatoire, et
+   * l'achat n'est pas compté à la création (la commande attend son paiement). */
+  paymentRequired?: boolean;
 };
 
 const INITIAL_VALUES: CheckoutFormValues = {
@@ -123,6 +140,7 @@ const INITIAL_VALUES: CheckoutFormValues = {
   timing: 'asap',
   pickupTime: null,
   note: '',
+  paymentMethod: null,
 };
 
 // ─── Validation pure (testable sans DOM) ─────────────────────────────────────
@@ -137,9 +155,17 @@ const INITIAL_VALUES: CheckoutFormValues = {
 export function validateCheckoutForm(
   values: CheckoutFormValues,
   items: CartItem[],
-  total: number
+  total: number,
+  options?: {
+    /** Le paiement en ligne est actif : un moyen de paiement est obligatoire. */
+    paymentRequired?: boolean;
+  }
 ): CheckoutFormErrors {
   const errors: CheckoutFormErrors = {};
+
+  if (options?.paymentRequired && !values.paymentMethod) {
+    errors.paymentMethod = 'Choisis un moyen de paiement';
+  }
 
   const name = values.customerName.trim();
   if (name.length < 2) {
@@ -276,6 +302,15 @@ export function mapCheckoutError(
         error:
           'Récompense fidélité indisponible — réessaie sans la récompense.',
       };
+    // Le menu a changé depuis que le panier a été rempli (prix, produit retiré) :
+    // rien n'a été créé ni facturé. Recharger la carte remet les prix à jour.
+    case 'CART_CHANGED':
+      return {
+        ok: false,
+        code: data.code,
+        error:
+          'Le menu a changé depuis que tu as rempli ton panier. Recharge la carte pour voir les prix à jour, rien n’a été facturé.',
+      };
     case 'VALIDATION':
       return {
         ok: false,
@@ -323,6 +358,11 @@ export async function submitCheckout({
         // Le serveur revalide la récompense (appartenance au client résolu du
         // téléphone, statut AVAILABLE) et déduit lui-même la remise du total.
         ...(loyaltyRewardId ? { loyaltyRewardId } : {}),
+        // Paiement en ligne : moyen choisi par le client. Le montant n'est PAS
+        // envoyé — le serveur le recalcule (panier, remise, frais) et l'impose.
+        ...(values.paymentMethod
+          ? { paymentMethod: values.paymentMethod }
+          : {}),
       }),
     });
   } catch {
@@ -342,8 +382,19 @@ export async function submitCheckout({
   }
 
   try {
-    const data = (await response.json()) as { id: string; reference: string };
-    return { ok: true, orderId: data.id, reference: data.reference };
+    const data = (await response.json()) as {
+      id: string;
+      reference: string;
+      paymentUrl?: string | null;
+      paymentError?: string;
+    };
+    return {
+      ok: true,
+      orderId: data.id,
+      reference: data.reference,
+      paymentUrl: data.paymentUrl ?? null,
+      paymentError: Boolean(data.paymentError),
+    };
   } catch {
     return {
       ok: false,
@@ -357,6 +408,7 @@ export async function submitCheckout({
 export function useCheckoutForm({
   items,
   total,
+  paymentRequired = false,
 }: UseCheckoutFormOptions): UseCheckoutFormResult {
   // Pré-remplissage « client fidèle » : coordonnées de la dernière commande
   // passée depuis cet appareil (lib/order-history.ts). Initialiseur paresseux
@@ -393,7 +445,9 @@ export function useCheckoutForm({
 
   const submit = useCallback<UseCheckoutFormResult['submit']>(
     async (loyaltyReward) => {
-      const validation = validateCheckoutForm(values, items, total);
+      const validation = validateCheckoutForm(values, items, total, {
+        paymentRequired,
+      });
       if (Object.keys(validation).length > 0) {
         setErrors(validation);
         // Erreur à corriger dans le formulaire : on referme le panneau
@@ -403,6 +457,7 @@ export function useCheckoutForm({
           validation.customerName ??
           validation.customerPhone ??
           validation.pickupTime ??
+          validation.paymentMethod ??
           validation.note ??
           'Veuillez corriger les champs invalides.';
         return { ok: false, error: first };
@@ -437,12 +492,16 @@ export function useCheckoutForm({
         const netTotal = total - Math.min(loyaltyReward?.capAmount ?? 0, total);
         // Conversion GA4. `transaction_id` = la référence de commande, seule
         // clé stable et lisible côté caisse pour rapprocher un chiffre GA4
-        // d'une commande réelle.
-        trackPurchase({
-          transactionId: outcome.reference,
-          value: netTotal,
-          items: items.map(cartItemToAnalyticsItem),
-        });
+        // d'une commande réelle. Avec le paiement en ligne, la commande ne
+        // devient un achat qu'AU PAIEMENT : compter ici chaque abandon gonflerait
+        // les conversions (l'événement part depuis la page de suivi).
+        if (!paymentRequired) {
+          trackPurchase({
+            transactionId: outcome.reference,
+            value: netTotal,
+            items: items.map(cartItemToAnalyticsItem),
+          });
+        }
         // Historique local « mes commandes » + coordonnées pour le prochain
         // checkout — l'effet « compte » sans compte (best-effort, jamais
         // bloquant : les helpers avalent un localStorage indisponible).
@@ -459,7 +518,7 @@ export function useCheckoutForm({
       }
       return outcome;
     },
-    [values, items, total]
+    [values, items, total, paymentRequired]
   );
 
   return {

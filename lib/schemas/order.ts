@@ -8,6 +8,7 @@
 // Les messages d'erreur restent en français (cible Côte d'Ivoire).
 
 import { z } from 'zod';
+import { PAYMENT_MODES } from '@/lib/payment-modes';
 import {
   CART_ITEM_QUANTITY_MAX,
   MAX_LINE_DISCOUNT_RATIO,
@@ -83,12 +84,7 @@ export const orderStatusSchema = z.enum([
 
 export const orderTypeSchema = z.enum(['DELIVERY', 'DINE_IN', 'TAKEAWAY']);
 
-export const paymentModeSchema = z.enum([
-  'CASH',
-  'WAVE',
-  'ORANGE_MONEY',
-  'OTHER',
-]);
+export const paymentModeSchema = z.enum(PAYMENT_MODES);
 
 export type OrderStatusInput = z.infer<typeof orderStatusSchema>;
 export type OrderTypeInput = z.infer<typeof orderTypeSchema>;
@@ -411,6 +407,11 @@ export const checkoutErrorCodeSchema = z.enum([
   'ADVANCE_ORDER_REQUIRED',
   'SCHEDULE_UNAVAILABLE',
   'LOYALTY_REWARD_UNAVAILABLE',
+  // Paiement en ligne (Jèko) : le panier ne correspond plus au menu (prix
+  // modifié, produit retiré, total falsifié) ; le fournisseur est en panne ou
+  // n'est pas configuré. Le détail du fournisseur n'est jamais exposé.
+  'CART_CHANGED',
+  'PAYMENT_PROVIDER_ERROR',
   // Libre-service après commande (app/api/commandes/[id]/*).
   'NOT_FOUND',
   'CONFLICT',

@@ -37,6 +37,7 @@
 // même convention que `lib/cashier-queue.ts`.
 
 import { startOfDay } from 'date-fns';
+import { withStaffVisible } from '@/lib/orders/visibility';
 import prisma from '@/lib/prisma';
 import type { OrderStatus } from '@/generated/prisma/client';
 
@@ -131,7 +132,7 @@ export async function fetchArdoise(opts?: {
   // tri et le même filtre `isPaid`. On les sépare en JS sur le statut.
   // `CANCELLED` est exclu par construction — il n'est dans aucune branche.
   const orders = await prisma.order.findMany({
-    where: {
+    where: withStaffVisible({
       isPaid: false,
       ...(opts?.customerId ? { customerId: opts.customerId } : {}),
       OR: [
@@ -144,7 +145,7 @@ export async function fetchArdoise(opts?: {
           createdAt: { lt: staleBefore },
         },
       ],
-    },
+    }),
     include: {
       customer: {
         select: { id: true, name: true, phone: true, isTrusted: true },

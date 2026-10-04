@@ -13,6 +13,7 @@ import {
   beforeEach,
   type MockedFunction,
 } from 'vitest';
+import { unwrapStaffVisible } from '@/lib/orders/visibility.test-utils';
 
 vi.mock('@/lib/prisma', () => ({
   default: { order: { findMany: vi.fn() } },
@@ -76,7 +77,7 @@ function lastWhere(): Record<string, unknown> {
   const args = mockFindMany.mock.calls.at(-1)?.[0] as {
     where: Record<string, unknown>;
   };
-  return args.where;
+  return unwrapStaffVisible(args.where);
 }
 
 /** Les deux branches du `OR` : [dette, à vérifier]. */

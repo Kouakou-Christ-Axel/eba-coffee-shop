@@ -1,16 +1,14 @@
 'use client';
 
 import { Select, SelectItem } from '@heroui/react';
+import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
 import { useOrdersNav } from './use-orders-nav';
 
 const OPTIONS = [
   { key: 'all', label: 'Tous paiements' },
   { key: 'unpaid', label: 'À encaisser' },
-  { key: 'CASH', label: 'Espèces' },
-  { key: 'WAVE', label: 'Wave' },
-  { key: 'ORANGE_MONEY', label: 'Orange Money' },
-  { key: 'OTHER', label: 'Autre' },
-] as const;
+  ...PAYMENT_MODES.map((m) => ({ key: m, label: PAYMENT_MODE_LABELS[m] })),
+];
 
 export function PaymentFilter({ value }: { value?: string }) {
   const { navigate } = useOrdersNav();

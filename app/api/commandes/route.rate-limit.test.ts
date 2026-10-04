@@ -14,6 +14,12 @@ vi.mock('@/lib/prisma', () => ({
 vi.mock('@/lib/email', () => ({
   sendNewOrderEmail: vi.fn().mockResolvedValue(undefined),
 }));
+// Paiement en ligne (Jèko) non configuré : ces tests couvrent le flux historique.
+// `ENV` de varlock n'existe que dans le runtime Next (cf. lib/site-url.ts).
+vi.mock('@/lib/jeko/config', () => ({
+  jekoConfig: vi.fn(() => null),
+  onlineFeePercent: vi.fn(() => 1),
+}));
 
 import { POST } from './route';
 

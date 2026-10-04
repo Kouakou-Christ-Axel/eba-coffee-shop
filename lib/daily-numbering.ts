@@ -18,6 +18,7 @@ export async function getNextDailyNumber(
   tx: Prisma.TransactionClient,
   dailyDate: Date
 ): Promise<number> {
+  // staff-visibility: exempt — le numéro du jour compte TOUTES les commandes, y compris en attente de paiement, pour qu'aucun numéro ne soit réutilisé
   const result = await tx.order.aggregate({
     where: { dailyDate },
     _max: { dailyNumber: true },

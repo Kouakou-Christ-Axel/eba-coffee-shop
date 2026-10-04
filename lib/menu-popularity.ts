@@ -14,6 +14,7 @@
 // est la seule à payer ce coût, via `attachPopularity()`.
 
 import prisma from '@/lib/prisma';
+import { withStaffVisible } from '@/lib/orders/visibility';
 import type { MenuCategory } from '@/config/menu';
 import type { CartItemInput } from '@/lib/schemas/order';
 import { todayDailyDate } from '@/lib/daily-numbering';
@@ -56,7 +57,10 @@ export async function fetchRecentOrderItems(): Promise<CartItemInput[]> {
   const from = new Date(to.getTime() - (POPULARITY_WINDOW_DAYS - 1) * DAY_MS);
 
   const orders = await prisma.order.findMany({
-    where: { dailyDate: { gte: from, lte: to }, status: { not: 'CANCELLED' } },
+    where: withStaffVisible({
+      dailyDate: { gte: from, lte: to },
+      status: { not: 'CANCELLED' },
+    }),
     select: { items: true },
   });
 

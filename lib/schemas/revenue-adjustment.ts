@@ -10,14 +10,10 @@ import {
   REVENUE_ADJUSTMENT_NOTE_MAX,
   REVENUE_ADJUSTMENT_AMOUNT_MAX,
 } from '@/config/constants';
+import { PAYMENT_MODES } from '@/lib/payment-modes';
 
 // Réutilise l'enum métier PaymentMode (cohérent avec les commandes / stats).
-export const revenueAdjustmentPaymentModeSchema = z.enum([
-  'CASH',
-  'WAVE',
-  'ORANGE_MONEY',
-  'OTHER',
-]);
+export const revenueAdjustmentPaymentModeSchema = z.enum(PAYMENT_MODES);
 
 export type RevenueAdjustmentPaymentModeInput = z.infer<
   typeof revenueAdjustmentPaymentModeSchema

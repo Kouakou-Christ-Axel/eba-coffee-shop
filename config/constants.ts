@@ -73,28 +73,12 @@ export const MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024;
 export const IMAGE_MAX_DIMENSION = 2200;
 
 /**
- * Preuve de paiement (capture Wave, page publique de suivi) : plafond dédié de
- * 1 Mo — bien plus strict que `MAX_UPLOAD_SIZE_BYTES` (uploads staff). L'image
- * est compressée dans le NAVIGATEUR avant envoi (lib/image-compress.ts,
- * ~100-300 Ko) ; ce plafond n'est qu'un garde-fou serveur, et il maintient ce
- * flux public sous la limite par défaut des reverse proxies (nginx : 1 Mo).
- */
-export const PAYMENT_PROOF_MAX_SIZE_BYTES = 1 * 1024 * 1024;
-
-/**
  * Taille maximale du PDF de la carte téléversé depuis le dashboard (10 MB) :
  * document imprimable, pas besoin d'un plafond aussi large que les photos
  * (`MAX_UPLOAD_SIZE_BYTES`). Stocké tel quel sur Cloudinary (`resource_type:
  * 'raw'`), sans retraitement — voir lib/cloudinary.ts.
  */
 export const MENU_PDF_MAX_SIZE_BYTES = 10 * 1024 * 1024;
-
-/**
- * Compression navigateur de la preuve de paiement : plus grand côté (px) et
- * qualité JPEG. Une capture Wave reste parfaitement lisible à 1600 px.
- */
-export const PAYMENT_PROOF_MAX_DIMENSION = 1600;
-export const PAYMENT_PROOF_JPEG_QUALITY = 0.82;
 
 /** Qualité WebP (0-100) à l'encodage des images stockées. */
 export const IMAGE_WEBP_QUALITY = 80;
@@ -228,6 +212,21 @@ export const MAX_LINE_DISCOUNT_RATIO = 0.5;
  */
 export const MIN_DEPOSIT_PERCENT = 50;
 
+/**
+ * Paiement en ligne (Jèko) : durée pendant laquelle une commande attend son
+ * paiement, comptée à partir de CHAQUE tentative. 10 min est trop court pour une
+ * validation Mobile Money (USSD ou application) sur les liens d'Abidjan, 30 min
+ * garde trop longtemps une commande en attente.
+ */
+export const PAYMENT_EXPIRY_MINUTES = 15;
+
+/**
+ * Frais de paiement en ligne facturés au client, en % du total (Jèko Checkout
+ * prélève 1,5 % : EBA absorbe l'écart). Réglable par `ONLINE_FEE_PERCENT`
+ * (lib/jeko/config.ts) ; cette valeur est le repli.
+ */
+export const ONLINE_FEE_PERCENT_DEFAULT = 1;
+
 /** Longueur max du motif de remise saisi par le caissier. */
 export const ORDER_DISCOUNT_REASON_MAX = 100;
 
@@ -260,17 +259,6 @@ export const SCHEDULED_ALERT_MINUTES = 15;
 export const PRODUCTION_PLAN_DAYS = 7;
 export const DEFERRED_PICKUP_DEFAULT_TIME = '11:00';
 export const LAUNCH_ALERT_MINUTES = 30;
-
-/**
- * Pré-analyse IA des preuves de paiement (Wave/Orange Money), via OpenRouter
- * (lib/ai/payment-proof.ts). Stratégie à deux étages : le modèle primaire
- * (rapide/économique) traite tous les appels ; le modèle de repli (plus
- * précis) n'est sollicité qu'en cas d'échec de parsing ou de confiance basse
- * du premier passage. Inerte si `OPENROUTER_API_KEY` est absente.
- */
-export const PAYMENT_PROOF_AI_MODEL_PRIMARY = 'google/gemini-2.5-flash';
-export const PAYMENT_PROOF_AI_MODEL_FALLBACK = 'anthropic/claude-sonnet-4.5';
-export const PAYMENT_PROOF_AI_CONFIDENCE_THRESHOLD = 0.6;
 
 /**
  * Presets rapides (minutes à partir de maintenant) proposés en caisse pour

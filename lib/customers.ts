@@ -5,6 +5,7 @@
 // compteur dénormalisé à maintenir.
 
 import type { Customer } from '@/generated/prisma/client';
+import { withStaffVisible } from '@/lib/orders/visibility';
 import prisma from '@/lib/prisma';
 import { customerPhoneKey } from '@/lib/phone';
 import { searchCustomers } from '@/lib/customer-search';
@@ -41,7 +42,10 @@ async function statsByCustomer(
   if (ids.length === 0) return new Map();
   const grouped = await prisma.order.groupBy({
     by: ['customerId'],
-    where: { customerId: { in: ids }, status: { not: 'CANCELLED' } },
+    where: withStaffVisible({
+      customerId: { in: ids },
+      status: { not: 'CANCELLED' },
+    }),
     _count: true,
     _sum: { total: true },
     _max: { createdAt: true },
@@ -195,22 +199,24 @@ export async function getCustomer(id: string) {
 
   const [orders, agg, cancelledCount, itemsRows] = await Promise.all([
     prisma.order.findMany({
-      where: { customerId: id },
+      where: withStaffVisible({ customerId: id }),
       orderBy: { createdAt: 'desc' },
       take: 50,
     }),
     prisma.order.aggregate({
-      where: { customerId: id, status: { not: 'CANCELLED' } },
+      where: withStaffVisible({ customerId: id, status: { not: 'CANCELLED' } }),
       _count: true,
       _sum: { total: true },
       _max: { createdAt: true },
       _min: { createdAt: true },
     }),
-    prisma.order.count({ where: { customerId: id, status: 'CANCELLED' } }),
+    prisma.order.count({
+      where: withStaffVisible({ customerId: id, status: 'CANCELLED' }),
+    }),
     // Requête à part (juste `items`) pour le produit favori : évite de
     // recharger les commandes complètes déjà limitées à 50 lignes ci-dessus.
     prisma.order.findMany({
-      where: { customerId: id, status: { not: 'CANCELLED' } },
+      where: withStaffVisible({ customerId: id, status: { not: 'CANCELLED' } }),
       select: { items: true },
     }),
   ]);
@@ -270,13 +276,19 @@ export async function getCustomerListSummary(): Promise<CustomerListSummary> {
         where: { createdAt: { gte: new Date(now - 30 * DAY_MS) } },
       }),
       prisma.order.aggregate({
-        where: { customerId: { not: null }, status: { not: 'CANCELLED' } },
+        where: withStaffVisible({
+          customerId: { not: null },
+          status: { not: 'CANCELLED' },
+        }),
         _count: true,
         _sum: { total: true },
       }),
       prisma.order.groupBy({
         by: ['customerId'],
-        where: { customerId: { not: null }, status: { not: 'CANCELLED' } },
+        where: withStaffVisible({
+          customerId: { not: null },
+          status: { not: 'CANCELLED' },
+        }),
         _max: { createdAt: true },
       }),
     ]);

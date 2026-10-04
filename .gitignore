@@ -48,6 +48,7 @@ generated/prisma
 env.d.ts
 
 !.env.schema
+!.env.example
 
 # uploads (persisted across deploys, e.g. via PM2 deploy hook or symlink)
 /public/uploads/

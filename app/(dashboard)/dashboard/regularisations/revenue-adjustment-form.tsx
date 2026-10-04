@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,12 +24,10 @@ export type RevenueAdjustmentFormValues = {
   note: string;
 };
 
-const PAYMENT_MODES = [
-  { value: 'CASH', label: 'Espèces' },
-  { value: 'WAVE', label: 'Wave' },
-  { value: 'ORANGE_MONEY', label: 'Orange Money' },
-  { value: 'OTHER', label: 'Autre' },
-] as const;
+const PAYMENT_MODE_OPTIONS = PAYMENT_MODES.map((m) => ({
+  value: m,
+  label: PAYMENT_MODE_LABELS[m],
+}));
 
 const selectClass =
   'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
@@ -153,7 +152,7 @@ export function RevenueAdjustmentForm({
             value={values.paymentMode}
             onChange={(e) => set('paymentMode', e.target.value)}
           >
-            {PAYMENT_MODES.map((p) => (
+            {PAYMENT_MODE_OPTIONS.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}
               </option>
