@@ -20,7 +20,7 @@ import {
 
 // Réponses d'erreur : toujours un `code` stable (voir `checkoutErrorCodeSchema`,
 // lib/schemas/order.ts) — le client aiguille dessus, le `error` reste le
-// message lisible. Mapping partagé avec le libre-service après commande.
+// message lisible. Mapping partagé avec les routes publiques de la page de suivi.
 
 export async function POST(req: NextRequest) {
   if (!allowOrderCreate(orderCreateRateKey(req))) {

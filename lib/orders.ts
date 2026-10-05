@@ -37,7 +37,6 @@ import {
   findScheduleBlockedItem,
 } from '@/lib/orders/availability';
 import { isDeferredPickup } from '@/lib/orders/scheduling';
-import { canCustomerSelfServe } from '@/lib/orders/self-service';
 import { getPaymentView, type PaymentView } from '@/lib/orders/payment-view';
 import { isPickupDateAllowed } from '@/lib/supplements';
 import { ORDERS_PAGE_SIZE, PHONE_SEARCH_MIN_DIGITS } from '@/config/constants';
@@ -180,10 +179,8 @@ const MAX_DAILY_NUMBER_RETRIES = 3;
 /**
  * Règles du flux PUBLIC sur des articles et une date de retrait : délai de
  * commande à l'avance, planning/fenêtre « spécialité », et stock pour un
- * retrait aujourd'hui. Partagé par la création (`createOrder`) et le
- * libre-service après commande (`lib/order-self-service.ts` : remplacer un
- * article, changer de créneau) — une commande modifiée par le client obéit
- * aux mêmes règles qu'une commande neuve. Lecture seule.
+ * retrait aujourd'hui. Utilisé par la création (`createOrder`). Lecture
+ * seule.
  *
  * Lève `AdvanceOrderRequiredError`, `ScheduleUnavailableError` ou
  * `SoldOutTodayError`.
@@ -497,15 +494,6 @@ export type PublicOrderView = {
    * identifié (pas de téléphone exploitable) — toujours résolu par
    * téléphone (clé unique de `Customer`), jamais par le nom. */
   loyalty: PublicOrderLoyaltyView | null;
-  /** Ce que le client peut faire SEUL depuis la page de suivi (voir
-   * `canCustomerSelfServe`, lib/orders/self-service.ts) — l'interface
-   * n'affiche que ces actions ; le serveur les revérifie à l'écriture. */
-  selfService: {
-    canCancel: boolean;
-    canReschedule: boolean;
-    /** Remplacer/retirer : seulement s'il y a un article indisponible. */
-    canEditItems: boolean;
-  };
 };
 
 /**
@@ -554,11 +542,7 @@ export async function getPublicOrder(
   }
 
   const loyalty = await getPublicOrderLoyalty(order);
-  const selfServe = canCustomerSelfServe(order);
   const payment = getPaymentView(order);
-  // Tant que le paiement est en cours, le panier et le créneau sont figés : les
-  // changer modifierait le montant déjà demandé à Jèko. Annuler reste possible.
-  const payable = payment.state !== 'pending';
 
   return {
     id: order.id,
@@ -581,11 +565,6 @@ export async function getPublicOrder(
     driverPhone: order.driverPhone,
     createdAt: order.createdAt.toISOString(),
     loyalty,
-    selfService: {
-      canCancel: selfServe,
-      canReschedule: selfServe && payable,
-      canEditItems: selfServe && payable && !fulfillable,
-    },
   };
 }
 

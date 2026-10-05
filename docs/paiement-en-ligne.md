@@ -114,8 +114,10 @@ aussi en local ; en test, changer l'en-tête `x-forwarded-for` suffit.
   les deux, la seconde transaction est détectée (`Order.paymentTransactionId`) et le
   staff est alerté pour rembourser depuis le Dashboard Jèko.
 - **Montant figé** : `Order.paymentAmountDue` garde ce qui a été demandé à Jèko. Le
-  règlement compare à cette valeur, pas à `total + frais` recalculé (l'annulation par le
-  client remet `total` au prix brut).
+  règlement compare à cette valeur, pas à `total + frais` recalculé.
+- **Le client ne modifie ni n'annule sa commande** : plus de libre-service sur la page
+  de suivi (remplacer un article, changer de créneau, annuler). Tout passe par le
+  comptoir ; seule la relance du paiement reste possible côté client.
 - **Pas de remboursement automatique** : aucune API de remboursement n'a été repérée,
   il se fait à la main depuis le Dashboard Jèko.
 

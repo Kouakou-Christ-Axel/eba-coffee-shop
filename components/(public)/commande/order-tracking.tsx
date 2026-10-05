@@ -8,7 +8,6 @@
 // localisation, paiement Wave + preuve. Le client n'identifie plus son
 // livreur : il lui suffit de lui donner le code de retrait.
 
-import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Button, Chip } from '@heroui/react';
 import { m, useReducedMotion } from 'framer-motion';
@@ -47,14 +46,6 @@ import {
   ORDER_TRACKING_POLL_INTERVAL_MS,
 } from '@/config/constants';
 import { cn } from '@/lib/utils';
-
-// Libre-service (remplacer, changer de créneau, annuler) : chargé seulement
-// quand la commande le permet — une commande payée ou en cuisine n'embarque
-// rien de ce code.
-const OrderSelfService = dynamic(
-  () => import('@/components/(public)/commande/order-self-service'),
-  { ssr: false }
-);
 
 type Props = {
   initialOrder: PublicOrderView;
@@ -95,7 +86,6 @@ export function OrderTracking({
   paymentReturn,
 }: Props) {
   const [order, setOrder] = useState<PublicOrderView>(initialOrder);
-  const [resolveOpen, setResolveOpen] = useState(false);
   const reduceMotion = useReducedMotion();
   // URL de suivi, indisponible au rendu serveur (snapshot '') — partagée
   // entre le partage du lien (code de retrait) et le bloc livreur.
@@ -182,8 +172,6 @@ export function OrderTracking({
   // Retrait un jour ultérieur : la commande reste « Reçue » jusqu'au jour J.
   // Sans le dire, le client croit qu'elle est oubliée.
   const deferred = deferredPickupLabel(order, new Date());
-  const { canCancel, canReschedule, canEditItems } = order.selfService;
-  const canSelfServe = canCancel || canReschedule || canEditItems;
 
   return (
     <div className="flex flex-col gap-5">
@@ -244,21 +232,10 @@ export function OrderTracking({
               Un article n&apos;est plus disponible
             </p>
             <p className="text-sm text-foreground/60">
-              {canEditItems
-                ? 'Un autre client a pris la dernière quantité : remplace-le ou retire-le avant de payer.'
-                : 'Contacte-nous ou choisis autre chose avant de payer — un autre client a pris la dernière quantité.'}
+              Contacte-nous avant de payer — un autre client a pris la dernière
+              quantité.
             </p>
           </div>
-          {canEditItems && (
-            <Button
-              color="warning"
-              size="sm"
-              className="min-h-9 shrink-0"
-              onPress={() => setResolveOpen(true)}
-            >
-              Remplacer
-            </Button>
-          )}
         </div>
       )}
 
@@ -327,16 +304,6 @@ export function OrderTracking({
           </Button>
         )}
       </div>
-
-      {/* ── Libre-service : créneau, annulation, remplacement ── */}
-      {!isCancelled && canSelfServe && (
-        <OrderSelfService
-          order={order}
-          onOrderChange={setOrder}
-          resolveOpen={resolveOpen}
-          onResolveOpenChange={setResolveOpen}
-        />
-      )}
 
       {/* ── Fidélité ── */}
       {!isCancelled && order.loyalty && (

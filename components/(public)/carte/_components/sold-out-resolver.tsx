@@ -13,11 +13,7 @@
 //   3. retirer la ligne.
 // Et, pour tout le panier : « Tout garder, retrait demain ».
 //
-// Deux usages (`mode`) :
-//   - `cart` : au checkout, sur le panier (checkout-form.tsx) ;
-//   - `order` : sur la page de suivi, pour une commande déjà passée dont un
-//     article s'est épuisé (order-self-service.tsx) — chaque geste est
-//     appliqué tout de suite par le serveur, pas de bouton « Valider ».
+// Utilisé au checkout, sur le panier (checkout-form.tsx).
 //
 // Chargé via `next/dynamic` : rien de ce code n'entre dans le chunk initial
 // des pages qui l'utilisent.
@@ -71,15 +67,9 @@ export type SoldOutResolverProps = {
   onRemove: (cartId: string) => void;
   /** Garde les lignes restantes telles quelles, retrait reporté à demain. */
   onDeferAll: (cartIds: string[]) => void;
-  /** Renvoie la commande une fois tout résolu (mode `cart`). */
+  /** Renvoie la commande une fois tout résolu. */
   onSubmit?: () => void;
   isSubmitting?: boolean;
-  /** `cart` (défaut) : panier du checkout ; `order` : commande déjà passée. */
-  mode?: 'cart' | 'order';
-  /** Geste en cours côté serveur (mode `order`) : les actions sont gelées. */
-  busy?: boolean;
-  /** Dernière erreur à afficher en tête du panneau. */
-  error?: string | null;
   /** Menu déjà chargé par l'appelant (page de commande) : évite une seconde
    * requête. Absent = chargé à l'ouverture. */
   menu?: MenuCategory[] | null;
@@ -122,11 +112,7 @@ export default function SoldOutResolver({
   onSubmit,
   isSubmitting = false,
   menu: preloadedMenu,
-  mode = 'cart',
-  busy = false,
-  error = null,
 }: SoldOutResolverProps) {
-  const isOrder = mode === 'order';
   const menu = useMenuWhenOpen(isOpen, preloadedMenu);
   // Lignes dont la quantité a été réduite au stock restant : toujours dans
   // le panier, mais réglées.
@@ -156,33 +142,16 @@ export default function SoldOutResolver({
           {resolved ? 'C’est réglé' : 'Victime de son succès'}
           <span className="text-sm font-normal text-foreground/60">
             {resolved
-              ? isOrder
-                ? 'Ta commande est à jour.'
-                : 'Ton panier est à jour, tu peux valider ta commande.'
+              ? 'Ton panier est à jour, tu peux valider ta commande.'
               : `${
                   pending.length > 1
                     ? 'Ces articles viennent d’être épuisés.'
                     : 'Cet article vient d’être épuisé.'
-                } ${
-                  isOrder
-                    ? 'Choisis une solution : ta commande est mise à jour aussitôt.'
-                    : 'Choisis comment continuer — ta commande n’est pas perdue.'
-                }`}
+                } Choisis comment continuer — ta commande n’est pas perdue.`}
           </span>
         </ModalHeader>
 
-        <ModalBody
-          className={`gap-4 ${busy ? 'pointer-events-none opacity-60' : ''}`}
-          aria-busy={busy}
-        >
-          {error && (
-            <p
-              role="alert"
-              className="rounded-xl bg-danger-50 px-3 py-2.5 text-sm text-danger-700"
-            >
-              {error}
-            </p>
-          )}
+        <ModalBody className="gap-4">
           {pending.map((line) => {
             const item = byCartId.get(line.cartId)!;
             return (
@@ -216,32 +185,20 @@ export default function SoldOutResolver({
 
         <ModalFooter className="flex-col gap-2 sm:flex-col">
           {resolved ? (
-            isOrder ? (
-              <Button
-                color="primary"
-                size="lg"
-                className="w-full"
-                onPress={onClose}
-              >
-                Fermer
-              </Button>
-            ) : (
-              <Button
-                color="primary"
-                size="lg"
-                className="w-full"
-                isLoading={isSubmitting}
-                onPress={onSubmit}
-              >
-                Valider ma commande
-              </Button>
-            )
+            <Button
+              color="primary"
+              size="lg"
+              className="w-full"
+              isLoading={isSubmitting}
+              onPress={onSubmit}
+            >
+              Valider ma commande
+            </Button>
           ) : (
             <Button
               variant="bordered"
               size="lg"
               className="w-full"
-              isDisabled={busy}
               startContent={
                 <CalendarClock className="h-4 w-4" aria-hidden="true" />
               }
