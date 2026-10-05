@@ -16,6 +16,7 @@
 // potentiellement engagé par des commandes pas encore parties en cuisine.
 
 import prisma from '@/lib/prisma';
+import { withStaffVisible } from '@/lib/orders/visibility';
 import type { CartItem } from '@/lib/cart-store';
 import { parseDateOnlyToUTC } from '@/lib/timezone';
 
@@ -55,11 +56,11 @@ export async function getPendingDemand(
 
   const [orders, options] = await Promise.all([
     prisma.order.findMany({
-      where: {
+      where: withStaffVisible({
         stockReservedAt: null,
         status: { not: 'CANCELLED' },
         ...dayFilter,
-      },
+      }),
       select: { items: true },
     }),
     prisma.supplementOption.findMany({

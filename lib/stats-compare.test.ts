@@ -12,6 +12,7 @@ import {
   beforeEach,
   type MockedFunction,
 } from 'vitest';
+import { unwrapStaffVisible } from '@/lib/orders/visibility.test-utils';
 
 vi.mock('@/lib/prisma', () => ({
   default: {
@@ -109,7 +110,10 @@ describe('compareRanges', () => {
 
     // Période courante : 2 commandes (3000) ; précédente : 1 commande (1000).
     mockOrderFindMany.mockImplementation(async (args) => {
-      const range = args.where.dailyDate as { gte: Date };
+      const range = unwrapStaffVisible<FindManyArgs['where']>(args.where)
+        .dailyDate as {
+        gte: Date;
+      };
       return range.gte.getTime() === from.getTime()
         ? [paidOrder(1000), paidOrder(2000)]
         : [paidOrder(1000)];
@@ -144,7 +148,10 @@ describe('compareRanges', () => {
     const from = utc(2026, 5, 10);
     const to = utc(2026, 5, 10);
     mockOrderFindMany.mockImplementation(async (args) => {
-      const range = args.where.dailyDate as { gte: Date };
+      const range = unwrapStaffVisible<FindManyArgs['where']>(args.where)
+        .dailyDate as {
+        gte: Date;
+      };
       return range.gte.getTime() === from.getTime() ? [paidOrder(1000)] : [];
     });
     mockAdjGroupBy.mockResolvedValue([]);
@@ -160,7 +167,10 @@ describe('compareRanges', () => {
     const from = utc(2026, 5, 8);
     const to = utc(2026, 5, 10);
     mockOrderFindMany.mockImplementation(async (args) => {
-      const range = args.where.dailyDate as { gte: Date };
+      const range = unwrapStaffVisible<FindManyArgs['where']>(args.where)
+        .dailyDate as {
+        gte: Date;
+      };
       // Courante : 1 annulée sur 4 (25 %) ; précédente : 1 sur 2 (50 %).
       return range.gte.getTime() === from.getTime()
         ? [
@@ -198,7 +208,13 @@ describe('compareDays', () => {
       [utc(2026, 5, 3).getTime(), [paidOrder(4000)]],
     ]);
     mockOrderFindMany.mockImplementation(
-      async (args) => byDay.get((args.where.dailyDate as Date).getTime()) ?? []
+      async (args) =>
+        byDay.get(
+          (
+            unwrapStaffVisible<FindManyArgs['where']>(args.where)
+              .dailyDate as Date
+          ).getTime()
+        ) ?? []
     );
     mockAdjGroupBy.mockResolvedValue([]);
 

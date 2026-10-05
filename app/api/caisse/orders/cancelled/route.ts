@@ -11,6 +11,7 @@
 // caisse n'appelle cette route qu'à son ouverture.
 
 import { NextResponse } from 'next/server';
+import { withStaffVisible } from '@/lib/orders/visibility';
 import { endOfDay, startOfDay } from 'date-fns';
 import { requireCashier } from '@/lib/auth-helpers';
 import prisma from '@/lib/prisma';
@@ -25,10 +26,10 @@ export async function GET() {
   try {
     const now = new Date();
     const orders = await prisma.order.findMany({
-      where: {
+      where: withStaffVisible({
         status: 'CANCELLED',
         createdAt: { gte: startOfDay(now), lte: endOfDay(now) },
-      },
+      }),
       // L'annulation la plus récente en tête : c'est celle qu'on vient de faire
       // par erreur, ou celle dont le client revient le plus vite discuter.
       orderBy: { updatedAt: 'desc' },

@@ -1,4 +1,5 @@
 import { Download, ReceiptText, Scale } from 'lucide-react';
+import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
 import type { PaymentMode } from '@/generated/prisma/client';
 import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
 import { listRevenueAdjustments } from '@/lib/revenue-adjustments';
@@ -23,14 +24,9 @@ export const dynamic = 'force-dynamic';
 const DEFAULT_RANGE_DAYS = 30;
 const priceFmt = new Intl.NumberFormat('fr-FR');
 
-const PAYMENT_LABELS: Record<string, string> = {
-  CASH: 'Espèces',
-  WAVE: 'Wave',
-  ORANGE_MONEY: 'Orange Money',
-  OTHER: 'Autre',
-};
+const PAYMENT_LABELS: Record<string, string> = PAYMENT_MODE_LABELS;
 
-const MODES = ['CASH', 'WAVE', 'ORANGE_MONEY', 'OTHER'] as const;
+const MODES = PAYMENT_MODES;
 
 function formatSigned(amount: number): string {
   const sign = amount < 0 ? '−' : '+';

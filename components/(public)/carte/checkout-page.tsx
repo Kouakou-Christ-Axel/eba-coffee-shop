@@ -13,6 +13,9 @@ import { useCartAvailability } from '@/lib/hooks/use-cart-availability';
 import { CartLineStatusChip } from './_components/cart-line-status';
 import { formatSupplementLabel } from '@/lib/orders/format';
 import { CheckoutForm } from './checkout-form';
+import { PaymentBreakdown } from './_components/payment-breakdown';
+import { useOnlinePayment } from '@/lib/hooks/use-online-payment';
+import { withOnlineFee } from '@/lib/online-fee';
 
 export function CheckoutPage() {
   const router = useRouter();
@@ -30,6 +33,13 @@ export function CheckoutPage() {
     []
   );
   const netTotal = Math.max(0, totalPrice - loyaltyDiscount);
+  // Paiement en ligne (Jèko) : frais ajoutés au total NET, montrés AVANT le clic.
+  const onlinePayment = useOnlinePayment();
+  const payOnline = onlinePayment.status === 'ready' && onlinePayment.enabled;
+  const { fee } = withOnlineFee(
+    netTotal,
+    onlinePayment.status === 'ready' ? onlinePayment.feePercent : 0
+  );
 
   // Menu frais (stock compris), une fois au montage : revérifie le panier
   // pour signaler une rupture AVANT le clic sur « Confirmer », et nourrit le
@@ -61,10 +71,26 @@ export function CheckoutPage() {
     }
   }, [hydrated, items.length, router]);
 
-  function handleSuccess(orderId: string) {
+  function handleSuccess(
+    orderId: string,
+    paymentUrl: string | null,
+    paymentError: boolean
+  ) {
     submittedRef.current = true;
     clearCart();
-    router.replace(`/commande/${orderId}`);
+    // Paiement en ligne : on part chez le fournisseur, qui nous ramène sur la page
+    // de suivi. Navigation « dure » (hors Next) : c'est un autre site. Sans URL
+    // (flux historique, ou paiement qui n'a pas pu démarrer), on va directement
+    // au suivi, où « Réessayer » relance le paiement.
+    if (paymentUrl) {
+      window.location.assign(paymentUrl);
+      return;
+    }
+    // Jèko a refusé de créer le paiement : on le dit au lieu d'afficher un bouton
+    // de paiement sans explication.
+    router.replace(
+      `/commande/${orderId}${paymentError ? '?paiement=indisponible' : ''}`
+    );
   }
 
   if (!hydrated || items.length === 0) return null;
@@ -108,12 +134,22 @@ export function CheckoutPage() {
             </span>
           </div>
         )}
-        <div className="mt-3 flex justify-between border-t border-foreground/10 pt-3 text-sm font-semibold">
-          <span>Total</span>
-          <span className="text-primary">
-            {priceFormatter.format(netTotal)}&nbsp;F
-          </span>
-        </div>
+        {payOnline ? (
+          <PaymentBreakdown
+            netTotal={netTotal}
+            fee={fee}
+            feePercent={
+              onlinePayment.status === 'ready' ? onlinePayment.feePercent : 0
+            }
+          />
+        ) : (
+          <div className="mt-3 flex justify-between border-t border-foreground/10 pt-3 text-sm font-semibold">
+            <span>Total</span>
+            <span className="text-primary">
+              {priceFormatter.format(netTotal)}&nbsp;F
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="mt-6">
@@ -123,6 +159,7 @@ export function CheckoutPage() {
           onBack={() => router.push('/carte')}
           onSuccess={handleSuccess}
           onLoyaltyDiscountChange={handleLoyaltyDiscountChange}
+          onlinePayment={onlinePayment}
           menu={menu}
           availability={availability}
         />

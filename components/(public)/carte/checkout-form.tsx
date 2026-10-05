@@ -25,10 +25,14 @@ import { useCheckoutForm } from '@/lib/hooks/use-checkout-form';
 import { usePickupInfo } from '@/lib/hooks/use-pickup-info';
 import { useLoyaltyReward } from '@/lib/hooks/use-loyalty-reward';
 import { useLoyaltyTeaser } from '@/lib/hooks/use-loyalty-teaser';
+import type { OnlinePaymentState } from '@/lib/hooks/use-online-payment';
+import { withOnlineFee } from '@/lib/online-fee';
+import { priceFormatter } from '@/config/menu';
 import { ContactFields } from './_components/contact-fields';
 import { LoyaltyRewardBanner } from './_components/loyalty-reward-banner';
 import { PickupModeCards } from './_components/pickup-mode-cards';
 import { NoteField } from './_components/note-field';
+import { PaymentMethodPicker } from './_components/payment-method-picker';
 import { SlotPicker } from './_components/slot-picker';
 
 // Panneau « Résoudre » (rupture du jour) : chargé seulement quand une rupture
@@ -43,9 +47,16 @@ type Props = {
   /** Total BRUT du panier (le serveur déduit lui-même la récompense). */
   total: number;
   onBack: () => void;
-  onSuccess: (orderId: string) => void;
+  /** `paymentUrl` : page de paiement vers laquelle rediriger (null = aucune). */
+  onSuccess: (
+    orderId: string,
+    paymentUrl: string | null,
+    paymentError: boolean
+  ) => void;
   /** Remonte la remise fidélité appliquée pour le récap de la page. */
   onLoyaltyDiscountChange?: (discount: number) => void;
+  /** Config du paiement en ligne (lue par la page, cf. `useOnlinePayment`). */
+  onlinePayment: OnlinePaymentState;
   /** Menu frais chargé par la page (partagé avec le panneau « Résoudre »). */
   menu?: MenuCategory[] | null;
   /** Panier revérifié contre ce menu (`useCartAvailability`). */
@@ -58,6 +69,7 @@ export function CheckoutForm({
   onBack,
   onSuccess,
   onLoyaltyDiscountChange,
+  onlinePayment,
   menu,
   availability,
 }: Props) {
@@ -74,7 +86,11 @@ export function CheckoutForm({
     soldOutLines,
     showSoldOutLines,
     clearSoldOutLines,
-  } = useCheckoutForm({ items, total });
+  } = useCheckoutForm({
+    items,
+    total,
+    paymentRequired: onlinePayment.status === 'ready' && onlinePayment.enabled,
+  });
   const replaceItem = useCartStore((s) => s.replaceItem);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
   const removeItem = useCartStore((s) => s.removeItem);
@@ -109,6 +125,12 @@ export function CheckoutForm({
   // circulaire reward → discount → netTotal → reward).
   const netTotal = Math.max(0, total - discount);
   const loyaltyMessage = useLoyaltyTeaser(values.customerPhone, netTotal);
+  // Paiement en ligne : montant réellement débité = total net + frais.
+  const payOnline = onlinePayment.status === 'ready' && onlinePayment.enabled;
+  const { amountDue } = withOnlineFee(
+    netTotal,
+    onlinePayment.status === 'ready' ? onlinePayment.feePercent : 0
+  );
 
   // Remonte la remise au récapitulatif de la page (au-dessus du formulaire).
   useEffect(() => {
@@ -139,7 +161,8 @@ export function CheckoutForm({
       return;
     }
     const outcome = await submit(activeReward);
-    if (outcome.ok) onSuccess(outcome.orderId);
+    if (outcome.ok)
+      onSuccess(outcome.orderId, outcome.paymentUrl, outcome.paymentError);
     // Récompense consommée entre-temps : on la retire pour que le prochain
     // envoi passe sans elle (le message l'explique au client).
     if (!outcome.ok && outcome.code === 'LOYALTY_REWARD_UNAVAILABLE') {
@@ -292,6 +315,22 @@ export function CheckoutForm({
         onChange={(v) => setField('note', v)}
       />
 
+      {payOnline && (
+        <PaymentMethodPicker
+          methods={onlinePayment.methods}
+          value={values.paymentMethod}
+          onChange={(m) => setField('paymentMethod', m)}
+          error={errors.paymentMethod}
+        />
+      )}
+
+      {onlinePayment.status === 'error' && (
+        <p role="alert" className="text-sm text-danger">
+          Impossible de charger les moyens de paiement. Recharge la page pour
+          réessayer.
+        </p>
+      )}
+
       {errors.submit && <p className="text-sm text-danger">{errors.submit}</p>}
 
       {soldOutLines.length > 0 && (
@@ -316,9 +355,14 @@ export function CheckoutForm({
         size="lg"
         className="w-full"
         isLoading={isSubmitting}
-        isDisabled={isSubmitting}
+        // Tant que la config du paiement n'est pas connue (ou a échoué), envoyer
+        // créerait une commande sans moyen de paiement alors que le serveur en
+        // exige un.
+        isDisabled={isSubmitting || onlinePayment.status !== 'ready'}
       >
-        Confirmer la commande
+        {payOnline
+          ? `Payer ${priceFormatter.format(amountDue)} F`
+          : 'Confirmer la commande'}
       </Button>
     </form>
   );

@@ -4,6 +4,7 @@
 // Calcule sur la base du dailyDate (jour civil local Abidjan).
 
 import prisma from '@/lib/prisma';
+import { withStaffVisible } from '@/lib/orders/visibility';
 import type {
   OrderStatus,
   OrderType,
@@ -13,14 +14,12 @@ import type { CartItemInput } from '@/lib/schemas/order';
 import { todayDailyDate } from '@/lib/daily-numbering';
 import { getSupplementsPrice } from '@/lib/supplements';
 import { formatLocalDateOnly } from '@/lib/timezone';
+import { PAYMENT_MODES, emptyModeRecord } from '@/lib/payment-modes';
 import {
   sumAdjustmentsByMode,
   sumAdjustmentsByModeForDay,
   sumAdjustmentsByDay,
 } from '@/lib/revenue-adjustments';
-
-// Modes de paiement (pour l'ajout des régularisations de recette au CA).
-const PAYMENT_MODES: PaymentMode[] = ['CASH', 'WAVE', 'ORANGE_MONEY', 'OTHER'];
 
 export type DailyStats = {
   date: Date;
@@ -40,7 +39,7 @@ export async function getDailyStats(
 ): Promise<DailyStats> {
   const [orders, adjustments] = await Promise.all([
     prisma.order.findMany({
-      where: { dailyDate: date },
+      where: withStaffVisible({ dailyDate: date }),
       select: {
         id: true,
         status: true,
@@ -62,8 +61,8 @@ export async function getDailyStats(
     paidOrders: 0,
     revenue: 0,
     countByOrderType: { DELIVERY: 0, DINE_IN: 0, TAKEAWAY: 0 },
-    countByPaymentMode: { CASH: 0, WAVE: 0, ORANGE_MONEY: 0, OTHER: 0 },
-    revenueByPaymentMode: { CASH: 0, WAVE: 0, ORANGE_MONEY: 0, OTHER: 0 },
+    countByPaymentMode: emptyModeRecord(),
+    revenueByPaymentMode: emptyModeRecord(),
   };
 
   const paidOrderIds: string[] = [];
@@ -142,7 +141,7 @@ export type RangeStats = {
 export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
   const [orders, adjustments] = await Promise.all([
     prisma.order.findMany({
-      where: { dailyDate: { gte: from, lte: to } },
+      where: withStaffVisible({ dailyDate: { gte: from, lte: to } }),
       select: {
         id: true,
         status: true,
@@ -172,8 +171,8 @@ export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
       CANCELLED: 0,
     },
     countByOrderType: { DELIVERY: 0, DINE_IN: 0, TAKEAWAY: 0 },
-    countByPaymentMode: { CASH: 0, WAVE: 0, ORANGE_MONEY: 0, OTHER: 0 },
-    revenueByPaymentMode: { CASH: 0, WAVE: 0, ORANGE_MONEY: 0, OTHER: 0 },
+    countByPaymentMode: emptyModeRecord(),
+    revenueByPaymentMode: emptyModeRecord(),
   };
 
   const paidOrderIds: string[] = [];
@@ -235,7 +234,7 @@ export async function getDailySeries(
 ): Promise<DailyPoint[]> {
   const [rows, adjByDay] = await Promise.all([
     prisma.order.findMany({
-      where: { dailyDate: { gte: from, lte: to } },
+      where: withStaffVisible({ dailyDate: { gte: from, lte: to } }),
       select: { dailyDate: true, total: true, isPaid: true, status: true },
     }),
     sumAdjustmentsByDay(from, to),
@@ -281,7 +280,10 @@ export async function getTopProducts(
   limit = 8
 ): Promise<TopProduct[]> {
   const rows = await prisma.order.findMany({
-    where: { dailyDate: { gte: from, lte: to }, status: { not: 'CANCELLED' } },
+    where: withStaffVisible({
+      dailyDate: { gte: from, lte: to },
+      status: { not: 'CANCELLED' },
+    }),
     select: { items: true },
   });
 
@@ -314,6 +316,7 @@ export async function getTopProducts(
 
 /** Jour civil de la toute première commande (toutes dates confondues), ou `null` si aucune commande n'existe encore. Sert à résoudre le preset "Depuis le début". */
 export async function getEarliestOrderDate(): Promise<Date | null> {
+  // staff-visibility: exempt — plus ancienne date de commande, sans effet sur les chiffres affichés
   const result = await prisma.order.aggregate({ _min: { dailyDate: true } });
   return result._min.dailyDate ?? null;
 }

@@ -7,6 +7,7 @@
 // `getDailySeries`).
 
 import prisma from '@/lib/prisma';
+import { withStaffVisible } from '@/lib/orders/visibility';
 import { formatLocalDateOnly } from '@/lib/timezone';
 
 export type HourlyPoint = {
@@ -27,7 +28,10 @@ export async function getHourlyDistribution(
   to: Date
 ): Promise<HourlyPoint[]> {
   const rows = await prisma.order.findMany({
-    where: { dailyDate: { gte: from, lte: to }, status: { not: 'CANCELLED' } },
+    where: withStaffVisible({
+      dailyDate: { gte: from, lte: to },
+      status: { not: 'CANCELLED' },
+    }),
     select: { createdAt: true, total: true, isPaid: true },
   });
 
@@ -92,7 +96,10 @@ export async function getKitchenPerformance(
   to: Date
 ): Promise<KitchenStats> {
   const rows = await prisma.order.findMany({
-    where: { dailyDate: { gte: from, lte: to }, status: { not: 'CANCELLED' } },
+    where: withStaffVisible({
+      dailyDate: { gte: from, lte: to },
+      status: { not: 'CANCELLED' },
+    }),
     select: {
       dailyDate: true,
       createdAt: true,
@@ -107,8 +114,7 @@ export async function getKitchenPerformance(
 
   for (const r of rows) {
     if (r.preparingStartedAt && r.readyAt) {
-      const sec =
-        (r.readyAt.getTime() - r.preparingStartedAt.getTime()) / 1000;
+      const sec = (r.readyAt.getTime() - r.preparingStartedAt.getTime()) / 1000;
       if (sec >= 0) {
         prepDurations.push(sec);
         const key = formatLocalDateOnly(r.dailyDate);

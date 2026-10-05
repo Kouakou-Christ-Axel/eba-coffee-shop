@@ -8,7 +8,6 @@
 // localisation, paiement Wave + preuve. Le client n'identifie plus son
 // livreur : il lui suffit de lui donner le code de retrait.
 
-import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Button, Chip } from '@heroui/react';
 import { m, useReducedMotion } from 'framer-motion';
@@ -30,6 +29,8 @@ import { MapEmbed } from '@/components/(public)/_components/map-embed';
 import { OrderNotifications } from '@/components/(public)/commande/order-notifications';
 import { OrderNotificationsModal } from '@/components/(public)/commande/order-notifications-modal';
 import { PaymentSection } from '@/components/(public)/commande/payment-section';
+import type { PaymentReturn } from '@/lib/orders/payment-panel';
+import { cartItemToAnalyticsItem, trackPurchase } from '@/lib/analytics';
 import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
 import { getItemGross } from '@/lib/orders/totals';
 import { formatPickupTime } from '@/lib/format-order';
@@ -46,19 +47,13 @@ import {
 } from '@/config/constants';
 import { cn } from '@/lib/utils';
 
-// Libre-service (remplacer, changer de créneau, annuler) : chargé seulement
-// quand la commande le permet — une commande payée ou en cuisine n'embarque
-// rien de ce code.
-const OrderSelfService = dynamic(
-  () => import('@/components/(public)/commande/order-self-service'),
-  { ssr: false }
-);
-
 type Props = {
   initialOrder: PublicOrderView;
   pickupAddress: string | null;
   pickupMapsUrl: string | null;
   whatsapp: string;
+  /** Retour de chez Jèko, lu dans `?paiement=` par la page serveur. */
+  paymentReturn: PaymentReturn;
 };
 
 // ─── Timeline de statut ───────────────────────────────────────────────────────
@@ -88,9 +83,9 @@ export function OrderTracking({
   pickupAddress,
   pickupMapsUrl,
   whatsapp,
+  paymentReturn,
 }: Props) {
   const [order, setOrder] = useState<PublicOrderView>(initialOrder);
-  const [resolveOpen, setResolveOpen] = useState(false);
   const reduceMotion = useReducedMotion();
   // URL de suivi, indisponible au rendu serveur (snapshot '') — partagée
   // entre le partage du lien (code de retrait) et le bloc livreur.
@@ -101,6 +96,10 @@ export function OrderTracking({
   );
 
   const isCancelled = order.status === 'CANCELLED';
+  // Annulée faute de paiement dans les temps : le message le dit, le client n'a
+  // rien été débité.
+  const paymentExpired =
+    isCancelled && !order.isPaid && order.payment.state === 'expired';
   const isFinal = order.status === 'COMPLETED' || isCancelled;
   const pickupCode = getPickupCode(order.reference);
   // Le stock n'est réservé qu'à l'ENTRÉE EN CUISINE (voir
@@ -124,9 +123,9 @@ export function OrderTracking({
     }
   }, [initialOrder.id]);
 
-  // Preuve envoyée mais paiement pas encore validé : polling accéléré pour
-  // que le moment « validé » (qui débloque la préparation) se voie vite.
-  const awaitingProofValidation = !order.isPaid && !!order.paymentProofUrl;
+  // Paiement en ligne en cours : polling accéléré pour que le moment « payé »
+  // (qui débloque la préparation) se voie vite.
+  const awaitingOnlinePayment = order.payment.state === 'pending';
 
   // Le paiement bloque la préparation → on remonte le bloc au-dessus du code
   // de retrait. Total nul (récompense couvrant tout) : rien ne bloque.
@@ -137,7 +136,7 @@ export function OrderTracking({
     if (isFinal) return;
     const timer = setInterval(
       refresh,
-      awaitingProofValidation
+      awaitingOnlinePayment
         ? ORDER_TRACKING_POLL_FAST_INTERVAL_MS
         : ORDER_TRACKING_POLL_INTERVAL_MS
     );
@@ -146,14 +145,33 @@ export function OrderTracking({
       clearInterval(timer);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, [refresh, isFinal, awaitingProofValidation]);
+  }, [refresh, isFinal, awaitingOnlinePayment]);
+
+  // Conversion GA4 d'une commande en ligne : AU PAIEMENT, pas à la création (une
+  // commande abandonnée ne doit pas compter). Une seule fois par commande et par
+  // onglet, et seulement au retour de chez Jèko.
+  const purchaseTrackable =
+    order.isPaid && order.payment.onlineFee !== null && paymentReturn === 'ok';
+  useEffect(() => {
+    if (!purchaseTrackable) return;
+    const key = `eba-purchase-tracked-${order.id}`;
+    try {
+      if (window.sessionStorage.getItem(key)) return;
+      window.sessionStorage.setItem(key, '1');
+    } catch {
+      // sessionStorage indisponible : au pire l'événement part une fois de plus.
+    }
+    trackPurchase({
+      transactionId: order.reference,
+      value: order.total,
+      items: order.items.map(cartItemToAnalyticsItem),
+    });
+  }, [purchaseTrackable, order.id, order.reference, order.total, order.items]);
 
   const currentStep = STATUS_INDEX[order.status] ?? 0;
   // Retrait un jour ultérieur : la commande reste « Reçue » jusqu'au jour J.
   // Sans le dire, le client croit qu'elle est oubliée.
   const deferred = deferredPickupLabel(order, new Date());
-  const { canCancel, canReschedule, canEditItems } = order.selfService;
-  const canSelfServe = canCancel || canReschedule || canEditItems;
 
   return (
     <div className="flex flex-col gap-5">
@@ -162,10 +180,15 @@ export function OrderTracking({
         <div className="flex items-center gap-3 rounded-xl border border-danger/30 bg-danger/10 p-4">
           <XCircle className="h-8 w-8 shrink-0 text-danger" />
           <div>
-            <p className="font-semibold text-danger">Commande annulée</p>
+            <p className="font-semibold text-danger">
+              {paymentExpired
+                ? 'Paiement expiré — commande annulée'
+                : 'Commande annulée'}
+            </p>
             <p className="text-sm text-foreground/60">
-              Contacte le comptoir si tu penses qu&apos;il s&apos;agit
-              d&apos;une erreur.
+              {paymentExpired
+                ? 'Le délai de paiement est dépassé : rien n’a été débité. Tu peux repasser commande depuis la carte.'
+                : 'Contacte le comptoir si tu penses qu’il s’agit d’une erreur.'}
             </p>
           </div>
         </div>
@@ -209,22 +232,21 @@ export function OrderTracking({
               Un article n&apos;est plus disponible
             </p>
             <p className="text-sm text-foreground/60">
-              {canEditItems
-                ? 'Un autre client a pris la dernière quantité : remplace-le ou retire-le avant de payer.'
-                : 'Contacte-nous ou choisis autre chose avant de payer — un autre client a pris la dernière quantité.'}
+              Contacte-nous avant de payer — un autre client a pris la dernière
+              quantité.
             </p>
           </div>
-          {canEditItems && (
-            <Button
-              color="warning"
-              size="sm"
-              className="min-h-9 shrink-0"
-              onPress={() => setResolveOpen(true)}
-            >
-              Remplacer
-            </Button>
-          )}
         </div>
+      )}
+
+      {/* ── Payée après annulation ou expiration : le client doit le savoir ── */}
+      {isCancelled && order.isPaid && (
+        <PaymentSection
+          order={order}
+          whatsapp={whatsapp}
+          paymentReturn={paymentReturn}
+          onRefresh={refresh}
+        />
       )}
 
       {/* ── Paiement (prioritaire tant qu'il bloque la préparation) ── */}
@@ -232,7 +254,8 @@ export function OrderTracking({
         <PaymentSection
           order={order}
           whatsapp={whatsapp}
-          onOrderChange={setOrder}
+          paymentReturn={paymentReturn}
+          onRefresh={refresh}
         />
       )}
 
@@ -282,16 +305,6 @@ export function OrderTracking({
         )}
       </div>
 
-      {/* ── Libre-service : créneau, annulation, remplacement ── */}
-      {!isCancelled && canSelfServe && (
-        <OrderSelfService
-          order={order}
-          onOrderChange={setOrder}
-          resolveOpen={resolveOpen}
-          onResolveOpenChange={setResolveOpen}
-        />
-      )}
-
       {/* ── Fidélité ── */}
       {!isCancelled && order.loyalty && (
         <LoyaltySection loyalty={order.loyalty} />
@@ -302,7 +315,8 @@ export function OrderTracking({
         <PaymentSection
           order={order}
           whatsapp={whatsapp}
-          onOrderChange={setOrder}
+          paymentReturn={paymentReturn}
+          onRefresh={refresh}
         />
       )}
 

@@ -13,6 +13,9 @@ import {
 } from '@/lib/orders';
 import { LoyaltyRewardUnavailableError } from '@/lib/loyalty-mutations';
 import { OrderMutationError } from '@/lib/order-mutations';
+import { CartMismatchError } from '@/lib/orders/cart-verification';
+import { JekoApiError } from '@/lib/jeko/client';
+import { PaymentNotPendingError } from '@/lib/jeko/start-payment';
 import type { CheckoutErrorCode } from '@/lib/schemas/order';
 
 export function publicOrderError(
@@ -56,6 +59,32 @@ export function publicOrderErrorResponse(err: unknown, context: string) {
     return publicOrderError(409, 'SOLD_OUT_TODAY', err.message, {
       items: err.lines,
     });
+  }
+  // Paiement en ligne : le panier ne correspond plus au menu. 409 = conflit avec
+  // l'état actuel ; `reason` dit au client s'il doit recharger son panier.
+  if (err instanceof CartMismatchError) {
+    return publicOrderError(409, 'CART_CHANGED', err.message, {
+      reason: err.reason,
+    });
+  }
+  // La commande ne peut plus être payée en ligne (déjà payée, expirée, annulée…).
+  if (err instanceof PaymentNotPendingError) {
+    return publicOrderError(
+      err.reason === 'not_found' ? 404 : 409,
+      err.reason === 'not_found' ? 'NOT_FOUND' : 'CONFLICT',
+      err.message,
+      { reason: err.reason }
+    );
+  }
+  // Panne ou refus du fournisseur : on journalise le détail côté serveur, jamais
+  // vers le navigateur (clé API, magasin…).
+  if (err instanceof JekoApiError) {
+    console.error(`[${context}] Jèko ${err.status} ${err.code} :`, err.message);
+    return publicOrderError(
+      502,
+      'PAYMENT_PROVIDER_ERROR',
+      'Le paiement en ligne est momentanément indisponible'
+    );
   }
   if (err instanceof OrderMutationError) {
     const code: CheckoutErrorCode =

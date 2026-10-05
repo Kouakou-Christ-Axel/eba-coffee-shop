@@ -8,6 +8,7 @@
 // Les messages d'erreur restent en français (cible Côte d'Ivoire).
 
 import { z } from 'zod';
+import { PAYMENT_MODES } from '@/lib/payment-modes';
 import {
   CART_ITEM_QUANTITY_MAX,
   MAX_LINE_DISCOUNT_RATIO,
@@ -83,12 +84,7 @@ export const orderStatusSchema = z.enum([
 
 export const orderTypeSchema = z.enum(['DELIVERY', 'DINE_IN', 'TAKEAWAY']);
 
-export const paymentModeSchema = z.enum([
-  'CASH',
-  'WAVE',
-  'ORANGE_MONEY',
-  'OTHER',
-]);
+export const paymentModeSchema = z.enum(PAYMENT_MODES);
 
 export type OrderStatusInput = z.infer<typeof orderStatusSchema>;
 export type OrderTypeInput = z.infer<typeof orderTypeSchema>;
@@ -411,7 +407,12 @@ export const checkoutErrorCodeSchema = z.enum([
   'ADVANCE_ORDER_REQUIRED',
   'SCHEDULE_UNAVAILABLE',
   'LOYALTY_REWARD_UNAVAILABLE',
-  // Libre-service après commande (app/api/commandes/[id]/*).
+  // Paiement en ligne (Jèko) : le panier ne correspond plus au menu (prix
+  // modifié, produit retiré, total falsifié) ; le fournisseur est en panne ou
+  // n'est pas configuré. Le détail du fournisseur n'est jamais exposé.
+  'CART_CHANGED',
+  'PAYMENT_PROVIDER_ERROR',
+  // Routes publiques de la page de suivi (app/api/commandes/[id]/*).
   'NOT_FOUND',
   'CONFLICT',
   'RATE_LIMITED',
@@ -438,46 +439,3 @@ export const soldOutLineSchema = z.object({
 });
 
 export type SoldOutLine = z.infer<typeof soldOutLineSchema>;
-
-// ─── Libre-service client (page de suivi) ─────────────────────────────────────
-//
-// Routes publiques `app/api/commandes/[id]/{annulation,articles,creneau}` : le
-// client n'envoie que des RÉFÉRENCES (produit + goûts par nom) — jamais un
-// prix, une remise ni un coût. Les montants sont résolus côté serveur depuis
-// le menu (`buildOrderItemsFromMenu`, lib/order-mutations.ts).
-
-export const orderItemRefSchema = z.object({
-  productId: z.string().min(1),
-  quantity: z.number().int().min(1).max(CART_ITEM_QUANTITY_MAX),
-  supplements: z
-    .array(
-      z.object({
-        groupName: z.string().min(1),
-        optionName: z.string().min(1),
-        quantity: z.number().int().positive().optional(),
-      })
-    )
-    .max(30)
-    .optional(),
-});
-
-export const customerItemChangeSchema = z.discriminatedUnion('action', [
-  z.object({ cartId: z.string().min(1), action: z.literal('remove') }),
-  z.object({
-    cartId: z.string().min(1),
-    action: z.literal('replace'),
-    with: orderItemRefSchema,
-  }),
-]);
-
-export const customerItemChangesSchema = z.object({
-  changes: z.array(customerItemChangeSchema).min(1).max(20),
-});
-
-/** `null` = « dès que possible ». */
-export const customerRescheduleSchema = z.object({
-  pickupTime: z.string().datetime().nullable(),
-});
-
-export type OrderItemRefInput = z.infer<typeof orderItemRefSchema>;
-export type CustomerItemChange = z.infer<typeof customerItemChangeSchema>;

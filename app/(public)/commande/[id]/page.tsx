@@ -2,7 +2,7 @@
 //
 // Page publique de suivi de commande. Le serveur charge l'état initial
 // (+ réglages de retrait) ; <OrderTracking> prend le relais côté client
-// (polling du statut, bloc livreur, paiement Wave + preuve, partage).
+// (polling du statut, bloc livreur, paiement en ligne Jèko, partage).
 
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -11,16 +11,27 @@ import { getPublicOrder } from '@/lib/orders';
 import { getPickupSettings } from '@/lib/pickup-settings-db';
 import { getContactSettings } from '@/lib/contact-settings-db';
 import { OrderTracking } from '@/components/(public)/commande/order-tracking';
+import { parsePaymentReturn } from '@/lib/orders/payment-panel';
+import { expirePendingOrders } from '@/lib/jeko/expiry';
 
 export const metadata: Metadata = {
   title: 'Suivi de commande — EBA Coffee Shop',
   robots: { index: false, follow: false },
 };
 
-type Props = { params: Promise<{ id: string }> };
+type Props = {
+  params: Promise<{ id: string }>;
+  // `?paiement=ok|echec` : retour de chez Jèko (cf. lib/jeko/start-payment.ts).
+  searchParams: Promise<{ paiement?: string | string[] }>;
+};
 
-export default async function CommandePage({ params }: Props) {
+export default async function CommandePage({ params, searchParams }: Props) {
   const { id } = await params;
+  const paymentReturn = parsePaymentReturn((await searchParams).paiement);
+  // Nettoyage opportuniste des commandes en attente expirées (pas de cron) : les
+  // clients qui suivent leur commande suffisent à le déclencher, même si le staff
+  // n'ouvre aucun écran. Idempotent, au plus une fois par minute, jamais bloquant.
+  void expirePendingOrders().catch(() => {});
   const [order, settings, contact] = await Promise.all([
     getPublicOrder(id),
     getPickupSettings(),
@@ -34,7 +45,9 @@ export default async function CommandePage({ params }: Props) {
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold">
           {order.status === 'CANCELLED'
-            ? 'Commande annulée'
+            ? !order.isPaid && order.payment.state === 'expired'
+              ? 'Paiement expiré'
+              : 'Commande annulée'
             : order.status === 'COMPLETED'
               ? 'Commande récupérée'
               : 'Suivi de ta commande'}
@@ -50,6 +63,7 @@ export default async function CommandePage({ params }: Props) {
         pickupAddress={settings.pickupAddress ?? null}
         pickupMapsUrl={settings.pickupMapsUrl ?? null}
         whatsapp={contact.whatsapp}
+        paymentReturn={paymentReturn}
       />
 
       <div className="mt-8 flex items-center justify-center gap-6 text-center">

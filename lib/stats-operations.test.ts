@@ -14,6 +14,7 @@ import {
   beforeEach,
   type MockedFunction,
 } from 'vitest';
+import { unwrapStaffVisible } from '@/lib/orders/visibility.test-utils';
 
 vi.mock('@/lib/prisma', () => ({
   default: {
@@ -22,7 +23,10 @@ vi.mock('@/lib/prisma', () => ({
 }));
 
 import prisma from '@/lib/prisma';
-import { getHourlyDistribution, getKitchenPerformance } from './stats-operations';
+import {
+  getHourlyDistribution,
+  getKitchenPerformance,
+} from './stats-operations';
 
 const mockOrderFindMany = prisma.order.findMany as unknown as MockedFunction<
   (args: unknown) => Promise<unknown>
@@ -64,11 +68,12 @@ describe('getHourlyDistribution', () => {
   it('exclut les commandes annulées via le where', async () => {
     mockOrderFindMany.mockResolvedValue([]);
     await getHourlyDistribution(from, to);
-    expect(mockOrderFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ status: { not: 'CANCELLED' } }),
-      })
-    );
+    const args = mockOrderFindMany.mock.calls.at(-1)?.[0] as {
+      where: unknown;
+    };
+    expect(unwrapStaffVisible(args.where)).toMatchObject({
+      status: { not: 'CANCELLED' },
+    });
   });
 });
 

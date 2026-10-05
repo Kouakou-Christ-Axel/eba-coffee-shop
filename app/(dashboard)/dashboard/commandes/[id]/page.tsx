@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
 import Link from 'next/link';
 import { Gift, Bot } from 'lucide-react';
 import { getOrder } from '@/lib/orders';
@@ -15,11 +16,7 @@ import {
 } from '@/lib/orders/totals';
 import { formatSupplementLabel } from '@/lib/orders/format';
 import { normalizeSiteUrl } from '@/lib/site-url';
-import type {
-  OrderStatus,
-  OrderType,
-  PaymentMode,
-} from '@/generated/prisma/client';
+import type { OrderStatus, OrderType } from '@/generated/prisma/client';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -56,13 +53,6 @@ const ORDER_TYPE_LABELS: Record<OrderType, string> = {
   TAKEAWAY: 'À emporter',
   DINE_IN: 'Sur place',
   DELIVERY: 'Livraison',
-};
-
-const PAYMENT_MODE_LABELS: Record<PaymentMode, string> = {
-  CASH: 'Espèces',
-  WAVE: 'Wave',
-  ORANGE_MONEY: 'Orange Money',
-  OTHER: 'Autre',
 };
 
 function formatPickupTime(date: Date | null): string {
@@ -150,11 +140,12 @@ export default async function CommandeDetailPage({
             <Badge variant="destructive">Remboursée</Badge>
           )}
           {order.depositRequired != null && !order.isPaid && (
-            <Badge variant="outline" className="border-amber-400 text-amber-800">
-              Acompte {new Intl.NumberFormat('fr-FR').format(
-                order.depositPaid ?? 0
-              )}
-              /
+            <Badge
+              variant="outline"
+              className="border-amber-400 text-amber-800"
+            >
+              Acompte{' '}
+              {new Intl.NumberFormat('fr-FR').format(order.depositPaid ?? 0)}/
               {new Intl.NumberFormat('fr-FR').format(order.depositRequired)} F
             </Badge>
           )}

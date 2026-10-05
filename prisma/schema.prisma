@@ -181,10 +181,16 @@ enum OrderType {
   TAKEAWAY
 }
 
+// Miroir côté code : lib/payment-modes.ts (test de dérive dans
+// lib/payment-modes.test.ts). MTN_MONEY / MOOV_MONEY / DJAMO viennent du
+// paiement en ligne Jèko ; OTHER reste le fourre-tout (dont `bank` et `jeko`).
 enum PaymentMode {
   CASH
   WAVE
   ORANGE_MONEY
+  MTN_MONEY
+  MOOV_MONEY
+  DJAMO
   OTHER
 }
 
@@ -309,6 +315,35 @@ model Order {
   // Null = aucune récompense utilisée sur cette commande.
   loyaltyRewardId String?
   loyaltyDiscount Int?
+
+  // Paiement en ligne Jèko (Checkout) — tous nullables : une commande caisse ou
+  // MCP n'en porte aucun. Montants en FCFA entiers (cf. lib/online-fee.ts).
+  //   onlineFee         frais facturés au client, EN PLUS de `total` (jamais du CA)
+  //   gatewayFee        frais réellement prélevés par Jèko (lus à la réconciliation),
+  //                     arrondis au FCFA ; onlineFee − gatewayFee = marge par commande
+  //   paymentRequestId  DERNIÈRE demande Jèko créée (une relance en crée une
+  //                     nouvelle) ; le webhook retrouve la commande par la
+  //                     référence `<référence commande>-<n>`, pas par cet id
+  //   paymentExpiresAt  fin du délai de paiement de la tentative en cours.
+  //                     « En attente de paiement » = source ONLINE ∧ isPaid false
+  //                     ∧ paymentExpiresAt non nul (pas d'enum de statut)
+  onlineFee        Int?
+  gatewayFee       Int?
+  paymentRequestId String?
+  paymentExpiresAt DateTime?
+  // Nombre de tentatives de paiement lancées (incrémenté de façon atomique à
+  // chaque demande Jèko) : numérote la référence `<commande>-<n>`, unique par
+  // tentative puisque Jèko refuse une référence déjà utilisée (409).
+  paymentAttempts Int @default(0)
+  // Montant (FCFA) demandé à Jèko = total + onlineFee, FIGÉ à la tentative. `total`
+  // peut changer ensuite (l'annulation par le client le remet au prix brut) alors
+  // que le paiement déjà demandé, lui, ne change plus : le règlement compare à
+  // CETTE valeur, pas à `total + onlineFee` recalculé.
+  paymentAmountDue Int?
+  // Transaction Jèko qui a réglé la commande. Un second webhook portant une autre
+  // transaction sur une commande déjà payée est un DOUBLE paiement (deux demandes
+  // payées après une relance) : le staff est alerté pour rembourser.
+  paymentTransactionId String?
 
   createdById String?
   createdBy   User?   @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -1245,6 +1280,19 @@ model RevenueAdjustment {
 
   @@index([date(sort: Desc)])
   @@map("revenue_adjustment")
+}
+
+// Retrait du solde Jèko vers le compte réel. `amount` = ce qui arrive, `fee` =
+// frais de retrait ; le compte Jèko est débité de amount + fee.
+model JekoWithdrawal {
+  id        String   @id @default(cuid())
+  amount    Int // FCFA retirés
+  fee       Int // FCFA de frais de retrait
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@map("jeko_withdrawal")
 }
 
 // ─── Inventaire (matières premières & consommables) ────────────────────────────

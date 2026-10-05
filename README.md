@@ -20,6 +20,14 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Paiement en ligne (Jèko)
+
+Les commandes se paient en ligne via Jèko Checkout. La procédure complète — variables
+d'environnement, valeurs à saisir dans le Dashboard Jèko, test en local avec un serveur
+Jèko factice (`pnpm jeko:mock`), mise en production — est dans
+[`docs/paiement-en-ligne.md`](docs/paiement-en-ligne.md). Les variables d'exemple sont
+dans [`.env.example`](.env.example).
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

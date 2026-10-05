@@ -1,14 +1,12 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
+import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
 
 const MODES = [
   { value: '', label: 'Tous les modes' },
-  { value: 'CASH', label: 'Espèces' },
-  { value: 'WAVE', label: 'Wave' },
-  { value: 'ORANGE_MONEY', label: 'Orange Money' },
-  { value: 'OTHER', label: 'Autre' },
-] as const;
+  ...PAYMENT_MODES.map((m) => ({ value: m, label: PAYMENT_MODE_LABELS[m] })),
+];
 
 const selectClass =
   'h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';

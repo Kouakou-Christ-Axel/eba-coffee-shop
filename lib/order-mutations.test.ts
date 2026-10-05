@@ -249,6 +249,47 @@ describe('setOrderPayment — réservation du stock à l’entrée en cuisine', 
     );
   });
 
+  it("remet paymentExpiresAt à nul à l'encaissement : un dépaiement ne cache plus la commande", async () => {
+    mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-active' } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+
+    await setOrderPayment('order1', true, [{ mode: 'CASH', amount: 2500 }]);
+
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ isPaid: true, paymentExpiresAt: null }),
+      })
+    );
+  });
+
+  it('écrit transaction et frais Jèko dans la même écriture que isPaid (règlement en ligne)', async () => {
+    mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-active' } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+    const online = {
+      gatewayFee: 52,
+      paymentRequestId: 'pr_1',
+      paymentTransactionId: 'txn_1',
+    };
+
+    await setOrderPayment(
+      'order1',
+      true,
+      [{ mode: 'CASH', amount: 2500 }],
+      null,
+      { online }
+    );
+
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ isPaid: true, ...online }),
+      })
+    );
+  });
+
   it('refuse le paiement (409) si aucune option disponible ne correspond au nom', async () => {
     mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
     mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
@@ -323,6 +364,26 @@ describe('setOrderPayment — réservation du stock à l’entrée en cuisine', 
         data: expect.objectContaining({ isPaid: true }),
       })
     );
+  });
+
+  it('skipKitchen : encaisse une commande NEW sans la pousser en cuisine ni toucher au stock', async () => {
+    mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
+
+    const result = await setOrderPayment(
+      'order1',
+      true,
+      [{ mode: 'WAVE', amount: 2500 }],
+      null,
+      { skipKitchen: true }
+    );
+
+    expect(result).toEqual({ startedPreparation: false });
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+    expect(mockOptionUpdateMany).not.toHaveBeenCalled();
+    const paid = mockOrderUpdateMany.mock.calls.find(
+      ([args]) => (args as { data?: { isPaid?: boolean } }).data?.isPaid
+    )?.[0] as { data: Record<string, unknown> };
+    expect(paid.data).not.toHaveProperty('status');
   });
 
   it('commande déjà en cuisine (PREPARING) : l’encaissement ne touche pas au stock', async () => {
@@ -1401,6 +1462,74 @@ describe('commande différée — encaissement purement financier', () => {
 
     expect(res.startedPreparation).toBe(true);
     expect(mockProdUpdateMany).toHaveBeenCalled();
+  });
+});
+
+describe('setOrderPayment — course avec l’expiration d’un paiement en ligne', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-1' } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOrderPaymentCreateMany.mockResolvedValue({ count: 1 } as never);
+  });
+
+  it('garde sur le statut NEW l’encaissement qui pousse la commande en cuisine', async () => {
+    mockOrderUpdateManyWithClaim(1);
+    mockOrderFindUnique.mockResolvedValue({
+      ...orderWithOneItem(),
+      pickupTime: null,
+    } as never);
+
+    await setOrderPayment('order1', true, [{ mode: 'WAVE', amount: 2500 }]);
+
+    expect(businessWrites()[0]?.[0]).toEqual(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'order1',
+          isPaid: false,
+          status: 'NEW',
+        }),
+      })
+    );
+  });
+
+  it('une commande annulée entre la lecture et l’écriture n’est PAS ressuscitée en cuisine', async () => {
+    // Simule la base : l'expiration a déjà passé la commande à CANCELLED, donc
+    // une écriture gardée sur `status: 'NEW'` ne trouve plus rien.
+    mockOrderUpdateMany.mockImplementation((async (args: {
+      where?: { status?: string };
+    }) =>
+      isReservationClaim(args)
+        ? { count: 1 }
+        : { count: args.where?.status === 'NEW' ? 0 : 1 }) as never);
+    mockOrderFindUnique.mockResolvedValue({
+      ...orderWithOneItem(),
+      pickupTime: null,
+    } as never);
+
+    await expect(
+      setOrderPayment('order1', true, [{ mode: 'WAVE', amount: 2500 }])
+    ).rejects.toMatchObject({ httpStatus: 409 });
+    expect(mockOrderPaymentCreateMany).not.toHaveBeenCalled();
+  });
+
+  it('une commande déjà annulée reste encaissable (paiement tardif) : pas de garde de statut', async () => {
+    mockOrderUpdateManyWithClaim(1);
+    mockOrderFindUnique.mockResolvedValue({
+      ...orderWithOneItem({}, { status: 'CANCELLED' }),
+      pickupTime: null,
+    } as never);
+
+    const res = await setOrderPayment('order1', true, [
+      { mode: 'WAVE', amount: 2500 },
+    ]);
+
+    expect(res.startedPreparation).toBe(false);
+    const where = businessWrites()[0]?.[0] as {
+      where: Record<string, unknown>;
+    };
+    expect(where.where).not.toHaveProperty('status');
   });
 });
 

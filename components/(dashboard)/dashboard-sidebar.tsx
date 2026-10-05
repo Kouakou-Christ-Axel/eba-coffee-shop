@@ -11,6 +11,7 @@ import {
   ChefHat,
   ClipboardList,
   Contact,
+  Landmark,
   LayoutDashboard,
   LogOut,
   NotebookPen,
@@ -78,6 +79,12 @@ const navItems: NavItem[] = [
     label: 'Investissements',
     href: '/dashboard/investissements',
     icon: PiggyBank,
+    roles: ['ADMIN', 'MANAGER', 'COMPTABLE', 'ANALYSTE'],
+  },
+  {
+    label: 'Solde Jèko',
+    href: '/dashboard/jeko',
+    icon: Landmark,
     roles: ['ADMIN', 'MANAGER', 'COMPTABLE', 'ANALYSTE'],
   },
   {

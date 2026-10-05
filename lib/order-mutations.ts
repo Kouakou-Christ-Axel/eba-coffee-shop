@@ -39,7 +39,6 @@ import type {
   OrderSource,
   OrderStatus,
   PaymentMode,
-  PaymentProofVerdict,
   UserRole,
 } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
@@ -652,6 +651,7 @@ async function notifyPendingOrdersOfShortage(
   );
   if (zeroedProductIds.size === 0 && zeroedOptionKeys.size === 0) return;
 
+  // staff-visibility: exempt — prévient aussi les clients en cours de paiement qu'un produit de leur commande vient de s'épuiser
   const candidates = await prisma.order.findMany({
     where: {
       id: { not: reservedOrderId },
@@ -1429,18 +1429,27 @@ export async function setOrderPayment(
   actorId?: string | null,
   opts?: {
     /**
-     * Vrai UNIQUEMENT quand cet encaissement provient de la pré-analyse IA
-     * (verdict MATCH, cf. lib/ai/payment-proof.ts) plutôt que d'un geste
-     * caisse. Persisté sur `Order.paymentAutoValidatedByAi` pour piloter le
-     * bouton de retour en arrière dédié côté caisse. Ignoré si `isPaid` est
-     * faux (le dépaiement remet toujours ce drapeau à `false`).
-     */
-    autoValidatedByAi?: boolean;
-    /**
      * Le staff a confirmé avoir produit la quantité manquante — transmis à la
      * réservation quand cet encaissement pousse la commande en cuisine.
      */
     coverShortage?: boolean;
+    /**
+     * Encaisse sans pousser la commande en cuisine (ni réserver de stock). Sert
+     * à enregistrer un paiement en ligne reçu alors que le stock manque : le
+     * staff la lance ensuite, en confirmant la production.
+     */
+    skipKitchen?: boolean;
+    /**
+     * Règlement par Jèko : l'identifiant de transaction et les frais sont écrits
+     * dans la MÊME écriture que `isPaid`. Une commande payée dont
+     * `paymentTransactionId` est nul l'a donc été hors Jèko (caisse, MCP) — c'est
+     * ce qui permet de signaler un paiement en ligne arrivé ensuite.
+     */
+    online?: {
+      gatewayFee: number;
+      paymentRequestId?: string;
+      paymentTransactionId: string;
+    };
   }
 ): Promise<{ startedPreparation: boolean }> {
   if (isPaid && (!payments || payments.length === 0)) {
@@ -1532,7 +1541,9 @@ export async function setOrderPayment(
       // marchandise sera produite le jour du retrait. Un seul point de décision
       // — tout l'aval (réservation, statut, notification) en dépend déjà.
       const startedPreparation =
-        order.status === 'NEW' && !isDeferredPickup(order.pickupTime, now);
+        !opts?.skipKitchen &&
+        order.status === 'NEW' &&
+        !isDeferredPickup(order.pickupTime, now);
       const items = order.items as unknown as CartItem[];
 
       // Le stock suit l'ENTRÉE EN CUISINE, pas l'argent : on ne réserve que
@@ -1547,12 +1558,31 @@ export async function setOrderPayment(
         : false;
 
       const result = await tx.order.updateMany({
-        where: { id, isPaid: false },
+        // Quand cet encaissement pousse la commande en cuisine, l'écriture est
+        // aussi gardée sur le statut NEW : si l'expiration d'un paiement en ligne
+        // l'a annulée entre la lecture et ici, on ne la ressuscite pas (stock
+        // réservé, en cuisine, fidélité déjà révoquée). Sans cette garde, le
+        // paiement est refusé (409) et le webhook Jèko réessaie : la commande
+        // annulée est alors encaissée comme un paiement tardif. Une commande déjà
+        // annulée reste encaissable (startedPreparation faux : aucune garde).
+        where: {
+          id,
+          isPaid: false,
+          ...(startedPreparation ? { status: 'NEW' as const } : {}),
+        },
         data: {
           isPaid: true,
           paymentMode: resolvePaymentMode(lines),
           paidAt: new Date(),
-          paymentAutoValidatedByAi: opts?.autoValidatedByAi ?? false,
+          // Plus aucun chemin automatique par IA : la colonne reste pour
+          // l'historique des anciennes commandes (badge et retour arrière caisse).
+          paymentAutoValidatedByAi: false,
+          // Payée : plus rien à expirer. Sans cette remise à nul, un dépaiement
+          // ultérieur laisserait `paymentExpiresAt` posé et la commande, redevenue
+          // « non payée », disparaîtrait des vues staff (cf. STAFF_VISIBLE) puis
+          // serait reprise par le job d'expiration.
+          paymentExpiresAt: null,
+          ...(opts?.online ?? {}),
           // Un règlement intégral couvre TOUJOURS l'acompte, puisqu'il couvre
           // le total (cf. le commentaire de `sendOrderToKitchen` ci-dessous).
           // Sans cette écriture, une commande à acompte payée en une fois
@@ -1596,7 +1626,9 @@ export async function setOrderPayment(
       };
     });
   } catch (err) {
-    if (err instanceof StockShortageError) {
+    // Règlement Jèko (`opts.online`) : le client a DÉJÀ payé et l'appelant rejoue
+    // en `skipKitchen` — lui annoncer « article indisponible » serait faux.
+    if (err instanceof StockShortageError && !opts?.online) {
       // Client perdant (stock insuffisant) : notifié AVANT que la 409 ne
       // remonte à l'appelant (route/action) — best-effort, jamais bloquant.
       notifyOrderCustomer(id, 'ITEM_UNAVAILABLE');
@@ -2414,92 +2446,4 @@ export async function updateOrderFulfillment(
         input.driverPhone !== undefined ? input.driverPhone : order.driverPhone,
     });
   }
-}
-
-// ─── Preuve de paiement (capture Wave uploadée par le client) ─────────────────
-
-/**
- * Vérifie qu'une commande peut recevoir une preuve de paiement (existe, non
- * annulée, non encaissée) SANS écrire. Exportée pour que la route puisse
- * valider la commande AVANT d'écrire l'image sur disque (évite des fichiers
- * orphelins pour un id bidon) ; `setOrderPaymentProof` refait sa propre garde
- * juste avant l'écriture (course résiduelle sans conséquence).
- */
-export async function assertOrderAcceptsPaymentProof(
-  id: string
-): Promise<void> {
-  const order = await prisma.order.findUnique({
-    where: { id },
-    select: { isPaid: true, status: true },
-  });
-  if (!order) {
-    throw new OrderMutationError('Commande introuvable', 404);
-  }
-  if (order.status === 'CANCELLED') {
-    throw new OrderMutationError('Commande annulée', 409);
-  }
-  if (order.isPaid) {
-    throw new OrderMutationError('Commande déjà encaissée', 409);
-  }
-}
-
-/**
- * Attache la preuve de paiement (URL `/uploads/payment-proofs/…`) à une
- * commande non encore encaissée. La validation reste manuelle en caisse
- * (`setOrderPayment`) : la preuve est un signal, pas un encaissement.
- * Ré-upload autorisé tant que la commande n'est pas payée (remplace l'URL) —
- * réinitialise aussi le verdict/l'analyse de la pré-analyse IA PRÉCÉDENTE
- * (sinon la page de suivi client afficherait encore un rejet pour une
- * capture que le client vient de remplacer) ; la nouvelle analyse IA,
- * déclenchée juste après par l'appelant, réécrira ces champs.
- */
-export async function setOrderPaymentProof(
-  id: string,
-  url: string
-): Promise<void> {
-  await assertOrderAcceptsPaymentProof(id);
-
-  await prisma.order.update({
-    where: { id },
-    data: {
-      paymentProofUrl: url,
-      paymentProofVerdict: null,
-      paymentProofAnalysis: Prisma.DbNull,
-      paymentProofAnalyzedAt: null,
-    },
-  });
-}
-
-/**
- * Persiste le verdict de la pré-analyse IA d'une preuve de paiement
- * (lib/ai/payment-proof.ts, appelée en arrière-plan après l'upload) : ne
- * touche jamais `isPaid`/`paymentMode` elle-même. Contrairement à
- * `setOrderPaymentProof`, N'EXIGE PAS que la commande soit encore non payée
- * — l'appelant peut avoir entre-temps posé un encaissement AUTOMATIQUE sur
- * la base de CE MÊME verdict (cf. `analyzePaymentProof`), et cette analyse
- * reste une information utile à conserver (raisonnement, indices de
- * retouche...) même une fois la commande payée. Ignore silencieusement une
- * commande introuvable ou annulée (résultat devenu sans objet).
- */
-export async function setOrderPaymentProofVerdict(
-  id: string,
-  input: {
-    verdict: PaymentProofVerdict;
-    analysis: Prisma.InputJsonValue;
-  }
-): Promise<void> {
-  const order = await prisma.order.findUnique({
-    where: { id },
-    select: { status: true },
-  });
-  if (!order || order.status === 'CANCELLED') return;
-
-  await prisma.order.update({
-    where: { id },
-    data: {
-      paymentProofVerdict: input.verdict,
-      paymentProofAnalysis: input.analysis,
-      paymentProofAnalyzedAt: new Date(),
-    },
-  });
 }
