@@ -1282,6 +1282,19 @@ model RevenueAdjustment {
   @@map("revenue_adjustment")
 }
 
+// Retrait du solde Jèko vers le compte réel. `amount` = ce qui arrive, `fee` =
+// frais de retrait ; le compte Jèko est débité de amount + fee.
+model JekoWithdrawal {
+  id        String   @id @default(cuid())
+  amount    Int // FCFA retirés
+  fee       Int // FCFA de frais de retrait
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@map("jeko_withdrawal")
+}
+
 // ─── Inventaire (matières premières & consommables) ────────────────────────────
 // Suivi de stock PÉRIODIQUE (inventaire intermittent) de références indépendantes
 // du menu (grains, lait, gobelets, sirops…). On enregistre un comptage physique
