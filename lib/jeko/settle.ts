@@ -52,6 +52,31 @@ function alertStaff(orderId: string, dailyNumber: number, message: string) {
   });
 }
 
+/**
+ * La commande est déjà payée. Même transaction : livraison rejouée. Sinon
+ * (`paymentTransactionId` nul = encaissée en caisse ou par le MCP, ou autre
+ * transaction = relance payée deux fois), l'argent est parti deux fois : le staff
+ * rembourse depuis le Dashboard Jèko.
+ */
+function settledElsewhere(
+  order: {
+    id: string;
+    dailyNumber: number;
+    paymentTransactionId: string | null;
+  },
+  tx: JekoTransaction
+): SettleOutcome {
+  if (order.paymentTransactionId === tx.transactionId) return 'already_paid';
+  alertStaff(
+    order.id,
+    order.dailyNumber,
+    order.paymentTransactionId === null
+      ? `Commande déjà encaissée, mais le client a aussi payé en ligne (${tx.amountFcfa} F) : rembourser depuis le Dashboard Jèko.`
+      : `Double paiement en ligne (${tx.amountFcfa} F de plus) : rembourser le client depuis le Dashboard Jèko.`
+  );
+  return 'duplicate_payment';
+}
+
 export async function settleJekoTransaction(
   tx: JekoTransaction
 ): Promise<SettleOutcome> {
@@ -74,24 +99,7 @@ export async function settleJekoTransaction(
     paymentTransactionId: tx.transactionId,
   };
 
-  if (order.isPaid) {
-    // Livraison rejouée après un échec de l'écriture des frais : on la complète.
-    if (order.paymentTransactionId === null) {
-      await prisma.order.update({ where: { id: order.id }, data: fees });
-      return 'already_paid';
-    }
-    // Une AUTRE transaction sur une commande déjà réglée : deux demandes payées
-    // (relance, ancien onglet resté ouvert). L'argent est parti deux fois.
-    if (order.paymentTransactionId !== tx.transactionId) {
-      alertStaff(
-        order.id,
-        order.dailyNumber,
-        `Double paiement en ligne (${tx.amountFcfa} F de plus) : rembourser le client depuis le Dashboard Jèko.`
-      );
-      return 'duplicate_payment';
-    }
-    return 'already_paid';
-  }
+  if (order.isPaid) return settledElsewhere(order, tx);
 
   // Montant FIGÉ à la tentative : `total` peut avoir changé depuis (l'annulation
   // par le client le remet au prix brut) alors que la demande déjà envoyée à Jèko,
@@ -119,43 +127,60 @@ export async function settleJekoTransaction(
   const lines = [
     { mode: jekoMethodToPaymentMode(tx.paymentMethod), amount: order.total },
   ];
+  // Identifiant de transaction et frais partent AVEC `isPaid` (une seule
+  // écriture) : une commande payée sans `paymentTransactionId` l'a été hors Jèko.
+  const online = {
+    gatewayFee: fees.gatewayFee,
+    paymentRequestId: fees.paymentRequestId,
+    paymentTransactionId: fees.paymentTransactionId,
+  };
   let shortage = false;
-  try {
+  let late = order.status === 'CANCELLED';
+  let raceRetried = false;
+  for (;;) {
     try {
-      await setOrderPayment(order.id, true, lines, null);
+      try {
+        await setOrderPayment(order.id, true, lines, null, { online });
+      } catch (err) {
+        if (!(err instanceof StockShortageError)) throw err;
+        // Rupture entre la création et le paiement : le client a payé, la commande
+        // ne peut pas partir en cuisine. L'argent est bien là : on l'enregistre
+        // (sans cuisine) pour que la commande, le solde Jèko et la clôture restent
+        // justes. Le staff la lance ensuite par le flux habituel, en confirmant la
+        // production (`coverShortage`).
+        shortage = true;
+        await setOrderPayment(order.id, true, lines, null, {
+          online,
+          skipKitchen: true,
+        });
+      }
+      break;
     } catch (err) {
-      if (!(err instanceof StockShortageError)) throw err;
-      // Rupture entre la création et le paiement : le client a payé, la commande
-      // ne peut pas partir en cuisine. L'argent est bien là : on l'enregistre
-      // (sans cuisine) pour que la commande, le solde Jèko et la clôture restent
-      // justes. Le staff la lance ensuite par le flux habituel, en confirmant la
-      // production (`coverShortage`).
-      shortage = true;
-      await setOrderPayment(order.id, true, lines, null, {
-        skipKitchen: true,
-      });
-    }
-  } catch (err) {
-    // Deux livraisons simultanées : la seconde trouve la commande déjà payée.
-    if (err instanceof OrderMutationError && err.httpStatus === 409) {
+      if (!(err instanceof OrderMutationError && err.httpStatus === 409)) {
+        // Toute autre erreur remonte : le webhook répond 500 et Jèko réessaie.
+        throw err;
+      }
       const fresh = await prisma.order.findUnique({
         where: { reference: parsed.orderReference },
         select: ORDER_SELECT,
       });
-      if (fresh?.isPaid) return 'already_paid';
+      // Deux livraisons simultanées, ou un encaissement du staff entre-temps.
+      if (fresh?.isPaid) return settledElsewhere(fresh, tx);
+      // L'expiration a annulé la commande entre notre lecture et l'écriture : on
+      // rejoue une fois, par le chemin « paiement tardif » (aucune garde de statut).
+      if (fresh?.status === 'CANCELLED' && !raceRetried) {
+        raceRetried = true;
+        late = true;
+        continue;
+      }
+      throw err;
     }
-    // Toute autre erreur remonte : le webhook répond 500 et Jèko réessaie.
-    throw err;
   }
 
-  // Le paiement est enregistré. Le staff est prévenu AVANT l'écriture des frais :
-  // si celle-ci échoue (le webhook répond alors 500 et Jèko rejoue), la livraison
-  // rejouée la complète sans réannoncer, et la commande n'a pas été manquée.
-  //
-  // Commande annulée ou expirée avant l'arrivée du paiement : encaissé, mais pas
-  // remis en cuisine. Le staff la reprend par le flux existant (qui restitue le
-  // tampon) ou la rembourse — on ne reconsomme pas une récompense à l'aveugle.
-  const late = order.status === 'CANCELLED';
+  // Le paiement est enregistré. Commande annulée ou expirée avant l'arrivée du
+  // paiement : encaissé, mais pas remis en cuisine. Le staff la reprend par le
+  // flux existant (qui restitue le tampon) ou la rembourse — on ne reconsomme pas
+  // une récompense à l'aveugle.
   if (shortage) {
     alertStaff(
       order.id,
@@ -177,7 +202,6 @@ export async function settleJekoTransaction(
     });
   }
 
-  await prisma.order.update({ where: { id: order.id }, data: fees });
   if (shortage) return 'shortage';
   return late ? 'late_payment' : 'paid';
 }

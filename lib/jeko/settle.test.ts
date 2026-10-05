@@ -75,6 +75,13 @@ const tx: JekoTransaction = {
   paymentRequestId: 'pr_1',
 };
 
+// Transaction et frais partent AVEC isPaid (une seule écriture, setOrderPayment).
+const online = {
+  gatewayFee: 52,
+  paymentRequestId: 'pr_1',
+  paymentTransactionId: 'txn_1',
+};
+
 describe('settleJekoTransaction', () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -95,16 +102,10 @@ describe('settleJekoTransaction', () => {
       'o1',
       true,
       [{ mode: 'WAVE', amount: 3450 }],
-      null
+      null,
+      { online }
     );
-    expect(updateOrder).toHaveBeenCalledWith({
-      where: { id: 'o1' },
-      data: {
-        gatewayFee: 52,
-        paymentRequestId: 'pr_1',
-        paymentTransactionId: 'txn_1',
-      },
-    });
+    expect(updateOrder).not.toHaveBeenCalled();
   });
 
   it('enregistre le moyen réellement utilisé', async () => {
@@ -113,12 +114,17 @@ describe('settleJekoTransaction', () => {
       'o1',
       true,
       [{ mode: 'MTN_MONEY', amount: 3450 }],
-      null
+      null,
+      { online }
     );
   });
 
   it('ne fait rien si la commande est déjà payée (webhook livré deux fois)', async () => {
-    findOrder.mockResolvedValue({ ...order, isPaid: true } as never);
+    findOrder.mockResolvedValue({
+      ...order,
+      isPaid: true,
+      paymentTransactionId: 'txn_1',
+    } as never);
     await expect(settleJekoTransaction(tx)).resolves.toBe('already_paid');
     expect(pay).not.toHaveBeenCalled();
   });
@@ -164,7 +170,8 @@ describe('settleJekoTransaction', () => {
       'o1',
       true,
       [{ mode: 'WAVE', amount: 3450 }],
-      null
+      null,
+      { online }
     );
     expect(push).toHaveBeenCalledTimes(1);
   });
@@ -183,13 +190,8 @@ describe('settleJekoTransaction', () => {
       true,
       [{ mode: 'WAVE', amount: 3450 }],
       null,
-      { skipKitchen: true }
+      { online, skipKitchen: true }
     );
-    // Transaction et frais Jèko conservés : le solde Jèko reste exact.
-    expect(updateOrder).toHaveBeenCalledWith({
-      where: { id: 'o1' },
-      data: expect.objectContaining({ paymentTransactionId: 'txn_1' }),
-    });
     expect(push).toHaveBeenCalledTimes(1);
   });
 
@@ -197,9 +199,11 @@ describe('settleJekoTransaction', () => {
     pay.mockRejectedValue(
       new OrderMutationError('État de paiement déjà à jour', 409)
     );
-    findOrder
-      .mockResolvedValueOnce(order as never)
-      .mockResolvedValueOnce({ ...order, isPaid: true } as never);
+    findOrder.mockResolvedValueOnce(order as never).mockResolvedValueOnce({
+      ...order,
+      isPaid: true,
+      paymentTransactionId: 'txn_1',
+    } as never);
 
     await expect(settleJekoTransaction(tx)).resolves.toBe('already_paid');
   });
@@ -210,7 +214,11 @@ describe('settleJekoTransaction', () => {
   });
 
   it("n'annonce pas deux fois quand le règlement ne fait rien (déjà payée, ignorée)", async () => {
-    findOrder.mockResolvedValue({ ...order, isPaid: true } as never);
+    findOrder.mockResolvedValue({
+      ...order,
+      isPaid: true,
+      paymentTransactionId: 'txn_1',
+    } as never);
     await settleJekoTransaction(tx);
     await settleJekoTransaction({ ...tx, status: 'pending' });
     expect(announce).not.toHaveBeenCalled();
@@ -254,7 +262,8 @@ describe('settleJekoTransaction', () => {
       'o1',
       true,
       [{ mode: 'WAVE', amount: 3500 }],
-      null
+      null,
+      { online }
     );
   });
 
@@ -300,34 +309,60 @@ describe('settleJekoTransaction', () => {
     expect(updateOrder).not.toHaveBeenCalled();
   });
 
-  it("complète frais et transaction si l'écriture qui suit le paiement avait échoué (livraison rejouée)", async () => {
+  it('payée hors Jèko (caisse, MCP) puis payée en ligne : alerte de double paiement', async () => {
+    // `paymentTransactionId` nul sur une commande payée = encaissée par le staff.
     findOrder.mockResolvedValue({
       ...order,
       isPaid: true,
       paymentTransactionId: null,
     } as never);
 
-    await expect(settleJekoTransaction(tx)).resolves.toBe('already_paid');
+    await expect(settleJekoTransaction(tx)).resolves.toBe('duplicate_payment');
 
-    expect(updateOrder).toHaveBeenCalledWith({
-      where: { id: 'o1' },
-      data: {
-        gatewayFee: 52,
-        paymentRequestId: 'pr_1',
-        paymentTransactionId: 'txn_1',
-      },
-    });
-    expect(push).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(pay).not.toHaveBeenCalled();
+    expect(updateOrder).not.toHaveBeenCalled();
   });
 
-  it("annonce la commande AVANT l'écriture des frais : un échec de cette écriture ne la fait pas manquer", async () => {
-    updateOrder.mockRejectedValue(new Error('base indisponible'));
-
-    await expect(settleJekoTransaction(tx)).rejects.toThrow(
-      'base indisponible'
+  it("encaissement du staff entre la lecture et l'écriture : alerte, pas de rejeu silencieux", async () => {
+    pay.mockRejectedValue(
+      new OrderMutationError('État de paiement déjà à jour', 409)
     );
+    findOrder.mockResolvedValueOnce(order as never).mockResolvedValueOnce({
+      ...order,
+      isPaid: true,
+      paymentTransactionId: null,
+    } as never);
 
-    expect(announce).toHaveBeenCalledWith('o1');
+    await expect(settleJekoTransaction(tx)).resolves.toBe('duplicate_payment');
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it("l'expiration annule la commande entre la lecture et l'écriture : on rejoue une fois, en paiement tardif", async () => {
+    pay
+      .mockRejectedValueOnce(
+        new OrderMutationError('État modifié entre temps, recharger', 409)
+      )
+      .mockResolvedValueOnce({ startedPreparation: false });
+    findOrder
+      .mockResolvedValueOnce(order as never)
+      .mockResolvedValueOnce({ ...order, status: 'CANCELLED' } as never);
+
+    await expect(settleJekoTransaction(tx)).resolves.toBe('late_payment');
+
+    expect(pay).toHaveBeenCalledTimes(2);
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(announce).not.toHaveBeenCalled();
+  });
+
+  it('ne rejoue qu’une seule fois : un second 409 remonte pour que Jèko réessaie', async () => {
+    pay.mockRejectedValue(
+      new OrderMutationError('État modifié entre temps, recharger', 409)
+    );
+    findOrder.mockResolvedValue({ ...order, status: 'CANCELLED' } as never);
+
+    await expect(settleJekoTransaction(tx)).rejects.toThrow('État modifié');
+    expect(pay).toHaveBeenCalledTimes(2);
   });
 
   it('relance toute autre erreur pour que Jèko réessaie la livraison', async () => {

@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/prisma', () => ({
   default: {
     order: { findUnique: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
+    $transaction: vi.fn(),
   },
 }));
 vi.mock('@/lib/order-mutations', () => ({ getOrderShortage: vi.fn() }));
@@ -57,6 +58,17 @@ const pending = {
 describe('startJekoPayment', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // L'incrément et la relecture du numéro de tentative partagent UNE
+    // transaction : le mock lui passe les mêmes doubles.
+    vi.mocked(prisma.$transaction).mockImplementation((async (
+      fn: (tx: unknown) => unknown
+    ) =>
+      fn({
+        order: {
+          updateMany: prisma.order.updateMany,
+          findUniqueOrThrow: prisma.order.findUnique,
+        },
+      })) as never);
     findOrder
       .mockResolvedValueOnce(pending as never)
       .mockResolvedValueOnce({ paymentAttempts: 1 } as never);

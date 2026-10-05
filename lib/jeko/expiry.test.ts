@@ -168,6 +168,17 @@ describe('expirePendingOrders', () => {
     expect(getRequest).not.toHaveBeenCalled();
   });
 
+  it("sans configuration Jèko, n'expire pas une commande qui a une demande de paiement (elle a pu être payée)", async () => {
+    config.mockReturnValue(null);
+
+    await expect(expirePendingOrders(nextNow())).resolves.toEqual({
+      expired: 0,
+      settled: 0,
+      skipped: 1,
+    });
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
   it("ne défait pas la fidélité d'une commande payée entre-temps", async () => {
     updateMany.mockResolvedValue({ count: 0 });
 

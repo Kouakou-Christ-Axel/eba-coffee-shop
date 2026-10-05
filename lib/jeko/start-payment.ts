@@ -83,27 +83,32 @@ export async function startJekoPayment(args: {
   }
 
   const expiresAt = new Date(now.getTime() + PAYMENT_EXPIRY_MINUTES * 60_000);
-  const claimed = await prisma.order.updateMany({
-    where: {
-      id: order.id,
-      isPaid: false,
-      status: 'NEW',
-      paymentExpiresAt: { gt: now },
-    },
-    data: {
-      paymentAttempts: { increment: 1 },
-      paymentExpiresAt: expiresAt,
-      // Figé à la tentative : `total` peut changer ensuite (annulation par le
-      // client), alors que ce montant est celui que Jèko encaissera.
-      paymentAmountDue: order.total + order.onlineFee,
-    },
+  // Incrément ET relecture dans une même transaction : l'écriture verrouille la
+  // ligne, donc deux démarrages simultanés lisent chacun SON numéro de tentative
+  // (sinon ils fabriquent la même référence et Jèko refuse le second).
+  const paymentAttempts = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.order.updateMany({
+      where: {
+        id: order.id,
+        isPaid: false,
+        status: 'NEW',
+        paymentExpiresAt: { gt: now },
+      },
+      data: {
+        paymentAttempts: { increment: 1 },
+        paymentExpiresAt: expiresAt,
+        // Figé à la tentative : `total` ne doit plus changer ensuite, alors que
+        // ce montant est celui que Jèko encaissera.
+        paymentAmountDue: order.total + order.onlineFee!,
+      },
+    });
+    if (claimed.count === 0) throw new PaymentNotPendingError('conflict');
+    const fresh = await tx.order.findUniqueOrThrow({
+      where: { id: order.id },
+      select: { paymentAttempts: true },
+    });
+    return fresh.paymentAttempts;
   });
-  if (claimed.count === 0) throw new PaymentNotPendingError('conflict');
-
-  const { paymentAttempts } = (await prisma.order.findUnique({
-    where: { id: order.id },
-    select: { paymentAttempts: true },
-  })) as { paymentAttempts: number };
 
   const request = await createJekoPaymentRequest(config, {
     reference: buildJekoReference(order.reference, paymentAttempts),

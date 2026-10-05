@@ -1439,6 +1439,17 @@ export async function setOrderPayment(
      * staff la lance ensuite, en confirmant la production.
      */
     skipKitchen?: boolean;
+    /**
+     * Règlement par Jèko : l'identifiant de transaction et les frais sont écrits
+     * dans la MÊME écriture que `isPaid`. Une commande payée dont
+     * `paymentTransactionId` est nul l'a donc été hors Jèko (caisse, MCP) — c'est
+     * ce qui permet de signaler un paiement en ligne arrivé ensuite.
+     */
+    online?: {
+      gatewayFee: number;
+      paymentRequestId?: string;
+      paymentTransactionId: string;
+    };
   }
 ): Promise<{ startedPreparation: boolean }> {
   if (isPaid && (!payments || payments.length === 0)) {
@@ -1566,6 +1577,12 @@ export async function setOrderPayment(
           // Plus aucun chemin automatique par IA : la colonne reste pour
           // l'historique des anciennes commandes (badge et retour arrière caisse).
           paymentAutoValidatedByAi: false,
+          // Payée : plus rien à expirer. Sans cette remise à nul, un dépaiement
+          // ultérieur laisserait `paymentExpiresAt` posé et la commande, redevenue
+          // « non payée », disparaîtrait des vues staff (cf. STAFF_VISIBLE) puis
+          // serait reprise par le job d'expiration.
+          paymentExpiresAt: null,
+          ...(opts?.online ?? {}),
           // Un règlement intégral couvre TOUJOURS l'acompte, puisqu'il couvre
           // le total (cf. le commentaire de `sendOrderToKitchen` ci-dessous).
           // Sans cette écriture, une commande à acompte payée en une fois

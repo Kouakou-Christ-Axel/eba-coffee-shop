@@ -249,6 +249,47 @@ describe('setOrderPayment — réservation du stock à l’entrée en cuisine', 
     );
   });
 
+  it("remet paymentExpiresAt à nul à l'encaissement : un dépaiement ne cache plus la commande", async () => {
+    mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-active' } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+
+    await setOrderPayment('order1', true, [{ mode: 'CASH', amount: 2500 }]);
+
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ isPaid: true, paymentExpiresAt: null }),
+      })
+    );
+  });
+
+  it('écrit transaction et frais Jèko dans la même écriture que isPaid (règlement en ligne)', async () => {
+    mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
+    mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);
+    mockOptionFindFirst.mockResolvedValue({ id: 'opt-active' } as never);
+    mockOptionUpdateMany.mockResolvedValue({ count: 1 } as never);
+    const online = {
+      gatewayFee: 52,
+      paymentRequestId: 'pr_1',
+      paymentTransactionId: 'txn_1',
+    };
+
+    await setOrderPayment(
+      'order1',
+      true,
+      [{ mode: 'CASH', amount: 2500 }],
+      null,
+      { online }
+    );
+
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ isPaid: true, ...online }),
+      })
+    );
+  });
+
   it('refuse le paiement (409) si aucune option disponible ne correspond au nom', async () => {
     mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
     mockProdUpdateMany.mockResolvedValue({ count: 1 } as never);

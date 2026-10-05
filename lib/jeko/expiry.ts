@@ -97,6 +97,13 @@ export async function expirePendingOrders(
 
   for (const order of overdue) {
     try {
+      // Sans configuration (variables retirées ou en rotation), on ne peut pas
+      // interroger Jèko : expirer une commande qui a une demande de paiement
+      // pourrait annuler une commande déjà payée. On attend le retour de la config.
+      if (!config && order.paymentRequestId) {
+        result.skipped++;
+        continue;
+      }
       if (config && order.paymentRequestId) {
         // 404 : Jèko ne connaît pas la demande, il n'y a rien à encaisser. Sans
         // ce cas la commande resterait « reportée » à chaque passage, à jamais.
