@@ -20,8 +20,10 @@ async function run(fn: () => Promise<unknown>): Promise<ActionResult> {
   }
 }
 
-export const recordWithdrawalAction = (input: unknown) =>
-  run(() => recordJekoWithdrawal(input));
+export async function recordWithdrawalAction(input: unknown) {
+  return run(() => recordJekoWithdrawal(input));
+}
 
-export const deleteWithdrawalAction = (id: string) =>
-  run(() => deleteJekoWithdrawal(id));
+export async function deleteWithdrawalAction(id: string) {
+  return run(() => deleteJekoWithdrawal(id));
+}
