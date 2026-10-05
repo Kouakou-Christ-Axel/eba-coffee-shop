@@ -101,6 +101,11 @@ export async function settleJekoTransaction(
 
   if (order.isPaid) return settledElsewhere(order, tx);
 
+  // Déjà réglée par CETTE transaction puis dépayée (remboursement) : le dépaiement
+  // conserve `paymentTransactionId`. Une livraison rejouée ou un rechargement de
+  // `?paiement=ok` ne doit pas la remettre « payée ».
+  if (order.paymentTransactionId === tx.transactionId) return 'ignored';
+
   // Montant FIGÉ à la tentative : `total` peut avoir changé depuis (l'annulation
   // par le client le remet au prix brut) alors que la demande déjà envoyée à Jèko,
   // elle, ne change pas.
@@ -112,15 +117,19 @@ export async function settleJekoTransaction(
     // On sort la commande de l'attente : sinon l'expiration la reprendrait à
     // chaque passage (relecture Jèko, nouvelle alerte), sans jamais l'annuler.
     // Elle devient une commande normale que le staff voit et tranche.
-    await prisma.order.update({
-      where: { id: order.id },
+    const { count } = await prisma.order.updateMany({
+      where: { id: order.id, isPaid: false, paymentExpiresAt: { not: null } },
       data: { paymentExpiresAt: null },
     });
-    alertStaff(
-      order.id,
-      order.dailyNumber,
-      `Montant reçu ${tx.amountFcfa} F au lieu de ${due} F : commande non encaissée, à vérifier.`
-    );
+    // Alerte une seule fois : un rejeu (sondage de vérification) trouve
+    // `paymentExpiresAt` déjà nul et ne réalerte pas le staff.
+    if (count > 0) {
+      alertStaff(
+        order.id,
+        order.dailyNumber,
+        `Montant reçu ${tx.amountFcfa} F au lieu de ${due} F : commande non encaissée, à vérifier.`
+      );
+    }
     return 'amount_mismatch';
   }
 

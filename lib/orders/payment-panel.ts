@@ -39,7 +39,12 @@ export function getPaymentPanelKind(
   // aucun sens.
   if (order.total <= 0) return 'nothing_due';
 
-  if (order.payment.state === 'expired') return 'expired';
+  if (order.payment.state === 'expired') {
+    // Retour de chez Jèko avec succès après l'échéance : le client a pu payer
+    // juste avant. On vérifie plutôt que d'afficher « expiré » (et de le laisser
+    // repayer) ; si Jèko ne confirme rien, la vérification bascule en échec.
+    return paymentReturn === 'ok' ? 'verifying' : 'expired';
+  }
   if (order.payment.state === 'pending') {
     if (paymentReturn === 'ok') return 'verifying';
     if (paymentReturn === 'echec' || paymentReturn === 'indisponible') {

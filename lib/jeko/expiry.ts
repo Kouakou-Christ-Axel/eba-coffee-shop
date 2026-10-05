@@ -29,7 +29,12 @@ const GRACE_MS = 2 * 60_000;
 const THROTTLE_MS = 60_000;
 const BATCH_SIZE = 20;
 
+// Une commande reportée (Jèko injoignable, config absente) ne doit pas occuper le
+// lot à chaque passage et affamer les suivantes : on la laisse de côté un moment.
+const DEFER_MS = 10 * 60_000;
+
 let lastRunAt = 0;
+const deferredUntil = new Map<string, number>();
 
 type Overdue = {
   id: string;
@@ -49,7 +54,14 @@ async function expireOrder(order: Overdue): Promise<boolean> {
     // Gardé sur `isPaid:false` et `NEW` : une commande payée ou déjà prise en
     // charge entre-temps n'est pas touchée, sa fidélité non plus.
     const updated = await tx.order.updateMany({
-      where: { id: order.id, isPaid: false, status: 'NEW' },
+      // `paymentExpiresAt` non nul : « Prendre en caisse » (releasePendingOrder) le
+      // remet à nul, la commande est alors celle du staff, plus à expirer.
+      where: {
+        id: order.id,
+        isPaid: false,
+        status: 'NEW',
+        paymentExpiresAt: { not: null },
+      },
       data: { status: 'CANCELLED' },
     });
     if (updated.count === 0) return false;
@@ -73,9 +85,14 @@ export async function expirePendingOrders(
   if (now.getTime() - lastRunAt < THROTTLE_MS) return result;
   lastRunAt = now.getTime();
 
+  for (const [id, until] of deferredUntil) {
+    if (until <= now.getTime()) deferredUntil.delete(id);
+  }
+
   // staff-visibility: exempt — c'est précisément ce module qui traite les commandes en attente de paiement
   const overdue = await prisma.order.findMany({
     where: {
+      id: { notIn: [...deferredUntil.keys()] },
       source: 'ONLINE',
       isPaid: false,
       status: 'NEW',
@@ -101,6 +118,7 @@ export async function expirePendingOrders(
       // interroger Jèko : expirer une commande qui a une demande de paiement
       // pourrait annuler une commande déjà payée. On attend le retour de la config.
       if (!config && order.paymentRequestId) {
+        deferredUntil.set(order.id, now.getTime() + DEFER_MS);
         result.skipped++;
         continue;
       }
@@ -118,6 +136,7 @@ export async function expirePendingOrders(
           if ((await settleFromRemote(remote)) === 'unreadable') {
             // Succès sans détail de transaction : on ne peut ni régler ni
             // expirer sans risque, on laisse la main au prochain passage.
+            deferredUntil.set(order.id, now.getTime() + DEFER_MS);
             result.skipped++;
           } else {
             result.settled++;
@@ -128,6 +147,7 @@ export async function expirePendingOrders(
       if (await expireOrder(order)) result.expired++;
     } catch (err) {
       console.error(`[jeko] expiration de ${order.id} reportée :`, err);
+      deferredUntil.set(order.id, now.getTime() + DEFER_MS);
       result.skipped++;
     }
   }

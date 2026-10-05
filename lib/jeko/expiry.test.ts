@@ -68,7 +68,12 @@ describe('expirePendingOrders', () => {
 
     expect(result).toEqual({ expired: 1, settled: 0, skipped: 0 });
     expect(updateMany).toHaveBeenCalledWith({
-      where: { id: 'o1', isPaid: false, status: 'NEW' },
+      where: {
+        id: 'o1',
+        isPaid: false,
+        status: 'NEW',
+        paymentExpiresAt: { not: null },
+      },
       data: { status: 'CANCELLED' },
     });
   });

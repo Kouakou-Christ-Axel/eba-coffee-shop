@@ -67,13 +67,14 @@ describe('getPaymentPanelKind', () => {
     expect(getPaymentPanelKind(late, 'ok')).toBe('late_paid');
   });
 
-  it('délai dépassé : expired, même si le client revient de chez Jèko', () => {
+  it('délai dépassé : expired, sauf retour de chez Jèko avec succès (vérification)', () => {
     const expired = {
       ...order,
       payment: { ...pending, state: 'expired' as const },
     };
     expect(getPaymentPanelKind(expired, null)).toBe('expired');
-    expect(getPaymentPanelKind(expired, 'ok')).toBe('expired');
+    expect(getPaymentPanelKind(expired, 'echec')).toBe('expired');
+    expect(getPaymentPanelKind(expired, 'ok')).toBe('verifying');
   });
 
   it('total nul (récompense qui couvre tout) : rien à payer', () => {

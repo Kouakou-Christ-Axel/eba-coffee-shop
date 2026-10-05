@@ -1626,7 +1626,9 @@ export async function setOrderPayment(
       };
     });
   } catch (err) {
-    if (err instanceof StockShortageError) {
+    // Règlement Jèko (`opts.online`) : le client a DÉJÀ payé et l'appelant rejoue
+    // en `skipKitchen` — lui annoncer « article indisponible » serait faux.
+    if (err instanceof StockShortageError && !opts?.online) {
       // Client perdant (stock insuffisant) : notifié AVANT que la 409 ne
       // remonte à l'appelant (route/action) — best-effort, jamais bloquant.
       notifyOrderCustomer(id, 'ITEM_UNAVAILABLE');

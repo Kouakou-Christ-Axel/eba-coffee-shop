@@ -188,7 +188,7 @@ export async function createJekoPaymentRequest(
 type TransactionBody = {
   id: string;
   amount: { amount: number };
-  fees: { amount: number };
+  fees?: { amount: number } | null;
 };
 
 export async function getJekoPaymentRequest(
@@ -220,7 +220,7 @@ export async function getJekoPaymentRequest(
     paymentMethod: (body.paymentMethod as string | undefined) ?? null,
     errorReason: (body.errorReason as string | null | undefined) ?? null,
     transactionId: tx?.id ?? null,
-    amountFcfa: tx ? tx.amount.amount / CENTS_PER_FCFA : null,
-    gatewayFeeFcfa: tx ? tx.fees.amount / CENTS_PER_FCFA : null,
+    amountFcfa: tx?.amount ? tx.amount.amount / CENTS_PER_FCFA : null,
+    gatewayFeeFcfa: tx ? (tx.fees?.amount ?? 0) / CENTS_PER_FCFA : null,
   };
 }

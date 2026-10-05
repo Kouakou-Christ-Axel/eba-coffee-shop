@@ -65,10 +65,13 @@ export async function startJekoPayment(args: {
   if (!order) throw new PaymentNotPendingError('not_found');
   // `paymentExpiresAt` remis à nul (rupture de stock après paiement, cf.
   // settle.ts) : la commande n'attend plus de paiement en ligne.
-  if (order.onlineFee === null || order.paymentExpiresAt === null) {
+  if (order.onlineFee === null) throw new PaymentNotPendingError('not_online');
+  // Avant le test de `paymentExpiresAt` : le règlement le remet à nul, un double
+  // clic sur « Réessayer » après paiement doit dire « déjà payée ».
+  if (order.isPaid) throw new PaymentNotPendingError('already_paid');
+  if (order.paymentExpiresAt === null) {
     throw new PaymentNotPendingError('not_online');
   }
-  if (order.isPaid) throw new PaymentNotPendingError('already_paid');
   if (order.status !== 'NEW') throw new PaymentNotPendingError('cancelled');
   if (order.paymentExpiresAt <= now)
     throw new PaymentNotPendingError('expired');

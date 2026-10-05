@@ -33,7 +33,7 @@ vi.mock('@/lib/order-mutations', () => ({
   StockShortageError,
 }));
 vi.mock('@/lib/prisma', () => ({
-  default: { order: { findUnique: vi.fn(), update: vi.fn() } },
+  default: { order: { findUnique: vi.fn(), updateMany: vi.fn() } },
 }));
 vi.mock('@/lib/push-notify', () => ({ sendPushToRoles: vi.fn() }));
 vi.mock('./notify-paid', () => ({ announcePaidOrder: vi.fn() }));
@@ -49,7 +49,7 @@ import { settleJekoTransaction } from './settle';
 import type { JekoTransaction } from './webhook-payload';
 
 const findOrder = vi.mocked(prisma.order.findUnique);
-const updateOrder = vi.mocked(prisma.order.update);
+const updateOrder = vi.mocked(prisma.order.updateMany);
 const pay = vi.mocked(setOrderPayment);
 const push = vi.mocked(sendPushToRoles);
 const announce = vi.mocked(announcePaidOrder);
@@ -88,7 +88,7 @@ describe('settleJekoTransaction', () => {
     push.mockResolvedValue(undefined as never);
     announce.mockResolvedValue(undefined);
     findOrder.mockResolvedValue(order as never);
-    updateOrder.mockResolvedValue({} as never);
+    updateOrder.mockResolvedValue({ count: 1 } as never);
     pay.mockResolvedValue({ startedPreparation: true });
   });
 
@@ -278,9 +278,27 @@ describe('settleJekoTransaction', () => {
     ).resolves.toBe('amount_mismatch');
 
     expect(updateOrder).toHaveBeenCalledWith({
-      where: { id: 'o1' },
+      where: { id: 'o1', isPaid: false, paymentExpiresAt: { not: null } },
       data: { paymentExpiresAt: null },
     });
+  });
+
+  it('un rejeu du montant erroné ne réalerte pas le staff', async () => {
+    updateOrder.mockResolvedValue({ count: 0 } as never);
+    await expect(
+      settleJekoTransaction({ ...tx, amountFcfa: 3450 })
+    ).resolves.toBe('amount_mismatch');
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it('une commande dépayée par CETTE transaction n’est pas re-payée au rejeu', async () => {
+    findOrder.mockResolvedValue({
+      ...order,
+      isPaid: false,
+      paymentTransactionId: tx.transactionId,
+    } as never);
+    await expect(settleJekoTransaction(tx)).resolves.toBe('ignored');
+    expect(pay).not.toHaveBeenCalled();
   });
 
   it('un second paiement par une AUTRE transaction sur une commande déjà payée alerte le staff', async () => {
