@@ -97,8 +97,12 @@ aussi en local ; en test, changer l'en-tête `x-forwarded-for` suffit.
 - **Paiement tardif** : si Jèko confirme un paiement après l'expiration ou
   l'annulation, il est encaissé (`isPaid`) mais la commande n'est **pas** remise en
   cuisine ; le staff est alerté et la rétablit (ou rembourse) par le flux habituel.
-- **Rupture de stock après paiement** : la commande redevient une commande normale à
-  encaisser, avec une alerte « déjà payée en ligne ».
+- **Rupture de stock** : avant de faire payer, `startJekoPayment` vérifie le stock
+  (sauf commande différée) et refuse (`out_of_stock`) : le client n'est pas débité.
+  Si le stock manque pendant le paiement, le paiement est **enregistré sans entrée
+  en cuisine** (`setOrderPayment(..., { skipKitchen: true })`) : la commande reste
+  `NEW`, payée, avec une alerte ; le staff la lance en confirmant la production
+  (`coverShortage`), comme pour toute pénurie.
 - **Frais** : `onlineFee − gatewayFee` donne la marge par commande (environ −0,5 %).
   Les frais ne sont jamais comptés dans le chiffre d'affaires.
 - **Capture d'écran + analyse IA : supprimées.** Les routes `…/preuve-paiement` et

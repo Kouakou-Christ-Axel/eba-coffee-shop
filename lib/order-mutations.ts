@@ -1433,6 +1433,12 @@ export async function setOrderPayment(
      * réservation quand cet encaissement pousse la commande en cuisine.
      */
     coverShortage?: boolean;
+    /**
+     * Encaisse sans pousser la commande en cuisine (ni réserver de stock). Sert
+     * à enregistrer un paiement en ligne reçu alors que le stock manque : le
+     * staff la lance ensuite, en confirmant la production.
+     */
+    skipKitchen?: boolean;
   }
 ): Promise<{ startedPreparation: boolean }> {
   if (isPaid && (!payments || payments.length === 0)) {
@@ -1524,7 +1530,9 @@ export async function setOrderPayment(
       // marchandise sera produite le jour du retrait. Un seul point de décision
       // — tout l'aval (réservation, statut, notification) en dépend déjà.
       const startedPreparation =
-        order.status === 'NEW' && !isDeferredPickup(order.pickupTime, now);
+        !opts?.skipKitchen &&
+        order.status === 'NEW' &&
+        !isDeferredPickup(order.pickupTime, now);
       const items = order.items as unknown as CartItem[];
 
       // Le stock suit l'ENTRÉE EN CUISINE, pas l'argent : on ne réserve que

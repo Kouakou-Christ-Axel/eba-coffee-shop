@@ -116,35 +116,26 @@ export async function settleJekoTransaction(
     return 'amount_mismatch';
   }
 
+  const lines = [
+    { mode: jekoMethodToPaymentMode(tx.paymentMethod), amount: order.total },
+  ];
+  let shortage = false;
   try {
-    await setOrderPayment(
-      order.id,
-      true,
-      [
-        {
-          mode: jekoMethodToPaymentMode(tx.paymentMethod),
-          amount: order.total,
-        },
-      ],
-      null
-    );
-  } catch (err) {
-    // Rupture entre la création et le paiement : le client a payé, mais la
-    // commande ne peut pas partir en cuisine. On la sort de l'attente pour
-    // qu'elle devienne une commande à encaisser normale (la caisse sait gérer
-    // la pénurie), avec une alerte « déjà payée ».
-    if (err instanceof StockShortageError) {
-      await prisma.order.update({
-        where: { id: order.id },
-        data: { paymentExpiresAt: null },
+    try {
+      await setOrderPayment(order.id, true, lines, null);
+    } catch (err) {
+      if (!(err instanceof StockShortageError)) throw err;
+      // Rupture entre la création et le paiement : le client a payé, la commande
+      // ne peut pas partir en cuisine. L'argent est bien là : on l'enregistre
+      // (sans cuisine) pour que la commande, le solde Jèko et la clôture restent
+      // justes. Le staff la lance ensuite par le flux habituel, en confirmant la
+      // production (`coverShortage`).
+      shortage = true;
+      await setOrderPayment(order.id, true, lines, null, {
+        skipKitchen: true,
       });
-      alertStaff(
-        order.id,
-        order.dailyNumber,
-        `Payée en ligne (${tx.amountFcfa} F) mais stock insuffisant : ne pas la faire payer deux fois.`
-      );
-      return 'shortage';
     }
+  } catch (err) {
     // Deux livraisons simultanées : la seconde trouve la commande déjà payée.
     if (err instanceof OrderMutationError && err.httpStatus === 409) {
       const fresh = await prisma.order.findUnique({
@@ -165,7 +156,13 @@ export async function settleJekoTransaction(
   // remis en cuisine. Le staff la reprend par le flux existant (qui restitue le
   // tampon) ou la rembourse — on ne reconsomme pas une récompense à l'aveugle.
   const late = order.status === 'CANCELLED';
-  if (late) {
+  if (shortage) {
+    alertStaff(
+      order.id,
+      order.dailyNumber,
+      `Payée en ligne (${tx.amountFcfa} F) mais stock insuffisant : à lancer en cuisine après avoir confirmé la production. Ne pas la refaire payer.`
+    );
+  } else if (late) {
     alertStaff(
       order.id,
       order.dailyNumber,
@@ -181,5 +178,6 @@ export async function settleJekoTransaction(
   }
 
   await prisma.order.update({ where: { id: order.id }, data: fees });
+  if (shortage) return 'shortage';
   return late ? 'late_payment' : 'paid';
 }

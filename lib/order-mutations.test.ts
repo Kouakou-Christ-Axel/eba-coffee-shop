@@ -325,6 +325,26 @@ describe('setOrderPayment — réservation du stock à l’entrée en cuisine', 
     );
   });
 
+  it('skipKitchen : encaisse une commande NEW sans la pousser en cuisine ni toucher au stock', async () => {
+    mockOrderFindUnique.mockResolvedValue(orderWithOneItem() as never);
+
+    const result = await setOrderPayment(
+      'order1',
+      true,
+      [{ mode: 'WAVE', amount: 2500 }],
+      null,
+      { skipKitchen: true }
+    );
+
+    expect(result).toEqual({ startedPreparation: false });
+    expect(mockProdUpdateMany).not.toHaveBeenCalled();
+    expect(mockOptionUpdateMany).not.toHaveBeenCalled();
+    const paid = mockOrderUpdateMany.mock.calls.find(
+      ([args]) => (args as { data?: { isPaid?: boolean } }).data?.isPaid
+    )?.[0] as { data: Record<string, unknown> };
+    expect(paid.data).not.toHaveProperty('status');
+  });
+
   it('commande déjà en cuisine (PREPARING) : l’encaissement ne touche pas au stock', async () => {
     mockOrderFindUnique.mockResolvedValue(
       orderWithOneItem({}, { status: 'PREPARING' }) as never

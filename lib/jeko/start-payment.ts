@@ -12,6 +12,8 @@
 // n'intervient pas.
 
 import prisma from '@/lib/prisma';
+import { getOrderShortage } from '@/lib/order-mutations';
+import { isDeferredPickup } from '@/lib/orders/scheduling';
 import { PAYMENT_EXPIRY_MINUTES } from '@/config/constants';
 import {
   createJekoPaymentRequest,
@@ -26,6 +28,7 @@ export type PaymentNotPendingReason =
   | 'already_paid'
   | 'cancelled'
   | 'expired'
+  | 'out_of_stock'
   | 'conflict';
 
 export class PaymentNotPendingError extends Error {
@@ -56,6 +59,7 @@ export async function startJekoPayment(args: {
       total: true,
       onlineFee: true,
       paymentExpiresAt: true,
+      pickupTime: true,
     },
   });
   if (!order) throw new PaymentNotPendingError('not_found');
@@ -68,6 +72,15 @@ export async function startJekoPayment(args: {
   if (order.status !== 'NEW') throw new PaymentNotPendingError('cancelled');
   if (order.paymentExpiresAt <= now)
     throw new PaymentNotPendingError('expired');
+  // Un article a manqué depuis la création : mieux vaut le dire AVANT que le client
+  // paie que de le rembourser après. Une commande différée ne touche pas au stock
+  // du jour (il sera produit le jour du retrait).
+  if (
+    !isDeferredPickup(order.pickupTime, now) &&
+    (await getOrderShortage(order.id)).length > 0
+  ) {
+    throw new PaymentNotPendingError('out_of_stock');
+  }
 
   const expiresAt = new Date(now.getTime() + PAYMENT_EXPIRY_MINUTES * 60_000);
   const claimed = await prisma.order.updateMany({

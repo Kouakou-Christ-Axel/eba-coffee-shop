@@ -77,6 +77,17 @@ export function formatCountdown(msLeft: number): string {
   return `${minutes}:${seconds}`;
 }
 
+/** Heure limite (HH:MM, Abidjan) jusqu'à laquelle la commande peut encore être
+ * payée ou relancée. `null` sans échéance. */
+export function formatRetryDeadline(expiresAt: string | null): string | null {
+  if (!expiresAt) return null;
+  return new Date(expiresAt).toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Africa/Abidjan',
+  });
+}
+
 /** Message affiché quand `POST /api/commandes/:id/paiement` échoue. Jamais le
  * texte brut du serveur : on aiguille sur `code`/`reason`. */
 export function paymentStartErrorMessage(
@@ -89,6 +100,9 @@ export function paymentStartErrorMessage(
   if (data.code === 'CONFLICT') {
     if (data.reason === 'expired') {
       return 'Le délai de paiement est dépassé : cette commande a expiré. Passe une nouvelle commande.';
+    }
+    if (data.reason === 'out_of_stock') {
+      return 'Un article de ta commande n’est plus disponible. Tu n’as pas été débité : annule cette commande et recommande sans cet article.';
     }
     if (data.reason === 'already_paid') return 'Cette commande est déjà payée.';
     if (data.reason === 'cancelled') return 'Cette commande a été annulée.';

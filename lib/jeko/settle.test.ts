@@ -169,14 +169,26 @@ describe('settleJekoTransaction', () => {
     expect(push).toHaveBeenCalledTimes(1);
   });
 
-  it("sort la commande de l'attente et alerte le staff si le stock manque entre-temps", async () => {
-    pay.mockRejectedValue(new StockShortageError('Stock insuffisant'));
+  it("enregistre quand même le paiement si le stock manque entre-temps : l'argent est arrivé, la commande reste à lancer par le staff", async () => {
+    pay
+      .mockRejectedValueOnce(new StockShortageError('Stock insuffisant'))
+      .mockResolvedValueOnce({ startedPreparation: false });
 
     await expect(settleJekoTransaction(tx)).resolves.toBe('shortage');
 
+    // 2e appel : encaissement purement financier, sans entrée en cuisine.
+    expect(pay).toHaveBeenNthCalledWith(
+      2,
+      'o1',
+      true,
+      [{ mode: 'WAVE', amount: 3450 }],
+      null,
+      { skipKitchen: true }
+    );
+    // Transaction et frais Jèko conservés : le solde Jèko reste exact.
     expect(updateOrder).toHaveBeenCalledWith({
       where: { id: 'o1' },
-      data: { paymentExpiresAt: null },
+      data: expect.objectContaining({ paymentTransactionId: 'txn_1' }),
     });
     expect(push).toHaveBeenCalledTimes(1);
   });
@@ -209,7 +221,9 @@ describe('settleJekoTransaction', () => {
     await settleJekoTransaction(tx);
 
     findOrder.mockResolvedValue(order as never);
-    pay.mockRejectedValue(new StockShortageError('Stock insuffisant'));
+    pay
+      .mockRejectedValueOnce(new StockShortageError('Stock insuffisant'))
+      .mockResolvedValueOnce({ startedPreparation: false });
     await settleJekoTransaction(tx);
 
     await settleJekoTransaction({ ...tx, amountFcfa: 1 });

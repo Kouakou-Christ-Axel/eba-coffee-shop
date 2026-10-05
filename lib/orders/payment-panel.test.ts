@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import {
   formatCountdown,
   getPaymentPanelKind,
+  formatRetryDeadline,
   parsePaymentReturn,
   paymentStartErrorMessage,
 } from './payment-panel';
@@ -112,6 +113,27 @@ describe('paiement qui n’a pas pu démarrer (Jèko indisponible au checkout)',
 
   it('affiche l’état « échec » avec le choix du moyen, pour réessayer', () => {
     expect(getPaymentPanelKind(order, 'indisponible')).toBe('failed');
+  });
+});
+
+describe('paymentStartErrorMessage — rupture de stock', () => {
+  it("explique qu'un article n'est plus disponible et que le client n'est pas débité", () => {
+    const msg = paymentStartErrorMessage(409, {
+      code: 'CONFLICT',
+      reason: 'out_of_stock',
+    });
+    expect(msg).toMatch(/plus disponible/);
+    expect(msg).toMatch(/pas été débité/);
+  });
+});
+
+describe('formatRetryDeadline', () => {
+  it('donne l’heure limite de la tentative en cours (heure d’Abidjan)', () => {
+    expect(formatRetryDeadline('2026-10-03T12:09:30.000Z')).toBe('12:09');
+  });
+
+  it('renvoie null sans échéance', () => {
+    expect(formatRetryDeadline(null)).toBeNull();
   });
 });
 

@@ -16,12 +16,14 @@ vi.mock('@/lib/prisma', () => ({
     order: { findUnique: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
   },
 }));
+vi.mock('@/lib/order-mutations', () => ({ getOrderShortage: vi.fn() }));
 vi.mock('./client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./client')>()),
   createJekoPaymentRequest: vi.fn(),
 }));
 
 import prisma from '@/lib/prisma';
+import { getOrderShortage } from '@/lib/order-mutations';
 import { JekoApiError, createJekoPaymentRequest } from './client';
 import { PaymentNotPendingError, startJekoPayment } from './start-payment';
 
@@ -29,6 +31,7 @@ const findOrder = vi.mocked(prisma.order.findUnique);
 const claim = vi.mocked(prisma.order.updateMany);
 const saveRequest = vi.mocked(prisma.order.update);
 const createRequest = vi.mocked(createJekoPaymentRequest);
+const shortage = vi.mocked(getOrderShortage);
 
 const now = new Date('2026-10-03T12:00:00.000Z');
 const config = { apiKey: 'k', apiKeyId: 'i', storeId: 's' };
@@ -48,6 +51,7 @@ const pending = {
   total: 3450,
   onlineFee: 35,
   paymentExpiresAt: new Date('2026-10-03T12:10:00.000Z'),
+  pickupTime: new Date('2026-10-03T12:30:00.000Z'),
 };
 
 describe('startJekoPayment', () => {
@@ -56,6 +60,7 @@ describe('startJekoPayment', () => {
     findOrder
       .mockResolvedValueOnce(pending as never)
       .mockResolvedValueOnce({ paymentAttempts: 1 } as never);
+    shortage.mockResolvedValue([]);
     claim.mockResolvedValue({ count: 1 });
     saveRequest.mockResolvedValue({} as never);
     createRequest.mockResolvedValue({
@@ -63,6 +68,31 @@ describe('startJekoPayment', () => {
       status: 'pending',
       redirectUrl: 'https://pay.jeko.africa/pay_request/pr/pr_1',
     });
+  });
+
+  it('refuse de faire payer un article devenu indisponible : rien n’est réclamé ni envoyé à Jèko', async () => {
+    shortage.mockResolvedValue([{ name: 'Espresso', missing: 1 }] as never);
+
+    await expect(startJekoPayment(args)).rejects.toMatchObject({
+      name: 'PaymentNotPendingError',
+      reason: 'out_of_stock',
+    });
+    expect(claim).not.toHaveBeenCalled();
+    expect(createRequest).not.toHaveBeenCalled();
+  });
+
+  it('ne contrôle pas le stock d’une commande différée (il sera produit le jour J)', async () => {
+    findOrder.mockReset();
+    findOrder
+      .mockResolvedValueOnce({
+        ...pending,
+        pickupTime: new Date('2026-10-05T12:30:00.000Z'),
+      } as never)
+      .mockResolvedValueOnce({ paymentAttempts: 1 } as never);
+    shortage.mockResolvedValue([{ name: 'Espresso', missing: 1 }] as never);
+
+    await expect(startJekoPayment(args)).resolves.toBeDefined();
+    expect(shortage).not.toHaveBeenCalled();
   });
 
   it("réclame la commande de façon atomique et relance l'échéance de 15 min", async () => {

@@ -40,6 +40,7 @@ import {
 import {
   formatCountdown,
   getPaymentPanelKind,
+  formatRetryDeadline,
   paymentStartErrorMessage,
   type PaymentReturn,
 } from '@/lib/orders/payment-panel';
@@ -112,6 +113,7 @@ export function PaymentSection({
   const [slow, setSlow] = useState(false);
 
   const baseKind = getPaymentPanelKind(order, paymentReturn);
+  const retryDeadline = formatRetryDeadline(order.payment.expiresAt);
   const msLeft =
     mounted && order.payment.expiresAt
       ? new Date(order.payment.expiresAt).getTime() - now.getTime()
@@ -357,6 +359,7 @@ export function PaymentSection({
               {paymentReturn === 'indisponible'
                 ? 'Ta commande est enregistrée, mais le paiement en ligne n’a pas pu démarrer. Tu n’as pas été débité : réessaie dans un instant, avec le même moyen ou un autre.'
                 : 'Le paiement n’a pas abouti. Tu n’as pas été débité : tu peux réessayer, avec le même moyen ou un autre.'}
+              {retryDeadline && ` Tu peux réessayer jusqu’à ${retryDeadline}.`}
             </p>
             {picker}
           </Panel>
