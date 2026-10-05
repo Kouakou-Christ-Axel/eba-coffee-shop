@@ -112,7 +112,19 @@ aussi en local ; en test, changer l'en-tête `x-forwarded-for` suffit.
   message de récap WhatsApp que le staff envoie à la main.
 - **Double paiement** : si une relance a créé une seconde demande et que le client paie
   les deux, la seconde transaction est détectée (`Order.paymentTransactionId`) et le
-  staff est alerté pour rembourser depuis le Dashboard Jèko.
+  staff est alerté pour rembourser depuis le Dashboard Jèko. Même alerte quand la
+  commande a été encaissée en caisse (ou par le MCP) avant l'arrivée du paiement en
+  ligne : `paymentTransactionId` est écrit AVEC `isPaid` (`setOrderPayment`, option
+  `online`), donc une commande payée sans identifiant l'a été hors Jèko.
+- **Commandes en attente de paiement (caisse)** : icône horloge de l'en-tête de la
+  caisse (`pending-payment-sheet.tsx`, route `GET /api/caisse/orders/pending`). Le
+  caissier peut appeler, relancer par WhatsApp (lien de suivi, où le client relance
+  lui-même), annuler, ou **prendre en caisse** (`POST /api/caisse/orders/:id/release`) :
+  la commande sort de l'attente (`paymentExpiresAt = null`) et s'encaisse par les moyens
+  habituels, sans Jèko ni frais. Un lien Jèko déjà ouvert peut encore être payé : il
+  déclenche l'alerte de double paiement.
+- **Expiration sans configuration Jèko** : si les variables `JEKO_*` manquent, aucune
+  commande ayant une demande de paiement n'est expirée (elle a pu être payée).
 - **Montant figé** : `Order.paymentAmountDue` garde ce qui a été demandé à Jèko. Le
   règlement compare à cette valeur, pas à `total + frais` recalculé.
 - **Le client ne modifie ni n'annule sa commande** : plus de libre-service sur la page

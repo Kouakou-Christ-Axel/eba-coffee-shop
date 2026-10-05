@@ -300,3 +300,25 @@ export function buildDriverShareMessage(params: {
   lines.push(`Statut (pars quand « Prête ») : ${trackingUrl}`);
   return lines.join('\n');
 }
+
+/**
+ * Relance d'un client dont la commande en ligne attend son paiement : lien de
+ * suivi (c'est là qu'il relance le paiement lui-même) et heure limite.
+ */
+export function buildPaymentReminderMessage(params: {
+  customerName: string | null;
+  dailyNumber: number;
+  /** URL publique de suivi (/commande/:id). */
+  trackingUrl: string;
+  /** Heure limite (HH:MM, Abidjan), cf. `formatRetryDeadline`. */
+  deadline: string | null;
+}): string {
+  const { customerName, dailyNumber, trackingUrl, deadline } = params;
+  const number = String(dailyNumber).padStart(3, '0');
+  return [
+    customerName ? `Bonjour ${customerName},` : 'Bonjour,',
+    `votre commande #${number} chez EBA Coffee Shop attend son paiement.`,
+    `Vous pouvez la régler ici${deadline ? ` avant ${deadline}` : ''} : ${trackingUrl}`,
+    'Vous pouvez aussi passer la régler au comptoir.',
+  ].join('\n');
+}
