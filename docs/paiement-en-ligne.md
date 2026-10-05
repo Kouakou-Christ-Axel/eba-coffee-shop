@@ -118,3 +118,43 @@ aussi en local ; en test, changer l'en-tête `x-forwarded-for` suffit.
   client remet `total` au prix brut).
 - **Pas de remboursement automatique** : aucune API de remboursement n'a été repérée,
   il se fait à la main depuis le Dashboard Jèko.
+
+## Retour arrière d'urgence
+
+Le déploiement exécute `pnpm db:push` (`.github/workflows/cd.yml`). Le schéma de cette
+fonctionnalité est **additif** (colonnes de `Order`, valeurs d'enum, table
+`jeko_withdrawal`) : on le **garde** en cas de retour arrière, sinon `db:push`
+voudrait supprimer des colonnes contenant des données et le déploiement échouerait.
+Garder le schéma évite aussi une erreur de lecture Prisma sur les lignes en
+`MTN_MONEY`/`MOOV_MONEY`/`DJAMO`.
+
+**Niveau 1 — couper Jèko sans toucher au code (1 minute).** Vider une des variables
+`JEKO_*` et redémarrer : le paiement en ligne redevient inerte, les commandes se
+règlent au comptoir. Avant : regarder dans le Dashboard Jèko les paiements des
+15 dernières minutes. Webhook coupé = un paiement en vol ne sera plus réglé, et
+l'expiration annulerait la commande (`isPaid` faux) : la régler à la main.
+
+**Niveau 2 — revenir au code d'avant (merge commit `<MERGE_SHA>`).**
+
+```bash
+git checkout master && git pull
+git revert -m 1 <MERGE_SHA> --no-commit
+git checkout <MERGE_SHA> -- prisma/schema.prisma   # garder le schéma additif
+git commit -m "revert: paiement en ligne Jèko (schéma conservé)"
+git push        # ou via une PR si master est protégée
+```
+
+Puis, **avant** que le staff rouvre la caisse : le code d'avant ne connaît pas les
+commandes « en attente de paiement » et les afficherait comme des commandes normales.
+Après vérification dans le Dashboard Jèko qu'elles ne sont pas payées :
+
+```sql
+update "order" set status = 'CANCELLED'
+where "paymentExpiresAt" is not null and "isPaid" = false and status = 'NEW';
+```
+
+Désactiver aussi le webhook dans le Dashboard Jèko (l'URL répondra 404). Les commandes
+déjà payées via Jèko restent valides (`isPaid`) ; un remboursement se fait depuis le
+Dashboard Jèko. Ne **pas** supprimer les colonnes ni la table.
+
+**Remettre la fonctionnalité** : `git revert <SHA_DU_REVERT>`.
