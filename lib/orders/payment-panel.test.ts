@@ -105,6 +105,16 @@ describe('getPaymentPanelKind', () => {
   });
 });
 
+describe('paiement qui n’a pas pu démarrer (Jèko indisponible au checkout)', () => {
+  it('est lu depuis ?paiement=indisponible', () => {
+    expect(parsePaymentReturn('indisponible')).toBe('indisponible');
+  });
+
+  it('affiche l’état « échec » avec le choix du moyen, pour réessayer', () => {
+    expect(getPaymentPanelKind(order, 'indisponible')).toBe('failed');
+  });
+});
+
 describe('parsePaymentReturn', () => {
   it('lit les deux valeurs que le serveur écrit dans les URLs de retour', () => {
     expect(parsePaymentReturn('ok')).toBe('ok');

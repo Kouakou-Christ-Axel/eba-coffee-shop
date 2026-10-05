@@ -8,8 +8,9 @@
 
 import type { PublicOrderView } from '@/lib/orders';
 
-/** Retour de chez Jèko, lu dans `?paiement=` (écrit par `startJekoPayment`). */
-export type PaymentReturn = 'ok' | 'echec' | null;
+/** Retour de chez Jèko, lu dans `?paiement=` (écrit par `startJekoPayment`).
+ * `indisponible` est écrit par le checkout quand Jèko n'a pas pu créer le paiement. */
+export type PaymentReturn = 'ok' | 'echec' | 'indisponible' | null;
 
 export type PaymentPanelKind =
   | 'paid' // payée, la commande suit son cours
@@ -41,7 +42,9 @@ export function getPaymentPanelKind(
   if (order.payment.state === 'expired') return 'expired';
   if (order.payment.state === 'pending') {
     if (paymentReturn === 'ok') return 'verifying';
-    if (paymentReturn === 'echec') return 'failed';
+    if (paymentReturn === 'echec' || paymentReturn === 'indisponible') {
+      return 'failed';
+    }
     return 'pending';
   }
 
@@ -54,13 +57,14 @@ export function getPaymentPanelKind(
   return 'counter';
 }
 
-/** Seules deux valeurs sont écrites par le serveur ; tout le reste est ignoré
+/** Seules trois valeurs sont écrites par l'application ; tout le reste est ignoré
  * (un lien trafiqué ne doit rien changer à l'affichage). */
 export function parsePaymentReturn(
   value: string | string[] | undefined
 ): PaymentReturn {
   if (value === 'ok') return 'ok';
   if (value === 'echec') return 'echec';
+  if (value === 'indisponible') return 'indisponible';
   return null;
 }
 

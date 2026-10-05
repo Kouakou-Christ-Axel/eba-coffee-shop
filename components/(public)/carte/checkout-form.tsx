@@ -48,7 +48,11 @@ type Props = {
   total: number;
   onBack: () => void;
   /** `paymentUrl` : page de paiement vers laquelle rediriger (null = aucune). */
-  onSuccess: (orderId: string, paymentUrl: string | null) => void;
+  onSuccess: (
+    orderId: string,
+    paymentUrl: string | null,
+    paymentError: boolean
+  ) => void;
   /** Remonte la remise fidélité appliquée pour le récap de la page. */
   onLoyaltyDiscountChange?: (discount: number) => void;
   /** Config du paiement en ligne (lue par la page, cf. `useOnlinePayment`). */
@@ -157,7 +161,8 @@ export function CheckoutForm({
       return;
     }
     const outcome = await submit(activeReward);
-    if (outcome.ok) onSuccess(outcome.orderId, outcome.paymentUrl);
+    if (outcome.ok)
+      onSuccess(outcome.orderId, outcome.paymentUrl, outcome.paymentError);
     // Récompense consommée entre-temps : on la retire pour que le prochain
     // envoi passe sans elle (le message l'explique au client).
     if (!outcome.ok && outcome.code === 'LOYALTY_REWARD_UNAVAILABLE') {

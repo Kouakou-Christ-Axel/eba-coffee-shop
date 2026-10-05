@@ -354,8 +354,9 @@ export function PaymentSection({
           <Panel id="failed" className="mt-4 flex flex-col gap-3">
             <p className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-3 text-sm font-medium text-danger">
               <XCircle className="h-4 w-4 shrink-0" />
-              Le paiement n’a pas abouti. Tu n’as pas été débité : tu peux
-              réessayer, avec le même moyen ou un autre.
+              {paymentReturn === 'indisponible'
+                ? 'Ta commande est enregistrée, mais le paiement en ligne n’a pas pu démarrer. Tu n’as pas été débité : réessaie dans un instant, avec le même moyen ou un autre.'
+                : 'Le paiement n’a pas abouti. Tu n’as pas été débité : tu peux réessayer, avec le même moyen ou un autre.'}
             </p>
             {picker}
           </Panel>

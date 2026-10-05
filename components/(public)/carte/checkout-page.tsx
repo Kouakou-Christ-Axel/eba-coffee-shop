@@ -71,7 +71,11 @@ export function CheckoutPage() {
     }
   }, [hydrated, items.length, router]);
 
-  function handleSuccess(orderId: string, paymentUrl: string | null) {
+  function handleSuccess(
+    orderId: string,
+    paymentUrl: string | null,
+    paymentError: boolean
+  ) {
     submittedRef.current = true;
     clearCart();
     // Paiement en ligne : on part chez le fournisseur, qui nous ramène sur la page
@@ -82,7 +86,11 @@ export function CheckoutPage() {
       window.location.assign(paymentUrl);
       return;
     }
-    router.replace(`/commande/${orderId}`);
+    // Jèko a refusé de créer le paiement : on le dit au lieu d'afficher un bouton
+    // de paiement sans explication.
+    router.replace(
+      `/commande/${orderId}${paymentError ? '?paiement=indisponible' : ''}`
+    );
   }
 
   if (!hydrated || items.length === 0) return null;
