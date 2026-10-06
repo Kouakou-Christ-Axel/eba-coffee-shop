@@ -57,7 +57,7 @@ export function PaymentMethodPicker({
             >
               <PaymentMethodIcon
                 mode={JEKO_TO_PAYMENT_MODE[method]}
-                className="h-12 w-12 shrink-0 rounded-lg"
+                className="h-12 w-12 shrink-0"
               />
               <span
                 className={cn(
