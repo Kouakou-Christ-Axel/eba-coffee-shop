@@ -29,8 +29,8 @@ export function PaymentMethodIcon({ mode, className }: PaymentMethodIconProps) {
       <Image
         src={logo}
         alt={PAYMENT_MODE_LABELS[mode]}
-        width={48}
-        height={48}
+        width={96}
+        height={96}
         className={cn('h-5 w-5 shrink-0 object-contain', className)}
       />
     );
