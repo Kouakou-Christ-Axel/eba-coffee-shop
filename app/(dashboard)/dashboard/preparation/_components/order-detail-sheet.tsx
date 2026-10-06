@@ -37,6 +37,10 @@ import {
   EncaisserButton,
   type EncaisserAction,
 } from '../../_components/encaisser-button';
+import {
+  AssociateCustomer,
+  type AssociateCustomerAction,
+} from '../../_components/associate-customer';
 import { ORDER_TYPE_META, SOURCE_META } from './prep-order-card';
 import {
   elapsedMinutes,
@@ -60,6 +64,8 @@ type Props = {
   onRetrieve: (id: string) => void;
   /** Action d'encaissement cuisine — affiche le bouton Encaisser si fournie et la commande n'est pas payée. */
   payAction?: EncaisserAction;
+  /** Action d'association client cuisine — affiche le bouton « Associer un client » si fournie. */
+  customerAction?: AssociateCustomerAction;
 };
 
 /**
@@ -81,6 +87,7 @@ export function OrderDetailSheet({
   onRequestDriver,
   onRetrieve,
   payAction,
+  customerAction,
 }: Props) {
   const open = order !== null;
 
@@ -107,6 +114,7 @@ export function OrderDetailSheet({
             onRequestDriver={onRequestDriver}
             onRetrieve={onRetrieve}
             payAction={payAction}
+            customerAction={customerAction}
           />
         )}
       </SheetContent>
@@ -125,6 +133,7 @@ function OrderDetailBody({
   onRequestDriver,
   onRetrieve,
   payAction,
+  customerAction,
 }: {
   order: PreparationOrder;
   menu: MenuCategory[];
@@ -136,6 +145,7 @@ function OrderDetailBody({
   onRequestDriver: (id: string) => void;
   onRetrieve: (id: string) => void;
   payAction?: EncaisserAction;
+  customerAction?: AssociateCustomerAction;
 }) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const typeMeta = ORDER_TYPE_META[order.orderType];
@@ -351,6 +361,16 @@ function OrderDetailBody({
           <Pencil className="h-5 w-5" />
           Modifier les articles
         </button>
+
+        {customerAction && (
+          <AssociateCustomer
+            orderId={order.id}
+            currentCustomerId={order.customerId}
+            currentName={order.customerName}
+            currentPhone={order.customerPhone}
+            action={customerAction}
+          />
+        )}
 
         {!order.isPaid && payAction && (
           <EncaisserButton

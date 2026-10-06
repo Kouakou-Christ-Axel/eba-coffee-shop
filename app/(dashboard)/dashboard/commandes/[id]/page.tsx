@@ -22,7 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { StatusButtons } from './status-buttons';
 import { EditOrderItems } from './edit-order-items';
-import { AssociateCustomer } from './associate-customer';
+import { AssociateCustomer } from '../../_components/associate-customer';
 import { EditOrderDetails } from './edit-order-details';
 import { EncaisserButton } from '../../_components/encaisser-button';
 import { AcompteButton } from '../acompte-button';

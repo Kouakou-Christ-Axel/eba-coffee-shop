@@ -11,11 +11,15 @@ import { canRequestDriver } from '@/lib/order-permissions';
 import {
   setOrderStatus,
   setOrderPayment,
+  setOrderCustomer,
   getOrderShortage,
   StockShortageError,
 } from '@/lib/order-mutations';
 import type { ShortageLine } from '@/lib/orders/shortage';
-import type { OrderPaymentLineInput } from '@/lib/schemas/order';
+import type {
+  OrderPaymentLineInput,
+  SetOrderCustomerInput,
+} from '@/lib/schemas/order';
 import type { UserRole } from '@/generated/prisma/client';
 
 export async function getPreparationQueue(): Promise<PreparationOrder[]> {
@@ -166,6 +170,38 @@ export async function markOrderPaidFromKitchen(
   revalidatePath('/api/menu');
   revalidatePath('/carte');
   revalidatePath('/');
+}
+
+/**
+ * Associe (ou détache) un client à une commande depuis la cuisine — même
+ * logique que `setOrderCustomerAction` (commandes/actions.ts), mais la
+ * cuisine n'a pas accès à `/dashboard/commandes` (cf. `requireOrdersView`,
+ * lib/auth-helpers.ts) : ce chemin passe donc par `/dashboard/preparation`.
+ * `setOrderCustomer` n'a pas de garde de rôle interne, `requireKitchen()` est
+ * le seul filtre ici.
+ */
+export async function setOrderCustomerFromKitchen(
+  id: string,
+  input: SetOrderCustomerInput
+): Promise<{ error: string } | undefined> {
+  const session = await requireKitchen();
+
+  let customerId: string | null;
+  try {
+    ({ customerId } = await setOrderCustomer(id, input, session.user.id));
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : 'Erreur inattendue',
+    };
+  }
+
+  revalidatePath('/dashboard/preparation');
+  revalidatePath('/dashboard/caisse');
+  revalidatePath('/dashboard/commandes');
+  if (customerId) {
+    revalidatePath(`/dashboard/clients/${customerId}`);
+    revalidatePath('/dashboard/clients');
+  }
 }
 
 export async function requestDriver(id: string): Promise<void> {

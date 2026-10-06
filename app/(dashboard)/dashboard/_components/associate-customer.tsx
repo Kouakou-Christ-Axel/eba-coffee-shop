@@ -1,13 +1,14 @@
 'use client';
 
-// Modale d'association d'un client à une commande existante (page de détail).
-// Trois chemins :
+// Modale d'association d'un client à une commande existante. Trois chemins :
 //   - rechercher et sélectionner un client déjà enregistré (CRM) ;
 //   - saisir un téléphone (+ nom) pour un nouveau client / lien direct ;
 //   - détacher la commande (la rendre anonyme) si elle est déjà liée.
 //
-// Branche la server action `setOrderCustomerAction` (qui revalide la page de
-// détail et la fiche client). La recherche réutilise GET /api/customers/search.
+// L'action serveur est injectée via `action` (défaut : `setOrderCustomerAction`,
+// commandes) — la cuisine passe `setOrderCustomerFromKitchen` pour associer un
+// client sans les droits caisse (même patron que `EncaisserButton`). La
+// recherche réutilise GET /api/customers/search.
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import {
@@ -21,7 +22,8 @@ import {
 } from '@heroui/react';
 import { UserPlus, UserCog, Search, X } from 'lucide-react';
 import { formatPhoneForDisplay } from '@/lib/phone';
-import { setOrderCustomerAction } from '../actions';
+import { setOrderCustomerAction } from '../commandes/actions';
+import type { SetOrderCustomerInput } from '@/lib/schemas/order';
 
 const DEBOUNCE_MS = 350;
 const MIN_QUERY_LENGTH = 2;
@@ -32,12 +34,18 @@ type CustomerHit = {
   phone: string;
 };
 
+export type AssociateCustomerAction = (
+  orderId: string,
+  input: SetOrderCustomerInput
+) => Promise<{ error: string } | undefined>;
+
 type Props = {
   orderId: string;
   /** Client déjà lié (fiche CRM), null si commande anonyme. */
   currentCustomerId: string | null;
   currentName: string | null;
   currentPhone: string | null;
+  action?: AssociateCustomerAction;
 };
 
 export function AssociateCustomer({
@@ -45,6 +53,7 @@ export function AssociateCustomer({
   currentCustomerId,
   currentName,
   currentPhone,
+  action = setOrderCustomerAction,
 }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -118,11 +127,11 @@ export function AssociateCustomer({
     timer.current = setTimeout(() => runSearch(next), DEBOUNCE_MS);
   }
 
-  function submit(input: Parameters<typeof setOrderCustomerAction>[1]) {
+  function submit(input: SetOrderCustomerInput) {
     setError(null);
     startTransition(async () => {
       try {
-        const result = await setOrderCustomerAction(orderId, input);
+        const result = await action(orderId, input);
         if (result?.error) {
           setError(result.error);
           return;

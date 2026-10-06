@@ -24,6 +24,10 @@ export type PreparationOrder = {
   dailyNumber: number;
   customerName: string | null;
   customerPhone: string | null;
+  // Id de la fiche CRM liée (null = commande anonyme) — distinct de
+  // `customerName`/`customerPhone`, qui ne sont que des champs texte sur la
+  // commande. Nécessaire pour `AssociateCustomer` (savoir si déjà lié).
+  customerId: string | null;
   pickupTime: Date | null;
   orderType: OrderType;
   items: CartItem[];
@@ -136,6 +140,7 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     dailyNumber: o.dailyNumber,
     customerName: o.customerName,
     customerPhone: o.customerPhone,
+    customerId: o.customerId,
     pickupTime: o.pickupTime,
     orderType: o.orderType,
     items: o.items as CartItem[],

@@ -17,6 +17,7 @@ import {
   markOrderRetrieved,
   requestDriver,
   revertOrderRetrieved,
+  setOrderCustomerFromKitchen,
   startPreparation,
 } from './actions';
 import { UndoToastProvider, useUndoToast } from '@/lib/hooks/use-undo-toast';
@@ -450,6 +451,7 @@ function PreparationViewInner({
           handleRetrieved(id);
         }}
         payAction={markOrderPaidFromKitchen}
+        customerAction={setOrderCustomerFromKitchen}
       />
 
       {/* Commandes hors du travail courant, rangées dans des bottom sheets. */}
