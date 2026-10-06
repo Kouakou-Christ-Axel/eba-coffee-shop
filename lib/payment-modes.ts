@@ -29,15 +29,15 @@ export const PAYMENT_MODE_LABELS: Record<PaymentMode, string> = {
 
 /**
  * Logo de marque par mode — absent pour CASH/OTHER (pas de marque, cf.
- * `PaymentMethodIcon` qui retombe alors sur une icône générique). Fichiers à
- * déposer dans `public/assets/payment-logos/` (SVG de préférence).
+ * `PaymentMethodIcon` qui retombe alors sur une icône générique). WebP
+ * carrés 128×128 dans `public/assets/payment-logos/`.
  */
 export const PAYMENT_MODE_LOGOS: Partial<Record<PaymentMode, string>> = {
-  WAVE: '/assets/payment-logos/wave.svg',
-  ORANGE_MONEY: '/assets/payment-logos/orange-money.svg',
-  MTN_MONEY: '/assets/payment-logos/mtn-money.svg',
-  MOOV_MONEY: '/assets/payment-logos/moov-money.svg',
-  DJAMO: '/assets/payment-logos/djamo.svg',
+  WAVE: '/assets/payment-logos/wave.webp',
+  ORANGE_MONEY: '/assets/payment-logos/orange-money.webp',
+  MTN_MONEY: '/assets/payment-logos/mtn-money.webp',
+  MOOV_MONEY: '/assets/payment-logos/moov-money.webp',
+  DJAMO: '/assets/payment-logos/djamo.webp',
 };
 
 /** Un compteur à zéro par mode — neuf à chaque appel (jamais partagé). */
