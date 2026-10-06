@@ -10,33 +10,14 @@ import {
   Button,
   Input,
 } from '@heroui/react';
-import {
-  Banknote,
-  MoreHorizontal,
-  Plus,
-  Smartphone,
-  Wallet,
-  X,
-} from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { computeChange, suggestCashTenders } from '@/lib/cash-tender';
+import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
+import { PaymentMethodIcon } from '@/components/payment-method-badge';
 import type { PaymentMode } from '@/generated/prisma/client';
 
 const priceFormatter = new Intl.NumberFormat('fr-FR');
-
-const MODES: {
-  value: PaymentMode;
-  label: string;
-  Icon: typeof Banknote;
-}[] = [
-  { value: 'CASH', label: 'Espèces', Icon: Banknote },
-  { value: 'WAVE', label: 'Wave', Icon: Smartphone },
-  { value: 'ORANGE_MONEY', label: 'Orange Money', Icon: Wallet },
-  { value: 'MTN_MONEY', label: 'MTN Money', Icon: Smartphone },
-  { value: 'MOOV_MONEY', label: 'Moov Money', Icon: Smartphone },
-  { value: 'DJAMO', label: 'Djamo', Icon: Wallet },
-  { value: 'OTHER', label: 'Autre', Icon: MoreHorizontal },
-];
 
 export type PaymentLine = { mode: PaymentMode; amount: number };
 
@@ -163,7 +144,7 @@ export function PaymentModal({
         <ModalBody>
           {showSingleGrid && (
             <div className="grid grid-cols-2 gap-2">
-              {MODES.map(({ value, label, Icon }) => {
+              {PAYMENT_MODES.map((value) => {
                 const isActive = singleSelected === value;
                 return (
                   <button
@@ -179,8 +160,8 @@ export function PaymentModal({
                       isSubmitting && 'opacity-50'
                     )}
                   >
-                    <Icon className="h-6 w-6" strokeWidth={1.75} />
-                    {label}
+                    <PaymentMethodIcon mode={value} className="h-6 w-6" />
+                    {PAYMENT_MODE_LABELS[value]}
                   </button>
                 );
               })}
@@ -266,13 +247,13 @@ export function PaymentModal({
                   className="flex items-center gap-2 rounded-xl border-2 border-border bg-card p-2"
                 >
                   <div className="grid flex-1 grid-cols-4 gap-1">
-                    {MODES.map(({ value, label, Icon }) => {
+                    {PAYMENT_MODES.map((value) => {
                       const isActive = line.mode === value;
                       return (
                         <button
                           key={value}
                           type="button"
-                          title={label}
+                          title={PAYMENT_MODE_LABELS[value]}
                           onClick={() => updateLineMode(index, value)}
                           disabled={isSubmitting}
                           className={cn(
@@ -282,7 +263,7 @@ export function PaymentModal({
                               : 'border-border bg-card hover:bg-muted'
                           )}
                         >
-                          <Icon className="h-4 w-4" strokeWidth={1.75} />
+                          <PaymentMethodIcon mode={value} className="h-4 w-4" />
                         </button>
                       );
                     })}

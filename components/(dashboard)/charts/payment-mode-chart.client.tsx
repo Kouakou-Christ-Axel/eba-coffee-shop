@@ -2,17 +2,50 @@
 
 import type { PaymentMode } from '@/generated/prisma/client';
 import type { ChartConfig } from '@/components/ui/chart';
+import { PaymentMethodIcon } from '@/components/payment-method-badge';
+import { PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
 import { DonutChart, type DonutSlice } from './donut-chart';
 
-const config = {
-  CASH: { label: 'Espèces', color: 'var(--chart-1)' },
-  WAVE: { label: 'Wave', color: 'var(--chart-2)' },
-  ORANGE_MONEY: { label: 'Orange Money', color: 'var(--chart-3)' },
-  MTN_MONEY: { label: 'MTN Money', color: 'var(--chart-4)' },
-  MOOV_MONEY: { label: 'Moov Money', color: 'var(--chart-5)' },
-  DJAMO: { label: 'Djamo', color: 'oklch(0.6 0.1 200)' },
-  OTHER: { label: 'Autre', color: 'oklch(0.7 0.02 280)' },
-} satisfies ChartConfig;
+/**
+ * Icône de légende : pastille de couleur (cohérence avec le donut) + logo de
+ * la marque. `itemConfig.icon` (cf. `components/ui/chart.tsx`) remplace
+ * entièrement la pastille par défaut si fourni — on la redessine donc ici au
+ * lieu de la perdre.
+ */
+function legendIcon(mode: PaymentMode, color: string) {
+  return function PaymentLegendIcon() {
+    return (
+      <span className="flex items-center gap-1">
+        <span
+          className="h-2 w-2 shrink-0 rounded-[2px]"
+          style={{ backgroundColor: color }}
+        />
+        <PaymentMethodIcon mode={mode} className="h-3.5 w-3.5" />
+      </span>
+    );
+  };
+}
+
+const COLORS: Record<PaymentMode, string> = {
+  CASH: 'var(--chart-1)',
+  WAVE: 'var(--chart-2)',
+  ORANGE_MONEY: 'var(--chart-3)',
+  MTN_MONEY: 'var(--chart-4)',
+  MOOV_MONEY: 'var(--chart-5)',
+  DJAMO: 'oklch(0.6 0.1 200)',
+  OTHER: 'oklch(0.7 0.02 280)',
+};
+
+const config = Object.fromEntries(
+  (Object.keys(COLORS) as PaymentMode[]).map((mode) => [
+    mode,
+    {
+      label: PAYMENT_MODE_LABELS[mode],
+      color: COLORS[mode],
+      icon: legendIcon(mode, COLORS[mode]),
+    },
+  ])
+) satisfies ChartConfig;
 
 /**
  * Répartition du CA encaissé par mode de paiement (montants en FCFA).

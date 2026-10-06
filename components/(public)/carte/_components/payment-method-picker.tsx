@@ -7,20 +7,13 @@
 // (`GET /api/paiement/config`) : on ne propose que ce qu'il sait traiter. Les
 // libellés sont ceux de la caisse et des stats (`PAYMENT_MODE_LABELS`).
 
-import { Smartphone, Wallet } from 'lucide-react';
 import {
   JEKO_PAYMENT_METHOD_LABELS,
+  JEKO_TO_PAYMENT_MODE,
   type JekoPaymentMethod,
 } from '@/lib/jeko/payment-methods';
+import { PaymentMethodIcon } from '@/components/payment-method-badge';
 import { cn } from '@/lib/utils';
-
-const ICONS: Record<JekoPaymentMethod, typeof Smartphone> = {
-  wave: Smartphone,
-  orange: Smartphone,
-  mtn: Smartphone,
-  moov: Smartphone,
-  djamo: Wallet,
-};
 
 type PaymentMethodPickerProps = {
   methods: JekoPaymentMethod[];
@@ -46,7 +39,6 @@ export function PaymentMethodPicker({
       >
         {methods.map((method) => {
           const selected = value === method;
-          const Icon = ICONS[method];
           return (
             <button
               key={method}
@@ -62,8 +54,8 @@ export function PaymentMethodPicker({
                   : 'border-foreground/10 hover:border-primary/40 hover:bg-primary/5'
               )}
             >
-              <Icon
-                aria-hidden="true"
+              <PaymentMethodIcon
+                mode={JEKO_TO_PAYMENT_MODE[method]}
                 className={cn(
                   'h-5 w-5 shrink-0',
                   selected ? 'text-primary' : 'text-foreground/40'

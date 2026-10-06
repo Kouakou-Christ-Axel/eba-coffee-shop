@@ -22,6 +22,7 @@ import {
   SelectItem,
 } from '@heroui/react';
 import { Pencil } from 'lucide-react';
+import { PaymentMethodIcon } from '@/components/payment-method-badge';
 import type { OrderType, PaymentMode } from '@/generated/prisma/client';
 import {
   abidjanDatetimeLocalToISO,
@@ -226,7 +227,19 @@ export function EditOrderDetails({
                   : [{ key: NO_PAYMENT_KEY, label: 'Aucun (non payée)' }]),
                 ...PAYMENT_MODE_OPTIONS,
               ].map((o) => (
-                <SelectItem key={o.key}>{o.label}</SelectItem>
+                <SelectItem
+                  key={o.key}
+                  startContent={
+                    o.key === NO_PAYMENT_KEY ? undefined : (
+                      <PaymentMethodIcon
+                        mode={o.key as PaymentMode}
+                        className="h-4 w-4"
+                      />
+                    )
+                  }
+                >
+                  {o.label}
+                </SelectItem>
               ))}
             </Select>
 

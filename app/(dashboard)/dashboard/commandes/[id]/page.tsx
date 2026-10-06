@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
+import { PaymentMethodBadge } from '@/components/payment-method-badge';
 import Link from 'next/link';
 import { Gift, Bot } from 'lucide-react';
 import { getOrder } from '@/lib/orders';
@@ -244,18 +244,19 @@ export default async function CommandeDetailPage({
           <div className="flex justify-between gap-3">
             <span className="text-muted-foreground">Moyen de paiement</span>
             {order.paymentMode ? (
-              <span className="font-medium">
-                {PAYMENT_MODE_LABELS[order.paymentMode]}
-              </span>
+              <PaymentMethodBadge mode={order.paymentMode} className="font-medium" />
             ) : order.isPaid ? (
-              <span className="font-medium">
-                Fractionné —{' '}
-                {order.payments
-                  .map(
-                    (p) =>
-                      `${PAYMENT_MODE_LABELS[p.mode]} ${new Intl.NumberFormat('fr-FR').format(p.amount)} F`
-                  )
-                  .join(' + ')}
+              <span className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1 font-medium">
+                <span className="text-muted-foreground">Fractionné —</span>
+                {order.payments.map((p, i) => (
+                  <span key={i} className="inline-flex items-center gap-1">
+                    <PaymentMethodBadge mode={p.mode} />
+                    <span>
+                      {new Intl.NumberFormat('fr-FR').format(p.amount)} F
+                    </span>
+                    {i < order.payments.length - 1 && <span>+</span>}
+                  </span>
+                ))}
               </span>
             ) : (
               <span className="font-medium">—</span>

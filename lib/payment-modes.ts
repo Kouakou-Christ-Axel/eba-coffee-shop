@@ -27,6 +27,19 @@ export const PAYMENT_MODE_LABELS: Record<PaymentMode, string> = {
   OTHER: 'Autre',
 };
 
+/**
+ * Logo de marque par mode — absent pour CASH/OTHER (pas de marque, cf.
+ * `PaymentMethodIcon` qui retombe alors sur une icône générique). Fichiers à
+ * déposer dans `public/assets/payment-logos/` (SVG de préférence).
+ */
+export const PAYMENT_MODE_LOGOS: Partial<Record<PaymentMode, string>> = {
+  WAVE: '/assets/payment-logos/wave.svg',
+  ORANGE_MONEY: '/assets/payment-logos/orange-money.svg',
+  MTN_MONEY: '/assets/payment-logos/mtn-money.svg',
+  MOOV_MONEY: '/assets/payment-logos/moov-money.svg',
+  DJAMO: '/assets/payment-logos/djamo.svg',
+};
+
 /** Un compteur à zéro par mode — neuf à chaque appel (jamais partagé). */
 export function emptyModeRecord(): Record<PaymentMode, number> {
   return Object.fromEntries(PAYMENT_MODES.map((m) => [m, 0])) as Record<
