@@ -24,6 +24,10 @@ export type PreparationOrder = {
   dailyNumber: number;
   customerName: string | null;
   customerPhone: string | null;
+  // Id de la fiche CRM liée (null = commande anonyme) — distinct de
+  // `customerName`/`customerPhone`, qui ne sont que des champs texte sur la
+  // commande. Nécessaire pour `AssociateCustomer` (savoir si déjà lié).
+  customerId: string | null;
   pickupTime: Date | null;
   orderType: OrderType;
   items: CartItem[];
@@ -42,6 +46,10 @@ export type PreparationOrder = {
   // ici : la cuisine ne doit pas produire ce qui n'est pas engagé.
   status: 'NEW' | 'PREPARING' | 'READY';
   isPaid: boolean;
+  // Montant déjà versé au titre d'un acompte — nécessaire pour calculer le
+  // solde restant à encaisser (`total - depositPaid`), même règle que
+  // `lib/cashier-queue.ts` et `commandes/page.tsx`.
+  depositPaid: number;
   driverRequested: boolean;
   driverName: string | null;
   driverPhone: string | null;
@@ -132,6 +140,7 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     dailyNumber: o.dailyNumber,
     customerName: o.customerName,
     customerPhone: o.customerPhone,
+    customerId: o.customerId,
     pickupTime: o.pickupTime,
     orderType: o.orderType,
     items: o.items as CartItem[],
@@ -140,6 +149,7 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     source: o.source,
     status: o.status as 'NEW' | 'PREPARING' | 'READY',
     isPaid: o.isPaid,
+    depositPaid: o.depositPaid ?? 0,
     driverRequested: o.driverRequested,
     driverName: o.driverName,
     driverPhone: o.driverPhone,

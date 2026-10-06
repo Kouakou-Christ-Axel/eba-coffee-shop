@@ -1,20 +1,29 @@
 'use client';
 
-// Bouton « Encaisser » réutilisable dans la section Commandes (ligne du tableau
-// et page de détail). Ouvre la modale de paiement partagée avec la caisse et
-// branche la server action `markOrderPaidAction` (qui revalide la page).
+// Bouton « Encaisser » réutilisable (commandes, ardoise, cuisine). Ouvre la
+// modale de paiement partagée avec la caisse. L'action serveur à appeler est
+// injectée via `action` (défaut : `markOrderPaidAction`, caisse) — la cuisine
+// passe `markOrderPaidFromKitchen` pour encaisser sans les droits caisse.
 
 import { useState, useTransition } from 'react';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PaymentModal, type PaymentLine } from '../caisse/payment-modal';
-import { markOrderPaidAction } from './actions';
-import { useShortageConfirm } from '../_components/use-shortage-confirm';
+import { markOrderPaidAction } from '../commandes/actions';
+import { useShortageConfirm } from './use-shortage-confirm';
+import type { ShortageLine } from '@/lib/orders/shortage';
+
+export type EncaisserAction = (
+  orderId: string,
+  payments: PaymentLine[],
+  opts?: { coverShortage?: boolean }
+) => Promise<{ error: string; shortage?: ShortageLine[] } | undefined>;
 
 type Props = {
   orderId: string;
   orderRef: string;
   amount: number;
+  action?: EncaisserAction;
   variant?: 'default' | 'outline' | 'ghost';
   size?: 'default' | 'sm' | 'lg';
   className?: string;
@@ -25,6 +34,7 @@ export function EncaisserButton({
   orderId,
   orderRef,
   amount,
+  action = markOrderPaidAction,
   variant = 'default',
   size = 'sm',
   className,
@@ -39,16 +49,14 @@ export function EncaisserButton({
     setError(null);
     startTransition(async () => {
       try {
-        let result = await markOrderPaidAction(orderId, payments);
+        let result = await action(orderId, payments);
         // Pénurie : on propose d'enregistrer la production sur place plutôt que
         // de renvoyer le staff corriger le stock dans le menu.
         if (
           result?.shortage?.length &&
           (await confirmShortage(result.shortage))
         ) {
-          result = await markOrderPaidAction(orderId, payments, {
-            coverShortage: true,
-          });
+          result = await action(orderId, payments, { coverShortage: true });
         }
         if (result?.error) {
           setError(result.error);

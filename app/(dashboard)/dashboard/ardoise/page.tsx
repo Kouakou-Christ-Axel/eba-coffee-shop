@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { EncaisserButton } from '../commandes/encaisser-button';
+import { EncaisserButton } from '../_components/encaisser-button';
 
 export const dynamic = 'force-dynamic';
 

@@ -32,12 +32,15 @@ const TRANSITIONS: readonly Transition[] = [
   // côté UI, mêmes rôles que la récupération normale.
   { from: 'PREPARING', to: 'COMPLETED', roles: KITCHEN_PLUS },
 
-  // Annulations / remboursements : tout caissier peut annuler une commande
-  // active. Annuler une commande déjà payée vaut remboursement.
-  { from: 'NEW', to: 'CANCELLED', roles: CASHIER_PLUS },
-  { from: 'PREPARING', to: 'CANCELLED', roles: CASHIER_PLUS },
-  { from: 'READY', to: 'CANCELLED', roles: CASHIER_PLUS },
-  { from: 'COMPLETED', to: 'CANCELLED', roles: CASHIER_PLUS },
+  // Annulations / remboursements : KITCHEN inclus sur les quatre origines —
+  // la cuisine doit pouvoir annuler (et rembourser une commande déjà
+  // récupérée+payée) sans redescendre à la caisse. Annuler une commande déjà
+  // payée vaut remboursement (cf. `setOrderStatus`, qui bloque seulement la
+  // reprise CANCELLED → NEW d'une commande remboursée).
+  { from: 'NEW', to: 'CANCELLED', roles: [...CASHIER_PLUS, 'KITCHEN'] },
+  { from: 'PREPARING', to: 'CANCELLED', roles: [...CASHIER_PLUS, 'KITCHEN'] },
+  { from: 'READY', to: 'CANCELLED', roles: [...CASHIER_PLUS, 'KITCHEN'] },
+  { from: 'COMPLETED', to: 'CANCELLED', roles: [...CASHIER_PLUS, 'KITCHEN'] },
 
   // Annulations inverses (undo caisse/cuisine, 10 s — cf. useUndoToast) :
   // mêmes rôles que la transition qu'elles défont.

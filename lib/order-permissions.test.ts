@@ -9,9 +9,11 @@ describe('order-permissions — annulation / remboursement', () => {
     expect(canTransition('COMPLETED', 'CANCELLED', 'CASHIER')).toBe(true);
   });
 
-  it('la cuisine ne peut pas annuler', () => {
-    expect(canTransition('READY', 'CANCELLED', 'KITCHEN')).toBe(false);
-    expect(canTransition('COMPLETED', 'CANCELLED', 'KITCHEN')).toBe(false);
+  it('la cuisine peut annuler depuis tous les statuts actifs, y compris rembourser une commande récupérée', () => {
+    expect(canTransition('NEW', 'CANCELLED', 'KITCHEN')).toBe(true);
+    expect(canTransition('PREPARING', 'CANCELLED', 'KITCHEN')).toBe(true);
+    expect(canTransition('READY', 'CANCELLED', 'KITCHEN')).toBe(true);
+    expect(canTransition('COMPLETED', 'CANCELLED', 'KITCHEN')).toBe(true);
   });
 
   it('les transitions normales restent valides', () => {

@@ -7,6 +7,7 @@ import {
   CalendarClock,
   ClipboardList,
   PackageCheck,
+  Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConnectionBadge } from '@/lib/hooks/connection-badge';
@@ -20,6 +21,8 @@ type Props = {
     ready: number;
     /** Quantité d'articles à produire pour le premier jour chargé du plan. */
     production: number;
+    /** Commandes en cuisine (préparation/prêtes) pas encore encaissées. */
+    toPay: number;
   };
   /** Au moins une commande prête dépasse le seuil d'attente (signal rouge). */
   readyAlert: boolean;
@@ -35,6 +38,7 @@ type Props = {
   onOpenScheduled: () => void;
   onOpenReady: () => void;
   onOpenProduction: () => void;
+  onOpenToPay: () => void;
 };
 
 export function PreparationHeader({
@@ -50,6 +54,7 @@ export function PreparationHeader({
   onOpenScheduled,
   onOpenReady,
   onOpenProduction,
+  onOpenToPay,
 }: Props) {
   return (
     <div className="flex flex-col gap-2 border-b pb-3">
@@ -124,6 +129,24 @@ export function PreparationHeader({
             Prêtes
             <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-black/10 px-1 text-xs dark:bg-white/15">
               {counts.ready}
+            </span>
+          </button>
+
+          {/* À encaisser : ardoise — commandes en cuisine non payées. */}
+          <button
+            type="button"
+            onClick={onOpenToPay}
+            disabled={counts.toPay === 0}
+            className={cn(
+              'flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-bold transition-colors',
+              counts.toPay === 0
+                ? 'cursor-default bg-muted text-muted-foreground opacity-60'
+                : 'bg-orange-100 text-orange-900 hover:bg-orange-200 dark:bg-orange-950 dark:text-orange-100 dark:hover:bg-orange-900'
+            )}
+          >
+            <Wallet className="h-4 w-4" />À encaisser
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-black/10 px-1 text-xs dark:bg-white/15">
+              {counts.toPay}
             </span>
           </button>
         </div>
