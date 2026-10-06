@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { CheckCircle2, Plus, X } from 'lucide-react';
 import {
   cancelOrderFromKitchen,
+  markOrderPaidFromKitchen,
   markOrderReady,
   markOrderRetrieved,
   requestDriver,
@@ -98,9 +99,9 @@ function PreparationViewInner({
   const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
   // Commande agrandie dans le bottom sheet de détail (null = fermé).
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Bottom sheet de liste ouvert (programmées / prêtes / à produire), null = aucun.
+  // Bottom sheet de liste ouvert (programmées / prêtes / à encaisser / à produire), null = aucun.
   const [openSheet, setOpenSheet] = useState<
-    'scheduled' | 'ready' | 'production' | null
+    'scheduled' | 'ready' | 'topay' | 'production' | null
   >(null);
   // Échec d'un lancement (stock, concurrence) : affiché, jamais avalé.
   const [launchError, setLaunchError] = useState<string | null>(null);
@@ -190,6 +191,13 @@ function PreparationViewInner({
   }, [scheduled, now]);
   const ready = useMemo(
     () => visible.filter((o) => o.status === 'READY'),
+    [visible]
+  );
+  // Ardoise : en cuisine (préparation ou prête) mais pas encore payée. Exclut
+  // volontairement les NEW programmées pas encore lancées (pas physiquement
+  // présentes à encaisser maintenant).
+  const toPay = useMemo(
+    () => visible.filter((o) => !o.isPaid && o.status !== 'NEW'),
     [visible]
   );
   const readyAlert = useMemo(
@@ -341,6 +349,7 @@ function PreparationViewInner({
           // Le compteur porte sur le premier jour chargé — « ce qu'il y a à
           // faire là, tout de suite », pas un total de la semaine.
           production: productionPlan[0]?.totalItems ?? 0,
+          toPay: toPay.length,
         }}
         readyAlert={readyAlert}
         toLaunchCount={toLaunchCount}
@@ -353,6 +362,7 @@ function PreparationViewInner({
         onOpenScheduled={() => setOpenSheet('scheduled')}
         onOpenReady={() => setOpenSheet('ready')}
         onOpenProduction={() => setOpenSheet('production')}
+        onOpenToPay={() => setOpenSheet('topay')}
       />
 
       <div className="mt-3 flex justify-end">
@@ -439,6 +449,7 @@ function PreparationViewInner({
           setSelectedId(null);
           handleRetrieved(id);
         }}
+        payAction={markOrderPaidFromKitchen}
       />
 
       {/* Commandes hors du travail courant, rangées dans des bottom sheets. */}
@@ -452,6 +463,7 @@ function PreparationViewInner({
         pendingIds={pendingIds}
         onRetrieve={handleRetrieved}
         onStartPreparation={handleStartPreparation}
+        onCancel={handleCancel}
       />
       <ProductionSheet
         plan={productionPlan}
@@ -467,6 +479,19 @@ function PreparationViewInner({
         onExpand={setSelectedId}
         pendingIds={pendingIds}
         onRetrieve={handleRetrieved}
+        onCancel={handleCancel}
+      />
+      <OrdersListSheet
+        variant="topay"
+        orders={toPay}
+        now={now}
+        open={openSheet === 'topay'}
+        onOpenChange={(o) => setOpenSheet(o ? 'topay' : null)}
+        onExpand={setSelectedId}
+        pendingIds={pendingIds}
+        onRetrieve={handleRetrieved}
+        onCancel={handleCancel}
+        action={markOrderPaidFromKitchen}
       />
       {shortageDialog}
     </div>

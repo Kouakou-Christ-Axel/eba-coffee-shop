@@ -33,6 +33,10 @@ import {
   buildWhatsAppLink,
 } from '@/lib/contact-links';
 import { OrderItemsEditor } from '../../_components/order-items-editor';
+import {
+  EncaisserButton,
+  type EncaisserAction,
+} from '../../_components/encaisser-button';
 import { ORDER_TYPE_META, SOURCE_META } from './prep-order-card';
 import {
   elapsedMinutes,
@@ -54,6 +58,8 @@ type Props = {
   onCancel: (id: string) => void;
   onRequestDriver: (id: string) => void;
   onRetrieve: (id: string) => void;
+  /** Action d'encaissement cuisine — affiche le bouton Encaisser si fournie et la commande n'est pas payée. */
+  payAction?: EncaisserAction;
 };
 
 /**
@@ -74,6 +80,7 @@ export function OrderDetailSheet({
   onCancel,
   onRequestDriver,
   onRetrieve,
+  payAction,
 }: Props) {
   const open = order !== null;
 
@@ -99,6 +106,7 @@ export function OrderDetailSheet({
             onCancel={onCancel}
             onRequestDriver={onRequestDriver}
             onRetrieve={onRetrieve}
+            payAction={payAction}
           />
         )}
       </SheetContent>
@@ -116,6 +124,7 @@ function OrderDetailBody({
   onCancel,
   onRequestDriver,
   onRetrieve,
+  payAction,
 }: {
   order: PreparationOrder;
   menu: MenuCategory[];
@@ -126,6 +135,7 @@ function OrderDetailBody({
   onCancel: (id: string) => void;
   onRequestDriver: (id: string) => void;
   onRetrieve: (id: string) => void;
+  payAction?: EncaisserAction;
 }) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const typeMeta = ORDER_TYPE_META[order.orderType];
@@ -342,9 +352,31 @@ function OrderDetailBody({
           Modifier les articles
         </button>
 
+        {!order.isPaid && payAction && (
+          <EncaisserButton
+            orderId={order.id}
+            orderRef={order.reference}
+            amount={order.total - order.depositPaid}
+            action={payAction}
+            size="lg"
+            className="py-4 text-lg"
+          />
+        )}
+
         {isReady ? (
           <div className="flex flex-col gap-3">
-            <TrackingLinkButton orderId={order.id} className="py-1" />
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => onCancel(order.id)}
+                disabled={pending}
+                aria-label="Annuler"
+                className="flex shrink-0 items-center justify-center rounded-xl border border-red-200 bg-red-50 p-3 text-red-700 transition-colors hover:bg-red-100 active:bg-red-200 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300"
+              >
+                <X className="h-6 w-6" strokeWidth={2.5} />
+              </button>
+              <TrackingLinkButton orderId={order.id} className="flex-1 py-1" />
+            </div>
             <button
               type="button"
               onClick={() => onRetrieve(order.id)}

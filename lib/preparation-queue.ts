@@ -42,6 +42,10 @@ export type PreparationOrder = {
   // ici : la cuisine ne doit pas produire ce qui n'est pas engagé.
   status: 'NEW' | 'PREPARING' | 'READY';
   isPaid: boolean;
+  // Montant déjà versé au titre d'un acompte — nécessaire pour calculer le
+  // solde restant à encaisser (`total - depositPaid`), même règle que
+  // `lib/cashier-queue.ts` et `commandes/page.tsx`.
+  depositPaid: number;
   driverRequested: boolean;
   driverName: string | null;
   driverPhone: string | null;
@@ -140,6 +144,7 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     source: o.source,
     status: o.status as 'NEW' | 'PREPARING' | 'READY',
     isPaid: o.isPaid,
+    depositPaid: o.depositPaid ?? 0,
     driverRequested: o.driverRequested,
     driverName: o.driverName,
     driverPhone: o.driverPhone,

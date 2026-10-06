@@ -1,6 +1,13 @@
 'use client';
 
-import { CalendarClock, CheckCheck, ChefHat, PackageCheck } from 'lucide-react';
+import {
+  CalendarClock,
+  CheckCheck,
+  ChefHat,
+  PackageCheck,
+  Wallet,
+  X,
+} from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -13,11 +20,15 @@ import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
 import { aggregateOrderSupplements, getPickupCode } from '@/lib/orders/format';
 import { formatPickup, kitchenLaunchState } from '@/lib/orders/scheduling';
 import { TrackingLinkButton } from '@/components/(dashboard)/tracking-link-button';
+import {
+  EncaisserButton,
+  type EncaisserAction,
+} from '../../_components/encaisser-button';
 import type { PreparationOrder } from '@/lib/preparation-queue';
 import { ORDER_TYPE_META, SOURCE_META } from './prep-order-card';
 import { elapsedMinutes, formatElapsed } from './elapsed';
 
-export type OrdersListVariant = 'scheduled' | 'ready';
+export type OrdersListVariant = 'scheduled' | 'ready' | 'topay';
 
 const VARIANT_META: Record<
   OrdersListVariant,
@@ -33,6 +44,11 @@ const VARIANT_META: Record<
     description: 'Emballer et remettre au client (code de retrait)',
     Icon: PackageCheck,
   },
+  topay: {
+    title: 'Commandes à encaisser',
+    description: 'Ardoise — collecter le paiement maintenant',
+    Icon: Wallet,
+  },
 };
 
 type Props = {
@@ -46,12 +62,17 @@ type Props = {
   onRetrieve: (id: string) => void;
   /** Lance une commande programmée en cuisine (variante `scheduled`). */
   onStartPreparation?: (id: string) => void;
+  /** Annule la commande. Rendu comme petit bouton sur `ready`/`topay`. */
+  onCancel?: (id: string) => void;
+  /** Action d'encaissement cuisine, utilisée par la variante `topay`. */
+  action?: EncaisserAction;
 };
 
 /**
  * Bottom sheet listant les commandes qui ne sont PAS dans le travail courant :
  *   - `scheduled` : programmées à retrait lointain (déchargées de la grille).
  *   - `ready`     : prêtes en attente de récupération (emballage + codes).
+ *   - `topay`     : ardoise — non payées, en préparation ou prêtes.
  * Chaque ligne est tactile → ouvre le bottom sheet de détail lisible.
  */
 export function OrdersListSheet({
@@ -64,6 +85,8 @@ export function OrdersListSheet({
   pendingIds,
   onRetrieve,
   onStartPreparation,
+  onCancel,
+  action,
 }: Props) {
   const meta = VARIANT_META[variant];
   const Icon = meta.Icon;
@@ -87,7 +110,9 @@ export function OrdersListSheet({
             <p className="py-8 text-center text-muted-foreground">
               {variant === 'scheduled'
                 ? 'Aucune commande programmée.'
-                : 'Aucune commande prête pour l’instant.'}
+                : variant === 'topay'
+                  ? 'Aucune commande à encaisser pour l’instant.'
+                  : 'Aucune commande prête pour l’instant.'}
             </p>
           ) : (
             <ul className="space-y-3">
@@ -101,6 +126,8 @@ export function OrdersListSheet({
                   pending={pendingIds.has(order.id)}
                   onRetrieve={onRetrieve}
                   onStartPreparation={onStartPreparation}
+                  onCancel={onCancel}
+                  action={action}
                 />
               ))}
             </ul>
@@ -119,6 +146,8 @@ function OrdersListRow({
   pending,
   onRetrieve,
   onStartPreparation,
+  onCancel,
+  action,
 }: {
   variant: OrdersListVariant;
   order: PreparationOrder;
@@ -127,9 +156,12 @@ function OrdersListRow({
   pending: boolean;
   onRetrieve: (id: string) => void;
   onStartPreparation?: (id: string) => void;
+  onCancel?: (id: string) => void;
+  action?: EncaisserAction;
 }) {
   const TypeIcon = ORDER_TYPE_META[order.orderType].Icon;
   const isReady = variant === 'ready';
+  const isToPay = variant === 'topay';
   const since = isReady
     ? (order.readyAt ?? order.createdAt)
     : (order.preparingStartedAt ?? order.createdAt);
@@ -153,11 +185,13 @@ function OrdersListRow({
           ? readyLate
             ? 'border-red-300 dark:border-red-800'
             : 'border-green-300 dark:border-green-800'
-          : launchNow
-            ? 'border-red-300 dark:border-red-800'
-            : launchToday
-              ? 'border-amber-300 dark:border-amber-800'
-              : 'border-border'
+          : isToPay
+            ? 'border-orange-300 dark:border-orange-800'
+            : launchNow
+              ? 'border-red-300 dark:border-red-800'
+              : launchToday
+                ? 'border-amber-300 dark:border-amber-800'
+                : 'border-border'
       )}
     >
       <button
@@ -260,6 +294,13 @@ function OrdersListRow({
           </div>
         )}
 
+        {isToPay && (
+          <p className="text-lg font-bold text-orange-700 dark:text-orange-300">
+            {(order.total - order.depositPaid).toLocaleString('fr-FR')} F à
+            encaisser
+          </p>
+        )}
+
         {readyLate && (
           <p className="text-sm font-semibold text-red-700 dark:text-red-300">
             Le client tarde — relancer via le lien de suivi
@@ -302,6 +343,17 @@ function OrdersListRow({
 
       {isReady && (
         <div className="flex items-center gap-2 px-4 pb-4">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={() => onCancel(order.id)}
+              disabled={pending}
+              aria-label="Annuler"
+              className="flex shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 p-2 text-red-700 transition-colors hover:bg-red-100 active:bg-red-200 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300"
+            >
+              <X className="h-4 w-4" strokeWidth={2.5} />
+            </button>
+          )}
           <TrackingLinkButton orderId={order.id} className="flex-1" />
           <button
             type="button"
@@ -312,6 +364,30 @@ function OrdersListRow({
             <CheckCheck className="h-4 w-4" strokeWidth={2.5} />
             Récupérée
           </button>
+        </div>
+      )}
+
+      {isToPay && action && (
+        <div className="flex items-center gap-2 px-4 pb-4">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={() => onCancel(order.id)}
+              disabled={pending}
+              aria-label="Annuler"
+              className="flex shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 p-2 text-red-700 transition-colors hover:bg-red-100 active:bg-red-200 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300"
+            >
+              <X className="h-4 w-4" strokeWidth={2.5} />
+            </button>
+          )}
+          <EncaisserButton
+            orderId={order.id}
+            orderRef={order.reference}
+            amount={order.total - order.depositPaid}
+            action={action}
+            size="default"
+            className="flex-1"
+          />
         </div>
       )}
 

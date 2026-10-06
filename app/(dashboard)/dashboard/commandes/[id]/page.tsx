@@ -24,7 +24,7 @@ import { StatusButtons } from './status-buttons';
 import { EditOrderItems } from './edit-order-items';
 import { AssociateCustomer } from './associate-customer';
 import { EditOrderDetails } from './edit-order-details';
-import { EncaisserButton } from '../encaisser-button';
+import { EncaisserButton } from '../../_components/encaisser-button';
 import { AcompteButton } from '../acompte-button';
 import { ExpressCompleteButton } from '../express-complete-button';
 import { CopyRecapButton } from '../../_components/copy-recap-button';
@@ -244,7 +244,10 @@ export default async function CommandeDetailPage({
           <div className="flex justify-between gap-3">
             <span className="text-muted-foreground">Moyen de paiement</span>
             {order.paymentMode ? (
-              <PaymentMethodBadge mode={order.paymentMode} className="font-medium" />
+              <PaymentMethodBadge
+                mode={order.paymentMode}
+                className="font-medium"
+              />
             ) : order.isPaid ? (
               <span className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-1 font-medium">
                 <span className="text-muted-foreground">Fractionné —</span>
