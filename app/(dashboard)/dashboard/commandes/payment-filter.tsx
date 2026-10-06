@@ -2,6 +2,8 @@
 
 import { Select, SelectItem } from '@heroui/react';
 import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
+import { PaymentMethodIcon } from '@/components/payment-method-badge';
+import type { PaymentMode } from '@/generated/prisma/client';
 import { useOrdersNav } from './use-orders-nav';
 
 const OPTIONS = [
@@ -34,7 +36,16 @@ export function PaymentFilter({ value }: { value?: string }) {
       }}
     >
       {OPTIONS.map((o) => (
-        <SelectItem key={o.key}>{o.label}</SelectItem>
+        <SelectItem
+          key={o.key}
+          startContent={
+            o.key === 'all' || o.key === 'unpaid' ? undefined : (
+              <PaymentMethodIcon mode={o.key as PaymentMode} className="h-4 w-4" />
+            )
+          }
+        >
+          {o.label}
+        </SelectItem>
       ))}
     </Select>
   );

@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { PaymentMethodBadge } from '@/components/payment-method-badge';
+import type { PaymentMode } from '@/generated/prisma/client';
 import {
   Table,
   TableBody,
@@ -30,7 +32,6 @@ export type RevenueAdjustmentRow = {
   id: string;
   date: string;
   amount: number; // signé
-  paymentLabel: string;
   paymentMode: string;
   note: string | null;
 };
@@ -128,7 +129,9 @@ export function RevenueAdjustmentsTable({
                 >
                   {formatSigned(a.amount)}
                 </TableCell>
-                <TableCell className="text-sm">{a.paymentLabel}</TableCell>
+                <TableCell className="text-sm">
+                  <PaymentMethodBadge mode={a.paymentMode as PaymentMode} />
+                </TableCell>
                 <TableCell className="max-w-[260px] truncate text-sm text-muted-foreground">
                   {a.note ?? '—'}
                 </TableCell>

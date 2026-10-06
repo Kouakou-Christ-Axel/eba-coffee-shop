@@ -11,14 +11,13 @@ import {
   CheckCheck,
   Clock,
   Coffee,
-  MoreHorizontal,
   ShoppingBag,
-  Smartphone,
   TrendingUp,
-  Wallet,
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { compareDays, type Delta } from '@/lib/stats-compare';
 import { PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
+import { PaymentMethodIcon } from '@/components/payment-method-badge';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { KpiCard } from '@/components/(dashboard)/kpi-card';
@@ -90,48 +89,44 @@ export async function TodayKpisSection() {
           </CardHeader>
           <CardContent className="space-y-3">
             <BreakdownRow
-              Icon={Banknote}
-              label="Espèces"
+              icon={<PaymentMethodIcon mode="CASH" className="h-4 w-4" />}
+              label={PAYMENT_MODE_LABELS.CASH}
               count={stats.countByPaymentMode.CASH}
               revenue={stats.revenueByPaymentMode.CASH}
             />
             <BreakdownRow
-              Icon={Smartphone}
-              label="Wave"
+              icon={<PaymentMethodIcon mode="WAVE" className="h-4 w-4" />}
+              label={PAYMENT_MODE_LABELS.WAVE}
               count={stats.countByPaymentMode.WAVE}
               revenue={stats.revenueByPaymentMode.WAVE}
             />
             <BreakdownRow
-              Icon={Wallet}
-              label="Orange Money"
+              icon={
+                <PaymentMethodIcon mode="ORANGE_MONEY" className="h-4 w-4" />
+              }
+              label={PAYMENT_MODE_LABELS.ORANGE_MONEY}
               count={stats.countByPaymentMode.ORANGE_MONEY}
               revenue={stats.revenueByPaymentMode.ORANGE_MONEY}
             />
             {/* Moyens du paiement en ligne : affichés seulement s'ils ont servi. */}
-            {(
-              [
-                ['MTN_MONEY', Smartphone],
-                ['MOOV_MONEY', Smartphone],
-                ['DJAMO', Wallet],
-              ] as const
-            )
+            {(['MTN_MONEY', 'MOOV_MONEY', 'DJAMO'] as const)
               .filter(
-                ([mode]) =>
+                (mode) =>
                   stats.countByPaymentMode[mode] > 0 ||
                   stats.revenueByPaymentMode[mode] !== 0
               )
-              .map(([mode, Icon]) => (
+              .map((mode) => (
                 <BreakdownRow
                   key={mode}
-                  Icon={Icon}
+                  icon={<PaymentMethodIcon mode={mode} className="h-4 w-4" />}
                   label={PAYMENT_MODE_LABELS[mode]}
                   count={stats.countByPaymentMode[mode]}
                   revenue={stats.revenueByPaymentMode[mode]}
                 />
               ))}
             <BreakdownRow
-              Icon={MoreHorizontal}
-              label="Autre"
+              icon={<PaymentMethodIcon mode="OTHER" className="h-4 w-4" />}
+              label={PAYMENT_MODE_LABELS.OTHER}
               count={stats.countByPaymentMode.OTHER}
               revenue={stats.revenueByPaymentMode.OTHER}
             />
@@ -144,17 +139,17 @@ export async function TodayKpisSection() {
           </CardHeader>
           <CardContent className="space-y-3">
             <BreakdownRow
-              Icon={ShoppingBag}
+              icon={<ShoppingBag className="h-4 w-4 text-muted-foreground" />}
               label="À emporter"
               count={stats.countByOrderType.TAKEAWAY}
             />
             <BreakdownRow
-              Icon={Coffee}
+              icon={<Coffee className="h-4 w-4 text-muted-foreground" />}
               label="Sur place"
               count={stats.countByOrderType.DINE_IN}
             />
             <BreakdownRow
-              Icon={Bike}
+              icon={<Bike className="h-4 w-4 text-muted-foreground" />}
               label="Livraison"
               count={stats.countByOrderType.DELIVERY}
             />
@@ -192,12 +187,12 @@ export async function TodayKpisSection() {
 }
 
 function BreakdownRow({
-  Icon,
+  icon,
   label,
   count,
   revenue,
 }: {
-  Icon: typeof Banknote;
+  icon: ReactNode;
   label: string;
   count: number;
   revenue?: number;
@@ -205,7 +200,7 @@ function BreakdownRow({
   return (
     <div className="flex items-center justify-between gap-3">
       <span className="flex items-center gap-2 text-sm">
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        {icon}
         {label}
       </span>
       <span className="flex items-baseline gap-3 text-sm">

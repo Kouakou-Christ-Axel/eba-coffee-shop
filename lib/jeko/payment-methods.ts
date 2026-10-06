@@ -7,6 +7,7 @@
 // `bank` et `jeko` existent chez Jèko mais ne sont pas proposés (cf.
 // lib/jeko/payment-mode.ts : ils sont encaissés comme OTHER).
 
+import type { PaymentMode } from '@/generated/prisma/client';
 import { PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
 
 export const JEKO_PAYMENT_METHODS = [
@@ -26,4 +27,13 @@ export const JEKO_PAYMENT_METHOD_LABELS: Record<JekoPaymentMethod, string> = {
   mtn: PAYMENT_MODE_LABELS.MTN_MONEY,
   moov: PAYMENT_MODE_LABELS.MOOV_MONEY,
   djamo: PAYMENT_MODE_LABELS.DJAMO,
+};
+
+/** Pour réutiliser `PaymentMethodIcon`/`PaymentMethodBadge` (logos) au checkout. */
+export const JEKO_TO_PAYMENT_MODE: Record<JekoPaymentMethod, PaymentMode> = {
+  wave: 'WAVE',
+  orange: 'ORANGE_MONEY',
+  mtn: 'MTN_MONEY',
+  moov: 'MOOV_MONEY',
+  djamo: 'DJAMO',
 };
