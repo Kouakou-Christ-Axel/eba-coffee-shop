@@ -160,7 +160,10 @@ export function PaymentModal({
                       isSubmitting && 'opacity-50'
                     )}
                   >
-                    <PaymentMethodIcon mode={value} className="h-6 w-6" />
+                    <PaymentMethodIcon
+                      mode={value}
+                      className="h-8 w-8 rounded-md"
+                    />
                     {PAYMENT_MODE_LABELS[value]}
                   </button>
                 );
