@@ -45,6 +45,7 @@ import type { AdminMenuCategory } from '@/lib/menu';
 import { computeOnlineFee } from '@/lib/online-fee';
 import { JEKO_PAYMENT_METHODS } from '@/lib/jeko/payment-methods';
 import { assertCartMatchesMenu } from '@/lib/orders/cart-verification';
+import { reserveStockOnce } from '@/lib/order-mutations';
 
 /**
  * Au moins un article du panier exige un délai de commande à l'avance (voir
@@ -380,6 +381,25 @@ export async function createOrder(
               paymentExpiresAt: online.expiresAt,
             },
           });
+
+          // Réservation anticipée du stock du jour : le client a jusqu'à
+          // `PAYMENT_EXPIRY_MINUTES` pour payer, et rien ne doit permettre à un
+          // client au comptoir de vendre entre-temps l'article que ce paiement
+          // est en train d'honorer (incident réel : choux vendus au comptoir
+          // pendant qu'un paiement en ligne traînait). Une commande différée ne
+          // touche pas au stock d'aujourd'hui (cf. `isDeferredPickup` partout
+          // ailleurs dans ce fichier) — elle garde le comportement normal,
+          // réservée à l'entrée en cuisine le jour du retrait. Une vraie pénurie
+          // fait échouer la création (409) avant tout paiement, plutôt que
+          // d'être découverte après coup au règlement (cf. `releaseUnpaidStockHold`,
+          // lib/order-mutations.ts, pour le cas où le paiement n'arrive jamais).
+          if (!isDeferredPickup(finalOrder.pickupTime)) {
+            await reserveStockOnce(
+              tx,
+              finalOrder.id,
+              input.items as CartItem[]
+            );
+          }
         }
 
         return finalOrder;

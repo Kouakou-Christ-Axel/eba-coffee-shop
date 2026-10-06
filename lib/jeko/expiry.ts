@@ -18,6 +18,8 @@
 
 import prisma from '@/lib/prisma';
 import { revokeLoyaltyForOrder } from '@/lib/loyalty-mutations';
+import { releaseUnpaidStockHold } from '@/lib/order-mutations';
+import type { CartItem } from '@/lib/cart-store';
 import { JekoApiError, getJekoPaymentRequest } from './client';
 import { jekoConfig } from './config';
 import { settleFromRemote } from './reconcile';
@@ -41,6 +43,8 @@ type Overdue = {
   customerId: string | null;
   loyaltyRewardId: string | null;
   paymentRequestId: string | null;
+  items: unknown;
+  stockReservedAt: Date | null;
 };
 
 export type ExpiryResult = {
@@ -65,6 +69,20 @@ async function expireOrder(order: Overdue): Promise<boolean> {
       data: { status: 'CANCELLED' },
     });
     if (updated.count === 0) return false;
+
+    // Commande du jour dont `createOrder` (lib/orders.ts) avait réservé le
+    // stock dès la création, le temps de cette fenêtre de paiement : le
+    // paiement n'arrive jamais, rien n'a été préparé, on rend le stock (voir
+    // `releaseUnpaidStockHold`, lib/order-mutations.ts, pour pourquoi ce cas
+    // peut redescendre `stockReservedAt` à `null` sans contredire son
+    // irréversibilité habituelle).
+    if (order.stockReservedAt) {
+      await releaseUnpaidStockHold(tx, order.items as unknown as CartItem[]);
+      await tx.order.update({
+        where: { id: order.id },
+        data: { stockReservedAt: null },
+      });
+    }
 
     if (order.customerId) {
       await revokeLoyaltyForOrder(tx, {
@@ -105,6 +123,8 @@ export async function expirePendingOrders(
       customerId: true,
       loyaltyRewardId: true,
       paymentRequestId: true,
+      items: true,
+      stockReservedAt: true,
     },
     orderBy: { paymentExpiresAt: 'asc' },
     take: BATCH_SIZE,

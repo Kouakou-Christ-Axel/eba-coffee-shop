@@ -272,6 +272,14 @@ function ProductTile({
           <p className="mt-1 text-sm font-semibold tabular-nums text-primary">
             {priceFormatter.format(product.price)} F
           </p>
+          {!!product.pending && (
+            <p
+              className="text-xs text-amber-700 dark:text-amber-400"
+              title="Quantité déjà demandée par des commandes non payées"
+            >
+              dont {product.pending} en attente
+            </p>
+          )}
         </div>
       </button>
 

@@ -55,6 +55,11 @@ export type Product = {
   stockQuantity?: number | null;
   remaining?: number | null;
   soldOut?: boolean;
+  // Quantité déjà demandée par des commandes NON encore réservées
+  // (`getPendingDemand`, lib/orders/pending-demand.ts) — fusionné à part de
+  // `getMenu()`, comme `popularRank` ci-dessus, et seulement là où le staff en
+  // a besoin (caisse) ; absent côté public.
+  pending?: number;
   // Pause programmée (ISO 8601) ; `null`/absent = pas de pause. Le calcul
   // « en pause maintenant » (`unavailableUntil > now`) se fait côté lecture.
   unavailableUntil?: string | null;

@@ -15,6 +15,7 @@ vi.mock('@/lib/prisma', () => ({
   default: { order: { findMany: vi.fn() }, $transaction: vi.fn() },
 }));
 vi.mock('@/lib/loyalty-mutations', () => ({ revokeLoyaltyForOrder: vi.fn() }));
+vi.mock('@/lib/order-mutations', () => ({ releaseUnpaidStockHold: vi.fn() }));
 vi.mock('./config', () => ({ jekoConfig: vi.fn() }));
 vi.mock('./client', async (importActual) => ({
   ...(await importActual<typeof import('./client')>()),
@@ -24,6 +25,7 @@ vi.mock('./settle', () => ({ settleJekoTransaction: vi.fn() }));
 
 import prisma from '@/lib/prisma';
 import { revokeLoyaltyForOrder } from '@/lib/loyalty-mutations';
+import { releaseUnpaidStockHold } from '@/lib/order-mutations';
 import { jekoConfig } from './config';
 import { JekoApiError, getJekoPaymentRequest } from './client';
 import { settleJekoTransaction } from './settle';
@@ -32,11 +34,13 @@ import { expirePendingOrders } from './expiry';
 const findMany = vi.mocked(prisma.order.findMany);
 const transaction = vi.mocked(prisma.$transaction);
 const revoke = vi.mocked(revokeLoyaltyForOrder);
+const release = vi.mocked(releaseUnpaidStockHold);
 const config = vi.mocked(jekoConfig);
 const getRequest = vi.mocked(getJekoPaymentRequest);
 const settle = vi.mocked(settleJekoTransaction);
 
 const updateMany = vi.fn();
+const update = vi.fn();
 
 const overdue = {
   id: 'o1',
@@ -58,9 +62,11 @@ describe('expirePendingOrders', () => {
     findMany.mockResolvedValue([overdue] as never);
     getRequest.mockResolvedValue({ id: 'pr_1', status: 'pending' } as never);
     updateMany.mockResolvedValue({ count: 1 });
+    update.mockResolvedValue({});
     transaction.mockImplementation((async (cb: (tx: unknown) => unknown) =>
-      cb({ order: { updateMany } })) as never);
+      cb({ order: { updateMany, update } })) as never);
     revoke.mockResolvedValue(undefined);
+    release.mockResolvedValue(undefined);
   });
 
   it('expire une commande dont Jèko confirme qu’elle est toujours en attente', async () => {
@@ -243,5 +249,31 @@ describe('expirePendingOrders', () => {
       settled: 0,
       skipped: 1,
     });
+  });
+
+  it('restitue le stock réservé tôt et redescend stockReservedAt à null', async () => {
+    const items = [{ productId: 'p1', quantity: 1, supplements: [] }];
+    findMany.mockResolvedValue([
+      {
+        ...overdue,
+        items,
+        stockReservedAt: new Date('2026-10-03T11:58:00.000Z'),
+      },
+    ] as never);
+
+    await expirePendingOrders(nextNow());
+
+    expect(release).toHaveBeenCalledWith(expect.anything(), items);
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'o1' },
+      data: { stockReservedAt: null },
+    });
+  });
+
+  it("ne touche pas au stock d'une commande qui n'en avait pas réservé (différée, ou créée avant ce chantier)", async () => {
+    await expirePendingOrders(nextNow());
+
+    expect(release).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
   });
 });
