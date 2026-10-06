@@ -46,9 +46,10 @@ export function PaymentMethodPicker({
               role="radio"
               aria-checked={selected}
               onClick={() => onChange(method)}
-              // min-h-12 : cible tactile de 48 px (WCAG 2.2, 2.5.8).
+              // min-h-24 : la pile icône+libellé dépasse largement la cible
+              // tactile de 48 px (WCAG 2.2, 2.5.8).
               className={cn(
-                'flex min-h-12 items-center gap-2 rounded-xl border-2 px-3 py-2 text-left transition-all',
+                'flex min-h-24 flex-col items-center justify-center gap-2 rounded-xl border-2 px-3 py-4 text-center transition-all',
                 selected
                   ? 'border-primary bg-primary/5'
                   : 'border-foreground/10 hover:border-primary/40 hover:bg-primary/5'
@@ -56,10 +57,7 @@ export function PaymentMethodPicker({
             >
               <PaymentMethodIcon
                 mode={JEKO_TO_PAYMENT_MODE[method]}
-                className={cn(
-                  'h-9 w-9 shrink-0 rounded-md',
-                  selected ? 'text-primary' : 'text-foreground/40'
-                )}
+                className="h-12 w-12 shrink-0 rounded-lg"
               />
               <span
                 className={cn(
