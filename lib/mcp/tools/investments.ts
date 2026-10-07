@@ -1,6 +1,6 @@
 // lib/mcp/tools/investments.ts
 //
-// Outils MCP — investments (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — investissements (sources, apports, documents).
 
 import { z } from 'zod';
 import { parseDateOnlyToUTC } from '@/lib/timezone';

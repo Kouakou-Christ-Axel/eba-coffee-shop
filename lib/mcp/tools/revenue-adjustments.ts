@@ -1,6 +1,6 @@
 // lib/mcp/tools/revenue-adjustments.ts
 //
-// Outils MCP — revenue-adjustments (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — régularisations de recette.
 
 import { z } from 'zod';
 import { parseDateOnlyToUTC } from '@/lib/timezone';

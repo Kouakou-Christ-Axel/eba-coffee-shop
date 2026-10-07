@@ -1,6 +1,6 @@
 // lib/mcp/tools/poll-options.ts
 //
-// Outils MCP — poll-options (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — sondages — options.
 
 import { z } from 'zod';
 import { uploadPollOptionImage } from '@/lib/cloudinary';

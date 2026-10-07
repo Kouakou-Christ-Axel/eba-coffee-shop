@@ -1,6 +1,6 @@
 // lib/mcp/tools/menu-products.ts
 //
-// Outils MCP — menu-products (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — menu — produits.
 
 import { z } from 'zod';
 import {

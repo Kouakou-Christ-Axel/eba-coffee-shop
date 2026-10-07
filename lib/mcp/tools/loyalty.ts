@@ -1,6 +1,6 @@
 // lib/mcp/tools/loyalty.ts
 //
-// Outils MCP — loyalty (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — fidélité (carte à tampons et réglages).
 
 import { z } from 'zod';
 import { getCustomerByPhone } from '@/lib/customers';

@@ -1,6 +1,6 @@
 // lib/mcp/tools/inventory.ts
 //
-// Outils MCP — inventory (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — inventaire périodique (références, réappro, comptages, réglages).
 
 import { z } from 'zod';
 import { parseDateOnlyToUTC } from '@/lib/timezone';

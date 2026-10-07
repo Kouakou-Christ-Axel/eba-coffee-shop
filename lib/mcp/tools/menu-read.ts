@@ -1,6 +1,6 @@
 // lib/mcp/tools/menu-read.ts
 //
-// Outils MCP — menu-read (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — menu — lecture (`get_menu`).
 
 import { z } from 'zod';
 import { getMenuAdmin } from '@/lib/menu';

@@ -1,6 +1,6 @@
 // lib/mcp/tools/customers.ts
 //
-// Outils MCP — customers (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — clients / CRM (lecture) et ardoise.
 
 import { z } from 'zod';
 import {

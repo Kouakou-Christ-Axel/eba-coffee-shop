@@ -1,6 +1,6 @@
 // lib/mcp/tools/cash-closing.ts
 //
-// Outils MCP — cash-closing (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — clôture de caisse (espèces, journalière).
 
 import { z } from 'zod';
 import { parseDateOnlyToUTC } from '@/lib/timezone';

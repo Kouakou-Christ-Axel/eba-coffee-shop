@@ -1,6 +1,6 @@
 // lib/mcp/tools/expense-purchases.ts
 //
-// Outils MCP — expense-purchases (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — saisie guidée des achats et autres dépenses.
 
 import { z } from 'zod';
 import {

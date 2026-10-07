@@ -1,6 +1,6 @@
 // lib/mcp/tools/tiktok.ts
 //
-// Outils MCP — tiktok (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — vidéos TikTok.
 
 import { z } from 'zod';
 import { getTiktokVideosAdmin, getTiktokVideoAdmin } from '@/lib/tiktok';

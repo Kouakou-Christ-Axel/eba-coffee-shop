@@ -1,6 +1,6 @@
 // lib/mcp/tools/orders-ops.ts
 //
-// Outils MCP — orders-ops (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — commandes — opérations (statut, paiement, remise, édition).
 
 import { z } from 'zod';
 import { extendClosingToday, getRangesForDay } from '@/lib/pickup-settings';
@@ -10,7 +10,7 @@ import {
 } from '@/lib/pickup-settings-db';
 import { getOrder } from '@/lib/orders';
 import { updateOrderItems, OrderMutationError } from '@/lib/order-mutations';
-import { CartItem } from '@/lib/cart-store';
+import type { CartItem } from '@/lib/cart-store';
 import { idSchema } from './helpers';
 import type { McpTool } from './types';
 

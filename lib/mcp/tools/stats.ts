@@ -1,6 +1,6 @@
 // lib/mcp/tools/stats.ts
 //
-// Outils MCP — stats (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — statistiques (lecture seule).
 
 import { z } from 'zod';
 import {

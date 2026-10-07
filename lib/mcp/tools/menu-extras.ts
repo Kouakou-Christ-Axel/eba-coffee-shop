@@ -1,6 +1,6 @@
 // lib/mcp/tools/menu-extras.ts
 //
-// Outils MCP — menu-extras (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — menu — suppléments globaux.
 
 import { z } from 'zod';
 import { getGlobalExtras } from '@/lib/menu';

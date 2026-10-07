@@ -1,6 +1,6 @@
 // lib/mcp/tools/expenses.ts
 //
-// Outils MCP — expenses (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — dépenses (lecture, écriture, justificatifs).
 
 import { z } from 'zod';
 import { parseDateOnlyToUTC } from '@/lib/timezone';

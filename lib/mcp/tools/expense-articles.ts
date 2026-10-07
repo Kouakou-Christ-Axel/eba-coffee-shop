@@ -1,6 +1,6 @@
 // lib/mcp/tools/expense-articles.ts
 //
-// Outils MCP — expense-articles (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — catalogue des articles de dépense.
 
 import { z } from 'zod';
 import { parseDateOnlyToUTC } from '@/lib/timezone';

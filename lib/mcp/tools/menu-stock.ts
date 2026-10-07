@@ -1,6 +1,6 @@
 // lib/mcp/tools/menu-stock.ts
 //
-// Outils MCP — menu-stock (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — menu — stock des produits et des options.
 
 import { z } from 'zod';
 import { getPendingDemand } from '@/lib/orders/pending-demand';

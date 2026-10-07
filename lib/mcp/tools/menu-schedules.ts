@@ -1,6 +1,6 @@
 // lib/mcp/tools/menu-schedules.ts
 //
-// Outils MCP — menu-schedules (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — menu — horaires et produits de la semaine.
 
 import { z } from 'zod';
 import {

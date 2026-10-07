@@ -1,6 +1,6 @@
 // lib/mcp/tools/expense-categories.ts
 //
-// Outils MCP — expense-categories (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — catégories de dépenses.
 
 import { z } from 'zod';
 import { listExpenseCategories } from '@/lib/expenses';

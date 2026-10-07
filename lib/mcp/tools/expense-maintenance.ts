@@ -1,6 +1,6 @@
 // lib/mcp/tools/expense-maintenance.ts
 //
-// Outils MCP — expense-maintenance (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — maintenance des lignes de dépense (rematch, backfill, relink).
 
 import { z } from 'zod';
 import {

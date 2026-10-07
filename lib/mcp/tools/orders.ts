@@ -1,6 +1,6 @@
 // lib/mcp/tools/orders.ts
 //
-// Outils MCP — orders (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — commandes — lecture et création.
 
 import { z } from 'zod';
 import prisma from '@/lib/prisma';

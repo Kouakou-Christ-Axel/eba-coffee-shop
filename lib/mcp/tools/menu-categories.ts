@@ -1,6 +1,6 @@
 // lib/mcp/tools/menu-categories.ts
 //
-// Outils MCP — menu-categories (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — menu — catégories.
 
 import { z } from 'zod';
 import {

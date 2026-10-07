@@ -1,6 +1,6 @@
 // lib/mcp/tools/contact.ts
 //
-// Outils MCP — contact (extrait de lib/mcp/tools.ts, sans changement de comportement).
+// Outils MCP — coordonnées du commerce (adresse, horaires, réseaux).
 
 import { z } from 'zod';
 import {
