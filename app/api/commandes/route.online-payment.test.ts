@@ -116,8 +116,8 @@ describe('POST /api/commandes — paiement en ligne', () => {
     const [, opts] = create.mock.calls[0];
     expect(opts?.onlinePayment).toMatchObject({ feePercent: 1, menu });
     const delay = opts!.onlinePayment!.expiresAt.getTime() - Date.now();
-    expect(delay).toBeGreaterThan(14 * 60_000);
-    expect(delay).toBeLessThanOrEqual(15 * 60_000);
+    expect(delay).toBeGreaterThan(2 * 60_000);
+    expect(delay).toBeLessThanOrEqual(3 * 60_000);
 
     expect(start).toHaveBeenCalledWith({
       orderId: 'o1',

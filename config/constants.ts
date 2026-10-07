@@ -214,11 +214,18 @@ export const MIN_DEPOSIT_PERCENT = 50;
 
 /**
  * Paiement en ligne (Jèko) : durée pendant laquelle une commande attend son
- * paiement, comptée à partir de CHAQUE tentative. 10 min est trop court pour une
- * validation Mobile Money (USSD ou application) sur les liens d'Abidjan, 30 min
- * garde trop longtemps une commande en attente.
+ * paiement, comptée à partir de CHAQUE tentative. Les articles du jour sont
+ * RÉSERVÉS (stock décompté) dès la création pour toute la durée de cette
+ * fenêtre (cf. `createOrder`, lib/orders.ts) — ils sont donc indisponibles à
+ * la vente pendant que le client finalise son paiement. D'où une fenêtre
+ * volontairement courte : 15 min immobilisait trop longtemps le stock d'un
+ * client lent à payer (incident réel : choux vendus au comptoir pendant
+ * qu'un paiement en ligne traînait, puis payé sur un stock qui n'existait
+ * plus). 3 min suffit à une validation Mobile Money (USSD ou application) sur
+ * les liens d'Abidjan ; au-delà, le client peut relancer un paiement, qui
+ * rouvre une fenêtre neuve.
  */
-export const PAYMENT_EXPIRY_MINUTES = 15;
+export const PAYMENT_EXPIRY_MINUTES = 3;
 
 /**
  * Frais de paiement en ligne facturés au client, en % du total (Jèko Checkout

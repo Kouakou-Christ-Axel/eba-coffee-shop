@@ -11,6 +11,10 @@
 import { NextResponse } from 'next/server';
 import { requireCashier } from '@/lib/auth-helpers';
 import { getMenu } from '@/lib/menu';
+import {
+  getPendingDemand,
+  attachPendingDemand,
+} from '@/lib/orders/pending-demand';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,9 +25,12 @@ export async function GET() {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
 
-  const menu = await getMenu();
+  const [menu, pendingDemand] = await Promise.all([
+    getMenu(),
+    getPendingDemand(),
+  ]);
   return NextResponse.json(
-    { menu },
+    { menu: attachPendingDemand(menu, pendingDemand.products) },
     { headers: { 'Cache-Control': 'no-store' } }
   );
 }

@@ -53,10 +53,28 @@ vi.mock('@/lib/orders/availability', () => ({
 vi.mock('@/lib/orders/scheduling', () => ({
   isDeferredPickup: vi.fn().mockReturnValue(true),
 }));
+// `lib/order-mutations.ts` importe lui-même `generateOrderReference` depuis ce
+// fichier (`lib/orders.ts`) : un `importOriginal` ici rechargerait le vrai
+// module en plein cycle avec celui sous test. On simule donc entièrement
+// `reserveStockOnce` avec sa propre erreur de pénurie (la vraie
+// `StockShortageError` n'a pas besoin d'être cette classe précise ici — seul
+// son httpStatus 409 compte pour `publicOrderErrorResponse`).
+class FakeStockShortageError extends Error {
+  httpStatus = 409;
+}
+vi.mock('@/lib/order-mutations', () => ({
+  reserveStockOnce: vi.fn(),
+}));
 
 import { resolveLoyaltyReward } from '@/lib/loyalty-mutations';
 import { sendPushToRoles } from '@/lib/push-notify';
+import { isDeferredPickup } from '@/lib/orders/scheduling';
+import { reserveStockOnce } from '@/lib/order-mutations';
 import { CartMismatchError } from '@/lib/orders/cart-verification';
+import {
+  fetchStockSnapshot,
+  computeOrderItemsAvailability,
+} from '@/lib/orders/availability';
 import { createOrder } from './orders';
 
 const menu = [
@@ -193,5 +211,69 @@ describe('createOrder sans paiement en ligne', () => {
     await expect(
       createOrder({ ...(input as object), total: 1 } as never)
     ).resolves.toBeDefined();
+  });
+});
+
+describe('createOrder — réservation anticipée du stock (retrait aujourd’hui)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(sendPushToRoles).mockResolvedValue(undefined as never);
+    vi.mocked(isDeferredPickup).mockReturnValue(false);
+    vi.mocked(reserveStockOnce).mockResolvedValue(true);
+    // `assertPublicOrderConstraints` vérifie aussi le stock du jour (lecture
+    // seule) avant la réservation atomique testée ici — sans objet pour ces
+    // tests, qui portent sur la réservation elle-même.
+    vi.mocked(fetchStockSnapshot).mockResolvedValue({
+      products: new Map(),
+      options: new Map(),
+    });
+    vi.mocked(computeOrderItemsAvailability).mockReturnValue({
+      fulfillable: true,
+      items: [],
+    } as never);
+    tx.order.create.mockResolvedValue(createdOrder(3500));
+    tx.order.update.mockImplementation(async ({ data }) => ({
+      ...createdOrder(3500),
+      ...data,
+    }));
+  });
+
+  it('réserve le stock des articles dès la création', async () => {
+    const order = await createOrder(input, { onlinePayment: online });
+
+    expect(reserveStockOnce).toHaveBeenCalledWith(tx, order.id, input.items);
+  });
+
+  it('ne réserve rien pour une commande différée', async () => {
+    vi.mocked(isDeferredPickup).mockReturnValue(true);
+
+    await createOrder(input, { onlinePayment: online });
+
+    expect(reserveStockOnce).not.toHaveBeenCalled();
+  });
+
+  it('ne réserve rien quand la récompense couvre tout le total (pas de paiement en attente)', async () => {
+    vi.mocked(resolveLoyaltyReward).mockResolvedValue({
+      id: 'r1',
+      capAmount: 5000,
+    });
+    tx.order.create.mockResolvedValue(createdOrder(0));
+
+    await createOrder(
+      { ...(input as object), loyaltyRewardId: 'r1' } as never,
+      { onlinePayment: online }
+    );
+
+    expect(reserveStockOnce).not.toHaveBeenCalled();
+  });
+
+  it('une pénurie à la réservation fait échouer la création, avant tout paiement', async () => {
+    vi.mocked(reserveStockOnce).mockRejectedValue(
+      new FakeStockShortageError('Stock insuffisant pour « Gâteau »')
+    );
+
+    await expect(createOrder(input, { onlinePayment: online })).rejects.toThrow(
+      'Stock insuffisant pour « Gâteau »'
+    );
   });
 });

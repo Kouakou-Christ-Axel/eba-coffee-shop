@@ -3,7 +3,7 @@
 // Démarrer ou RELANCER le paiement d'une commande en attente. Chaque tentative :
 //   - numérote sa référence (`<commande>-<n>`) : Jèko refuse une référence déjà
 //     utilisée (409), et le webhook retrouve la commande en la lisant ;
-//   - relance le délai de 15 min ;
+//   - relance le délai de paiement (`PAYMENT_EXPIRY_MINUTES`) ;
 //   - réclame la commande de façon atomique (gardée sur `isPaid:false`, statut NEW
 //     et échéance non dépassée) : deux clics ou un paiement concurrent ne
 //     créent pas deux demandes pour une commande déjà réglée.
@@ -107,7 +107,7 @@ describe('startJekoPayment', () => {
     expect(shortage).not.toHaveBeenCalled();
   });
 
-  it("réclame la commande de façon atomique et relance l'échéance de 15 min", async () => {
+  it("réclame la commande de façon atomique et relance l'échéance de paiement", async () => {
     const result = await startJekoPayment(args);
 
     expect(claim).toHaveBeenCalledWith({
@@ -119,12 +119,12 @@ describe('startJekoPayment', () => {
       },
       data: {
         paymentAttempts: { increment: 1 },
-        paymentExpiresAt: new Date('2026-10-03T12:15:00.000Z'),
+        paymentExpiresAt: new Date('2026-10-03T12:03:00.000Z'),
         // Montant demandé à Jèko, figé : `total` peut changer ensuite.
         paymentAmountDue: 3485,
       },
     });
-    expect(result.expiresAt).toEqual(new Date('2026-10-03T12:15:00.000Z'));
+    expect(result.expiresAt).toEqual(new Date('2026-10-03T12:03:00.000Z'));
   });
 
   it('crée la demande Jèko : total + frais, référence numérotée, URLs de retour', async () => {

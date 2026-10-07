@@ -18,6 +18,7 @@
 import prisma from '@/lib/prisma';
 import { withStaffVisible } from '@/lib/orders/visibility';
 import type { CartItem } from '@/lib/cart-store';
+import type { MenuCategory } from '@/config/menu';
 import { parseDateOnlyToUTC } from '@/lib/timezone';
 
 export type PendingDemand = {
@@ -124,4 +125,26 @@ export async function getPendingOptionDemand(
 ): Promise<Map<string, number>> {
   const { options } = await getPendingDemand(options_);
   return options;
+}
+
+/**
+ * Fusionne la demande en attente PAR PRODUIT dans un menu caisse — même
+ * patron que `attachPopularity` (lib/menu-popularity.ts) : calculé à part de
+ * `getMenu()`, jamais dedans, pour ne jamais fuiter côté public. Scope
+ * produit uniquement (pas les options/goûts, déjà couverts par l'écran
+ * dédié `/dashboard/menu/stock-supplements`) : c'est le niveau où l'incident
+ * réel (choux vendus au comptoir pendant qu'un paiement en ligne était en
+ * cours) s'est produit.
+ */
+export function attachPendingDemand(
+  menu: MenuCategory[],
+  pending: Map<string, number>
+): MenuCategory[] {
+  return menu.map((category) => ({
+    ...category,
+    products: category.products.map((product) => {
+      const qty = pending.get(product.id);
+      return qty ? { ...product, pending: qty } : product;
+    }),
+  }));
 }

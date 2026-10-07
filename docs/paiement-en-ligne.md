@@ -11,12 +11,17 @@ prélève **1,5 %**, EBA absorbe l'écart.
    revérifiés contre le menu (`lib/orders/cart-verification.ts`). Un total falsifié
    est refusé (`409 CART_CHANGED`) et ne crée aucune commande.
 3. La commande est créée **en attente** et reste **invisible du staff** (caisse,
-   cuisine, stats) tant qu'elle n'est pas payée (`lib/orders/visibility.ts`).
+   cuisine, stats) tant qu'elle n'est pas payée (`lib/orders/visibility.ts`). Pour un
+   retrait **aujourd'hui** (non différé), le stock des articles est **réservé tout
+   de suite** (`reserveStockOnce`, lib/order-mutations.ts) — pas seulement vérifié :
+   personne d'autre ne peut vendre ces articles pendant que ce client paie. Une
+   pénurie refuse la création elle-même (`409`), avant toute redirection vers Jèko.
 4. Le client est redirigé vers Jèko, paie, puis revient sur `/commande/[id]`.
 5. Le **webhook** (`POST /api/webhooks/jeko`) règle la commande : elle passe en
    cuisine, le staff est prévenu. Au retour du client, `…/paiement/verifier` fait la
    même chose sans attendre le webhook (Jèko peut mettre 5 min à réconcilier).
-6. Sans paiement, la commande **expire après 15 min** (`PAYMENT_EXPIRY_MINUTES`).
+6. Sans paiement, la commande **expire après 3 min** (`PAYMENT_EXPIRY_MINUTES`) —
+   délibérément court : la fenêtre immobilise du stock réel, voir point 3.
 
 ## Variables d'environnement
 
@@ -60,7 +65,7 @@ quatre gestes.
 | ✅ Payer              | Paiement réussi + webhook signé | La commande passe en cuisine, le staff est prévenu            |
 | ✅ Payer sans webhook | Succès sans webhook             | La page de suivi règle la commande au retour (réconciliation) |
 | ❌ Échouer            | Solde insuffisant               | Message d'échec, bouton « Réessayer » avec un autre moyen     |
-| 🚪 Quitter sans payer | Abandon                         | Compte à rebours, puis expiration à 15 min                    |
+| 🚪 Quitter sans payer | Abandon                         | Compte à rebours, puis expiration à 3 min — stock restitué    |
 
 Autres vérifications utiles : arrêter `pnpm jeko:mock` pendant une commande (la
 commande existe, « Réessayer » reste proposé), et forcer une expiration avec
@@ -97,12 +102,14 @@ aussi en local ; en test, changer l'en-tête `x-forwarded-for` suffit.
 - **Paiement tardif** : si Jèko confirme un paiement après l'expiration ou
   l'annulation, il est encaissé (`isPaid`) mais la commande n'est **pas** remise en
   cuisine ; le staff est alerté et la rétablit (ou rembourse) par le flux habituel.
-- **Rupture de stock** : avant de faire payer, `startJekoPayment` vérifie le stock
-  (sauf commande différée) et refuse (`out_of_stock`) : le client n'est pas débité.
-  Si le stock manque pendant le paiement, le paiement est **enregistré sans entrée
-  en cuisine** (`setOrderPayment(..., { skipKitchen: true })`) : la commande reste
-  `NEW`, payée, avec une alerte ; le staff la lance en confirmant la production
-  (`coverShortage`), comme pour toute pénurie.
+- **Rupture de stock** : pour un retrait aujourd'hui, le stock est déjà réservé
+  depuis la création (voir « Le parcours », point 3) — `startJekoPayment` revérifie
+  (`out_of_stock`) par sécurité, mais c'est devenu un filet, pas la protection
+  principale. Reste utile pour une commande **différée** (pas de réservation à la
+  création, voir `CLAUDE.md`) : si son stock manque malgré tout au règlement, le
+  paiement est **enregistré sans entrée en cuisine** (`setOrderPayment(...,
+{ skipKitchen: true })`) — la commande reste `NEW`, payée, avec une alerte ; le
+  staff la lance en confirmant la production (`coverShortage`).
 - **Frais** : `onlineFee − gatewayFee` donne la marge par commande (environ −0,5 %).
   Les frais ne sont jamais comptés dans le chiffre d'affaires.
 - **Capture d'écran + analyse IA : supprimées.** Les routes `…/preuve-paiement` et

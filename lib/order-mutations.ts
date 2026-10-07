@@ -543,6 +543,28 @@ async function resyncStockForItemChange(
   }
 }
 
+/**
+ * Restitue intégralement le stock tenu par `items` — réutilise
+ * `resyncStockForItemChange` avec une cible vide, qui ne fait alors que
+ * recréditer, rien à décrémenter.
+ *
+ * UNIQUE appelante : `expirePendingOrders` (lib/jeko/expiry.ts), pour une
+ * commande en ligne du jour jamais payée dont `reserveStockOnce` avait
+ * réservé le stock dès la création (voir son commentaire). Ce n'est PAS une
+ * entorse à l'irréversibilité de `stockReservedAt` décrite plus haut : cette
+ * irréversibilité protège une commande déjà COMMISE en cuisine (« le plat est
+ * perdu », cf. le commentaire de `resyncStockForItemChange`) — ici, le
+ * paiement n'a jamais abouti, rien n'a jamais été préparé, il n'y a rien à
+ * perdre à rendre le stock et à redescendre `stockReservedAt` à `null`. À ne
+ * jamais appeler ailleurs que depuis ce chemin d'expiration.
+ */
+export function releaseUnpaidStockHold(
+  tx: Prisma.TransactionClient,
+  items: CartItem[]
+): Promise<void> {
+  return resyncStockForItemChange(tx, items, [], true);
+}
+
 async function coverShortageForOrderItems(
   tx: Prisma.TransactionClient,
   items: CartItem[]
@@ -591,8 +613,17 @@ async function coverShortageForOrderItems(
  *
  * `coverShortage` (geste explicite du staff, jamais un défaut) crédite d'abord
  * le manque : la réservation qui suit le redescend, effet net nul.
+ *
+ * Second appelant depuis ce chantier : `createOrder` (lib/orders.ts), pour une
+ * commande en ligne du jour même — réserve dès la création, le temps de la
+ * fenêtre de paiement, pour qu'un client au comptoir ne vende pas entre-temps
+ * l'article qu'un paiement en ligne est en train d'honorer. Si ce paiement
+ * n'arrive jamais, `releaseUnpaidStockHold` (ci-dessous) est l'UNIQUE endroit
+ * autorisé à redescendre `stockReservedAt` à `null` : voir son commentaire
+ * pour pourquoi ce cas précis n'entre pas en contradiction avec l'irréversibilité
+ * du verrou décrite ci-dessus.
  */
-async function reserveStockOnce(
+export async function reserveStockOnce(
   tx: Prisma.TransactionClient,
   orderId: string,
   items: CartItem[],
