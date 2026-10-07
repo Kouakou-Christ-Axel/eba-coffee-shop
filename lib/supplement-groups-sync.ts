@@ -92,18 +92,32 @@ export async function syncSupplementGroups(
         name: o.name,
         price: o.price,
         available: o.available,
-        stockQuantity: o.stockQuantity ?? null,
         // L'ordre soumis fait foi : c'est celui que le client verra.
         sortOrder: oi,
       };
       if (optionMatch) {
+        // `stockQuantity: undefined` = l'éditeur n'a pas touché ce champ
+        // (cf. `fromUiGroup`, supplements-editor.tsx) : ne PAS l'écraser avec
+        // la lecture figée au chargement de la page, qui effacerait un
+        // décrément réel survenu depuis (vente passée en cuisine). Une
+        // option NOUVELLE (branche `create` ci-dessous) n'a rien à perdre :
+        // `?? null` s'y applique sans condition.
         await tx.supplementOption.update({
           where: { id: optionMatch.id },
-          data: optionData,
+          data: {
+            ...optionData,
+            ...(o.stockQuantity !== undefined && {
+              stockQuantity: o.stockQuantity,
+            }),
+          },
         });
       } else {
         await tx.supplementOption.create({
-          data: { ...optionData, groupId: match.id },
+          data: {
+            ...optionData,
+            stockQuantity: o.stockQuantity ?? null,
+            groupId: match.id,
+          },
         });
       }
     }

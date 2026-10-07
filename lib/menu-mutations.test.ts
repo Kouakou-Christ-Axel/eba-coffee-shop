@@ -629,6 +629,101 @@ describe('updateProduct', () => {
     });
     expect(mockSupOptionCreate).not.toHaveBeenCalled();
   });
+
+  // Régression : la fiche produit charge le stock une fois à l'ouverture de
+  // la page, puis des ventes peuvent le décrémenter en cuisine AVANT que le
+  // staff n'enregistre une modif sans rapport (prix, nom...) sur ce même
+  // écran. Omettre `stockQuantity` (option non touchée dans l'éditeur, cf.
+  // `fromUiGroup`, supplements-editor.tsx) ne doit PAS réécrire le stock
+  // d'une option EXISTANTE avec une valeur figée — sous peine d'effacer ce
+  // décrément réel et de causer une survente immédiate. Une option NOUVELLE
+  // n'a rien à perdre : elle garde son défaut `?? null`.
+  it('ne réécrit pas le stock d’une option existante quand il est omis (non touché)', async () => {
+    mockProdFindUnique.mockResolvedValue({ id: 'p1' } as never);
+    mockProdUpdate.mockResolvedValue({ id: 'p1' } as never);
+    mockSupGroupFindMany.mockResolvedValue([
+      {
+        id: 'g1',
+        name: 'Goûts',
+        options: [
+          {
+            id: 'opt-vanille',
+            name: 'Vanille',
+            price: 0,
+            available: true,
+            stockQuantity: 5,
+          },
+        ],
+      },
+    ] as never);
+
+    await updateProduct('p1', {
+      supplementGroups: [
+        {
+          name: 'Goûts',
+          type: 'single',
+          required: true,
+          available: true,
+          minSelect: null,
+          maxSelect: null,
+          options: [
+            // `stockQuantity` omis : l'admin n'a touché que le nom/prix.
+            { name: 'Vanille', price: 150, available: true },
+          ],
+        },
+      ],
+    });
+
+    expect(mockSupOptionUpdate).toHaveBeenCalledWith({
+      where: { id: 'opt-vanille' },
+      data: expect.objectContaining({ name: 'Vanille', price: 150 }),
+    });
+    const call = mockSupOptionUpdate.mock.calls.find(
+      (c) => (c[0] as { where: { id: string } }).where.id === 'opt-vanille'
+    );
+    expect(call?.[0]).not.toHaveProperty('data.stockQuantity');
+  });
+
+  it('réécrit le stock d’une option existante quand il est explicitement fourni', async () => {
+    mockProdFindUnique.mockResolvedValue({ id: 'p1' } as never);
+    mockProdUpdate.mockResolvedValue({ id: 'p1' } as never);
+    mockSupGroupFindMany.mockResolvedValue([
+      {
+        id: 'g1',
+        name: 'Goûts',
+        options: [
+          {
+            id: 'opt-vanille',
+            name: 'Vanille',
+            price: 0,
+            available: true,
+            stockQuantity: 5,
+          },
+        ],
+      },
+    ] as never);
+
+    await updateProduct('p1', {
+      supplementGroups: [
+        {
+          name: 'Goûts',
+          type: 'single',
+          required: true,
+          available: true,
+          minSelect: null,
+          maxSelect: null,
+          options: [
+            { name: 'Vanille', price: 0, available: true, stockQuantity: 2 },
+          ],
+        },
+      ],
+    });
+
+    expect(mockSupOptionUpdate).toHaveBeenCalledWith({
+      where: { id: 'opt-vanille' },
+      data: expect.objectContaining({ stockQuantity: 2 }),
+    });
+  });
 });
 
 describe('moveProduct', () => {
