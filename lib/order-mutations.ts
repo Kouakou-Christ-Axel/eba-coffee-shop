@@ -285,9 +285,13 @@ async function decrementStockForOrderItems(
  * même goût via des suppléments distincts), et les traiter séparément
  * sous-estimerait le manque.
  *
- * Les options introuvables (renommées, désactivées) sont ignorées ici : ce
- * n'est pas une pénurie que le cuisinier puisse couvrir en produisant, et le
- * décrément lèvera de toute façon « Option indisponible ».
+ * Les options introuvables (renommées, désactivées) sont écartées de `options`
+ * (clé = id réel) et reportées dans `unresolved` (clé = `optionKey`, stable
+ * même sans id) : `computeShortage`/`coverShortageForOrderItems` les ignorent
+ * (ce n'est pas une pénurie que le cuisinier puisse couvrir en produisant, et
+ * le décrément lèvera de toute façon « Option indisponible » à la création),
+ * mais `resyncStockForItemChange` en a besoin pour ne pas laisser passer en
+ * silence l'ajout d'une quantité sur une option devenue indisponible.
  */
 async function aggregateStockNeeds(
   tx: Prisma.TransactionClient,
@@ -303,9 +307,27 @@ async function aggregateStockNeeds(
       needed: number;
     }
   >;
+  unresolved: Map<
+    string,
+    {
+      productName: string;
+      groupName: string;
+      optionName: string;
+      needed: number;
+    }
+  >;
 }> {
   const products = new Map<string, { name: string; needed: number }>();
   const options = new Map<
+    string,
+    {
+      productName: string;
+      groupName: string;
+      optionName: string;
+      needed: number;
+    }
+  >();
+  const unresolved = new Map<
     string,
     {
       productName: string;
@@ -329,8 +351,22 @@ async function aggregateStockNeeds(
         supplement.groupName,
         supplement.optionName
       );
-      if (!optionId) continue;
       const needed = (supplement.quantity ?? 1) * item.quantity;
+      if (!optionId) {
+        const key = optionKey(
+          item.productId,
+          supplement.groupName,
+          supplement.optionName
+        );
+        const existing = unresolved.get(key);
+        unresolved.set(key, {
+          productName: item.productName,
+          groupName: supplement.groupName,
+          optionName: supplement.optionName,
+          needed: (existing?.needed ?? 0) + needed,
+        });
+        continue;
+      }
       const existing = options.get(optionId);
       options.set(optionId, {
         productName: item.productName,
@@ -341,7 +377,7 @@ async function aggregateStockNeeds(
     }
   }
 
-  return { products, options };
+  return { products, options, unresolved };
 }
 
 /**
@@ -472,12 +508,18 @@ export async function buildShortagePayload(
  * `restoreRemoved: false` : le staff a indiqué que l'article retiré était déjà
  * préparé (commande en cuisine) — on ne recrédite alors rien, les ajouts
  * restent décomptés.
+ *
+ * `coverShortage` : même geste explicite que sur `reserveStockOnce` (le staff
+ * a confirmé avoir produit le manque) — crédite exactement ce qu'il manque
+ * pour couvrir le delta AVANT de décrémenter, plutôt que de refuser l'édition
+ * et pousser à annuler/recréer la commande.
  */
 async function resyncStockForItemChange(
   tx: Prisma.TransactionClient,
   previousItems: CartItem[],
   nextItems: CartItem[],
-  restoreRemoved: boolean
+  restoreRemoved: boolean,
+  coverShortage = false
 ): Promise<void> {
   const before = await aggregateStockNeeds(tx, previousItems);
   const after = await aggregateStockNeeds(tx, nextItems);
@@ -493,6 +535,18 @@ async function resyncStockForItemChange(
     const name =
       after.products.get(id)?.name ?? before.products.get(id)?.name ?? id;
     if (delta > 0) {
+      if (coverShortage) {
+        const row = await tx.product.findUnique({
+          where: { id },
+          select: { stockQuantity: true },
+        });
+        if (row && row.stockQuantity !== null && row.stockQuantity < delta) {
+          await tx.product.update({
+            where: { id },
+            data: { stockQuantity: { increment: delta - row.stockQuantity } },
+          });
+        }
+      }
       const res = await tx.product.updateMany({
         where: {
           id,
@@ -522,6 +576,18 @@ async function resyncStockForItemChange(
     if (delta === 0) continue;
     const need = after.options.get(id) ?? before.options.get(id);
     if (delta > 0) {
+      if (coverShortage) {
+        const row = await tx.supplementOption.findUnique({
+          where: { id },
+          select: { stockQuantity: true },
+        });
+        if (row && row.stockQuantity !== null && row.stockQuantity < delta) {
+          await tx.supplementOption.update({
+            where: { id },
+            data: { stockQuantity: { increment: delta - row.stockQuantity } },
+          });
+        }
+      }
       const res = await tx.supplementOption.updateMany({
         where: {
           id,
@@ -539,6 +605,23 @@ async function resyncStockForItemChange(
         where: { id },
         data: { stockQuantity: { increment: -delta } },
       });
+    }
+  }
+
+  // Options introuvables (renommées/désactivées entre la réservation et cette
+  // édition) : sans ce contrôle, une quantité ajoutée sur une telle option ne
+  // serait décomptée nulle part, puisqu'elle n'apparaît dans AUCUNE des deux
+  // maps `options` ci-dessus — cf. le commentaire d'`aggregateStockNeeds`.
+  for (const key of new Set([
+    ...before.unresolved.keys(),
+    ...after.unresolved.keys(),
+  ])) {
+    const need = after.unresolved.get(key);
+    const delta = (need?.needed ?? 0) - (before.unresolved.get(key)?.needed ?? 0);
+    if (delta > 0 && need) {
+      throw new StockShortageError(
+        `Option indisponible pour « ${need.productName} — ${need.optionName} »`
+      );
     }
   }
 }
@@ -2145,14 +2228,21 @@ export async function setOrderCustomer(
  * `opts.restoreRemovedStock: false` : l'article retiré était déjà préparé, on
  * ne le recrédite pas. Défaut `true`.
  *
+ * `opts.coverShortage` : même geste que sur `sendOrderToKitchen`/
+ * `setOrderPayment`/`payAndComplete` — le staff a confirmé avoir produit la
+ * quantité manquante, le delta ajouté est couvert avant d'être décompté plutôt
+ * que refusé. Sans ce filet, une vraie fournée supplémentaire ne pouvait être
+ * ajoutée à une commande déjà en cuisine qu'en annulant/recréant la commande.
+ *
  * Lève `OrderMutationError` (400 liste vide / remise trop élevée, 404
  * introuvable, 409 commande terminée) ou `StockShortageError` (409, si les
- * articles ajoutés dépassent le stock). Renvoie le nouveau total.
+ * articles ajoutés dépassent le stock et que `coverShortage` n'est pas posé).
+ * Renvoie le nouveau total.
  */
 export async function updateOrderItems(
   id: string,
   items: CartItem[],
-  opts?: { restoreRemovedStock?: boolean }
+  opts?: { restoreRemovedStock?: boolean; coverShortage?: boolean }
 ): Promise<{ total: number }> {
   if (items.length === 0) {
     throw new OrderMutationError(
@@ -2203,7 +2293,8 @@ export async function updateOrderItems(
         tx,
         order.items as unknown as CartItem[],
         items,
-        opts?.restoreRemovedStock ?? true
+        opts?.restoreRemovedStock ?? true,
+        opts?.coverShortage ?? false
       );
     }
 

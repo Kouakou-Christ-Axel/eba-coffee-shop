@@ -471,7 +471,7 @@ function SupplementModal({
     }
 
     const constraint = groupConstraintLabel(group);
-    const count = groupSelectionCount(group, selections);
+    const count = groupSelectionCount(group, selections, rules);
     const max = effectiveMax(group);
     const isOpen = openGroups[group.name] ?? false;
     const options = orderableFirst(group.options);

@@ -28,6 +28,7 @@ import { ProductCatalog } from '../caisse/new/product-catalog';
 import { SupplementPicker } from '../caisse/new/supplement-picker';
 import { LineDiscountControl } from './line-discount-control';
 import { useConfirmDialog } from './use-confirm-dialog';
+import { useShortageConfirm } from './use-shortage-confirm';
 
 type Props = {
   orderId: string;
@@ -88,6 +89,7 @@ export function OrderItemsEditor({
   // reflète dans le catalogue et le sélecteur sans recharger.
   const { menu, applyRestock } = useLiveMenu(initialMenu);
   const { confirm, confirmDialog } = useConfirmDialog();
+  const { confirmShortage, shortageDialog } = useShortageConfirm();
 
   // Index produit par id, pour retrouver les groupes de suppléments d'une
   // ligne (les lignes ne stockent que les options choisies, pas les groupes).
@@ -248,9 +250,20 @@ export function OrderItemsEditor({
 
     startTransition(async () => {
       try {
-        const result = await updateOrderItemsAction(orderId, items, {
+        let result = await updateOrderItemsAction(orderId, items, {
           restoreRemovedStock,
         });
+        // Pénurie sur l'ajout : on propose d'enregistrer la production sur
+        // place plutôt que de renvoyer le staff corriger le stock dans le menu.
+        if (
+          result?.shortage?.length &&
+          (await confirmShortage(result.shortage))
+        ) {
+          result = await updateOrderItemsAction(orderId, items, {
+            restoreRemovedStock,
+            coverShortage: true,
+          });
+        }
         if (result?.error) {
           setError(result.error);
           return;
@@ -321,6 +334,7 @@ export function OrderItemsEditor({
         />
         {supplementPicker}
         {confirmDialog}
+        {shortageDialog}
       </div>
     );
   }
@@ -490,6 +504,7 @@ export function OrderItemsEditor({
 
       {supplementPicker}
       {confirmDialog}
+      {shortageDialog}
     </div>
   );
 }

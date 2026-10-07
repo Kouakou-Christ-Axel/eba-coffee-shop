@@ -64,7 +64,15 @@ export type { SupplementGroup, SupplementOption };
 // snapshot initial par `JSON.stringify` pour son marqueur « modifications non
 // enregistrées », et une clé en trop le rendrait perpétuellement actif.
 
-type UiOption = SupplementOption & { uid: string };
+// `stockTouched` : le stock affiché date du chargement de la page — des
+// ventes peuvent l'avoir décrémenté en cuisine depuis. Enregistrer une
+// modif SANS RAPPORT (prix, nom, dispo...) ne doit pas renvoyer cette
+// valeur figée, sous peine d'écraser silencieusement un décrément réel
+// (cf. le même filet posé sur le stock produit, product-form.tsx). On ne
+// renvoie donc le stock d'une option que si elle a été EXPLICITEMENT
+// touchée ici (les trois boutons/champ qui appellent
+// `onUpdate({ stockQuantity })` ci-dessous posent aussi ce drapeau).
+type UiOption = SupplementOption & { uid: string; stockTouched: boolean };
 type UiGroup = Omit<SupplementGroup, 'options'> & {
   uid: string;
   options: UiOption[];
@@ -81,14 +89,32 @@ function toUiGroup(g: SupplementGroup): UiGroup {
   return {
     ...g,
     uid: nextUid(),
-    options: g.options.map((o) => ({ ...o, uid: nextUid() })),
+    options: g.options.map((o) => ({
+      ...o,
+      uid: nextUid(),
+      stockTouched: false,
+    })),
   };
 }
 
 // `toCanonicalGroup` recopie les champs un par un : `uid` ne peut donc pas
 // fuir, et l'ordre des clés reste celui du mapping initial — dont dépend le
 // marqueur « modifications non enregistrées », qui compare des JSON.
-const fromUiGroup = toCanonicalGroup;
+//
+// `fromUiGroup` fait de même MAIS, pour le stock, n'envoie la valeur que si
+// `stockTouched` — sinon `undefined` (« ne pas toucher », cf. `commentaire
+// ci-dessus et `syncSupplementGroups`, lib/supplement-groups-sync.ts).
+function fromUiGroup(g: UiGroup): SupplementGroup {
+  return {
+    ...toCanonicalGroup(g),
+    options: g.options.map((o) => ({
+      name: o.name,
+      price: o.price,
+      available: o.available,
+      stockQuantity: o.stockTouched ? o.stockQuantity : undefined,
+    })),
+  };
+}
 
 function emptyGroup(): UiGroup {
   return {
@@ -110,6 +136,11 @@ function emptyOption(): UiOption {
     price: 0,
     available: true,
     stockQuantity: null,
+    // Option toute neuve : rien en base à écraser, `syncSupplementGroups` la
+    // créera avec `stockQuantity ?? null` quel que soit ce drapeau — mais le
+    // poser à `true` évite qu'un stock explicitement saisi puis « non touché »
+    // par coïncidence (ex. dupliquer une ligne) ne soit perdu.
+    stockTouched: true,
   };
 }
 
@@ -767,7 +798,9 @@ function OptionCard({
               type="button"
               variant={unlimited ? 'default' : 'outline'}
               aria-pressed={unlimited}
-              onClick={() => onUpdate({ stockQuantity: null })}
+              onClick={() =>
+                onUpdate({ stockQuantity: null, stockTouched: true })
+              }
               className="h-11 flex-1 sm:h-9"
             >
               Illimité
@@ -777,7 +810,9 @@ function OptionCard({
                 type="button"
                 variant="outline"
                 aria-pressed={false}
-                onClick={() => onUpdate({ stockQuantity: lastStock })}
+                onClick={() =>
+                  onUpdate({ stockQuantity: lastStock, stockTouched: true })
+                }
                 className="h-11 flex-1 sm:h-9"
               >
                 Limité
@@ -796,7 +831,7 @@ function OptionCard({
                   const next =
                     e.target.value === '' ? 0 : Number(e.target.value);
                   setLastStock(next);
-                  onUpdate({ stockQuantity: next });
+                  onUpdate({ stockQuantity: next, stockTouched: true });
                 }}
               />
             )}

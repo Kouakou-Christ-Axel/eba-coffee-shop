@@ -51,6 +51,7 @@ Pre-commit hooks (Husky + lint-staged) run ESLint and Prettier on staged files a
 - **Formatting:** Semicolons, single quotes, 2-space tabs, arrow parens always (see `.prettierrc.json`)
 - **Content language:** French (site targets Cote d'Ivoire market)
 - **Theme colors:** Primary = deep purple, Secondary = golden orange, Background = cream/dark brown
+- **Taille de fichier : 300 lignes max.** Au-delà, extraire en modules plus petits (composants enfants, helpers dans `lib/`) plutôt que laisser grossir. S'applique au nouveau code et à tout fichier substantiellement modifié ; ne déclenche pas de refactor rétroactif des fichiers existants qui dépassent déjà ce seuil hors du périmètre de la tâche en cours.
 
 ## UI library policy
 

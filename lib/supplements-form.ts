@@ -19,8 +19,13 @@ export type SupplementOption = {
   name: string;
   price: number;
   available: boolean;
-  // Stock vendable de l'option (« goût »). `null` = illimité (par défaut).
-  stockQuantity: number | null;
+  // Stock vendable de l'option (« goût »). `null` = illimité (par défaut) ;
+  // `undefined` = non touché dans l'éditeur, cf. `fromUiGroup`
+  // (components/(dashboard)/supplements-editor.tsx) — ne pas envoyer cette
+  // valeur au serveur plutôt que de renvoyer une lecture figée au chargement
+  // de la page, qui écraserait silencieusement un décrément réel survenu
+  // depuis (cf. `syncSupplementGroups`, lib/supplement-groups-sync.ts).
+  stockQuantity: number | null | undefined;
 };
 
 export type SupplementGroupType = 'single' | 'multiple' | 'quantity';

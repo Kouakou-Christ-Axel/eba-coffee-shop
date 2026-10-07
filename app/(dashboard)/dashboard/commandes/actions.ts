@@ -167,11 +167,14 @@ export async function payAndCompleteAction(
  * `restoreRemovedStock` : un article retiré d'une commande déjà partie en
  * cuisine revient au stock par défaut (il n'a pas été consommé). Passer `false`
  * quand le staff indique qu'il était déjà préparé.
+ *
+ * `coverShortage` : même geste que sur les autres mutations de stock — le
+ * staff a confirmé avoir produit la quantité manquante pour l'ajout en cours.
  */
 export async function updateOrderItemsAction(
   id: string,
   items: CartItem[],
-  opts?: { restoreRemovedStock?: boolean }
+  opts?: { restoreRemovedStock?: boolean; coverShortage?: boolean }
 ): Promise<MutationFailure | undefined> {
   // La cuisine peut désormais modifier les articles d'une commande en cours
   // (bouton dans /dashboard/preparation) — `requireKitchen()` couvre caisse
@@ -181,6 +184,7 @@ export async function updateOrderItemsAction(
   try {
     await updateOrderItems(id, items, {
       restoreRemovedStock: opts?.restoreRemovedStock,
+      coverShortage: opts?.coverShortage,
     });
   } catch (err) {
     return toFailure(id, err);
