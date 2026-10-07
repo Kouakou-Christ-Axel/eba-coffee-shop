@@ -201,6 +201,13 @@ export function ProductForm({
   const [stockQuantity, setStockQuantity] = useState<number | null>(
     initial?.stockQuantity ?? EMPTY.stockQuantity
   );
+  // Le stock affiché ici date du chargement de la page : des ventes peuvent
+  // l'avoir décrémenté entre-temps (entrée en cuisine). Sans ce drapeau,
+  // enregistrer une modif SANS RAPPORT (prix, description…) renverrait
+  // toujours la valeur figée au chargement et effacerait silencieusement ces
+  // décréments réels — survente immédiate après le save. On ne renvoie donc
+  // ce champ au serveur que si la personne l'a explicitement touché.
+  const [stockTouched, setStockTouched] = useState(false);
   const [scheduleId, setScheduleId] = useState<string | null>(
     initial?.scheduleId ?? EMPTY.scheduleId
   );
@@ -375,7 +382,11 @@ export function ProductForm({
         featured,
         featuredOrder: featured ? Number(featuredOrder) || 0 : 0,
         featuredBadge: featured ? featuredBadge : null,
-        stockQuantity,
+        // En édition, n'envoyer le stock QUE si la personne l'a touché : sinon
+        // la valeur figée au chargement de la page écraserait silencieusement
+        // les ventes (décréments réels) survenues depuis (cf. `stockTouched`
+        // ci-dessus). À la création, rien à perdre : toujours envoyé.
+        ...((!isEdit || stockTouched) && { stockQuantity }),
         scheduleId,
         advanceOrderDays,
         requiresDeposit,
@@ -639,11 +650,12 @@ export function ProductForm({
                     step={1}
                     placeholder="Illimité"
                     value={stockQuantity ?? ''}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      setStockTouched(true);
                       setStockQuantity(
                         e.target.value === '' ? null : Number(e.target.value)
-                      )
-                    }
+                      );
+                    }}
                   />
                 </Field>
               </CardContent>
