@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Pause } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { MenuCategory } from '@/config/menu';
 import type { CartItem } from '@/lib/cart-store';
@@ -13,6 +13,7 @@ import { ProductCatalog } from './product-catalog';
 import { CartSummary } from './cart-summary';
 import { SupplementPicker } from './supplement-picker';
 import { CustomerInfoStep } from './_components/customer-info-step';
+import { ParkedOrdersBar } from './_components/parked-orders-bar';
 import { OrderBottomBar } from './_components/order-bottom-bar';
 import { PickupDayBar } from './_components/pickup-day-bar';
 import { SoldOutDaySheet } from './_components/sold-out-day-sheet';
@@ -82,6 +83,12 @@ export function NewOrderView({
           {o.step === 'catalog' ? 'Nouvelle commande' : 'Récapitulatif'}
         </h1>
       </header>
+
+      <ParkedOrdersBar
+        parked={o.parkedOrders.parked}
+        onResume={o.parkedOrders.resume}
+        onDiscard={o.parkedOrders.discard}
+      />
 
       {o.step === 'catalog' ? (
         /* Tablette (md+) : le panier reste visible PENDANT la sélection, pour
@@ -164,6 +171,20 @@ export function NewOrderView({
         onReview={() => o.setStep('review')}
         onSubmit={o.submit}
       />
+
+      {/* Bouton flottant : accessible d'un pouce à tout moment, au-dessus de la
+          barre du bas (fixe, ~4.5 rem). */}
+      {o.parkedOrders.canPark && (
+        <Button
+          type="button"
+          size="lg"
+          className="fixed right-4 bottom-24 z-20 h-12 gap-2 rounded-full px-5 shadow-lg"
+          onClick={o.parkedOrders.parkCurrent}
+        >
+          <Pause className="h-4 w-4" aria-hidden />
+          Mettre de côté
+        </Button>
+      )}
 
       <SupplementPicker
         product={o.pickerProduct}
