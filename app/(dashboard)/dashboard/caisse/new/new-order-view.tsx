@@ -82,17 +82,6 @@ export function NewOrderView({
         <h1 className="text-lg font-semibold">
           {o.step === 'catalog' ? 'Nouvelle commande' : 'Récapitulatif'}
         </h1>
-        {o.parkedOrders.canPark && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="ml-auto gap-1.5"
-            onClick={o.parkedOrders.parkCurrent}
-          >
-            <Pause className="h-4 w-4" aria-hidden />
-            Mettre de côté
-          </Button>
-        )}
       </header>
 
       <ParkedOrdersBar
@@ -182,6 +171,20 @@ export function NewOrderView({
         onReview={() => o.setStep('review')}
         onSubmit={o.submit}
       />
+
+      {/* Bouton flottant : accessible d'un pouce à tout moment, au-dessus de la
+          barre du bas (fixe, ~4.5 rem). */}
+      {o.parkedOrders.canPark && (
+        <Button
+          type="button"
+          size="lg"
+          className="fixed right-4 bottom-24 z-20 h-12 gap-2 rounded-full px-5 shadow-lg"
+          onClick={o.parkedOrders.parkCurrent}
+        >
+          <Pause className="h-4 w-4" aria-hidden />
+          Mettre de côté
+        </Button>
+      )}
 
       <SupplementPicker
         product={o.pickerProduct}
