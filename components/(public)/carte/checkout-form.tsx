@@ -96,6 +96,7 @@ export function CheckoutForm({
   const removeItem = useCartStore((s) => s.removeItem);
   const patchItems = useCartStore((s) => s.patchItems);
   const slotRef = useRef<HTMLDivElement>(null);
+  const contactFieldsRef = useRef<HTMLDivElement>(null);
   const submitErrorRef = useRef<HTMLParagraphElement>(null);
   // Plus grand délai de commande à l'avance requis par le panier (voir
   // `CartItem.advanceOrderDays`, lib/cart-store.ts) : étend l'horizon de
@@ -160,6 +161,19 @@ export function CheckoutForm({
       slotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [errors.pickupTime]);
+
+  // Idem pour le nom/téléphone : ces champs sont en haut du formulaire, donc
+  // une 400 VALIDATION qui les vise (ex. nom à un seul mot) arrive alors que
+  // le client a déjà scrollé vers le paiement, tout en bas — sans ce
+  // défilement l'erreur reste invisible au-dessus de l'écran.
+  useEffect(() => {
+    if (errors.customerName || errors.customerPhone) {
+      contactFieldsRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [errors.customerName, errors.customerPhone]);
 
   // Ruptures détectées AVANT l'envoi (menu frais) : elles ne comptent que
   // pour un retrait aujourd'hui — un retrait planifié un autre jour laisse le
@@ -293,16 +307,18 @@ export function CheckoutForm({
         }
       />
 
-      <ContactFields
-        name={values.customerName}
-        phone={values.customerPhone}
-        errors={{
-          customerName: errors.customerName,
-          customerPhone: errors.customerPhone,
-        }}
-        onNameChange={(v) => setField('customerName', v)}
-        onPhoneChange={(v) => setField('customerPhone', v)}
-      />
+      <div ref={contactFieldsRef} className="scroll-mt-28">
+        <ContactFields
+          name={values.customerName}
+          phone={values.customerPhone}
+          errors={{
+            customerName: errors.customerName,
+            customerPhone: errors.customerPhone,
+          }}
+          onNameChange={(v) => setField('customerName', v)}
+          onPhoneChange={(v) => setField('customerPhone', v)}
+        />
+      </div>
 
       {reward.status === 'ready' && (
         <LoyaltyRewardBanner
