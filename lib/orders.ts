@@ -18,11 +18,12 @@ import {
 import { getLoyaltyCard, getLoyaltyCardByPhone } from '@/lib/loyalty';
 import {
   createOrderSchema as baseCreateOrderSchema,
+  onlineCustomerNameSchema,
+  onlineCustomerPhoneSchema,
   orderDriverFieldsSchema,
   type SoldOutLine,
 } from '@/lib/schemas/order';
 import { normalizeIvorianPhone } from '@/lib/phone';
-import { ORDER_CUSTOMER_NAME_MAX_WORDS } from '@/config/constants';
 import { ROLE_GROUPS } from '@/lib/auth-helpers';
 import { sendPushToRoles } from '@/lib/push-notify';
 import { getPickupCode } from '@/lib/orders/format';
@@ -117,32 +118,11 @@ export class SoldOutTodayError extends Error {
 
 export const createOrderSchema = baseCreateOrderSchema
   .extend({
-    // Nom + prénom exigés (≥ 2 mots, sans longueur minimale par mot) pour
-    // filtrer les saisies bidon type « GH » ; plafonné en nombre de mots
-    // (ORDER_CUSTOMER_NAME_MAX_WORDS) contre l'excès inverse.
-    customerName: z
-      .string()
-      .trim()
-      .max(50)
-      .refine((val) => val.split(/\s+/).filter(Boolean).length >= 2, {
-        message: 'Indique ton nom et prénom',
-      })
-      .refine(
-        (val) =>
-          val.split(/\s+/).filter(Boolean).length <=
-          ORDER_CUSTOMER_NAME_MAX_WORDS,
-        { message: 'Nom trop long' }
-      ),
-    // Doit correspondre à un numéro ivoirien exploitable (format E.164
-    // normalisable) — filtre les faux numéros passés en commande publique.
-    customerPhone: z
-      .string()
-      .trim()
-      .min(8)
-      .max(20)
-      .refine((val) => normalizeIvorianPhone(val) !== null, {
-        message: 'Numéro de téléphone invalide',
-      }),
+    // Règles strictes du flux online (nom + prénom, téléphone ivoirien
+    // exploitable) — partagées avec le client (`lib/schemas/order.ts`) pour
+    // que la validation navigateur ne diverge jamais de celle du serveur.
+    customerName: onlineCustomerNameSchema,
+    customerPhone: onlineCustomerPhoneSchema,
     pickupTime: z.string().datetime().nullable().optional(),
     orderType: z.enum(['TAKEAWAY', 'DELIVERY']).optional(),
     // Moyen choisi pour payer en ligne (Jèko). Exigé par la route dès que le

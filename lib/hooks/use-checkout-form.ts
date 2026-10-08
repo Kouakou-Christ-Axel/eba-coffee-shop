@@ -13,11 +13,7 @@
 // boutons) ; il consomme uniquement `values / errors / setField / submit`.
 
 import { useCallback, useState } from 'react';
-import {
-  ORDER_CUSTOMER_NAME_MAX,
-  ORDER_CUSTOMER_PHONE_MAX,
-  ORDER_NOTE_MAX,
-} from '@/config/constants';
+import { ORDER_NOTE_MAX } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
 import { cartItemToAnalyticsItem, trackPurchase } from '@/lib/analytics';
 import {
@@ -27,6 +23,8 @@ import {
 } from '@/lib/order-history';
 import {
   createOrderSchema,
+  onlineCustomerNameSchema,
+  onlineCustomerPhoneSchema,
   type CheckoutErrorCode,
   type SoldOutLine,
 } from '@/lib/schemas/order';
@@ -85,8 +83,9 @@ export type CheckoutSubmitOutcome =
        * réseau ou une réponse illisible. */
       code?: CheckoutErrorCode;
       /** Champ du formulaire auquel rattacher `error` plutôt qu'au bas du
-       * formulaire (ex. le créneau pour un délai à l'avance). */
-      field?: 'pickupTime';
+       * formulaire (ex. le créneau pour un délai à l'avance, ou le champ fautif
+       * d'une 400 `VALIDATION`). */
+      field?: keyof CheckoutFormErrors;
       /** Lignes épuisées (`SOLD_OUT_TODAY`) : ouvrent le panneau
        * « Résoudre » au lieu d'un simple message. */
       soldOutLines?: SoldOutLine[];
@@ -167,18 +166,27 @@ export function validateCheckoutForm(
     errors.paymentMethod = 'Choisis un moyen de paiement';
   }
 
+  // Mêmes règles, mêmes messages que le serveur (`onlineCustomerNameSchema`/
+  // `onlineCustomerPhoneSchema`, lib/schemas/order.ts) — un seul endroit où la
+  // règle peut changer, jamais un check ad-hoc qui diverge du 400 serveur.
   const name = values.customerName.trim();
-  if (name.length < 2) {
-    errors.customerName = 'Prénom requis (min 2 caractères)';
-  } else if (name.length > ORDER_CUSTOMER_NAME_MAX) {
-    errors.customerName = `Nom trop long (max ${ORDER_CUSTOMER_NAME_MAX} caractères)`;
+  if (name.length === 0) {
+    errors.customerName = 'Nom et prénom requis';
+  } else {
+    const nameResult = onlineCustomerNameSchema.safeParse(name);
+    if (!nameResult.success) {
+      errors.customerName = nameResult.error.issues[0]?.message;
+    }
   }
 
   const phone = values.customerPhone.trim();
-  if (phone.length < 8) {
-    errors.customerPhone = 'Numéro requis (min 8 chiffres)';
-  } else if (phone.length > ORDER_CUSTOMER_PHONE_MAX) {
-    errors.customerPhone = `Téléphone trop long (max ${ORDER_CUSTOMER_PHONE_MAX} caractères)`;
+  if (phone.length === 0) {
+    errors.customerPhone = 'Numéro de téléphone requis';
+  } else {
+    const phoneResult = onlineCustomerPhoneSchema.safeParse(phone);
+    if (!phoneResult.success) {
+      errors.customerPhone = phoneResult.error.issues[0]?.message;
+    }
   }
 
   // Créneau exigé seulement en mode planifié ; « dès que possible » n'a pas
@@ -265,6 +273,38 @@ export function validateCheckoutForm(
 export const SERVER_ERROR_MESSAGE =
   'Petit souci de notre côté : ta commande n’a pas été enregistrée. Réessaie dans un instant.';
 
+/** Champs du formulaire qu'une 400 `VALIDATION` peut viser nommément — tout
+ * le reste (items, total, driverPhone…) n'a pas d'emplacement dédié côté
+ * checkout et retombe sur le message générique en bas du formulaire. */
+const VALIDATION_FORM_FIELDS = [
+  'customerName',
+  'customerPhone',
+  'pickupTime',
+  'note',
+  'paymentMethod',
+] as const satisfies readonly (keyof CheckoutFormErrors)[];
+
+/**
+ * Lit le `ZodError.flatten()` d'une 400 `VALIDATION` et, quand le premier
+ * champ en faute est un champ connu du formulaire de checkout, rattache le
+ * message à CE champ plutôt qu'à un texte générique en bas de page — même
+ * principe que le `field: 'pickupTime'` déjà utilisé pour un délai à
+ * l'avance.
+ */
+function validationFieldError(
+  error: unknown
+): { field: keyof CheckoutFormErrors; message: string } | null {
+  if (!error || typeof error !== 'object') return null;
+  const fieldErrors = (error as { fieldErrors?: Record<string, string[]> })
+    .fieldErrors;
+  if (!fieldErrors) return null;
+  for (const field of VALIDATION_FORM_FIELDS) {
+    const message = fieldErrors[field]?.[0];
+    if (message) return { field, message };
+  }
+  return null;
+}
+
 /**
  * Traduit une réponse d'erreur de POST /api/commandes en issue affichable.
  * Aiguille sur le `code` stable renvoyé par la route — jamais sur le texte
@@ -311,7 +351,16 @@ export function mapCheckoutError(
         error:
           'Le menu a changé depuis que tu as rempli ton panier. Recharge la carte pour voir les prix à jour, rien n’a été facturé.',
       };
-    case 'VALIDATION':
+    case 'VALIDATION': {
+      const fieldError = validationFieldError(data.error);
+      if (fieldError) {
+        return {
+          ok: false,
+          code: data.code,
+          field: fieldError.field,
+          error: fieldError.message,
+        };
+      }
       return {
         ok: false,
         code: data.code,
@@ -319,6 +368,7 @@ export function mapCheckoutError(
           ? `Certaines informations sont invalides (${message}).`
           : 'Certaines informations sont invalides.',
       };
+    }
   }
   if (status >= 500) {
     return { ok: false, code: data.code, error: SERVER_ERROR_MESSAGE };
