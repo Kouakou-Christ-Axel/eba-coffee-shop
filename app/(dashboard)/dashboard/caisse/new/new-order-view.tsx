@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Pause } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { MenuCategory } from '@/config/menu';
 import type { CartItem } from '@/lib/cart-store';
@@ -13,6 +13,7 @@ import { ProductCatalog } from './product-catalog';
 import { CartSummary } from './cart-summary';
 import { SupplementPicker } from './supplement-picker';
 import { CustomerInfoStep } from './_components/customer-info-step';
+import { ParkedOrdersBar } from './_components/parked-orders-bar';
 import { OrderBottomBar } from './_components/order-bottom-bar';
 import { PickupDayBar } from './_components/pickup-day-bar';
 import { SoldOutDaySheet } from './_components/sold-out-day-sheet';
@@ -81,7 +82,24 @@ export function NewOrderView({
         <h1 className="text-lg font-semibold">
           {o.step === 'catalog' ? 'Nouvelle commande' : 'Récapitulatif'}
         </h1>
+        {o.parkedOrders.canPark && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto gap-1.5"
+            onClick={o.parkedOrders.parkCurrent}
+          >
+            <Pause className="h-4 w-4" aria-hidden />
+            Mettre de côté
+          </Button>
+        )}
       </header>
+
+      <ParkedOrdersBar
+        parked={o.parkedOrders.parked}
+        onResume={o.parkedOrders.resume}
+        onDiscard={o.parkedOrders.discard}
+      />
 
       {o.step === 'catalog' ? (
         /* Tablette (md+) : le panier reste visible PENDANT la sélection, pour

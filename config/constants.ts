@@ -175,6 +175,15 @@ export const ORDER_TRACKING_POLL_FAST_INTERVAL_MS = 5_000;
 export const CART_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * Durée de vie d'une commande « mise de côté » à la caisse (localStorage) :
+ * une journée de service. Au-delà, les prix / la disponibilité ont pu bouger.
+ */
+export const PARKED_ORDER_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+/** Nombre maximal de commandes mises de côté simultanément sur un appareil. */
+export const PARKED_ORDERS_MAX = 10;
+
+/**
  * Péremption du brouillon de comptage d'inventaire
  * (lib/hooks/use-inventory-count.ts). Plus long que le panier, et volontairement :
  * un inventaire commencé le vendredi et fini le lundi est un cas normal sur 117

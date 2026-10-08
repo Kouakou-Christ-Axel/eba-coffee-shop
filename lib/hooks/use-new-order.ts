@@ -28,6 +28,8 @@ import { isProductSoldOut, productNeedsPicker } from '@/lib/catalog';
 import { isDeferredPickup } from '@/lib/orders/scheduling';
 import { readApiError } from '@/lib/api-error';
 import type { ShortageLine } from '@/lib/orders/shortage';
+import type { OrderDraftSnapshot } from '@/lib/parked-orders-store';
+import { useParkedOrders } from '@/lib/hooks/use-parked-orders';
 
 export type NewOrderStep = 'catalog' | 'review';
 
@@ -296,6 +298,49 @@ export function useNewOrder(opts?: UseNewOrderOptions) {
     null
   );
 
+  // Commandes mises de côté : le brouillon courant est capturé / restauré en
+  // bloc (voir lib/hooks/use-parked-orders.ts).
+  const initialOrderType = opts?.initialOrderType ?? 'DELIVERY';
+  const parkedOrders = useParkedOrders({
+    snapshot: {
+      step,
+      items,
+      customerName,
+      customerPhone,
+      orderType,
+      note,
+      pickupTime,
+      orderDate,
+      loyaltyRewardId,
+    },
+    apply: (d: OrderDraftSnapshot) => {
+      setStep(d.step);
+      setItems(d.items);
+      setCustomerName(d.customerName);
+      setCustomerPhone(d.customerPhone);
+      setOrderType(d.orderType);
+      setNote(d.note);
+      setPickupTime(d.pickupTime);
+      setOrderDate(d.orderDate);
+      setLoyaltyRewardId(d.loyaltyRewardId);
+      setSubmitError(null);
+      setPendingShortage(null);
+    },
+    reset: () => {
+      setStep('catalog');
+      setItems([]);
+      setCustomerName('');
+      setCustomerPhone('');
+      setOrderType(initialOrderType);
+      setNote('');
+      setPickupTime(null);
+      setOrderDate(null);
+      setLoyaltyRewardId(null);
+      setSubmitError(null);
+      setPendingShortage(null);
+    },
+  });
+
   function goBackOrCancel() {
     if (step === 'review') {
       setStep('catalog');
@@ -445,5 +490,7 @@ export function useNewOrder(opts?: UseNewOrderOptions) {
     goBackOrCancel,
     // soumission
     submit,
+    // commandes mises de côté
+    parkedOrders,
   };
 }
