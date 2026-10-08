@@ -38,6 +38,8 @@ export function DonutChart({
 }) {
   const reduced = useReducedMotion();
   const hasData = data.some((d) => d.value > 0);
+  // Un total à 7 chiffres déborde du trou du donut en text-2xl sur mobile.
+  const totalText = total.toLocaleString('fr-FR');
 
   return (
     <ChartContainer
@@ -74,9 +76,13 @@ export function DonutChart({
                   <tspan
                     x={viewBox.cx}
                     y={viewBox.cy}
-                    className="fill-foreground text-2xl font-bold"
+                    className={
+                      totalText.length > 6
+                        ? 'fill-foreground text-lg font-bold'
+                        : 'fill-foreground text-2xl font-bold'
+                    }
                   >
-                    {total.toLocaleString('fr-FR')}
+                    {totalText}
                   </tspan>
                   <tspan
                     x={viewBox.cx}
