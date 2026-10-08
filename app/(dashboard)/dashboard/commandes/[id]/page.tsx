@@ -118,6 +118,9 @@ export default async function CommandeDetailPage({
             {order.reference}
           </p>
           <p className="mt-1 text-muted-foreground">
+            Commandée le {formatAbidjanDateTime(order.createdAt)}
+          </p>
+          <p className="text-muted-foreground">
             {formatPickupTime(order.pickupTime)}
           </p>
         </div>
@@ -229,6 +232,12 @@ export default async function CommandeDetailPage({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
+          <div className="flex justify-between gap-3">
+            <span className="text-muted-foreground">Commandée le</span>
+            <span className="font-medium">
+              {formatAbidjanDateTime(order.createdAt)}
+            </span>
+          </div>
           <div className="flex justify-between gap-3">
             <span className="text-muted-foreground">Type de commande</span>
             <span className="font-medium">
