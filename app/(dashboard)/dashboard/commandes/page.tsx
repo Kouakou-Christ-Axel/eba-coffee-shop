@@ -27,6 +27,7 @@ import { ExpressCompleteButton } from './express-complete-button';
 import { AdvanceStatusButton } from './advance-status-button';
 import { OrdersEmptyState } from './orders-empty-state';
 import { OrdersToolbar } from './orders-toolbar';
+import { OrderSelectionProvider, OrderCheckbox } from './order-selection';
 
 export const dynamic = 'force-dynamic';
 
@@ -248,6 +249,13 @@ export default async function CommandesPage({
 
   const exportHref = `/api/export/orders?${filterParams().toString()}`;
 
+  // Sélection multiple (annulation en masse) : réservée au staff caisse+, et
+  // uniquement les commandes pas déjà annulées (seule cible interdite par la
+  // matrice de transitions, cf. lib/order-permissions.ts).
+  const cancellableIds = canCash
+    ? orders.filter((o) => o.status !== 'CANCELLED').map((o) => o.id)
+    : [];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -272,230 +280,256 @@ export default async function CommandesPage({
         exportHref={exportHref}
       />
 
-      <div className="hidden overflow-x-auto md:block">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>#</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Client</TableHead>
-              <TableHead>Téléphone</TableHead>
-              <TableHead>Créneau</TableHead>
-              <TableHead className="hidden md:table-cell">Articles</TableHead>
-              <TableHead>Total</TableHead>
-              <TableHead className="hidden md:table-cell">Paiement</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {orders.map((order) => {
-              const TypeIcon = TYPE_ICONS[order.orderType];
-              return (
-                <TableRow key={order.id}>
-                  <TableCell className="font-mono text-sm">
-                    #{String(order.dailyNumber).padStart(3, '0')}
-                    <span
-                      className="ml-1.5 rounded bg-primary/10 px-1 text-xs text-primary"
-                      title={`Code de retrait · ${order.reference}`}
-                    >
-                      {getPickupCode(order.reference)}
-                    </span>
-                    {SOURCE_META[order.source] && (
-                      <span
-                        className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                        title={SOURCE_META[order.source]!.title}
-                      >
-                        {(() => {
-                          const { Icon, label } = SOURCE_META[order.source]!;
-                          return (
-                            <>
-                              <Icon className="h-3 w-3" aria-hidden="true" />
-                              {label}
-                            </>
-                          );
-                        })()}
-                      </span>
+      {/* Raccourci : les commandes NEW non encaissées, un jour civil
+          quelconque, sont exactement celles qui gonflent indéfiniment
+          « (dont X en attente) » sur le menu (`getPendingDemand`, aucune tâche
+          de fond ne les nettoie contrairement aux commandes Jèko impayées). */}
+      {status !== 'NEW' || payment !== 'unpaid' || !isAll ? (
+        <Link
+          href="/dashboard/commandes?status=NEW&payment=unpaid&range=all"
+          className="block text-sm text-primary underline-offset-2 hover:underline"
+        >
+          Voir les commandes non encaissées jamais annulées (tous jours)
+        </Link>
+      ) : null}
+
+      <OrderSelectionProvider cancellableIds={cancellableIds}>
+        <div className="hidden overflow-x-auto md:block">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {canCash && <TableHead className="w-9" />}
+                <TableHead>#</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Client</TableHead>
+                <TableHead>Téléphone</TableHead>
+                <TableHead>Créneau</TableHead>
+                <TableHead className="hidden md:table-cell">Articles</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead className="hidden md:table-cell">Paiement</TableHead>
+                <TableHead>Statut</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {orders.map((order) => {
+                const TypeIcon = TYPE_ICONS[order.orderType];
+                return (
+                  <TableRow key={order.id}>
+                    {canCash && (
+                      <TableCell>
+                        {order.status !== 'CANCELLED' && (
+                          <OrderCheckbox id={order.id} />
+                        )}
+                      </TableCell>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className="inline-flex items-center gap-1 text-xs"
-                      title={TYPE_LABELS[order.orderType]}
-                    >
-                      <TypeIcon className="h-4 w-4" />
-                      <span className="hidden sm:inline">
-                        {TYPE_LABELS[order.orderType]}
+                    <TableCell className="font-mono text-sm">
+                      #{String(order.dailyNumber).padStart(3, '0')}
+                      <span
+                        className="ml-1.5 rounded bg-primary/10 px-1 text-xs text-primary"
+                        title={`Code de retrait · ${order.reference}`}
+                      >
+                        {getPickupCode(order.reference)}
                       </span>
-                    </span>
-                  </TableCell>
-                  <TableCell>{order.customerName ?? '—'}</TableCell>
-                  <TableCell>{order.customerPhone ?? '—'}</TableCell>
-                  <TableCell>{formatPickupTime(order.pickupTime)}</TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {(order.items as unknown[]).length}
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    {new Intl.NumberFormat('fr-FR').format(order.total)} F
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <PaymentBadge
-                      isPaid={order.isPaid}
-                      status={order.status}
-                      paymentMode={order.paymentMode}
-                      autoValidatedByAi={order.paymentAutoValidatedByAi}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={order.status} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      {/* ANALYSTE a le lien « Commandes » dans la barre
+                      {SOURCE_META[order.source] && (
+                        <span
+                          className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                          title={SOURCE_META[order.source]!.title}
+                        >
+                          {(() => {
+                            const { Icon, label } = SOURCE_META[order.source]!;
+                            return (
+                              <>
+                                <Icon className="h-3 w-3" aria-hidden="true" />
+                                {label}
+                              </>
+                            );
+                          })()}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className="inline-flex items-center gap-1 text-xs"
+                        title={TYPE_LABELS[order.orderType]}
+                      >
+                        <TypeIcon className="h-4 w-4" />
+                        <span className="hidden sm:inline">
+                          {TYPE_LABELS[order.orderType]}
+                        </span>
+                      </span>
+                    </TableCell>
+                    <TableCell>{order.customerName ?? '—'}</TableCell>
+                    <TableCell>{order.customerPhone ?? '—'}</TableCell>
+                    <TableCell>{formatPickupTime(order.pickupTime)}</TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {(order.items as unknown[]).length}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {new Intl.NumberFormat('fr-FR').format(order.total)} F
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <PaymentBadge
+                        isPaid={order.isPaid}
+                        status={order.status}
+                        paymentMode={order.paymentMode}
+                        autoValidatedByAi={order.paymentAutoValidatedByAi}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={order.status} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
+                        {/* ANALYSTE a le lien « Commandes » dans la barre
                           latérale mais est hors CASHIER_ROLES : ces boutons
                           n'aboutissaient qu'à un refus serveur. */}
-                      {canCash && (
-                        <AdvanceStatusButton
-                          orderId={order.id}
-                          status={order.status}
-                        />
-                      )}
-                      {canCash &&
-                        !order.isPaid &&
-                        order.status !== 'CANCELLED' && (
-                          <EncaisserButton
+                        {canCash && (
+                          <AdvanceStatusButton
                             orderId={order.id}
-                            orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
-                            amount={order.total - (order.depositPaid ?? 0)}
-                            variant="outline"
-                            size="sm"
+                            status={order.status}
                           />
                         )}
-                      {canCash &&
-                        order.status !== 'CANCELLED' &&
-                        order.status !== 'COMPLETED' && (
-                          <ExpressCompleteButton
-                            orderId={order.id}
-                            orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
-                            amount={order.total - (order.depositPaid ?? 0)}
-                            isPaid={order.isPaid}
-                            pickupTime={order.pickupTime}
-                            stockReserved={order.stockReservedAt !== null}
-                            variant="outline"
-                            size="sm"
-                          />
-                        )}
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/dashboard/commandes/${order.id}`}>
-                          Voir
-                        </Link>
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+                        {canCash &&
+                          !order.isPaid &&
+                          order.status !== 'CANCELLED' && (
+                            <EncaisserButton
+                              orderId={order.id}
+                              orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
+                              amount={order.total - (order.depositPaid ?? 0)}
+                              variant="outline"
+                              size="sm"
+                            />
+                          )}
+                        {canCash &&
+                          order.status !== 'CANCELLED' &&
+                          order.status !== 'COMPLETED' && (
+                            <ExpressCompleteButton
+                              orderId={order.id}
+                              orderRef={`#${String(order.dailyNumber).padStart(3, '0')}`}
+                              amount={order.total - (order.depositPaid ?? 0)}
+                              isPaid={order.isPaid}
+                              pickupTime={order.pickupTime}
+                              stockReserved={order.stockReservedAt !== null}
+                              variant="outline"
+                              size="sm"
+                            />
+                          )}
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link href={`/dashboard/commandes/${order.id}`}>
+                            Voir
+                          </Link>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
 
-      {/* Téléphone : le tableau à 10 colonnes ne tient pas — il fallait le
+        {/* Téléphone : le tableau à 10 colonnes ne tient pas — il fallait le
           faire défiler horizontalement, et la colonne « Paiement » (masquée
           sous md) était précisément le signal « à encaisser » dont le caissier
           a besoin sur son propre appareil. */}
-      <div className="flex flex-col gap-3 md:hidden">
-        {orders.map((order) => {
-          const TypeIcon = TYPE_ICONS[order.orderType];
-          const orderRef = `#${String(order.dailyNumber).padStart(3, '0')}`;
-          return (
-            <div
-              key={order.id}
-              className="flex flex-col gap-2 rounded-xl border bg-card p-3"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <Link
-                  href={`/dashboard/commandes/${order.id}`}
-                  className="min-w-0 flex-1"
-                >
-                  <p className="flex flex-wrap items-center gap-1.5 font-mono text-sm font-semibold">
-                    {orderRef}
-                    <span
-                      className="rounded bg-primary/10 px-1 text-xs text-primary"
-                      title={`Code de retrait · ${order.reference}`}
-                    >
-                      {getPickupCode(order.reference)}
-                    </span>
-                    <span className="inline-flex items-center gap-1 font-sans text-xs font-normal text-muted-foreground">
-                      <TypeIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                      {TYPE_LABELS[order.orderType]}
-                    </span>
-                  </p>
-                  <p className="mt-0.5 truncate text-sm">
-                    {order.customerName ?? 'Client non identifié'}
-                    {order.customerPhone && (
-                      <span className="text-muted-foreground">
-                        {' · '}
-                        {order.customerPhone}
+        <div className="flex flex-col gap-3 md:hidden">
+          {orders.map((order) => {
+            const TypeIcon = TYPE_ICONS[order.orderType];
+            const orderRef = `#${String(order.dailyNumber).padStart(3, '0')}`;
+            return (
+              <div
+                key={order.id}
+                className="flex flex-col gap-2 rounded-xl border bg-card p-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  {canCash && order.status !== 'CANCELLED' && (
+                    <OrderCheckbox id={order.id} />
+                  )}
+                  <Link
+                    href={`/dashboard/commandes/${order.id}`}
+                    className="min-w-0 flex-1"
+                  >
+                    <p className="flex flex-wrap items-center gap-1.5 font-mono text-sm font-semibold">
+                      {orderRef}
+                      <span
+                        className="rounded bg-primary/10 px-1 text-xs text-primary"
+                        title={`Code de retrait · ${order.reference}`}
+                      >
+                        {getPickupCode(order.reference)}
                       </span>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatPickupTime(order.pickupTime)}
-                  </p>
-                </Link>
-                <span className="shrink-0 text-right text-base font-bold tabular-nums">
-                  {new Intl.NumberFormat('fr-FR').format(order.total)} F
-                </span>
-              </div>
+                      <span className="inline-flex items-center gap-1 font-sans text-xs font-normal text-muted-foreground">
+                        <TypeIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                        {TYPE_LABELS[order.orderType]}
+                      </span>
+                    </p>
+                    <p className="mt-0.5 truncate text-sm">
+                      {order.customerName ?? 'Client non identifié'}
+                      {order.customerPhone && (
+                        <span className="text-muted-foreground">
+                          {' · '}
+                          {order.customerPhone}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatPickupTime(order.pickupTime)}
+                    </p>
+                  </Link>
+                  <span className="shrink-0 text-right text-base font-bold tabular-nums">
+                    {new Intl.NumberFormat('fr-FR').format(order.total)} F
+                  </span>
+                </div>
 
-              <div className="flex flex-wrap items-center gap-1.5">
-                <StatusBadge status={order.status} />
-                <PaymentBadge
-                  isPaid={order.isPaid}
-                  status={order.status}
-                  paymentMode={order.paymentMode}
-                  autoValidatedByAi={order.paymentAutoValidatedByAi}
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1.5">
-                {canCash && (
-                  <AdvanceStatusButton
-                    orderId={order.id}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <StatusBadge status={order.status} />
+                  <PaymentBadge
+                    isPaid={order.isPaid}
                     status={order.status}
+                    paymentMode={order.paymentMode}
+                    autoValidatedByAi={order.paymentAutoValidatedByAi}
                   />
-                )}
-                {canCash && !order.isPaid && order.status !== 'CANCELLED' && (
-                  <EncaisserButton
-                    orderId={order.id}
-                    orderRef={orderRef}
-                    amount={order.total - (order.depositPaid ?? 0)}
-                    variant="outline"
-                    size="sm"
-                  />
-                )}
-                {canCash &&
-                  order.status !== 'CANCELLED' &&
-                  order.status !== 'COMPLETED' && (
-                    <ExpressCompleteButton
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {canCash && (
+                    <AdvanceStatusButton
+                      orderId={order.id}
+                      status={order.status}
+                    />
+                  )}
+                  {canCash && !order.isPaid && order.status !== 'CANCELLED' && (
+                    <EncaisserButton
                       orderId={order.id}
                       orderRef={orderRef}
                       amount={order.total - (order.depositPaid ?? 0)}
-                      isPaid={order.isPaid}
-                      pickupTime={order.pickupTime}
-                      stockReserved={order.stockReservedAt !== null}
                       variant="outline"
                       size="sm"
                     />
                   )}
-                <Button variant="ghost" size="sm" asChild className="ml-auto">
-                  <Link href={`/dashboard/commandes/${order.id}`}>Voir</Link>
-                </Button>
+                  {canCash &&
+                    order.status !== 'CANCELLED' &&
+                    order.status !== 'COMPLETED' && (
+                      <ExpressCompleteButton
+                        orderId={order.id}
+                        orderRef={orderRef}
+                        amount={order.total - (order.depositPaid ?? 0)}
+                        isPaid={order.isPaid}
+                        pickupTime={order.pickupTime}
+                        stockReserved={order.stockReservedAt !== null}
+                        variant="outline"
+                        size="sm"
+                      />
+                    )}
+                  <Button variant="ghost" size="sm" asChild className="ml-auto">
+                    <Link href={`/dashboard/commandes/${order.id}`}>Voir</Link>
+                  </Button>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </OrderSelectionProvider>
 
       {orders.length === 0 && (
         <OrdersEmptyState

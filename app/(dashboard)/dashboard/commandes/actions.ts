@@ -98,6 +98,39 @@ export async function updateOrderStatus(
   if (newStatus === 'PREPARING') revalidatePublicMenu();
 }
 
+export type BulkCancelResult = {
+  cancelled: number;
+  failed: { id: string; error: string }[];
+};
+
+/**
+ * Annule plusieurs commandes en une fois (ex. commandes NEW non encaissées
+ * oubliées depuis des jours — cf. `OrderSelectionProvider`). Même mutation
+ * que l'annulation unitaire (`setOrderStatus`), rejouée par id : une commande
+ * déjà modifiée entre-temps (concurrence, rôle) échoue individuellement sans
+ * bloquer les autres.
+ */
+export async function bulkCancelOrdersAction(
+  ids: string[]
+): Promise<BulkCancelResult> {
+  const session = await requireCashier();
+  const role = session.user.role as UserRole;
+
+  const failed: { id: string; error: string }[] = [];
+  let cancelled = 0;
+  for (const id of ids) {
+    try {
+      await setOrderStatus(id, 'CANCELLED', role);
+      cancelled++;
+    } catch (err) {
+      failed.push({ id, error: formatMutationError(err) });
+    }
+  }
+  revalidatePath('/dashboard/commandes');
+  revalidatePath('/dashboard/ardoise');
+  return { cancelled, failed };
+}
+
 /**
  * Encaisse une commande (marque payée) depuis la section Commandes. `payments`
  * (1..N lignes `{mode, amount}`) doit sommer exactement au total de la
