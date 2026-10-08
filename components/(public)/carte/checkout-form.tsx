@@ -96,6 +96,7 @@ export function CheckoutForm({
   const removeItem = useCartStore((s) => s.removeItem);
   const patchItems = useCartStore((s) => s.patchItems);
   const slotRef = useRef<HTMLDivElement>(null);
+  const submitErrorRef = useRef<HTMLParagraphElement>(null);
   // Plus grand délai de commande à l'avance requis par le panier (voir
   // `CartItem.advanceOrderDays`, lib/cart-store.ts) : étend l'horizon de
   // créneaux et contraint le sélecteur (voir SlotPicker).
@@ -136,6 +137,29 @@ export function CheckoutForm({
   useEffect(() => {
     onLoyaltyDiscountChange?.(discount);
   }, [discount, onLoyaltyDiscountChange]);
+
+  // Le message générique de bas de formulaire (menu changé, erreur serveur…)
+  // ne doit jamais rester hors écran : sans ça, le client qui n'a pas
+  // redescendu croit que son clic n'a rien fait et vient en MP demander
+  // pourquoi. Le cas « rupture » n'a pas besoin de ça : le panneau « Résoudre »
+  // (ci-dessous) est déjà une modal, donc déjà visible.
+  useEffect(() => {
+    if (errors.submit) {
+      submitErrorRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [errors.submit]);
+
+  // Même logique pour une erreur rattachée au créneau (délai à l'avance,
+  // planning, ou une 400 VALIDATION visant `pickupTime`) : le sélecteur peut
+  // être loin en dessous de la zone visible au moment du clic « Confirmer ».
+  useEffect(() => {
+    if (errors.pickupTime) {
+      slotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [errors.pickupTime]);
 
   // Ruptures détectées AVANT l'envoi (menu frais) : elles ne comptent que
   // pour un retrait aujourd'hui — un retrait planifié un autre jour laisse le
@@ -331,7 +355,11 @@ export function CheckoutForm({
         </p>
       )}
 
-      {errors.submit && <p className="text-sm text-danger">{errors.submit}</p>}
+      {errors.submit && (
+        <p ref={submitErrorRef} role="alert" className="text-sm text-danger">
+          {errors.submit}
+        </p>
+      )}
 
       {soldOutLines.length > 0 && (
         <SoldOutResolver

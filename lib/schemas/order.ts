@@ -9,10 +9,12 @@
 
 import { z } from 'zod';
 import { PAYMENT_MODES } from '@/lib/payment-modes';
+import { normalizeIvorianPhone } from '@/lib/phone';
 import {
   CART_ITEM_QUANTITY_MAX,
   MAX_LINE_DISCOUNT_RATIO,
   ORDER_CUSTOMER_NAME_MAX,
+  ORDER_CUSTOMER_NAME_MAX_WORDS,
   ORDER_CUSTOMER_PHONE_MAX,
   ORDER_DISCOUNT_REASON_MAX,
   ORDER_NOTE_MAX,
@@ -89,6 +91,50 @@ export const paymentModeSchema = z.enum(PAYMENT_MODES);
 export type OrderStatusInput = z.infer<typeof orderStatusSchema>;
 export type OrderTypeInput = z.infer<typeof orderTypeSchema>;
 export type PaymentModeInput = z.infer<typeof paymentModeSchema>;
+
+// ─── Identité client (flux online strict) ─────────────────────────────────────
+//
+// Règles du flux PUBLIC uniquement (voir `createOrderSchema` dans
+// `lib/orders.ts`, qui étend le schéma de base ci-dessous avec celles-ci) :
+// la caisse garde des champs optionnels et sans ces contraintes. Exportées ici
+// pour être réutilisées TELLES QUELLES côté client (`validateCheckoutForm` et
+// le formulaire react-hook-form de `ContactFields`) — un seul endroit où la
+// règle « nom + prénom » peut changer, jamais deux schémas qui divergent.
+
+/** Nom + prénom exigés (≥ 2 mots, sans longueur minimale par mot) pour filtrer
+ * les saisies bidon type « GH » ; plafonné en nombre de mots
+ * (ORDER_CUSTOMER_NAME_MAX_WORDS) contre l'excès inverse. */
+export const onlineCustomerNameSchema = z
+  .string()
+  .trim()
+  .max(ORDER_CUSTOMER_NAME_MAX)
+  .refine((val) => val.split(/\s+/).filter(Boolean).length >= 2, {
+    message: 'Indique ton nom et prénom',
+  })
+  .refine(
+    (val) =>
+      val.split(/\s+/).filter(Boolean).length <= ORDER_CUSTOMER_NAME_MAX_WORDS,
+    { message: 'Nom trop long' }
+  );
+
+/** Doit correspondre à un numéro ivoirien exploitable (format E.164
+ * normalisable) — filtre les faux numéros passés en commande publique. */
+export const onlineCustomerPhoneSchema = z
+  .string()
+  .trim()
+  .min(8)
+  .max(20)
+  .refine((val) => normalizeIvorianPhone(val) !== null, {
+    message: 'Numéro de téléphone invalide',
+  });
+
+/** Sous-ensemble validé en live par `ContactFields` (react-hook-form). */
+export const contactFieldsSchema = z.object({
+  customerName: onlineCustomerNameSchema,
+  customerPhone: onlineCustomerPhoneSchema,
+});
+
+export type ContactFieldsInput = z.infer<typeof contactFieldsSchema>;
 
 // ─── createOrderSchema ────────────────────────────────────────────────────────
 //

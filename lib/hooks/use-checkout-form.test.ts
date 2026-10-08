@@ -13,7 +13,7 @@ import {
 import type { CartItem } from '@/lib/cart-store';
 
 const validValues: CheckoutFormValues = {
-  customerName: 'Kofi',
+  customerName: 'Kofi Yao',
   customerPhone: '07001234',
   pickupMode: 'pickup',
   timing: 'scheduled',
@@ -129,7 +129,7 @@ describe('submitCheckout', () => {
       '/api/commandes',
       expect.objectContaining({
         method: 'POST',
-        body: expect.stringContaining('"customerName":"Kofi"'),
+        body: expect.stringContaining('"customerName":"Kofi Yao"'),
       })
     );
   });
