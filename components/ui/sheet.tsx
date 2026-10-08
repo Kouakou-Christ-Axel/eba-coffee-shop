@@ -131,6 +131,23 @@ function SheetDescription({
   );
 }
 
+/**
+ * À passer à `onPointerDownOutside`/`onFocusOutside` d'un `SheetContent` qui
+ * héberge une modale HeroUI (ex. `PaymentModal`, via `EncaisserButton`).
+ * HeroUI porte ses modales dans leur propre portail React Aria, hors de
+ * l'arbre DOM de ce `Sheet` (Radix) : Radix voit donc tout clic à l'intérieur
+ * de la modale HeroUI comme « extérieur » et referme le Sheet dessous — y
+ * compris sur un simple choix de mode de paiement, avant même la
+ * confirmation. `data-slot="wrapper"`/`aria-modal="true"` identifient le
+ * contenu HeroUI (`@heroui/modal`, `ModalContent`) ; cf. `payment-modal.tsx`.
+ */
+export function ignoreNestedModalInteraction(event: Event) {
+  const target = event.target as Element | null;
+  if (target?.closest('[data-slot="wrapper"], [aria-modal="true"]')) {
+    event.preventDefault();
+  }
+}
+
 export {
   Sheet,
   SheetTrigger,

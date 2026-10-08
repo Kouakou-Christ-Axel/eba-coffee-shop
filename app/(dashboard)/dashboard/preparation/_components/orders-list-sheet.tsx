@@ -14,6 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
+  ignoreNestedModalInteraction,
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
@@ -96,6 +97,8 @@ export function OrdersListSheet({
       <SheetContent
         side="bottom"
         className="h-[60vh] max-h-[85vh] gap-0 rounded-t-3xl p-0"
+        onPointerDownOutside={ignoreNestedModalInteraction}
+        onFocusOutside={ignoreNestedModalInteraction}
       >
         <SheetHeader className="border-b p-5 pr-14">
           <SheetTitle className="flex items-center gap-2 text-xl">
