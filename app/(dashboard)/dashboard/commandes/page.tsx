@@ -5,7 +5,11 @@ import { requireOrdersView, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { listOrders } from '@/lib/orders';
 import type { OrderSort, PaymentFilter } from '@/lib/orders';
 import { getPickupCode } from '@/lib/orders/format';
-import { parseDateOnlyToUTC, todayDateString } from '@/lib/timezone';
+import {
+  formatAbidjanDateTime,
+  parseDateOnlyToUTC,
+  todayDateString,
+} from '@/lib/timezone';
 import type {
   OrderSource,
   OrderStatus,
@@ -280,6 +284,7 @@ export default async function CommandesPage({
               <TableHead>Type</TableHead>
               <TableHead>Client</TableHead>
               <TableHead>Téléphone</TableHead>
+              <TableHead>Commandée le</TableHead>
               <TableHead>Créneau</TableHead>
               <TableHead className="hidden md:table-cell">Articles</TableHead>
               <TableHead>Total</TableHead>
@@ -331,6 +336,9 @@ export default async function CommandesPage({
                   </TableCell>
                   <TableCell>{order.customerName ?? '—'}</TableCell>
                   <TableCell>{order.customerPhone ?? '—'}</TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                    {formatAbidjanDateTime(order.createdAt)}
+                  </TableCell>
                   <TableCell>{formatPickupTime(order.pickupTime)}</TableCell>
                   <TableCell className="hidden md:table-cell">
                     {(order.items as unknown[]).length}
@@ -438,6 +446,9 @@ export default async function CommandesPage({
                         {order.customerPhone}
                       </span>
                     )}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Commandée le {formatAbidjanDateTime(order.createdAt)}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {formatPickupTime(order.pickupTime)}
