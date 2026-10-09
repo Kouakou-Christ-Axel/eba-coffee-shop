@@ -17,10 +17,10 @@
 // client mette à jour son menu local (stock live sans rechargement).
 
 import { NextResponse } from 'next/server';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireCashier } from '@/lib/auth-helpers';
 import { setOptionStockByRef, setProductStockById } from '@/lib/menu-mutations';
+import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 
 // Plafond de garde-fou anti-faute de frappe.
 const MAX_STOCK = 100_000;
@@ -39,19 +39,6 @@ const bodySchema = z.discriminatedUnion('target', [
     stock: z.number().int().min(0).max(MAX_STOCK),
   }),
 ]);
-
-// La réappro change le stock : la carte publique (ISR) doit se rafraîchir.
-// Best-effort, jamais bloquant.
-function revalidatePublicMenu() {
-  try {
-    revalidatePath('/api/menu');
-    revalidatePath('/carte');
-    // L'accueil aussi : sa vitrine est commandable et filtre sur le stock.
-    revalidatePath('/');
-  } catch (err) {
-    console.warn('[caisse/restock] revalidatePublicMenu a échoué', err);
-  }
-}
 
 export async function POST(req: Request) {
   try {

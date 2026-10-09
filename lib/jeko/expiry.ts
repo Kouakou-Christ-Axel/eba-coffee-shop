@@ -19,6 +19,7 @@
 import prisma from '@/lib/prisma';
 import { revokeLoyaltyForOrder } from '@/lib/loyalty-mutations';
 import { releaseUnpaidStockHold } from '@/lib/order-mutations';
+import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 import type { CartItem } from '@/lib/cart-store';
 import { JekoApiError, getJekoPaymentRequest } from './client';
 import { jekoConfig } from './config';
@@ -171,6 +172,9 @@ export async function expirePendingOrders(
       result.skipped++;
     }
   }
+
+  // Le stock retenu pour ces commandes vient d'être restitué.
+  if (result.expired > 0) revalidatePublicMenu();
 
   return result;
 }

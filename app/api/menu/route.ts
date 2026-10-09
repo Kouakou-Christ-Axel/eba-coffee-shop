@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getMenu } from '@/lib/menu';
 
-export const revalidate = 60;
+// Relu toutes les 30 s par la carte publique (lib/hooks/use-public-menu.ts) :
+// 15 s côté serveur pour que ce polling ne reçoive jamais un menu vieux d'une
+// minute. Les écritures de stock appellent en plus `revalidatePublicMenu`.
+export const revalidate = 15;
 
 export async function GET() {
   try {

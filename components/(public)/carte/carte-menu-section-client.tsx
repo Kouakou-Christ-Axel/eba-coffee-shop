@@ -7,6 +7,7 @@ import { m, useReducedMotion } from 'framer-motion';
 import type { MenuCategory } from '@/config/menu';
 import ProductCard from '@/components/(public)/carte/product-card';
 import FeaturedShowcase from '@/components/(public)/carte/featured-showcase';
+import { usePublicMenu } from '@/lib/hooks/use-public-menu';
 import CarteMenuToolbar from '@/components/(public)/carte/carte-menu-toolbar';
 import ReorderBanner from '@/components/(public)/carte/reorder-banner';
 import {
@@ -27,7 +28,10 @@ type Props = {
   menuData: MenuCategory[];
 };
 
-function CarteMenuSectionClient({ menuData }: Props) {
+function CarteMenuSectionClient({ menuData: initialMenu }: Props) {
+  // Rendu ISR au départ, puis relu en continu : un produit épuisé le devient
+  // à l'écran sans rechargement.
+  const menuData = usePublicMenu(initialMenu);
   const reduceMotion = useReducedMotion();
   const [term, setTerm] = useState('');
   // Faux au rendu serveur — la carte reste complète dans le HTML prérendu,

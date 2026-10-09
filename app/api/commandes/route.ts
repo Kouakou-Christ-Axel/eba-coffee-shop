@@ -8,6 +8,7 @@ import { expirePendingOrders } from '@/lib/jeko/expiry';
 import { startJekoPayment } from '@/lib/jeko/start-payment';
 import { getMenuAdmin } from '@/lib/menu';
 import { siteUrl } from '@/lib/site-url';
+import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 import type { CartItem } from '@/lib/cart-store';
 import {
   publicOrderError,
@@ -71,6 +72,10 @@ export async function POST(req: NextRequest) {
           }
         : undefined
     );
+
+    // Un paiement en ligne pour aujourd'hui réserve le stock dès la création :
+    // la carte doit le refléter sans attendre l'ISR.
+    if (jeko) revalidatePublicMenu();
 
     // Commande en attente de paiement : le paiement démarre ici, et le staff
     // n'en est informé qu'au règlement (lib/jeko/settle.ts).
