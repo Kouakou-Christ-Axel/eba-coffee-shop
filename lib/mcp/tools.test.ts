@@ -6,7 +6,7 @@
 // le champ `toolset` obligatoire côté TypeScript, mais couvre aussi une
 // éventuelle désynchronisation manuelle entre `tools` et `TOOLSET_TOOL_NAMES`.
 import { describe, it, expect } from 'vitest';
-import { tools, TOOLSET_NAMES, TOOLSET_TOOL_NAMES } from './tools';
+import { tools, toolsByName, TOOLSET_NAMES, TOOLSET_TOOL_NAMES } from './tools';
 
 describe('toolset — partition complète des outils', () => {
   it('chaque outil a un toolset valide', () => {
@@ -24,6 +24,20 @@ describe('toolset — partition complète des outils', () => {
       }
     }
     expect(seen.size).toBe(tools.length);
+  });
+});
+
+describe('registre — intégrité', () => {
+  it("les noms d'outils sont uniques", () => {
+    const names = tools.map((t) => t.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(toolsByName.size).toBe(tools.length);
+  });
+
+  // Garde-fou contre un module oublié dans `registry.ts` : à mettre à jour
+  // volontairement quand on ajoute ou retire un outil.
+  it("expose le nombre attendu d'outils", () => {
+    expect(tools).toHaveLength(144);
   });
 });
 

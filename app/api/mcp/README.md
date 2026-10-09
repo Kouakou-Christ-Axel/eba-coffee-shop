@@ -715,7 +715,10 @@ dernier, le produit redevient commandable normalement).
   connexion (renvoie vers `/api/auth/mcp/authorize` avec les paramètres repris).
 - `lib/mcp/handler.ts` — dispatcher JSON-RPC (`initialize`, `tools/list`,
   `tools/call`, `ping`), agnostique du framework.
-- `lib/mcp/tools.ts` — registre des outils. Chaque outil **branche** la logique
+- `lib/mcp/tools.ts` — barrel qui ré-exporte l'API publique du registre.
+  `lib/mcp/tools/registry.ts` assemble un module `McpTool[]` par domaine
+  (`lib/mcp/tools/*.ts`) : un nouveau domaine = un module **plus** son spread
+  dans `registry.ts`. Chaque outil **branche** la logique
   existante (`lib/menu.ts`, `lib/menu-mutations.ts`) et réutilise les schémas Zod
   centralisés : aucune logique métier dupliquée. `toolset` (`TOOLSET_NAMES`)
   classe chaque outil dans un domaine fonctionnel — orthogonal à `scope`, qui
