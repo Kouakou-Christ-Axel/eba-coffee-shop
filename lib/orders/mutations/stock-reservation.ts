@@ -1,6 +1,4 @@
-// lib/orders/mutations/stock-reservation.ts
-//
-// Mutations de commandes — stock-reservation (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — stock-reservation.
 
 import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';

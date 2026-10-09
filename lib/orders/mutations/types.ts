@@ -1,5 +1,3 @@
-// lib/orders/mutations/types.ts
-//
 // Types partagés des mutations de commandes.
 
 import type { OrderSource } from '@/generated/prisma/client';

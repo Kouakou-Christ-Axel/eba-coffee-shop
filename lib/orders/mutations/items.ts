@@ -1,6 +1,4 @@
-// lib/orders/mutations/items.ts
-//
-// Mutations de commandes — items (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — items.
 
 import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';

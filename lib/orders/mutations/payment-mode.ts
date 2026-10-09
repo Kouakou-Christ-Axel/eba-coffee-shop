@@ -1,6 +1,4 @@
-// lib/orders/mutations/payment-mode.ts
-//
-// Mutations de commandes — payment-mode (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — payment-mode.
 
 import type { PaymentMode } from '@/generated/prisma/client';
 import type { OrderPaymentLineInput } from '@/lib/schemas/order';

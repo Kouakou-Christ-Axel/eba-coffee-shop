@@ -1,6 +1,4 @@
-// lib/orders/mutations/notify.ts
-//
-// Mutations de commandes — notify (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — notify.
 
 import type { CartItem } from '@/lib/cart-store';
 import { ROLE_GROUPS } from '@/lib/auth-helpers';

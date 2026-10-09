@@ -1,6 +1,4 @@
-// lib/orders/mutations/payment.ts
-//
-// Mutations de commandes — payment (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — payment.
 
 import prisma from '@/lib/prisma';
 import { isDeferredPickup } from '@/lib/orders/scheduling';

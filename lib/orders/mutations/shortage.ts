@@ -1,6 +1,4 @@
-// lib/orders/mutations/shortage.ts
-//
-// Mutations de commandes — shortage (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — shortage.
 
 import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';

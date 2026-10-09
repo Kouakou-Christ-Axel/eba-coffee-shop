@@ -1,6 +1,4 @@
-// lib/orders/mutations/loyalty.ts
-//
-// Mutations de commandes — loyalty (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — loyalty.
 
 import prisma from '@/lib/prisma';
 import {

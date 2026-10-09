@@ -34,8 +34,7 @@
 // commande encore NEW (`setOrderPayment`, qui redevient purement financier).
 // Seul le geste humain `sendOrderToKitchen` réserve, le jour venu.
 //
-// IMPLÉMENTATION : découpée par cas d'usage dans `lib/orders/mutations/` (un
-// module par responsabilité). Ce fichier ne ré-exporte que l'API publique.
+// Implémentation découpée par cas d'usage dans `lib/orders/mutations/`.
 
 export {
   OrderMutationError,

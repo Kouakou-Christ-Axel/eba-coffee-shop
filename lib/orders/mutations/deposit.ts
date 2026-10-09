@@ -1,6 +1,4 @@
-// lib/orders/mutations/deposit.ts
-//
-// Mutations de commandes — deposit (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — deposit.
 
 import prisma from '@/lib/prisma';
 import type { OrderPaymentLineInput } from '@/lib/schemas/order';

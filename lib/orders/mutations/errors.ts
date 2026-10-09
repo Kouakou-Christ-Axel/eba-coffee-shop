@@ -1,6 +1,4 @@
-// lib/orders/mutations/errors.ts
-//
-// Mutations de commandes — errors (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — errors.
 
 /**
  * Erreur métier portant un code HTTP, pour que les routes API renvoient le bon

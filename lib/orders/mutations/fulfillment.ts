@@ -1,6 +1,4 @@
-// lib/orders/mutations/fulfillment.ts
-//
-// Mutations de commandes — fulfillment (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — fulfillment.
 
 import prisma from '@/lib/prisma';
 import type { OrderTypeInput } from '@/lib/schemas/order';

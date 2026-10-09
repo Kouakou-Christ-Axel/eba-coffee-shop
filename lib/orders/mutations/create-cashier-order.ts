@@ -1,6 +1,4 @@
-// lib/orders/mutations/create-cashier-order.ts
-//
-// Mutations de commandes — create-cashier-order (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — create-cashier-order.
 
 import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';

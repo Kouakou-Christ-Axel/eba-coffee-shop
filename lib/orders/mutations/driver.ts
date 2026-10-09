@@ -1,6 +1,4 @@
-// lib/orders/mutations/driver.ts
-//
-// Mutations de commandes — driver (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — driver.
 
 import prisma from '@/lib/prisma';
 import { normalizeIvorianPhone } from '@/lib/phone';

@@ -1,6 +1,4 @@
-// lib/orders/mutations/details.ts
-//
-// Mutations de commandes — details (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — details.
 
 import prisma from '@/lib/prisma';
 import { updateOrderDetailsSchema } from '@/lib/schemas/order';

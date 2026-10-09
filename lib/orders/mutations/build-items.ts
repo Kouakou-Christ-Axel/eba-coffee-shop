@@ -1,6 +1,4 @@
-// lib/orders/mutations/build-items.ts
-//
-// Mutations de commandes — build-items (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — build-items.
 
 import { getMenuAdmin } from '@/lib/menu';
 import { cartItemSchema, type CartItemInput } from '@/lib/schemas/order';

@@ -1,6 +1,4 @@
-// lib/orders/mutations/customer.ts
-//
-// Mutations de commandes — customer (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — customer.
 
 import prisma from '@/lib/prisma';
 import { upsertCustomerForOrder } from '@/lib/customer-mutations';

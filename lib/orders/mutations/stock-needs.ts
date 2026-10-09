@@ -1,6 +1,4 @@
-// lib/orders/mutations/stock-needs.ts
-//
-// Mutations de commandes — stock-needs (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — stock-needs.
 
 import { Prisma } from '@/generated/prisma/client';
 import { optionKey } from '@/lib/orders/availability';

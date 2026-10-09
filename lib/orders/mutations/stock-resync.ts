@@ -1,6 +1,4 @@
-// lib/orders/mutations/stock-resync.ts
-//
-// Mutations de commandes — stock-resync (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — stock-resync.
 
 import { Prisma } from '@/generated/prisma/client';
 import type { CartItem } from '@/lib/cart-store';

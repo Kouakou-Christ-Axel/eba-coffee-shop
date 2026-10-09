@@ -1,6 +1,4 @@
-// lib/orders/mutations/pay-and-complete.ts
-//
-// Mutations de commandes — pay-and-complete (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — pay-and-complete.
 
 import type { UserRole } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';

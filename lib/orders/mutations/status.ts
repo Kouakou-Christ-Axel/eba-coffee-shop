@@ -1,6 +1,4 @@
-// lib/orders/mutations/status.ts
-//
-// Mutations de commandes — status (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — status.
 
 import type { OrderStatus, UserRole } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';

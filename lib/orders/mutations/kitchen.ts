@@ -1,6 +1,4 @@
-// lib/orders/mutations/kitchen.ts
-//
-// Mutations de commandes — kitchen (extrait de lib/order-mutations.ts, sans changement de comportement).
+// Mutations de commandes — kitchen.
 
 import type { UserRole } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
