@@ -1,12 +1,4 @@
-// app/(dashboard)/dashboard/menu/actions.test.ts
-import {
-  describe,
-  it,
-  expect,
-  vi,
-  beforeEach,
-  type MockedFunction,
-} from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('next/headers', () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
@@ -39,8 +31,6 @@ vi.mock('@/lib/menu-mutations', () => ({
 }));
 
 import { ZodError } from 'zod';
-import { auth } from '@/lib/auth';
-import { revalidatePath } from 'next/cache';
 import * as mutations from '@/lib/menu-mutations';
 import {
   createCategoryAction,
@@ -57,83 +47,12 @@ import {
   reorderCategoriesAction,
   reorderProductsAction,
 } from './actions';
-
-const mockGetSession = auth.api.getSession as MockedFunction<
-  typeof auth.api.getSession
->;
-const mockRevalidate = revalidatePath as MockedFunction<typeof revalidatePath>;
-const mockCreateCategory = mutations.createCategory as MockedFunction<
-  typeof mutations.createCategory
->;
-
-const adminSession = {
-  user: { role: 'ADMIN', id: 'u1', email: 'admin@eba.ci', name: null },
-  session: {},
-} as never;
-
-describe('Menu Server Actions — auth gate', () => {
-  beforeEach(() => vi.resetAllMocks());
-
-  it('createCategoryAction sans session → throw', async () => {
-    mockGetSession.mockResolvedValue(null);
-    await expect(createCategoryAction({ name: 'X' })).rejects.toThrow(
-      'Non autorisé'
-    );
-    expect(mutations.createCategory).not.toHaveBeenCalled();
-  });
-
-  it('createCategoryAction avec session USER → throw', async () => {
-    mockGetSession.mockResolvedValue({
-      user: { role: 'USER', id: 'u1' },
-      session: {},
-    } as never);
-    await expect(createCategoryAction({ name: 'X' })).rejects.toThrow(
-      'Non autorisé'
-    );
-  });
-
-  it('toggleCategoryAvailabilityAction sans session → throw', async () => {
-    mockGetSession.mockResolvedValue(null);
-    await expect(toggleCategoryAvailabilityAction('cat1')).rejects.toThrow(
-      'Non autorisé'
-    );
-  });
-
-  it('createProductAction sans session → throw', async () => {
-    mockGetSession.mockResolvedValue(null);
-    await expect(
-      createProductAction({
-        categoryId: 'c',
-        name: 'X',
-        description: 'd',
-        price: 100,
-        imageUrl: null,
-        supplementGroups: [],
-      })
-    ).rejects.toThrow('Non autorisé');
-  });
-
-  it('restockProductAction sans session → throw', async () => {
-    mockGetSession.mockResolvedValue(null);
-    await expect(restockProductAction('p1', 5)).rejects.toThrow('Non autorisé');
-    expect(mutations.restockProduct).not.toHaveBeenCalled();
-  });
-
-  it('pauseProductAction sans session → throw', async () => {
-    mockGetSession.mockResolvedValue(null);
-    const until = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-    await expect(pauseProductAction('p1', until)).rejects.toThrow(
-      'Non autorisé'
-    );
-    expect(mutations.pauseProduct).not.toHaveBeenCalled();
-  });
-
-  it('resumeProductAction sans session → throw', async () => {
-    mockGetSession.mockResolvedValue(null);
-    await expect(resumeProductAction('p1')).rejects.toThrow('Non autorisé');
-    expect(mutations.resumeProduct).not.toHaveBeenCalled();
-  });
-});
+import {
+  mockGetSession,
+  mockRevalidate,
+  mockCreateCategory,
+  adminSession,
+} from './actions.test-utils';
 
 describe('Menu Server Actions — happy path + revalidate', () => {
   beforeEach(() => {
@@ -356,31 +275,5 @@ describe('Menu Server Actions — happy path + revalidate', () => {
       error: 'La liste des produits a changé',
     });
     expect(mockRevalidate).not.toHaveBeenCalled();
-  });
-});
-
-describe('Menu Server Actions — garde d’autorisation des nouvelles actions', () => {
-  beforeEach(() => vi.resetAllMocks());
-
-  it('reorderProductsAction sans session → throw', async () => {
-    mockGetSession.mockResolvedValue(null);
-    await expect(reorderProductsAction('cat1', ['p1'])).rejects.toThrow(
-      'Non autorisé'
-    );
-    expect(mutations.reorderProducts).not.toHaveBeenCalled();
-  });
-
-  it('reorderCategoriesAction sans session → throw', async () => {
-    mockGetSession.mockResolvedValue(null);
-    await expect(reorderCategoriesAction(['c1'])).rejects.toThrow(
-      'Non autorisé'
-    );
-    expect(mutations.reorderCategories).not.toHaveBeenCalled();
-  });
-
-  it('moveProductAction sans session → throw', async () => {
-    mockGetSession.mockResolvedValue(null);
-    await expect(moveProductAction('p1', 'up')).rejects.toThrow('Non autorisé');
-    expect(mutations.moveProduct).not.toHaveBeenCalled();
   });
 });
