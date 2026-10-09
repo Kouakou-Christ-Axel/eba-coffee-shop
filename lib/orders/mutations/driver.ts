@@ -4,14 +4,7 @@ import prisma from '@/lib/prisma';
 import { normalizeIvorianPhone } from '@/lib/phone';
 import { OrderMutationError } from './errors';
 
-// ─── Livreur du client (page publique de suivi) ───────────────────────────────
-
-/**
- * Renseigne, modifie ou efface (les deux champs à null) le livreur envoyé par
- * le client. Appelée SANS rôle : la route publique s'appuie sur l'`id` cuid non
- * devinable (capability URL) — même modèle de confiance que la consultation de
- * la commande. Refusée une fois la commande récupérée ou annulée.
- */
+/** Renseigne, modifie ou efface (les deux champs à null) le livreur envoyé par le client. */
 export async function setOrderDriver(
   id: string,
   input: { driverName: string | null; driverPhone: string | null }

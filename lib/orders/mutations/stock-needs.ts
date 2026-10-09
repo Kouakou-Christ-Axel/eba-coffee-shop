@@ -6,42 +6,6 @@ import type { ShortageLine } from '@/lib/orders/shortage';
 import type { CartItem } from '@/lib/cart-store';
 import { StockShortageError } from './errors';
 
-// ─── Décrément du stock (le cœur anti-survente) ───────────────────────────────
-//
-// N'A QU'UN SEUL APPELANT : `reserveStockOnce` (juste en dessous), qui garantit
-// que le décrément a lieu AU PLUS UNE FOIS par commande. Ne jamais l'appeler
-// directement — sans le verrou `Order.stockReservedAt`, deux chemins menant en
-// cuisine (encaissement d'une commande NEW, envoi manuel, ardoise, undo puis
-// renvoi) décrémenteraient deux fois le même panier.
-//
-// Décrémente le stock produit ET options DANS LA MÊME transaction que
-// l'écriture appelante : la garde conditionnelle (`updateMany` avec
-// `stockQuantity: { gte: besoin }` OU `null`) sérialise la concurrence sur la
-// dernière unité — un seul appelant gagne, l'autre voit `count !== 1` et lève
-// `StockShortageError`, qui fait échouer (rollback) toute la transaction :
-// opération refusée, RIEN décrémenté, aucun statut/paiement écrit.
-//
-// `stockQuantity === null` = illimité : le `OR` laisse passer ce cas sans
-// jamais bloquer, et l'arithmétique SQL (`NULL - n = NULL`) laisse la colonne
-// inchangée après le `decrement` — pas besoin de branche séparée.
-//
-// Options résolues par (produit, nom de groupe, nom d'option) puisque le
-// panier ne connaît pas les id internes des options — MAIS deux options
-// peuvent légitimement porter le même nom dans un même groupe (ex. un ancien
-// « goût » désactivé conservé après renommage, cf. `updateSupplementGroups`
-// qui apparie par nom). Un `updateMany` par nom matcherait alors les deux
-// lignes à la fois : `count` vaudrait 2 et non 1, et un paiement pourtant
-// honorable serait refusé à tort. On résout donc d'abord l'id de l'option
-// *disponible* (déterministe, la plus ancienne) avant de décrémenter cet id
-// précis — la garde atomique et la sérialisation de concurrence restent
-// intactes, seule l'ambiguïté du nom est levée en amont.
-
-/**
- * Id de l'option DISPONIBLE correspondant à (produit, nom de groupe, nom
- * d'option) — la plus ancienne en cas d'homonymie. Extrait ici parce que trois
- * appelants en dépendent et doivent impérativement viser la MÊME ligne :
- * le décrément, le calcul de pénurie et la couverture de pénurie.
- */
 export async function resolveOptionId(
   tx: Prisma.TransactionClient,
   productId: string,
@@ -65,6 +29,7 @@ export async function resolveOptionId(
   return option?.id ?? null;
 }
 
+// Appelé uniquement par `reserveStockOnce` : jamais en direct (double décrément).
 export async function decrementStockForOrderItems(
   tx: Prisma.TransactionClient,
   items: CartItem[]
@@ -115,34 +80,7 @@ export async function decrementStockForOrderItems(
   }
 }
 
-// ─── Pénurie : la question posée au cuisinier, et sa couverture ───────────────
-//
-// Le décrément ci-dessus refuse une commande dont le stock manque. C'est juste
-// vis-à-vis de la survente, mais insuffisant en pratique : le cuisinier a la
-// matière devant lui, il vient de produire la fournée, et on lui demandait
-// d'aller corriger la quantité dans /dashboard/menu avant de pouvoir lancer.
-//
-// Les fonctions ci-dessous permettent de lui poser la question à la place —
-// « il manque 3 × Sponge cake (Vanille), vous les avez produits ? » — puis, s'il
-// valide, de CRÉDITER EXACTEMENT la quantité manquante juste avant la
-// réservation, qui la redescend aussitôt. Effet net sur le stock : zéro. Ce
-// n'est donc pas un contournement de la garde anti-survente : c'est
-// l'enregistrement d'une production réelle, faite au bon endroit.
-
-/**
- * Besoin TOTAL de la commande par cible de stock. L'agrégation est
- * indispensable : deux lignes de panier peuvent viser le même produit (ou le
- * même goût via des suppléments distincts), et les traiter séparément
- * sous-estimerait le manque.
- *
- * Les options introuvables (renommées, désactivées) sont écartées de `options`
- * (clé = id réel) et reportées dans `unresolved` (clé = `optionKey`, stable
- * même sans id) : `computeShortage`/`coverShortageForOrderItems` les ignorent
- * (ce n'est pas une pénurie que le cuisinier puisse couvrir en produisant, et
- * le décrément lèvera de toute façon « Option indisponible » à la création),
- * mais `resyncStockForItemChange` en a besoin pour ne pas laisser passer en
- * silence l'ajout d'une quantité sur une option devenue indisponible.
- */
+/** Besoin TOTAL de la commande par cible de stock. */
 export async function aggregateStockNeeds(
   tx: Prisma.TransactionClient,
   items: CartItem[]
@@ -230,10 +168,7 @@ export async function aggregateStockNeeds(
   return { products, options, unresolved };
 }
 
-/**
- * Ce qui manque pour honorer `items` face au stock COURANT. N'écrit rien.
- * Une cible à `stockQuantity: null` (illimité) n'est jamais en pénurie.
- */
+/** Ce qui manque pour honorer `items` face au stock COURANT. */
 export async function computeShortage(
   tx: Prisma.TransactionClient,
   items: CartItem[]

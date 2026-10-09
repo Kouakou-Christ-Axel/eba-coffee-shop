@@ -4,21 +4,7 @@ import prisma from '@/lib/prisma';
 import type { OrderPaymentLineInput } from '@/lib/schemas/order';
 import { OrderMutationError } from './errors';
 
-// ─── Acompte (commande spéciale à l'avance) ───────────────────────────────────
-
-/**
- * Enregistre un versement d'acompte sur une commande qui en exige un (cf.
- * `Order.depositRequired`, `Product.requiresDeposit`). Distinct de
- * `setOrderPayment` : ne touche JAMAIS `isPaid`/`status`, et ne déclenche
- * JAMAIS l'entrée en cuisine ni la réservation de stock — c'est
- * `sendOrderToKitchen` qui vérifie ensuite que l'acompte est couvert.
- *
- * Les lignes sont écrites comme des `OrderPayment` normales (même trace pour
- * la caisse/clôture) ; seul `Order.depositPaid` distingue un acompte d'un
- * règlement final. Accepte tout montant positif qui ne dépasse pas le total
- * restant dû — pas seulement le minimum exact — le staff peut encaisser plus
- * que le minimum si le client le souhaite.
- */
+/** Enregistre un versement d'acompte sur une commande qui en exige un. */
 export async function recordDeposit(
   id: string,
   payments: OrderPaymentLineInput[],

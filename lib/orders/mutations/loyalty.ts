@@ -10,35 +10,6 @@ import { computeItemsTotal } from '@/lib/orders/totals';
 import type { CartItem } from '@/lib/cart-store';
 import { OrderMutationError } from './errors';
 
-// ─── Récompense fidélité sur une commande déjà créée ───────────────────────────
-
-/**
- * Applique (ou retire) une récompense fidélité sur une commande existante —
- * contrairement à `createCashierOrder`, où la récompense ne peut être choisie
- * qu'à la création. Recalcule le total à partir des articles courants (même
- * formule que `updateOrderItems`) et consomme/restitue la récompense en
- * conséquence.
- *
- * `{ loyaltyRewardId: null }` retire la récompense déjà appliquée (si il y en
- * a une) : elle redevient `AVAILABLE`, la remise est retirée du total.
- * `{ loyaltyRewardId: "<id>" }` retire d'abord la précédente s'il y en a une,
- * puis applique la nouvelle (vérifiée : appartient au client de la commande,
- * statut `AVAILABLE`).
- *
- * `redeemAsGift: true` : la récompense est marquée utilisée (elle ne resservira
- * plus) mais SANS déduire `capAmount` du total — pour les clients à qui on
- * offre un geste/produit au comptoir plutôt qu'une réduction en numéraire.
- *
- * Applicable même à une commande TERMINÉE (déjà récupérée/encaissée) : sert
- * à corriger après coup un palier qui aurait dû déclencher la réduction sans
- * que le personnel ne l'ait posée à temps. Seule une commande ANNULÉE reste
- * bloquée. `lib/cash-closing.ts` ne fait pas de snapshot des totaux : modifier
- * une commande terminée change donc rétroactivement le CA lu par les
- * rapports déjà générés — compromis assumé, tracé par le ledger fidélité.
- *
- * Lève `OrderMutationError` (404 commande, 400 récompense indisponible / pas
- * de client associé, 409 commande annulée).
- */
 export async function setOrderLoyaltyReward(
   orderId: string,
   input: { loyaltyRewardId: string | null; redeemAsGift?: boolean },
@@ -65,9 +36,6 @@ export async function setOrderLoyaltyReward(
       );
     }
 
-    // Retire d'abord la récompense déjà appliquée, s'il y en a une : elle
-    // redevient disponible pour le client (réappliquer sur cette même
-    // commande, ou une autre plus tard).
     if (order.loyaltyRewardId) {
       await tx.loyaltyReward.update({
         where: { id: order.loyaltyRewardId },

@@ -5,8 +5,6 @@ import type { OrderTypeInput } from '@/lib/schemas/order';
 import { OrderMutationError } from './errors';
 import { setOrderDriver } from './driver';
 
-// ─── Prise en charge (édition caisse) ──────────────────────────────────────────
-
 export type UpdateOrderFulfillmentInput = {
   orderType?: OrderTypeInput;
   pickupTime?: string | null;
@@ -15,21 +13,6 @@ export type UpdateOrderFulfillmentInput = {
   note?: string | null;
 };
 
-/**
- * Édition « caisse » de la prise en charge d'une commande existante :
- * orderType / pickupTime / note (écrits directement) + driverName/driverPhone
- * (délégués à `setOrderDriver`, pas de duplication de la normalisation
- * téléphone). Accessible à CASHIER_PLUS (`canEditOrderFulfillment`) —
- * contrairement à `updateOrderDetails` (réservé ADMIN, qui touche aussi
- * `paymentMode`) : cette fonction ne touche JAMAIS le paiement.
- *
- * driverName/driverPhone sont indépendants : fournir l'un sans l'autre
- * (le téléphone du livreur n'est jamais obligatoire) préserve la valeur
- * actuelle du champ non fourni plutôt que de l'effacer.
- *
- * Refusée une fois la commande terminée ou annulée (même garde que
- * `setOrderDriver`).
- */
 export async function updateOrderFulfillment(
   id: string,
   input: UpdateOrderFulfillmentInput

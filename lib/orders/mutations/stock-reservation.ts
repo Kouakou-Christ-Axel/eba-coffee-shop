@@ -10,21 +10,7 @@ import { decrementStockForOrderItems } from './stock-needs';
 import { resyncStockForItemChange } from './stock-resync';
 import { coverShortageForOrderItems } from './shortage';
 
-/**
- * Restitue intégralement le stock tenu par `items` — réutilise
- * `resyncStockForItemChange` avec une cible vide, qui ne fait alors que
- * recréditer, rien à décrémenter.
- *
- * UNIQUE appelante : `expirePendingOrders` (lib/jeko/expiry.ts), pour une
- * commande en ligne du jour jamais payée dont `reserveStockOnce` avait
- * réservé le stock dès la création (voir son commentaire). Ce n'est PAS une
- * entorse à l'irréversibilité de `stockReservedAt` décrite plus haut : cette
- * irréversibilité protège une commande déjà COMMISE en cuisine (« le plat est
- * perdu », cf. le commentaire de `resyncStockForItemChange`) — ici, le
- * paiement n'a jamais abouti, rien n'a jamais été préparé, il n'y a rien à
- * perdre à rendre le stock et à redescendre `stockReservedAt` à `null`. À ne
- * jamais appeler ailleurs que depuis ce chemin d'expiration.
- */
+// Seul chemin autorisé à remettre `stockReservedAt` à null (commande jamais payée).
 export function releaseUnpaidStockHold(
   tx: Prisma.TransactionClient,
   items: CartItem[]
@@ -32,43 +18,7 @@ export function releaseUnpaidStockHold(
   return resyncStockForItemChange(tx, items, [], true);
 }
 
-/**
- * Réserve (décrémente) le stock d'une commande AU PLUS UNE FOIS, quel que soit
- * le nombre de chemins qui y mènent. Renvoie `true` si CET appel a réellement
- * décrémenté, `false` si la réservation avait déjà eu lieu.
- *
- * Le statut ne peut pas servir de témoin : plusieurs chemins mènent en cuisine,
- * plusieurs transitions sont réversibles (undo `PREPARING → NEW`, reprise
- * `CANCELLED → NEW` puis renvoi en cuisine) et `payAndComplete` fait
- * NEW → COMPLETED sans jamais passer par PREPARING. D'où la colonne dédiée
- * `Order.stockReservedAt`.
- *
- * ORDRE IMPÉRATIF — on REVENDIQUE le verrou AVANT de décrémenter, via un
- * `UPDATE ... WHERE stockReservedAt IS NULL` conditionnel, et JAMAIS via un
- * `findUnique` suivi d'un test en mémoire : sous READ COMMITTED, deux
- * transactions concurrentes qui émettent le même `updateMany` conditionnel se
- * sérialisent sur le verrou de ligne, et la seconde ré-évalue le prédicat
- * après le commit de la première — elle obtient donc `count = 0`. Un
- * lire-puis-tester laisserait au contraire passer les deux (les deux lectures
- * voient `null` avant toute écriture). C'est exactement la technique déjà
- * employée par `decrementStockForOrderItems` (garde `stockQuantity >= besoin`)
- * et par la garde optimiste de `setOrderStatus`.
- *
- * Une pénurie lève `StockShortageError` APRÈS la revendication : le rollback
- * de la transaction annule aussi la pose du verrou, donc rien n'est perdu.
- *
- * `coverShortage` (geste explicite du staff, jamais un défaut) crédite d'abord
- * le manque : la réservation qui suit le redescend, effet net nul.
- *
- * Second appelant depuis ce chantier : `createOrder` (lib/orders.ts), pour une
- * commande en ligne du jour même — réserve dès la création, le temps de la
- * fenêtre de paiement, pour qu'un client au comptoir ne vende pas entre-temps
- * l'article qu'un paiement en ligne est en train d'honorer. Si ce paiement
- * n'arrive jamais, `releaseUnpaidStockHold` (ci-dessous) est l'UNIQUE endroit
- * autorisé à redescendre `stockReservedAt` à `null` : voir son commentaire
- * pour pourquoi ce cas précis n'entre pas en contradiction avec l'irréversibilité
- * du verrou décrite ci-dessus.
- */
+// Verrou `Order.stockReservedAt` : décrément au plus une fois par commande.
 export async function reserveStockOnce(
   tx: Prisma.TransactionClient,
   orderId: string,
@@ -91,24 +41,6 @@ export async function reserveStockOnce(
   return true;
 }
 
-// ─── Fan-out best-effort : commandes en attente affectées ─────────────────────
-//
-// APRÈS commit seulement (jamais dans la transaction qui réserve) : si la
-// réservation qui vient de réussir a fait tomber un produit/option à 0, les
-// autres commandes dont le stock n'est PAS encore réservé et qui en dépendent
-// ne pourront plus être honorées telles quelles — on les avertit sans attendre
-// le prochain polling/SSE. Fire-and-forget : un échec ici ne doit jamais
-// remonter (la réservation, elle, a déjà réussi).
-//
-// Candidates = `stockReservedAt: null` (et non `isPaid: false`) : une commande
-// impayée déjà partie en cuisine a son stock réservé, elle n'est donc pas en
-// danger et ne doit surtout pas recevoir un « article indisponible ».
-//
-// Les commandes DIFFÉRÉES sont écartées pour la même raison, l'autre bout :
-// leur marchandise sera produite le jour du retrait, le stock d'aujourd'hui ne
-// les concerne pas. Sans ce filtre, un client dont la commande est pour samedi
-// recevrait « article indisponible » chaque fois qu'un produit tombe à 0 un
-// jour de semaine.
 export async function notifyPendingOrdersOfShortage(
   reservedOrderId: string,
   reservedItems: CartItem[]

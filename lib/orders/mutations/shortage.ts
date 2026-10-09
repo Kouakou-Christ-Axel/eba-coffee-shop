@@ -7,12 +7,7 @@ import type { CartItem } from '@/lib/cart-store';
 import { StockShortageError } from './errors';
 import { computeShortage } from './stock-needs';
 
-/**
- * Pénurie d'une commande existante, en LECTURE SEULE. Appelée sur le chemin
- * d'erreur (409) pour construire la question posée au staff : elle donne la
- * liste COMPLÈTE des manques, là où le décrément s'arrête à la première ligne
- * fautive.
- */
+/** Pénurie d'une commande existante, en LECTURE SEULE. */
 export async function getOrderShortage(id: string): Promise<ShortageLine[]> {
   const order = await prisma.order.findUnique({
     where: { id },
@@ -23,12 +18,6 @@ export async function getOrderShortage(id: string): Promise<ShortageLine[]> {
   return computeShortage(prisma, order.items as unknown as CartItem[]);
 }
 
-/**
- * Même calcul que `getOrderShortage`, mais pour un panier qui n'est pas
- * encore une commande en base (échec de `createCashierOrder` sur pénurie à
- * la création — la transaction a déjà tout annulé, il n'y a pas d'id à
- * relire).
- */
 export async function getItemsShortage(
   items: CartItem[]
 ): Promise<ShortageLine[]> {
@@ -38,15 +27,7 @@ export async function getItemsShortage(
 /** Corps de réponse d'un refus pour pénurie. */
 export type ShortagePayload = { error: string; shortage: ShortageLine[] };
 
-/**
- * Construit la réponse 409 d'une pénurie : le message ET les lignes manquantes.
- * C'est ce qui permet à l'écran de poser une question chiffrée (« il manque
- * 3 × Sponge cake (Vanille), vous les avez produits ? ») au lieu d'un mur qui
- * renvoie le staff vers /dashboard/menu.
- *
- * `getOrderShortage` relit le stock : la liste est donc COMPLÈTE, là où
- * l'exception s'arrête à la première ligne fautive.
- */
+/** Construit la réponse 409 d'une pénurie : le message ET les lignes manquantes. */
 export async function buildShortagePayload(
   id: string,
   err: StockShortageError

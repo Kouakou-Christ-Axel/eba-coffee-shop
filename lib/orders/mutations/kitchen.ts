@@ -12,46 +12,7 @@ import {
   notifyPendingOrdersOfShortage,
 } from './stock-reservation';
 
-// ─── Entrée en cuisine (point d'entrée UNIQUE de la réservation de stock) ─────
-
-/**
- * Envoie une commande en cuisine (→ `PREPARING`) et RÉSERVE son stock, une
- * seule fois. C'est le seul endroit du code où une commande entre en cuisine :
- * `setOrderStatus(id, 'PREPARING', role)` y délègue, `setOrderPayment` en
- * reprend la mécanique quand l'encaissement pousse une commande NEW en
- * cuisine, et l'écran cuisine passe par `setOrderStatus`.
- *
- * `opts.onAccount` : envoi « ardoise », c'est-à-dire SANS encaissement (client
- * de confiance ou dérogation caissier). Ce n'est pas un paiement : `isPaid`
- * reste `false`, seul `isOnAccount` est posé.
- *
- * POURQUOI l'annulation NE LIBÈRE PAS la réservation (aucune ré-incrémentation,
- * ici comme dans `setOrderStatus` / le dépaiement) :
- *   1. cela préserve l'invariant « décrémenté au plus une fois, jamais
- *      ré-incrémenté », qui rend TOUS les chemins d'undo sûrs par construction
- *      (undo `PREPARING → NEW` puis renvoi en cuisine, reprise d'une commande
- *      annulée, encaissement après coup…) ;
- *   2. un plat annulé en cours de préparation est de toute façon perdu ;
- *   3. libérer ferait échouer `CANCELLED → PREPARING` avec un 409 sur ce que
- *      l'interface présente comme un simple undo.
- * Le réapprovisionnement explicite existe déjà par ailleurs
- * (`/api/caisse/restock`).
- *
- * `opts.coverShortage` : le staff a confirmé à l'écran avoir produit la
- * quantité manquante — on la crédite avant de réserver (effet net nul, cf.
- * `coverShortageForOrderItems`). Jamais un défaut : sans cette confirmation,
- * une pénurie reste un refus.
- *
- * La réservation est INCONDITIONNELLE ici, y compris pour une commande dont le
- * retrait est un jour ultérieur : c'est un geste humain délibéré, et préparer
- * la veille est un usage légitime. Ce sont les chemins AUTOMATIQUES (ardoise à
- * la création, encaissement d'une NEW) qui s'abstiennent — voir l'en-tête de
- * fichier.
- *
- * Lève `OrderMutationError` (404 introuvable, 403 transition refusée, 409
- * conflit de concurrence) ou `StockShortageError` (409 — le client est alors
- * notifié `ITEM_UNAVAILABLE` avant que l'erreur ne remonte).
- */
+/** Envoie une commande en cuisine (→ `PREPARING`) et RÉSERVE son stock, une seule fois. */
 export async function sendOrderToKitchen(
   id: string,
   role: UserRole,
@@ -79,10 +40,6 @@ export async function sendOrderToKitchen(
     );
   }
 
-  // Commande spéciale à l'avance (cf. Product.requiresDeposit) : n'entre en
-  // cuisine — donc n'est « prise en compte » — qu'une fois l'acompte minimum
-  // versé. Seul verrou de ce genre : un règlement intégral (setOrderPayment,
-  // payAndComplete) couvre toujours l'acompte, puisqu'il couvre le total.
   if (
     order.depositRequired &&
     (order.depositPaid ?? 0) < order.depositRequired
@@ -124,8 +81,6 @@ export async function sendOrderToKitchen(
     });
   } catch (err) {
     if (err instanceof StockShortageError) {
-      // Client perdant (stock insuffisant) : notifié AVANT que la 409 ne
-      // remonte à l'appelant — best-effort, jamais bloquant.
       notifyOrderCustomer(id, 'ITEM_UNAVAILABLE');
     }
     throw err;
