@@ -10,7 +10,6 @@
 // 0 rows affected (double-clic, ou modif concurrente d'un autre caissier).
 
 import { NextResponse } from 'next/server';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireCashier } from '@/lib/auth-helpers';
 import { orderPaymentsSchema } from '@/lib/schemas/order';
@@ -20,21 +19,7 @@ import {
   OrderMutationError,
   StockShortageError,
 } from '@/lib/order-mutations';
-
-// Un paiement réussi peut avoir décrémenté du stock (produit/option) : la carte
-// publique (ISR) doit se rafraîchir. Best-effort, jamais bloquant — l'écriture
-// en base a déjà eu lieu (même pattern que `revalidateMenu` du MCP).
-function revalidatePublicMenu() {
-  try {
-    revalidatePath('/api/menu');
-    revalidatePath('/carte');
-    // L'accueil aussi : sa vitrine « Ce qu'on aime vous servir » est
-    // commandable et ne montre que des produits en stock.
-    revalidatePath('/');
-  } catch (err) {
-    console.warn('[caisse/payment] revalidatePublicMenu a échoué', err);
-  }
-}
+import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 
 const bodySchema = z
   .object({

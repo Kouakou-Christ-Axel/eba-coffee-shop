@@ -11,11 +11,12 @@ import DownloadMenuPdf from '@/components/(public)/carte/download-menu-pdf';
 import { ClosedPrecommandeModal } from '@/components/(public)/carte/_components/closed-precommande-modal';
 import { OG_IMAGE } from '@/config/constants';
 
-// ISR: regenerate the carte at most every 5 minutes. The menu changes more
-// often than the homepage (prices, availability, supplements). The dashboard
-// menu actions already call `revalidatePath('/carte')` on every edit, so this
-// is mostly a freshness safety net behind the explicit invalidations.
-export const revalidate = 300;
+// ISR: regenerate the carte at most every minute. The menu changes more often
+// than the homepage (prices, availability, supplements). Stock writes call
+// `revalidatePublicMenu` (lib/revalidate-public-menu.ts), and the client keeps
+// the stock live afterwards (lib/hooks/use-public-menu.ts), so this is only a
+// safety net: the first visitor after expiry is served the stale page.
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: 'La carte — cafés, pâtisseries et brunch',

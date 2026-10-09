@@ -7,8 +7,8 @@
 //
 // Pur (aucun accès réseau/DOM/store) : la même règle ligne à ligne que le
 // serveur (`computeOrderItemsAvailability`, lib/orders/availability-core.ts).
-// Le serveur reste la vérité — le menu peut avoir jusqu'à une minute de retard
-// (`revalidate = 60` sur `/api/menu`), et le 409 sait toujours se rattraper.
+// Le serveur reste la vérité — le menu peut avoir quelques secondes de retard
+// (`revalidate = 15` sur `/api/menu`), et le 409 sait toujours se rattraper.
 
 import type { CartItem, CartItemDraft } from '@/lib/cart-store';
 import type { MenuCategory, Product } from '@/config/menu';
