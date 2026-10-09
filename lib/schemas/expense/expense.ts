@@ -1,0 +1,68 @@
+import { z } from 'zod';
+import {
+  EXPENSE_SUPPLIER_MAX,
+  EXPENSE_NOTE_MAX,
+  EXPENSE_AMOUNT_MAX,
+} from '@/config/constants';
+import { imageUrlSchema } from '@/lib/schemas/upload';
+import { expensePaymentMethodSchema, dateOnly } from './common';
+import { expenseItemsArraySchema } from './item';
+
+// Pas de `.refine()` racine : Zod 4 interdit `.partial()` sur un schéma raffiné (utilisé par le MCP).
+export const expenseInputSchema = z.object({
+  date: dateOnly,
+  amount: z
+    .number()
+    .int('Montant entier (FCFA)')
+    .positive('Montant invalide')
+    .max(EXPENSE_AMOUNT_MAX, 'Montant trop élevé'),
+  categoryId: z.string().min(1, 'Catégorie requise'),
+  paymentMethod: expensePaymentMethodSchema.optional(),
+  supplier: z
+    .string()
+    .trim()
+    .max(EXPENSE_SUPPLIER_MAX, 'Fournisseur trop long')
+    .nullable()
+    .optional(),
+  note: z
+    .string()
+    .trim()
+    .max(EXPENSE_NOTE_MAX, 'Note trop longue')
+    .nullable()
+    .optional(),
+  receiptUrl: imageUrlSchema.nullable().optional(),
+  items: expenseItemsArraySchema.nullable().optional(),
+});
+
+export type ExpenseInput = z.infer<typeof expenseInputSchema>;
+
+export const expenseUpdateSchema = expenseInputSchema
+  .partial()
+  .refine((v) => Object.values(v).some((x) => x !== undefined), {
+    message: 'Au moins un champ à mettre à jour est requis',
+  });
+
+export type ExpenseUpdateInput = z.infer<typeof expenseUpdateSchema>;
+
+// Filtres de liste (plage de jours civils + catégorie + paiement + recherche).
+export const expenseFiltersSchema = z.object({
+  from: dateOnly.optional(),
+  to: dateOnly.optional(),
+  categoryId: z.string().min(1).optional(),
+  paymentMethod: expensePaymentMethodSchema.optional(),
+  search: z.string().trim().min(1).optional(),
+});
+
+export type ExpenseFiltersInput = z.infer<typeof expenseFiltersSchema>;
+
+// Filtres des stats de fréquence d'achat par article (défaut : mois civil en
+// cours, appliqué par l'appelant — `search` matche le nom d'article).
+export const expenseFrequencyFiltersSchema = z.object({
+  from: dateOnly.optional(),
+  to: dateOnly.optional(),
+  search: z.string().trim().min(1).optional(),
+});
+
+export type ExpenseFrequencyFiltersInput = z.infer<
+  typeof expenseFrequencyFiltersSchema
+>;
