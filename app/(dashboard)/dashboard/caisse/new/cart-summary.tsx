@@ -64,10 +64,7 @@ export function CartSummary({
   const loyaltyDiscount = selectedReward
     ? Math.min(selectedReward.capAmount, total)
     : 0;
-  const depositAmount = computeRequiredDeposit(
-    items,
-    total - loyaltyDiscount
-  );
+  const depositAmount = computeRequiredDeposit(items, total - loyaltyDiscount);
 
   return (
     <div className="rounded-xl border bg-card">
