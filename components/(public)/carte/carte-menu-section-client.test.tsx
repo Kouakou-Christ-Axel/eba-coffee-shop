@@ -80,7 +80,7 @@ describe('CarteMenuSectionClient — rendu serveur', () => {
   it('rend les produits non commandables plutôt que de les masquer', () => {
     // Un produit épuisé reste sur la carte avec son motif : la découverte ne
     // dépend pas de la disponibilité du jour.
-    expect(html).toContain('Épuisé');
+    expect(html).toContain('Précommande');
   });
 
   it('rend la nav de catégories avec son compteur de produits', () => {
