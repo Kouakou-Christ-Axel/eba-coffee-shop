@@ -95,19 +95,38 @@ export const ORDER_BY: Record<
   number: [{ dailyDate: 'desc' }, { dailyNumber: 'desc' }],
 };
 
+// `STAFF_VISIBLE` cache les commandes en ligne jamais payées (en attente ou
+// abandonnées) des files ACTIVES — caisse, cuisine, stats — où une commande
+// fantôme n'a rien à faire. Mais le filtre « Annulées » de cette liste est un
+// historique explicite : une commande Jèko expirée (jamais payée, annulée par
+// `expirePendingOrders`) EST une commande annulée, et masquer précisément
+// celles-là de l'onglet qui les cherche n'a pas de sens. Aucune autre valeur de
+// `status` ne change rien : les commandes encore `NEW`/en attente restent cachées
+// partout ailleurs.
+function applyVisibility(
+  where: Prisma.OrderWhereInput,
+  status: OrderStatus | undefined
+): Prisma.OrderWhereInput {
+  return status === 'CANCELLED' ? where : withStaffVisible(where);
+}
+
 export async function listOrders({ page, sort, ...filters }: ListOrdersParams) {
   const pageSize = ORDERS_PAGE_SIZE;
   const skip = (page - 1) * pageSize;
   const where = buildOrdersWhere(filters);
+  const visibleWhere = applyVisibility(where, filters.status);
 
   const [orders, total] = await Promise.all([
+    // staff-visibility: exempt — passe par applyVisibility, qui applique withStaffVisible
+    // sauf pour le filtre `status=CANCELLED` (voir le commentaire sur applyVisibility).
     prisma.order.findMany({
-      where: withStaffVisible(where),
+      where: visibleWhere,
       orderBy: ORDER_BY[sort ?? 'recent'],
       skip,
       take: pageSize,
     }),
-    prisma.order.count({ where: withStaffVisible(where) }),
+    // staff-visibility: exempt — idem, cf. applyVisibility.
+    prisma.order.count({ where: visibleWhere }),
   ]);
 
   return { orders, total, pageSize };
@@ -115,8 +134,9 @@ export async function listOrders({ page, sort, ...filters }: ListOrdersParams) {
 
 /** Récupère toutes les commandes correspondant aux filtres (sans pagination), pour l'export CSV. */
 export async function getOrdersForExport(filters: OrderFilters) {
+  // staff-visibility: exempt — passe par applyVisibility, cf. ce même commentaire plus haut.
   return prisma.order.findMany({
-    where: withStaffVisible(buildOrdersWhere(filters)),
+    where: applyVisibility(buildOrdersWhere(filters), filters.status),
     orderBy: { createdAt: 'asc' },
   });
 }
