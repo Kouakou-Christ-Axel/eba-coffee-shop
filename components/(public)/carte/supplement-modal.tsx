@@ -444,7 +444,7 @@ function SupplementModal({
             isDisabled={!canSubmit}
           >
             {canSubmit
-              ? `Ajouter — ${priceFormatter.format(runningTotal)} F`
+              ? `${soldOutForLater ? 'Précommander' : 'Ajouter'} — ${priceFormatter.format(runningTotal)} F`
               : blockingLabel}
           </Button>
         </ModalFooter>

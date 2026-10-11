@@ -80,6 +80,12 @@ export function useQuickAdd(
   // côté serveur.
   const isUnorderable = !canOrderForLaterDay(product);
 
+  // Un produit épuisé reste commandable, mais seulement via le geste
+  // DÉDIÉ « Précommander » (carte produit) — jamais via le petit bouton
+  // rond ou le clic carte, qui ajouteraient la même ligne sans que le
+  // client ait vu/choisi qu'il précommande pour demain.
+  const canQuickAdd = !isUnorderable && !soldOut;
+
   /**
    * Ajoute `quantity` exemplaires SANS supplément. Le store plafonne lui-même
    * sur le stock restant et fusionne les lignes identiques : on peut donc
@@ -139,6 +145,7 @@ export function useQuickAdd(
     outOfSchedule,
     lowStock,
     isUnorderable,
+    canQuickAdd,
     justAdded,
     isModalOpen,
     closeModal: () => setModalOpen(false),

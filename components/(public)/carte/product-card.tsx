@@ -3,7 +3,7 @@
 
 import dynamic from 'next/dynamic';
 import { Button, Chip } from '@heroui/react';
-import { Check, Plus } from 'lucide-react';
+import { CalendarClock, Check, Plus } from 'lucide-react';
 import { priceFormatter, type Product } from '@/config/menu';
 import { useQuickAdd } from './_components/use-quick-add';
 import {
@@ -61,6 +61,7 @@ function ProductCard({ product }: ProductCardProps) {
     outOfSchedule,
     lowStock,
     isUnorderable,
+    canQuickAdd,
     justAdded,
     isModalOpen,
     closeModal,
@@ -78,9 +79,9 @@ function ProductCard({ product }: ProductCardProps) {
   return (
     <>
       <div
-        onClick={isUnorderable ? undefined : handleAdd}
+        onClick={canQuickAdd ? handleAdd : undefined}
         className={`group flex h-full items-stretch gap-3.5 rounded-2xl border border-foreground/5 bg-white/60 p-3 transition-colors duration-200 hover:border-primary/10 hover:bg-white/80 sm:gap-4 ${
-          isUnorderable ? '' : 'cursor-pointer'
+          canQuickAdd ? 'cursor-pointer' : ''
         }`}
       >
         {/* Visuel — la photo porte la vente : elle est le premier élément lu,
@@ -98,8 +99,11 @@ function ProductCard({ product }: ProductCardProps) {
           />
 
           {/* Ajout rapide, ancré sur la photo (modèle Uber Eats) : cible large
-              et lien visuel direct avec ce qu'on ajoute. */}
-          {!isUnorderable && (
+              et lien visuel direct avec ce qu'on ajoute. Absent pour un
+              produit épuisé — le geste « + » discret ne doit jamais ajouter
+              une précommande sans que le client l'ait vu : seul le CTA pleine
+              largeur « Précommander » plus bas le permet. */}
+          {canQuickAdd && (
             <Button
               isIconOnly
               size="sm"
@@ -159,13 +163,17 @@ function ProductCard({ product }: ProductCardProps) {
                   Retour {formatResumeLabel(product.unavailableUntil as string)}
                 </Chip>
               )}
-              {/* « Épuisé aujourd'hui », pas « Épuisé » : le produit reste
-                  commandable pour un autre jour, il sera refait. `warning` et
-                  non `danger` — ce n'est plus un refus, c'est une précision de
-                  délai. Le sélecteur de créneau interdira alors aujourd'hui. */}
+              {/* « Précommande », pas « Épuisé » seul : le mot doit être le
+                  même ici, sur le CTA plus bas, dans le panier et au
+                  créneau — c'est la répétition du même terme à chaque étape,
+                  plus qu'une lecture attentive à un seul endroit, qui fait
+                  comprendre au client ce qu'il est en train de faire.
+                  `warning` et non `danger` : ce n'est pas un refus, c'est une
+                  précision de délai — le produit reste commandable, pour un
+                  autre jour. */}
               {soldOut && (
                 <Chip color="warning" variant="flat" size="sm">
-                  Épuisé aujourd’hui · dès demain
+                  Précommande · dès demain
                 </Chip>
               )}
               {/* Priorité pause/épuisé déjà garantie par le hook (`weeklyGated`/
@@ -206,6 +214,27 @@ function ProductCard({ product }: ProductCardProps) {
                 </Chip>
               )}
             </div>
+          )}
+          {/* Seule façon d'ajouter un produit épuisé : pleine largeur, icône
+              + texte explicite — une FORME délibérément différente du petit
+              bouton rond d'ajout normal, pas juste un libellé différent sur
+              le même composant. `secondary` (orange doré) plutôt que
+              `primary` : signale visuellement une action distincte de
+              l'achat immédiat. */}
+          {soldOut && !isUnorderable && (
+            <Button
+              color="secondary"
+              variant="flat"
+              size="sm"
+              startContent={
+                <CalendarClock className="h-4 w-4" aria-hidden="true" />
+              }
+              onPress={handleAdd}
+              onClick={(e) => e.stopPropagation()}
+              className="mt-1.5 min-h-9 w-full"
+            >
+              Précommander pour demain
+            </Button>
           )}
           {soldOut && (
             <RestockAlertButton

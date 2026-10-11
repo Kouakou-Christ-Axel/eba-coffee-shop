@@ -24,6 +24,8 @@ import { useCartAvailability } from '@/lib/hooks/use-cart-availability';
 import { CartLineStatusChip } from './_components/cart-line-status';
 import { ProductMedia } from './_components/product-media';
 import { CartUpsell, selectUpsellProducts } from './_components/cart-upsell';
+import { PrecommandeBanner } from './_components/precommande-banner';
+import { isPrecommandeCart } from '@/lib/cart-precommande';
 import {
   BOTTOM_SHEET_PLACEMENT,
   bottomSheetClassNames,
@@ -63,6 +65,8 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
   const availability = useCartAvailability(menu);
   const soldOutCount = availability?.soldOutLines.length ?? 0;
   const goneCount = availability?.goneCartIds.length ?? 0;
+
+  const precommande = isPrecommandeCart(items);
 
   const [duplicateItem, setDuplicateItem] = useState<CartItem | null>(null);
   const duplicateProduct: Product | null = duplicateItem
@@ -268,6 +272,11 @@ function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                   </p>
                 )
               )}
+              {/* Statut global, pas par ligne — en dessous des bandeaux
+                  d'erreur ci-dessus (ceux-là sont actionnables/urgents, ce
+                  bandeau est juste informatif). Pas de créneau encore choisi
+                  à ce stade (défini à l'étape checkout). */}
+              {precommande && <PrecommandeBanner className="w-full" />}
               <div className="flex w-full items-center justify-between">
                 <span className="text-base font-semibold">Total</span>
                 <span className="text-lg font-bold text-primary">

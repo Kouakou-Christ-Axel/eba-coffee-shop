@@ -15,23 +15,16 @@
 // sont affichées au-dessus de la liste ; un jour fermé est annoncé comme tel.
 // Les données viennent de `usePickupInfo` (fetch unique pour tout le modal).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@heroui/react';
-import {
-  CalendarClock,
-  Check,
-  ChevronRight,
-  Clock,
-  RefreshCw,
-  Zap,
-} from 'lucide-react';
+import { Check, Clock, RefreshCw } from 'lucide-react';
 import {
   ABIDJAN_TZ,
   formatAbidjanTime,
   shiftDateString,
   todayDateString,
 } from '@/lib/timezone';
-import { WEEKDAY_LABELS, type TimeRange } from '@/lib/pickup-settings';
+import type { TimeRange } from '@/lib/pickup-settings';
 import type { PickupInfoState, PickupDay } from '@/lib/hooks/use-pickup-info';
 import type { PickupTiming } from '@/lib/hooks/use-checkout-form';
 import {
@@ -42,7 +35,10 @@ import {
 import { pickDefaultSlot } from '@/lib/pickup-slots';
 import { DEFERRED_PICKUP_DEFAULT_TIME } from '@/config/constants';
 import type { CartItem } from '@/lib/cart-store';
+import { precommandeDay } from '@/lib/cart-precommande';
 import { cn } from '@/lib/utils';
+import { DayChips, DaySlots } from './slot-picker-day-view';
+import { PickupModeToggle } from './pickup-mode-toggle';
 
 type SlotPickerProps = {
   timing: PickupTiming;
@@ -66,46 +62,28 @@ type SlotPickerProps = {
    * parler de commande à l'avance mentirait au client.
    */
   soldOutRestricted?: boolean;
+  /**
+   * La SEULE contrainte de jour vient d'articles épuisés aujourd'hui (pas
+   * d'un `advanceOrderDays` générique > 1) : fige le jour sur demain, aucun
+   * chip de jour à afficher — seulement le choix de l'heure. Un produit qui
+   * cumule un vrai délai de commande (> 1 jour) en plus d'être épuisé retombe
+   * correctement sur le régime générique (sélecteur de jour complet).
+   */
+  precommandePure?: boolean;
 };
-
-type Period = 'morning' | 'noon' | 'afternoon' | 'evening';
-
-const PERIOD_ORDER: readonly Period[] = [
-  'morning',
-  'noon',
-  'afternoon',
-  'evening',
-] as const;
-
-const PERIOD_LABELS: Record<Period, string> = {
-  morning: 'Matin',
-  noon: 'Midi',
-  afternoon: 'Après-midi',
-  evening: 'Soir',
-};
-
-function periodOf(slot: Date): Period {
-  const h = slot.getUTCHours(); // Abidjan = UTC
-  if (h < 12) return 'morning';
-  if (h < 14) return 'noon';
-  if (h < 18) return 'afternoon';
-  return 'evening';
-}
 
 /** Jour civil Abidjan (YYYY-MM-DD) d'un créneau — Abidjan = UTC. */
 function slotDayKey(slot: Date): string {
   return slot.toISOString().slice(0, 10);
 }
 
-/** « 07:30 » → « 7h30 » (affichage des plages d'ouverture). */
-function formatRangeTime(t: string): string {
-  return t.replace(/^0/, '').replace(':', 'h');
-}
-
-function formatRanges(ranges: TimeRange[]): string {
-  return ranges
-    .map((r) => `${formatRangeTime(r.start)} – ${formatRangeTime(r.end)}`)
-    .join(', ');
+/** « 26 sept. » — date courte Abidjan, pour accompagner « Retrait demain ». */
+function shortDayDate(dateKey: string): string {
+  return new Date(`${dateKey}T00:00:00Z`).toLocaleDateString('fr-FR', {
+    timeZone: ABIDJAN_TZ,
+    day: 'numeric',
+    month: 'short',
+  });
 }
 
 function dayLabel(dateKey: string, today: string): string {
@@ -117,22 +95,6 @@ function dayLabel(dateKey: string, today: string): string {
     day: 'numeric',
     month: 'short',
   });
-}
-
-/** Libellé court sur deux lignes pour une chip de jour (style Uber Eats). */
-function dayChipLabel(
-  dateKey: string,
-  today: string
-): { top: string; bottom: string } {
-  const bottom = new Date(`${dateKey}T00:00:00Z`).toLocaleDateString('fr-FR', {
-    timeZone: ABIDJAN_TZ,
-    day: 'numeric',
-    month: 'short',
-  });
-  if (dateKey === today) return { top: "Aujourd'hui", bottom };
-  if (dateKey === shiftDateString(today, 1)) return { top: 'Demain', bottom };
-  const weekday = new Date(`${dateKey}T00:00:00Z`).getUTCDay();
-  return { top: WEEKDAY_LABELS[String(weekday)].slice(0, 3), bottom };
 }
 
 /** Heure murale Abidjan courante « HH:MM », comparable aux plages. */
@@ -173,6 +135,7 @@ export function SlotPicker({
   items,
   minAdvanceOrderDays = 0,
   soldOutRestricted = false,
+  precommandePure = false,
 }: SlotPickerProps) {
   const today = todayDateString();
   const [activeDay, setActiveDay] = useState<string | null>(null);
@@ -215,13 +178,17 @@ export function SlotPicker({
       ),
     [allDays, items]
   );
-  const days = useMemo(
-    () =>
-      minAllowedDate
-        ? scheduleFilteredDays.filter((d) => d.date >= minAllowedDate)
-        : scheduleFilteredDays,
-    [scheduleFilteredDays, minAllowedDate]
-  );
+  const days = useMemo(() => {
+    // Précommande pure : un seul jour possible, TOUJOURS demain — pas de
+    // sélecteur de jour, voir la prop `precommandePure`.
+    if (precommandePure) {
+      const day = precommandeDay();
+      return scheduleFilteredDays.filter((d) => d.date === day);
+    }
+    return minAllowedDate
+      ? scheduleFilteredDays.filter((d) => d.date >= minAllowedDate)
+      : scheduleFilteredDays;
+  }, [scheduleFilteredDays, minAllowedDate, precommandePure]);
   const scheduleRestricted = scheduleFilteredDays.length < allDays.length;
   const todayRanges = allDays.find((d) => d.date === today)?.ranges ?? [];
   const cartAvailableNow = isCartAvailableOn(items);
@@ -300,7 +267,15 @@ export function SlotPicker({
       ) : (
         <>
           {minAdvanceOrderDays > 0 &&
-            (soldOutRestricted ? (
+            (precommandePure ? (
+              // Message court : le bandeau global « Panier précommande »
+              // (precommande-banner.tsx) a déjà annoncé la contrainte plus
+              // haut dans le parcours — ici, on ne fait plus que guider le
+              // choix de l'heure.
+              <p className="text-xs text-foreground/60">
+                Choisis ton heure de retrait pour demain.
+              </p>
+            ) : soldOutRestricted ? (
               <p className="text-xs text-foreground/60">
                 Un article de votre panier est épuisé aujourd&apos;hui : il sera
                 préparé pour le jour que vous choisissez, à partir de demain.
@@ -320,82 +295,15 @@ export function SlotPicker({
             </p>
           )}
 
-          {/* Dès que possible / Planifier */}
-          <div
-            role="radiogroup"
-            aria-label="Moment du retrait"
-            className="grid grid-cols-2 gap-2"
-          >
-            <button
-              type="button"
-              role="radio"
-              aria-checked={timing === 'asap'}
-              disabled={!openNow}
-              onClick={() => onTimingChange('asap')}
-              className={cn(
-                'flex flex-col items-start gap-0.5 rounded-xl border-2 px-3 py-3 text-left transition-all',
-                timing === 'asap' && openNow
-                  ? 'border-primary bg-primary/5'
-                  : 'border-foreground/10',
-                openNow
-                  ? 'hover:border-primary/40 hover:bg-primary/5'
-                  : 'cursor-not-allowed opacity-50'
-              )}
-            >
-              <span
-                className={cn(
-                  'flex items-center gap-1.5 text-sm font-semibold',
-                  timing === 'asap' && openNow
-                    ? 'text-primary'
-                    : 'text-foreground'
-                )}
-              >
-                <Zap className="h-4 w-4" />
-                Dès que possible
-              </span>
-              <span className="text-xs text-foreground/50">
-                {minAllowedDate
-                  ? // Dire la VRAIE raison : « commande à l'avance » ferait
-                    // croire à une règle du produit alors que c'est un simple
-                    // état du jour (et le client se demanderait pourquoi son
-                    // gâteau habituel exige soudain un délai).
-                    soldOutRestricted
-                    ? 'Épuisé aujourd’hui'
-                    : 'Commande à l’avance requise'
-                  : !cartAvailableNow
-                    ? "Indisponible aujourd'hui"
-                    : openNow
-                      ? `Prête dans ~${info.leadTimeMin} min`
-                      : 'Fermé actuellement'}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              role="radio"
-              aria-checked={timing === 'scheduled'}
-              onClick={() => onTimingChange('scheduled')}
-              className={cn(
-                'flex flex-col items-start gap-0.5 rounded-xl border-2 px-3 py-3 text-left transition-all hover:border-primary/40 hover:bg-primary/5',
-                timing === 'scheduled'
-                  ? 'border-primary bg-primary/5'
-                  : 'border-foreground/10'
-              )}
-            >
-              <span
-                className={cn(
-                  'flex items-center gap-1.5 text-sm font-semibold',
-                  timing === 'scheduled' ? 'text-primary' : 'text-foreground'
-                )}
-              >
-                <CalendarClock className="h-4 w-4" />
-                Planifier
-              </span>
-              <span className="text-xs text-foreground/50">
-                Choisir jour et heure
-              </span>
-            </button>
-          </div>
+          <PickupModeToggle
+            timing={timing}
+            onTimingChange={onTimingChange}
+            openNow={openNow}
+            minAllowedDate={minAllowedDate}
+            soldOutRestricted={soldOutRestricted}
+            cartAvailableNow={cartAvailableNow}
+            leadTimeMin={info.leadTimeMin}
+          />
 
           {error && <p className="text-xs text-danger">{error}</p>}
 
@@ -438,12 +346,20 @@ export function SlotPicker({
                     </p>
                   </div>
                 )}
-                <DayChips
-                  days={days}
-                  today={today}
-                  activeDay={selectedDay}
-                  onSelect={setActiveDay}
-                />
+                {precommandePure ? (
+                  // Un seul jour possible : pas de chips à faire défiler,
+                  // juste le rappel du jour avant la liste d'heures.
+                  <p className="text-xs font-medium text-foreground/70">
+                    Retrait demain, {shortDayDate(selectedDay)}
+                  </p>
+                ) : (
+                  <DayChips
+                    days={days}
+                    today={today}
+                    activeDay={selectedDay}
+                    onSelect={setActiveDay}
+                  />
+                )}
                 <DaySlots
                   day={days.find((d) => d.date === selectedDay) ?? days[0]}
                   slots={slotsByDay.get(selectedDay) ?? []}
@@ -463,164 +379,3 @@ export function SlotPicker({
   );
 }
 
-function DayChips({
-  days,
-  today,
-  activeDay,
-  onSelect,
-}: {
-  days: PickupDay[];
-  today: string;
-  activeDay: string;
-  onSelect: (date: string) => void;
-}) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollMore, setCanScrollMore] = useState(false);
-
-  const updateScrollState = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setCanScrollMore(el.scrollWidth - el.scrollLeft - el.clientWidth > 4);
-  }, []);
-
-  useEffect(() => {
-    updateScrollState();
-  }, [updateScrollState, days.length]);
-
-  return (
-    <div className="relative">
-      <div
-        ref={scrollRef}
-        onScroll={updateScrollState}
-        role="tablist"
-        aria-label="Jour de retrait"
-        className="flex gap-2 overflow-x-auto scroll-smooth pr-9 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {days.map((d) => {
-          const { top, bottom } = dayChipLabel(d.date, today);
-          const selected = d.date === activeDay;
-          return (
-            <button
-              key={d.date}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => onSelect(d.date)}
-              className={cn(
-                'flex flex-none shrink-0 flex-col items-center gap-0.5 rounded-xl border-2 px-4 py-2 text-center transition-colors',
-                selected
-                  ? 'border-primary bg-primary/5'
-                  : 'border-foreground/10 hover:border-primary/40'
-              )}
-            >
-              <span
-                className={cn(
-                  'text-sm font-semibold',
-                  selected ? 'text-primary' : 'text-foreground'
-                )}
-              >
-                {top}
-              </span>
-              <span className="text-xs text-foreground/50">{bottom}</span>
-            </button>
-          );
-        })}
-      </div>
-      {canScrollMore && (
-        <button
-          type="button"
-          aria-label="Voir plus de jours"
-          onClick={() =>
-            scrollRef.current?.scrollBy({ left: 220, behavior: 'smooth' })
-          }
-          className="absolute right-0 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-foreground/15 bg-background shadow-sm"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      )}
-    </div>
-  );
-}
-
-function DaySlots({
-  day,
-  slots,
-  selected,
-  onSelect,
-}: {
-  day: PickupDay;
-  slots: Date[];
-  selected: string | null;
-  onSelect: (iso: string) => void;
-}) {
-  if (day.ranges.length === 0) {
-    return (
-      <p className="py-3 text-center text-xs text-foreground/50">
-        Fermé ce jour.
-      </p>
-    );
-  }
-
-  if (slots.length === 0) {
-    return (
-      <p className="py-3 text-center text-xs text-foreground/50">
-        Plus de créneau disponible ce jour (ouvert&nbsp;:{' '}
-        {formatRanges(day.ranges)}).
-      </p>
-    );
-  }
-
-  const sections = PERIOD_ORDER.map((period) => ({
-    period,
-    slots: slots.filter((s) => periodOf(s) === period),
-  })).filter((s) => s.slots.length > 0);
-
-  return (
-    <div className="flex flex-col gap-2">
-      <p className="text-xs text-foreground/50">
-        Ouvert&nbsp;: {formatRanges(day.ranges)}
-      </p>
-      <div
-        role="radiogroup"
-        aria-label="Heure de retrait"
-        className="max-h-64 overflow-y-auto rounded-lg border border-foreground/10"
-      >
-        {sections.map(({ period, slots: inPeriod }) => (
-          <div key={period}>
-            <p className="px-3 pt-3 pb-1 text-xs font-medium text-foreground/50">
-              {PERIOD_LABELS[period]}
-            </p>
-            {inPeriod.map((slot) => {
-              const iso = slot.toISOString();
-              const isSelected = selected === iso;
-              return (
-                <button
-                  key={iso}
-                  type="button"
-                  role="radio"
-                  aria-checked={isSelected}
-                  onClick={() => onSelect(iso)}
-                  className="flex w-full items-center justify-between border-b border-foreground/10 px-3 py-3 text-left transition-colors last:border-0 hover:bg-primary/5"
-                >
-                  <span className="text-sm">{formatAbidjanTime(slot)}</span>
-                  <span
-                    className={cn(
-                      'flex h-4 w-4 flex-none items-center justify-center rounded-full border-2',
-                      isSelected
-                        ? 'border-primary bg-primary'
-                        : 'border-foreground/25'
-                    )}
-                  >
-                    {isSelected && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-background" />
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}

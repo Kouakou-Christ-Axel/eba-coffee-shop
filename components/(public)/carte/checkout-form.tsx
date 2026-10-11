@@ -31,6 +31,8 @@ import { priceFormatter } from '@/config/menu';
 import { ContactFields } from './_components/contact-fields';
 import { LoyaltyRewardBanner } from './_components/loyalty-reward-banner';
 import { PickupModeCards } from './_components/pickup-mode-cards';
+import { PrecommandeBanner } from './_components/precommande-banner';
+import { usePrecommandeMode } from './_components/use-precommande-mode';
 import { NoteField } from './_components/note-field';
 import { PaymentMethodPicker } from './_components/payment-method-picker';
 import { SlotPicker } from './_components/slot-picker';
@@ -108,10 +110,11 @@ export function CheckoutForm({
     (max, i) => Math.max(max, effectiveItemAdvanceDays(i)),
     0
   );
-  // Un article épuisé aujourd'hui mérite un message dédié : « commande à
-  // l'avance » serait faux, ce n'est pas une règle du produit mais un état du
-  // jour.
-  const soldOutRestricted = items.some((i) => i.soldOutToday === true);
+  const { soldOutRestricted, precommandePure } = usePrecommandeMode(
+    items,
+    minAdvanceOrderDays,
+    setField
+  );
   const pickupInfo = usePickupInfo(minAdvanceOrderDays);
   // Recherche débouncée de la récompense du numéro saisi.
   const reward = useLoyaltyReward(values.customerPhone);
@@ -296,6 +299,13 @@ export function CheckoutForm({
         </div>
       )}
 
+      {/* Statut global, sous les bandeaux d'erreur (actionnables/urgents) :
+          ceux-ci restent prioritaires au-dessus. Créneau connu une fois
+          choisi plus bas (SlotPicker), affiché ici dès qu'il existe. */}
+      {soldOutRestricted && (
+        <PrecommandeBanner pickupTime={values.pickupTime} />
+      )}
+
       <PickupModeCards
         mode={values.pickupMode}
         onModeChange={(m) => setField('pickupMode', m)}
@@ -346,6 +356,7 @@ export function CheckoutForm({
           items={items}
           minAdvanceOrderDays={minAdvanceOrderDays}
           soldOutRestricted={soldOutRestricted}
+          precommandePure={precommandePure}
         />
       </div>
 
