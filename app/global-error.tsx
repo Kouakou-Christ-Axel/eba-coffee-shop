@@ -2,7 +2,8 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { reloadOnChunkError } from '@/lib/chunk-error';
+import * as Sentry from '@sentry/nextjs';
+import { isChunkLoadError, reloadOnChunkError } from '@/lib/chunk-error';
 import './globals.css';
 
 // Ne couvre que les erreurs du root layout lui-même (Providers, polices,
@@ -19,6 +20,9 @@ export default function GlobalError({
   useEffect(() => {
     console.error('[app/global-error]', error);
     reloadOnChunkError(error);
+    if (!isChunkLoadError(error)) {
+      Sentry.captureException(error);
+    }
   }, [error]);
 
   return (

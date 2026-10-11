@@ -3,8 +3,9 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
+import * as Sentry from '@sentry/nextjs';
 import { Button } from '@/components/ui/button';
-import { reloadOnChunkError } from '@/lib/chunk-error';
+import { isChunkLoadError, reloadOnChunkError } from '@/lib/chunk-error';
 
 // Couvre toutes les routes dashboard (y compris les throws « Non autorisé »
 // des guards de page — cf. lib/auth-helpers.ts).
@@ -18,6 +19,9 @@ export default function DashboardError({
   useEffect(() => {
     console.error('[app/(dashboard)/dashboard/error]', error);
     reloadOnChunkError(error);
+    if (!isChunkLoadError(error)) {
+      Sentry.captureException(error);
+    }
   }, [error]);
 
   return (
