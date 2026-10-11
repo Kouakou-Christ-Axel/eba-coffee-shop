@@ -66,11 +66,13 @@ function PaymentBadge({
   status,
   paymentMode,
   autoValidatedByAi,
+  paymentExpiresAt,
 }: {
   isPaid: boolean;
   status: OrderStatus;
   paymentMode: string | null;
   autoValidatedByAi: boolean;
+  paymentExpiresAt: Date | null;
 }) {
   if (isPaid) {
     return (
@@ -89,6 +91,16 @@ function PaymentBadge({
   }
   if (status !== 'CANCELLED')
     return <Badge variant="secondary">À encaisser</Badge>;
+  // Jamais payée ET annulée par le timeout de paiement en ligne (pas par le
+  // staff) : `paymentExpiresAt` reste non-nul sur ces commandes (jamais remis
+  // à `null`, cf. lib/jeko/expiry.ts). C'est le seul signal qui les distingue
+  // d'une annulation staff classique.
+  if (paymentExpiresAt)
+    return (
+      <Badge variant="outline" title="Paiement en ligne jamais reçu (Jèko)">
+        Expirée
+      </Badge>
+    );
   return <Badge variant="outline">—</Badge>;
 }
 
@@ -382,6 +394,7 @@ export default async function CommandesPage({
                         status={order.status}
                         paymentMode={order.paymentMode}
                         autoValidatedByAi={order.paymentAutoValidatedByAi}
+                        paymentExpiresAt={order.paymentExpiresAt}
                       />
                     </TableCell>
                     <TableCell>
@@ -499,6 +512,7 @@ export default async function CommandesPage({
                     status={order.status}
                     paymentMode={order.paymentMode}
                     autoValidatedByAi={order.paymentAutoValidatedByAi}
+                    paymentExpiresAt={order.paymentExpiresAt}
                   />
                 </div>
 
