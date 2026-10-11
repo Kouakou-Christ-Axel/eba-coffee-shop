@@ -522,6 +522,7 @@ function SupplementModal({
                     key={opt.name}
                     value={opt.name}
                     isDisabled={strictStock && opt.soldOut === true}
+                    classNames={{ wrapper: 'border-default-300' }}
                   >
                     <span className="flex items-center justify-between gap-4">
                       <span className="text-sm">
@@ -565,6 +566,7 @@ function SupplementModal({
                       isSelected={isChecked}
                       isDisabled={isDisabled}
                       onValueChange={() => toggleMultiple(group.name, opt.name)}
+                      classNames={{ wrapper: 'before:border-default-300' }}
                     >
                       <span className="flex items-center justify-between gap-4">
                         <span className="text-sm">
