@@ -18,7 +18,10 @@ import { useShortageConfirm } from '../_components/use-shortage-confirm';
 import type { OrderStatus } from '@/generated/prisma/client';
 
 const NEXT_STEP: Partial<
-  Record<OrderStatus, { next: OrderStatus; label: string; Icon: typeof ChefHat }>
+  Record<
+    OrderStatus,
+    { next: OrderStatus; label: string; Icon: typeof ChefHat }
+  >
 > = {
   NEW: { next: 'PREPARING', label: 'Préparer', Icon: ChefHat },
   PREPARING: { next: 'READY', label: 'Prête', Icon: CheckCheck },
@@ -46,8 +49,13 @@ export function AdvanceStatusButton({
       let result = await updateOrderStatus(orderId, next);
       // Pénurie : on propose d'enregistrer la production sur place plutôt que
       // de renvoyer le staff corriger le stock dans le menu.
-      if (result?.shortage?.length && (await confirmShortage(result.shortage))) {
-        result = await updateOrderStatus(orderId, next, { coverShortage: true });
+      if (
+        result?.shortage?.length &&
+        (await confirmShortage(result.shortage))
+      ) {
+        result = await updateOrderStatus(orderId, next, {
+          coverShortage: true,
+        });
       }
       if (result?.error) setError(result.error);
     });

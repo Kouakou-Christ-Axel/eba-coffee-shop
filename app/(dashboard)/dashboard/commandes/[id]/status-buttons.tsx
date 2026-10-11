@@ -62,8 +62,13 @@ export function StatusButtons({
       let result = await updateOrderStatus(orderId, next);
       // Pénurie : on propose d'enregistrer la production sur place plutôt que
       // de renvoyer le staff corriger le stock dans le menu.
-      if (result?.shortage?.length && (await confirmShortage(result.shortage))) {
-        result = await updateOrderStatus(orderId, next, { coverShortage: true });
+      if (
+        result?.shortage?.length &&
+        (await confirmShortage(result.shortage))
+      ) {
+        result = await updateOrderStatus(orderId, next, {
+          coverShortage: true,
+        });
       }
       if (result?.error) setError(result.error);
     });
