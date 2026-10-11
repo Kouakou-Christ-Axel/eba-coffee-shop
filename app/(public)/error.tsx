@@ -2,8 +2,7 @@
 
 import { useEffect } from 'react';
 import { Button, Card, CardBody, CardHeader, Link } from '@heroui/react';
-import * as Sentry from '@sentry/nextjs';
-import { isChunkLoadError, reloadOnChunkError } from '@/lib/chunk-error';
+import { reportBoundaryError } from '@/lib/chunk-error';
 
 export default function PublicError({
   error,
@@ -14,10 +13,7 @@ export default function PublicError({
 }) {
   useEffect(() => {
     console.error('[app/(public)/error]', error);
-    reloadOnChunkError(error);
-    if (!isChunkLoadError(error)) {
-      Sentry.captureException(error);
-    }
+    reportBoundaryError(error);
   }, [error]);
 
   return (
