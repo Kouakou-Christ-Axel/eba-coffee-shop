@@ -18,7 +18,10 @@ export default heroui({
           700: '#624e42',
           800: '#483931',
           900: '#2f2520',
-          DEFAULT: '#fffaf6',
+          // = default-500 : HeroUI s'appuie sur `border-default` brut pour
+          // les composants outline-only (Radio, Checkbox…) ; un DEFAULT plus
+          // clair que default-50 les rendait invisibles sur le fond crème.
+          DEFAULT: '#9a7d6a',
           foreground: '#22181f',
         },
 

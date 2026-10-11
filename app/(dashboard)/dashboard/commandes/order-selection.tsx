@@ -46,7 +46,6 @@ export function OrderCheckbox({ id }: { id: string }) {
       aria-label="Sélectionner cette commande"
       isSelected={selected.has(id)}
       onValueChange={() => toggle(id)}
-      classNames={{ wrapper: 'before:border-default-300' }}
     />
   );
 }
@@ -114,7 +113,6 @@ export function OrderSelectionProvider({
               selected.size > 0 && selected.size < cancellableIds.length
             }
             onValueChange={toggleAll}
-            classNames={{ wrapper: 'before:border-default-300' }}
           >
             Tout sélectionner ({cancellableIds.length})
           </Checkbox>

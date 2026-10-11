@@ -282,7 +282,7 @@ export function SupplementPicker({
                 {/* Option de désélection pour les groupes facultatifs :
                         permet de revenir à « aucun choix ». */}
                 {!group.required && (
-                  <Radio value="" classNames={{ wrapper: 'border-default-300' }}>
+                  <Radio value="">
                     <span className="text-sm text-foreground/60">Aucun</span>
                   </Radio>
                 )}
@@ -292,7 +292,6 @@ export function SupplementPicker({
                       value={opt.name}
                       isDisabled={opt.soldOut && !forFutureDay}
                       className="flex-1"
-                      classNames={{ wrapper: 'border-default-300' }}
                     >
                       <span className="flex items-center justify-between gap-4">
                         <span className="text-sm">
@@ -353,7 +352,6 @@ export function SupplementPicker({
                           toggleMultiple(group.name, opt.name)
                         }
                         className="flex-1"
-                        classNames={{ wrapper: 'before:border-default-300' }}
                       >
                         <span className="flex items-center justify-between gap-4">
                           <span className="text-sm">
