@@ -1,6 +1,7 @@
 import { setDefaultResultOrder } from 'node:dns';
 import type { NextConfig } from 'next';
 import { varlockNextConfigPlugin } from '@varlock/nextjs-integration/plugin';
+import { withSentryConfig } from '@sentry/nextjs/config';
 
 setDefaultResultOrder('ipv4first');
 
@@ -158,4 +159,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default varlockNextConfigPlugin()(nextConfig);
+// Sentry en dernier : withSentryConfig doit voir la config Next finale
+// (après le plugin varlock) pour instrumenter le build. Pas de SDK côté
+// navigateur (instrumentation-client.ts, replay, etc.) — voir
+// sentry.server.config.ts : le site public n'embarque aucun JS de monitoring,
+// conformément à la politique de perf (RTT mobile Abidjan). authToken reste
+// vide hors CI : sans lui, l'upload des source maps est silencieusement
+// désactivé plutôt que de faire échouer le build local.
+export default withSentryConfig(varlockNextConfigPlugin()(nextConfig), {
+  org: 'enpiss',
+  project: 'eba-coffee-shop',
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+});
