@@ -32,6 +32,7 @@ export async function setOrderStatus(
       isPaid: true,
       total: true,
       loyaltyRewardId: true,
+      paymentExpiresAt: true,
     },
   });
   if (!order) {
@@ -65,7 +66,7 @@ export async function setOrderStatus(
 
   if (order.status === 'CANCELLED' && newStatus === 'NEW' && order.isPaid) {
     throw new OrderMutationError(
-      'Commande remboursée : impossible de la remettre à encaisser',
+      'Commande remboursée : utilisez « Annuler le remboursement » (retour en cuisine)',
       409
     );
   }
@@ -89,6 +90,13 @@ export async function setOrderStatus(
         ...(newStatus === 'READY' ? { readyAt: new Date() } : {}),
         ...(newStatus === 'NEW'
           ? { preparingStartedAt: null, readyAt: null }
+          : {}),
+        // Expirée (paiement en ligne) reprise en caisse : sans ça elle resterait
+        // masquée du staff (`withStaffVisible`), même effet que `releasePendingOrder`.
+        ...(order.status === 'CANCELLED' &&
+        newStatus === 'NEW' &&
+        order.paymentExpiresAt
+          ? { paymentExpiresAt: null }
           : {}),
       },
     });
