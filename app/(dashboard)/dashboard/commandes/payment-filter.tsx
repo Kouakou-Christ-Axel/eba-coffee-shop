@@ -40,7 +40,10 @@ export function PaymentFilter({ value }: { value?: string }) {
           key={o.key}
           startContent={
             o.key === 'all' || o.key === 'unpaid' ? undefined : (
-              <PaymentMethodIcon mode={o.key as PaymentMode} className="h-4 w-4" />
+              <PaymentMethodIcon
+                mode={o.key as PaymentMode}
+                className="h-4 w-4"
+              />
             )
           }
         >
