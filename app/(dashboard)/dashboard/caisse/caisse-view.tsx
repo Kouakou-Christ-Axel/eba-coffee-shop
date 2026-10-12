@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { CheckCircle2, PackageCheck, X } from 'lucide-react';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
 import type { ContactSettings } from '@/lib/contact-settings';
@@ -13,18 +11,20 @@ import {
   useOrdersStream,
   useSoundPreference,
 } from '@/lib/hooks/use-orders-stream';
-import { normalizeOrderDates } from '@/lib/orders/format';
-import { matchesOrderSearch, parseOrderSearchTerm } from '@/lib/orders/search';
+import { parseOrderSearchTerm, searchOrders } from '@/lib/orders/search';
 import {
   minutesUntilPickup,
   pickFirstCriticalTab,
   type TabKey,
 } from './urgency';
 import { useNowTick } from './use-now-tick';
+import { useCaisseParams } from './use-caisse-params';
+import { normalize } from './normalize-order';
 import { CaisseHeader } from './_components/caisse-header';
 import { CaisseSearch } from './_components/caisse-search';
 import { CaisseSearchResults } from './_components/caisse-search-results';
 import { AlertBanner } from './_components/alert-banner';
+import { CreatedFlash, ReadyFlash } from './_components/flash-banners';
 import { ScheduledSection } from './_components/scheduled-section';
 import { UrgencyTabs } from './_components/urgency-tabs';
 import {
@@ -38,25 +38,6 @@ import { UndoToastProvider } from '@/lib/hooks/use-undo-toast';
 const SSE_URL = '/api/caisse/stream';
 const SOUND_STORAGE_KEY = 'eba.caisse.sound-enabled';
 const CHIME_REPEAT_MS = 3 * 60_000;
-
-type RawCashierOrder = Omit<
-  CashierOrder,
-  | 'pickupTime'
-  | 'createdAt'
-  | 'preparingStartedAt'
-  | 'readyAt'
-  | 'stockReservedAt'
-> & {
-  pickupTime: string | null;
-  createdAt: string;
-  preparingStartedAt: string | null;
-  readyAt: string | null;
-  stockReservedAt: string | null;
-};
-
-function normalize(raw: unknown): CashierOrder {
-  return normalizeOrderDates(raw as RawCashierOrder);
-}
 
 export function CaisseView({
   initialQueue,
@@ -75,8 +56,8 @@ export function CaisseView({
   >;
   cashierName: string;
 }) {
-  const [tab, setTab] = useState<TabKey>('to-pay');
-  const [search, setSearch] = useState('');
+  const { tab, setTab, search, setSearch, createdFlash, dismissCreatedFlash } =
+    useCaisseParams();
   const { soundEnabled, soundEnabledRef, toggleSound } =
     useSoundPreference(SOUND_STORAGE_KEY);
   const lastChimedAtRef = useRef<Map<string, number>>(new Map());
@@ -95,26 +76,6 @@ export function CaisseView({
   const [readyFlash, setReadyFlash] = useState<number[] | null>(null);
 
   const now = useNowTick(30_000);
-
-  // Confirmation de création : `/dashboard/caisse/new` redirige ici avec
-  // `?cree=<n° du jour>`. Sans ça, valider une commande ne donnait AUCUN retour
-  // au caissier (le n° renvoyé par l'API était jeté).
-  const searchParams = useSearchParams();
-  const createdParam = searchParams.get('cree');
-  const [createdFlash, setCreatedFlash] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!createdParam) return;
-    // Réaction à un paramètre d'URL, pas un dérivé recalculable au rendu.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCreatedFlash(createdParam);
-    // On retire le paramètre pour qu'un rafraîchissement ne rejoue pas la
-    // confirmation. `history.replaceState` plutôt que `router.replace` : pas de
-    // re-rendu RSC de la file pour un simple nettoyage d'URL.
-    window.history.replaceState(null, '', '/dashboard/caisse');
-    const timer = setTimeout(() => setCreatedFlash(null), 8_000);
-    return () => clearTimeout(timer);
-  }, [createdParam]);
 
   const {
     orders: queue,
@@ -240,11 +201,10 @@ export function CaisseView({
   // (à encaisser + en cours + prêtes + programmées), donc le résultat est
   // inter-onglets sans aucun aller-retour serveur.
   const parsedSearch = useMemo(() => parseOrderSearchTerm(search), [search]);
+  // Classés par pertinence : un code de retrait exact sort seul, en tête,
+  // même s'il est tout en bas de la file.
   const results = useMemo(
-    () =>
-      parsedSearch
-        ? queue.filter((o) => matchesOrderSearch(o, parsedSearch))
-        : [],
+    () => (parsedSearch ? searchOrders(queue, parsedSearch) : []),
     [queue, parsedSearch]
   );
   const searching = parsedSearch !== null;
@@ -271,47 +231,17 @@ export function CaisseView({
         />
 
         {createdFlash && (
-          <div className="flex items-center gap-3 rounded-xl border-2 border-primary/30 bg-primary/10 px-4 py-3 text-primary shadow-sm">
-            <CheckCircle2 className="h-6 w-6 shrink-0" aria-hidden="true" />
-            <p className="min-w-0 flex-1 text-sm font-bold">
-              Commande #{createdFlash.padStart(3, '0')} créée
-            </p>
-            <button
-              type="button"
-              onClick={() => setCreatedFlash(null)}
-              aria-label="Fermer"
-              className="shrink-0 rounded-full p-1 transition-colors hover:bg-primary/15"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+          <CreatedFlash
+            dailyNumber={createdFlash}
+            onClose={dismissCreatedFlash}
+          />
         )}
 
         {readyFlash && readyFlash.length > 0 && (
-          <div className="flex items-center gap-3 rounded-xl border-2 border-green-300 bg-green-50 px-4 py-3 text-green-900 shadow-sm dark:border-green-800 dark:bg-green-950/40 dark:text-green-100">
-            <PackageCheck className="h-6 w-6 shrink-0" aria-hidden="true" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold">
-                {readyFlash.length > 1
-                  ? `${readyFlash.length} commandes prêtes !`
-                  : 'Commande prête !'}
-              </p>
-              <p className="truncate text-xs">
-                {readyFlash
-                  .map((n) => `#${String(n).padStart(3, '0')}`)
-                  .join(', ')}{' '}
-                — à remettre au client
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setReadyFlash(null)}
-              aria-label="Fermer"
-              className="shrink-0 rounded-full p-1 text-green-700 transition-colors hover:bg-green-100 dark:text-green-300 dark:hover:bg-green-900/40"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+          <ReadyFlash
+            dailyNumbers={readyFlash}
+            onClose={() => setReadyFlash(null)}
+          />
         )}
 
         <CaisseSearch value={search} onChange={setSearch} />
