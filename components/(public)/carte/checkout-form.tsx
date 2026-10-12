@@ -1,41 +1,26 @@
 'use client';
 
-// components/(public)/carte/checkout-form.tsx
-//
-// Étape 2 du modal de commande, ordonnée comme le processus terrain :
-//   1. Comment ? — je viens / j'envoie un livreur (+ infos livreur & adresse)
-//   2. Qui ? — prénom + téléphone (+ récompense fidélité si le numéro en a une)
-//   3. Quand ? — dès que possible (défaut) ou créneau planifié
-//   4. Note éventuelle
-//
-// Les données retrait (créneaux, horaires d'ouverture, adresse) sont chargées
-// une seule fois via `usePickupInfo` et partagées entre les blocs 1 et 3.
+// Étape 2 du modal de commande : comment (retrait / livreur), qui (contact +
+// récompense fidélité), quand (dès que possible ou créneau), note. Les données
+// retrait sont chargées une fois via `usePickupInfo`.
 
 import dynamic from 'next/dynamic';
-import { useEffect, useRef, useState } from 'react';
 import { Button } from '@heroui/react';
-import { AlertTriangle, ArrowLeft, Sparkles } from 'lucide-react';
-import { useCartStore, type CartItem } from '@/lib/cart-store';
-import { cartItemToAnalyticsItem, trackRemoveFromCart } from '@/lib/analytics';
-import { effectiveItemAdvanceDays } from '@/lib/supplements';
-import { isDeferredPickup } from '@/lib/orders/scheduling';
-import type { CartAvailability } from '@/lib/cart-availability';
-import type { MenuCategory } from '@/config/menu';
-import { useCheckoutForm } from '@/lib/hooks/use-checkout-form';
-import { usePickupInfo } from '@/lib/hooks/use-pickup-info';
-import { useLoyaltyReward } from '@/lib/hooks/use-loyalty-reward';
-import { useLoyaltyTeaser } from '@/lib/hooks/use-loyalty-teaser';
-import type { OnlinePaymentState } from '@/lib/hooks/use-online-payment';
-import { withOnlineFee } from '@/lib/online-fee';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import { priceFormatter } from '@/config/menu';
 import { ContactFields } from './_components/contact-fields';
 import { LoyaltyRewardBanner } from './_components/loyalty-reward-banner';
 import { PickupModeCards } from './_components/pickup-mode-cards';
 import { PrecommandeBanner } from './_components/precommande-banner';
-import { usePrecommandeMode } from './_components/use-precommande-mode';
 import { NoteField } from './_components/note-field';
 import { PaymentMethodPicker } from './_components/payment-method-picker';
 import { SlotPicker } from './_components/slot-picker';
+import {
+  GoneItemsBanner,
+  PreSoldOutBanner,
+} from './_components/checkout/availability-banners';
+import type { CheckoutFormProps } from './_components/checkout/types';
+import { useCheckoutFlow } from './_components/checkout/use-checkout-flow';
 
 // Panneau « Résoudre » (rupture du jour) : chargé seulement quand une rupture
 // est détectée — la plupart des clients ne le verront jamais.
@@ -44,200 +29,39 @@ const SoldOutResolver = dynamic(
   { ssr: false }
 );
 
-type Props = {
-  items: CartItem[];
-  /** Total BRUT du panier (le serveur déduit lui-même la récompense). */
-  total: number;
-  onBack: () => void;
-  /** `paymentUrl` : page de paiement vers laquelle rediriger (null = aucune). */
-  onSuccess: (
-    orderId: string,
-    paymentUrl: string | null,
-    paymentError: boolean
-  ) => void;
-  /** Remonte la remise fidélité appliquée pour le récap de la page. */
-  onLoyaltyDiscountChange?: (discount: number) => void;
-  /** Config du paiement en ligne (lue par la page, cf. `useOnlinePayment`). */
-  onlinePayment: OnlinePaymentState;
-  /** Menu frais chargé par la page (partagé avec le panneau « Résoudre »). */
-  menu?: MenuCategory[] | null;
-  /** Panier revérifié contre ce menu (`useCartAvailability`). */
-  availability?: CartAvailability | null;
-};
-
-export function CheckoutForm({
-  items,
-  total,
-  onBack,
-  onSuccess,
-  onLoyaltyDiscountChange,
-  onlinePayment,
-  menu,
-  availability,
-}: Props) {
-  // Récompense appliquée par défaut (frictionless) ; le client peut la garder
-  // pour une prochaine commande via le Switch du bandeau.
-  const [rewardApplied, setRewardApplied] = useState(true);
-
+export function CheckoutForm(props: CheckoutFormProps) {
+  const { items, onBack, menu, onlinePayment } = props;
+  const flow = useCheckoutFlow(props);
   const {
     values,
     errors,
     isSubmitting,
     setField,
-    submit,
     soldOutLines,
     showSoldOutLines,
     clearSoldOutLines,
-  } = useCheckoutForm({
-    items,
-    total,
-    paymentRequired: onlinePayment.status === 'ready' && onlinePayment.enabled,
-  });
-  const replaceItem = useCartStore((s) => s.replaceItem);
-  const updateQuantity = useCartStore((s) => s.updateQuantity);
-  const removeItem = useCartStore((s) => s.removeItem);
-  const patchItems = useCartStore((s) => s.patchItems);
-  const slotRef = useRef<HTMLDivElement>(null);
-  const contactFieldsRef = useRef<HTMLDivElement>(null);
-  const submitErrorRef = useRef<HTMLParagraphElement>(null);
-  // Plus grand délai de commande à l'avance requis par le panier (voir
-  // `CartItem.advanceOrderDays`, lib/cart-store.ts) : étend l'horizon de
-  // créneaux et contraint le sélecteur (voir SlotPicker).
-  //
-  // `effectiveItemAdvanceDays` intègre aussi les articles ÉPUISÉS AUJOURD'HUI
-  // (J+1 minimum) : un seul mécanisme de contrainte de jour, pas deux.
-  const minAdvanceOrderDays = items.reduce(
-    (max, i) => Math.max(max, effectiveItemAdvanceDays(i)),
-    0
-  );
-  const { soldOutRestricted, precommandePure } = usePrecommandeMode(
-    items,
+    replaceItem,
+    updateQuantity,
+    slotRef,
+    contactFieldsRef,
+    submitErrorRef,
     minAdvanceOrderDays,
-    setField
-  );
-  const pickupInfo = usePickupInfo(minAdvanceOrderDays);
-  // Recherche débouncée de la récompense du numéro saisi.
-  const reward = useLoyaltyReward(values.customerPhone);
-
-  const activeReward =
-    reward.status === 'ready' && rewardApplied ? reward : null;
-  const discount = activeReward ? Math.min(activeReward.capAmount, total) : 0;
-  // Total net (après remise éventuelle) : c'est ce montant qui détermine si un
-  // tampon sera crédité (`awardLoyaltyForOrder` teste le total NET). Le
-  // message incitatif du récapitulatif se calcule donc dessus, dans un second
-  // appel débouncé distinct de la recherche de récompense ci-dessus (celle-ci
-  // ne dépend pas du total, la boucler dessus créerait une dépendance
-  // circulaire reward → discount → netTotal → reward).
-  const netTotal = Math.max(0, total - discount);
-  const loyaltyMessage = useLoyaltyTeaser(values.customerPhone, netTotal);
-  // Paiement en ligne : montant réellement débité = total net + frais.
-  const payOnline = onlinePayment.status === 'ready' && onlinePayment.enabled;
-  const { amountDue } = withOnlineFee(
-    netTotal,
-    onlinePayment.status === 'ready' ? onlinePayment.feePercent : 0
-  );
-
-  // Remonte la remise au récapitulatif de la page (au-dessus du formulaire).
-  useEffect(() => {
-    onLoyaltyDiscountChange?.(discount);
-  }, [discount, onLoyaltyDiscountChange]);
-
-  // Le message générique de bas de formulaire (menu changé, erreur serveur…)
-  // ne doit jamais rester hors écran : sans ça, le client qui n'a pas
-  // redescendu croit que son clic n'a rien fait et vient en MP demander
-  // pourquoi. Le cas « rupture » n'a pas besoin de ça : le panneau « Résoudre »
-  // (ci-dessous) est déjà une modal, donc déjà visible.
-  useEffect(() => {
-    if (errors.submit) {
-      submitErrorRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
-    }
-  }, [errors.submit]);
-
-  // Même logique pour une erreur rattachée au créneau (délai à l'avance,
-  // planning, ou une 400 VALIDATION visant `pickupTime`) : le sélecteur peut
-  // être loin en dessous de la zone visible au moment du clic « Confirmer ».
-  useEffect(() => {
-    if (errors.pickupTime) {
-      slotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [errors.pickupTime]);
-
-  // Idem pour le nom/téléphone : ces champs sont en haut du formulaire, donc
-  // une 400 VALIDATION qui les vise (ex. nom à un seul mot) arrive alors que
-  // le client a déjà scrollé vers le paiement, tout en bas — sans ce
-  // défilement l'erreur reste invisible au-dessus de l'écran.
-  useEffect(() => {
-    if (errors.customerName || errors.customerPhone) {
-      contactFieldsRef.current?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
-    }
-  }, [errors.customerName, errors.customerPhone]);
-
-  // Ruptures détectées AVANT l'envoi (menu frais) : elles ne comptent que
-  // pour un retrait aujourd'hui — un retrait planifié un autre jour laisse le
-  // temps de produire (même règle que `createOrder`, lib/orders.ts).
-  const deferredPickup = isDeferredPickup(
-    values.timing === 'scheduled' ? values.pickupTime : null
-  );
-  const preSoldOutLines = deferredPickup
-    ? []
-    : (availability?.soldOutLines ?? []);
-  const goneItems = items.filter((i) =>
-    availability?.goneCartIds.includes(i.cartId)
-  );
-
-  async function send() {
-    // Un article retiré de la carte bloque : rien à proposer d'autre que de
-    // le retirer (le bandeau en haut du formulaire le dit).
-    if (goneItems.length > 0) return;
-    // Rupture connue : on ouvre directement le panneau « Résoudre » plutôt
-    // que d'attendre le 409 du serveur.
-    if (preSoldOutLines.length > 0) {
-      showSoldOutLines(preSoldOutLines);
-      return;
-    }
-    const outcome = await submit(activeReward);
-    if (outcome.ok)
-      onSuccess(outcome.orderId, outcome.paymentUrl, outcome.paymentError);
-    // Récompense consommée entre-temps : on la retire pour que le prochain
-    // envoi passe sans elle (le message l'explique au client).
-    if (!outcome.ok && outcome.code === 'LOYALTY_REWARD_UNAVAILABLE') {
-      setRewardApplied(false);
-    }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    await send();
-  }
-
-  // Résolution d'une rupture — le panier est la source de vérité : une ligne
-  // remplacée ou retirée en disparaît, une ligne reportée y est marquée
-  // `soldOutToday` (J+1 minimum via `effectiveItemAdvanceDays`).
-  function handleRemove(cartId: string) {
-    const item = items.find((i) => i.cartId === cartId);
-    if (item) trackRemoveFromCart([cartItemToAnalyticsItem(item)]);
-    removeItem(cartId);
-  }
-
-  function handleDeferAll(cartIds: string[]) {
-    patchItems(
-      Object.fromEntries(cartIds.map((id) => [id, { soldOutToday: true }]))
-    );
-    clearSoldOutLines();
-    // Le sélecteur bascule seul en « Planifier » dès qu'un article exige
-    // J+1 ; on y amène le client pour qu'il choisisse son créneau.
-    setField('timing', 'scheduled');
-    setField('pickupTime', null);
-    requestAnimationFrame(() =>
-      slotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    );
-  }
+    soldOutRestricted,
+    precommandePure,
+    pickupInfo,
+    reward,
+    rewardApplied,
+    setRewardApplied,
+    loyaltyMessage,
+    payOnline,
+    amountDue,
+    goneItems,
+    preSoldOutLines,
+    send,
+    handleSubmit,
+    handleRemove,
+    handleDeferAll,
+  } = flow;
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -251,52 +75,14 @@ export function CheckoutForm({
       </button>
 
       {goneItems.length > 0 && (
-        <div className="rounded-xl bg-danger-50 p-3 text-sm text-danger-700">
-          <p className="flex items-center gap-2 font-medium">
-            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-            {goneItems.length > 1
-              ? 'Ces articles ne sont plus disponibles'
-              : 'Cet article n’est plus disponible'}
-          </p>
-          <ul className="mt-1.5">
-            {goneItems.map((item) => (
-              <li
-                key={item.cartId}
-                className="flex items-center justify-between gap-2"
-              >
-                <span className="min-w-0 truncate">{item.productName}</span>
-                <Button
-                  size="sm"
-                  variant="flat"
-                  color="danger"
-                  className="min-h-9"
-                  onPress={() => handleRemove(item.cartId)}
-                >
-                  Retirer
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <GoneItemsBanner goneItems={goneItems} onRemove={handleRemove} />
       )}
 
       {goneItems.length === 0 && preSoldOutLines.length > 0 && (
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-warning-50 p-3 text-sm text-warning-700">
-          <p className="flex min-w-0 items-center gap-2 font-medium">
-            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
-            {preSoldOutLines.length > 1
-              ? `${preSoldOutLines.length} articles épuisés aujourd’hui`
-              : `${preSoldOutLines[0].productName} : épuisé aujourd’hui`}
-          </p>
-          <Button
-            size="sm"
-            color="warning"
-            className="min-h-9 shrink-0"
-            onPress={() => showSoldOutLines(preSoldOutLines)}
-          >
-            Résoudre
-          </Button>
-        </div>
+        <PreSoldOutBanner
+          lines={preSoldOutLines}
+          onResolve={showSoldOutLines}
+        />
       )}
 
       {/* Statut global, sous les bandeaux d'erreur (actionnables/urgents) :
@@ -366,7 +152,7 @@ export function CheckoutForm({
         onChange={(v) => setField('note', v)}
       />
 
-      {payOnline && (
+      {onlinePayment.status === 'ready' && onlinePayment.enabled && (
         <PaymentMethodPicker
           methods={onlinePayment.methods}
           value={values.paymentMethod}
