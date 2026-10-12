@@ -1,27 +1,13 @@
 'use client';
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  useTransition,
-} from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Plus, X } from 'lucide-react';
 import {
-  cancelOrderFromKitchen,
   markOrderPaidFromKitchen,
-  markOrderReady,
-  markOrderRetrieved,
-  requestDriver,
-  revertOrderRetrieved,
   setOrderCustomerFromKitchen,
-  startPreparation,
 } from './actions';
-import { UndoToastProvider, useUndoToast } from '@/lib/hooks/use-undo-toast';
-import { useShortageConfirm } from '../_components/use-shortage-confirm';
+import { UndoToastProvider } from '@/lib/hooks/use-undo-toast';
 import { type PreparationOrder } from '@/lib/preparation-queue';
 import type { MenuCategory } from '@/config/menu';
 import type { ContactSettings } from '@/lib/contact-settings';
@@ -31,43 +17,19 @@ import {
   useSoundPreference,
 } from '@/lib/hooks/use-orders-stream';
 import { useNowTick } from '@/lib/hooks/use-now-tick';
-import { normalizeOrderDates } from '@/lib/orders/format';
-import {
-  isAwaitingKitchenLaunch,
-  isScheduledAhead,
-  kitchenLaunchState,
-} from '@/lib/orders/scheduling';
-import { buildProductionPlan } from '@/lib/orders/production-plan';
-import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
 import { PreparationHeader } from './_components/preparation-header';
 import { EmptyState } from './_components/empty-state';
 import { PrepOrderCard } from './_components/prep-order-card';
 import { OrderDetailSheet } from './_components/order-detail-sheet';
 import { OrdersListSheet } from './_components/orders-list-sheet';
 import { ProductionSheet } from './_components/production-sheet';
-import { elapsedMinutes } from './_components/elapsed';
+import { normalize } from './_components/view/normalize';
+import { useCreatedFlash } from './_components/view/use-created-flash';
+import { usePreparationActions } from './_components/view/use-preparation-actions';
+import { usePreparationLists } from './_components/view/use-preparation-lists';
 
 const SOUND_STORAGE_KEY = 'eba.preparation.sound-enabled';
 const SSE_URL = '/api/preparation/stream';
-
-type RawPreparationOrder = Omit<
-  PreparationOrder,
-  | 'pickupTime'
-  | 'createdAt'
-  | 'preparingStartedAt'
-  | 'readyAt'
-  | 'stockReservedAt'
-> & {
-  pickupTime: string | null;
-  createdAt: string;
-  preparingStartedAt: string | null;
-  readyAt: string | null;
-  stockReservedAt: string | null;
-};
-
-function normalize(raw: unknown): PreparationOrder {
-  return normalizeOrderDates(raw as RawPreparationOrder);
-}
 
 export function PreparationView(props: {
   initialQueue: PreparationOrder[];
@@ -90,42 +52,16 @@ function PreparationViewInner({
   menu: MenuCategory[];
   contactSettings: Pick<ContactSettings, 'yangoLandmark' | 'phone'>;
 }) {
-  const [isPending, startTransition] = useTransition();
-  // Commandes masquées optimistiquement (annulation) le temps que le serveur
-  // réconcilie via SSE.
-  const [optimisticHidden, setOptimisticHidden] = useState<Set<string>>(
-    () => new Set()
-  );
-  // Cartes en cours d'action (spinner + double-clic bloqué), par commande.
-  const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
   // Commande agrandie dans le bottom sheet de détail (null = fermé).
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Bottom sheet de liste ouvert (programmées / prêtes / à encaisser / à produire), null = aucun.
+  // Bottom sheet de liste ouvert, null = aucun.
   const [openSheet, setOpenSheet] = useState<
     'scheduled' | 'ready' | 'topay' | 'production' | null
   >(null);
-  // Échec d'un lancement (stock, concurrence) : affiché, jamais avalé.
-  const [launchError, setLaunchError] = useState<string | null>(null);
   const { soundEnabled, soundEnabledRef, toggleSound } =
     useSoundPreference(SOUND_STORAGE_KEY);
-  const { confirmShortage, shortageDialog } = useShortageConfirm();
-  const { pushUndo } = useUndoToast();
   const now = useNowTick(15_000);
-
-  // Confirmation de création : `/dashboard/preparation/new` redirige ici avec
-  // `?cree=<n° du jour>` — même patron que la caisse (`caisse-view.tsx`),
-  // sans quoi valider une commande depuis la cuisine ne donnait aucun retour.
-  const searchParams = useSearchParams();
-  const createdParam = searchParams.get('cree');
-  const [createdFlash, setCreatedFlash] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!createdParam) return;
-    setCreatedFlash(createdParam);
-    window.history.replaceState(null, '', '/dashboard/preparation');
-    const timer = setTimeout(() => setCreatedFlash(null), 8_000);
-    return () => clearTimeout(timer);
-  }, [createdParam]);
+  const { createdFlash, setCreatedFlash } = useCreatedFlash();
 
   const { orders, connState, isStale, lastSync } =
     useOrdersStream<PreparationOrder>({
@@ -134,208 +70,36 @@ function PreparationViewInner({
       normalize,
       getId: (o) => o.id,
       onNewOrders: (newOrders) => {
-        // Ne carillonner que pour les NOUVELLES commandes en préparation (pas les
-        // prêtes, qui apparaissent aussi dans le flux mais ne sont pas du travail).
+        // Carillon pour les NOUVELLES commandes en préparation seulement (les prêtes ne sont pas du travail).
         const hasPreparing = newOrders.some((o) => o.status === 'PREPARING');
         if (hasPreparing && soundEnabledRef.current) playNewOrderChime();
       },
     });
 
-  const visible = useMemo(
-    () => orders.filter((o) => !optimisticHidden.has(o.id)),
-    [orders, optimisticHidden]
-  );
-  // « À cuisiner maintenant » : en préparation et PAS programmée lointaine.
-  const cooking = useMemo(
-    () =>
-      visible.filter(
-        (o) => o.status === 'PREPARING' && !isScheduledAhead(o, now)
-      ),
-    [visible, now]
-  );
-  // Programmées : déchargées de la grille. Deux populations, même section —
-  //   1. déjà en cuisine mais à retrait lointain (`isScheduledAhead`) ;
-  //   2. PAS ENCORE LANCÉES (`NEW` à créneau) : elles attendent le geste
-  //      « Lancer la préparation ». Sans le second cas, une commande pour
-  //      demain n'apparaîtrait nulle part en cuisine.
-  const scheduled = useMemo(
-    () =>
-      visible
-        .filter(
-          (o) =>
-            (o.status === 'PREPARING' && isScheduledAhead(o, now)) ||
-            isAwaitingKitchenLaunch(o)
-        )
-        .sort(
-          (a, b) =>
-            (a.pickupTime?.getTime() ?? 0) - (b.pickupTime?.getTime() ?? 0)
-        ),
-    [visible, now]
-  );
-  // « À produire » : commandes en cuisine + programmées pas encore lancées,
-  // groupées par jour de retrait.
-  // Aucune requête dédiée — le flux SSE porte déjà tout ce qu'il faut.
-  const productionPlan = useMemo(
-    () => buildProductionPlan(visible, now),
-    [visible, now]
-  );
-  // Commandes à créneau pas encore lancées dont le retrait tombe AUJOURD'HUI :
-  // « à lancer » dès l'ouverture, pas seulement 30 min avant (cf.
-  // `kitchenLaunchState`) — rouge quand l'une d'elles devient urgente.
-  const { toLaunchCount, toLaunchUrgent } = useMemo(() => {
-    const states = scheduled.map((o) => kitchenLaunchState(o, now));
-    return {
-      toLaunchCount: states.filter((st) => st === 'today' || st === 'now')
-        .length,
-      toLaunchUrgent: states.includes('now'),
-    };
-  }, [scheduled, now]);
-  const ready = useMemo(
-    () => visible.filter((o) => o.status === 'READY'),
-    [visible]
-  );
-  // Ardoise : en cuisine (préparation ou prête) mais pas encore payée. Exclut
-  // volontairement les NEW programmées pas encore lancées (pas physiquement
-  // présentes à encaisser maintenant).
-  const toPay = useMemo(
-    () => visible.filter((o) => !o.isPaid && o.status !== 'NEW'),
-    [visible]
-  );
-  const readyAlert = useMemo(
-    () =>
-      ready.some(
-        (o) =>
-          elapsedMinutes(o.readyAt ?? o.createdAt, now) >=
-          READY_WAIT_ALERT_MINUTES
-      ),
-    [ready, now]
-  );
-  // Commande actuellement agrandie (retrouvée dans le flux live → chrono/statut
-  // à jour ; le sheet se ferme tout seul si elle disparaît).
-  const selected = useMemo(
-    () => visible.find((o) => o.id === selectedId) ?? null,
-    [visible, selectedId]
-  );
-
-  const setPending = useCallback((id: string, on: boolean) => {
-    setPendingIds((prev) => {
-      const next = new Set(prev);
-      if (on) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }, []);
-
-  const handleReady = useCallback(
-    (id: string) => {
-      setPending(id, true);
-      startTransition(async () => {
-        try {
-          await markOrderReady(id);
-        } catch (err) {
-          console.error('[preparation] markOrderReady échoué :', err);
-        } finally {
-          setPending(id, false);
-        }
-      });
-    },
-    [setPending]
-  );
-
-  const handleRetrieved = useCallback(
-    (id: string) => {
-      // Le statut précédent (READY normalement, PREPARING pour une
-      // récupération anticipée) détermine où revenir en cas d'« Annuler ».
-      const order = orders.find((o) => o.id === id);
-      const previousStatus = order?.status;
-      setPending(id, true);
-      startTransition(async () => {
-        try {
-          await markOrderRetrieved(id);
-          if (
-            order &&
-            (previousStatus === 'READY' || previousStatus === 'PREPARING')
-          ) {
-            pushUndo({
-              message: `Commande #${String(order.dailyNumber).padStart(3, '0')} marquée récupérée`,
-              onUndo: () => revertOrderRetrieved(id, previousStatus),
-            });
-          }
-        } catch (err) {
-          console.error('[preparation] markOrderRetrieved échoué :', err);
-        } finally {
-          setPending(id, false);
-        }
-      });
-    },
-    [setPending, orders, pushUndo]
-  );
-
-  /**
-   * Lance une commande programmée. Si le stock manque, on ne renvoie PAS le
-   * cuisinier dans le menu : on lui montre ce qui manque, et s'il confirme
-   * l'avoir produit, on enregistre la production et on relance. Tout se fait
-   * depuis cet écran.
-   */
-  const handleStartPreparation = useCallback(
-    (id: string) => {
-      setPending(id, true);
-      startTransition(async () => {
-        try {
-          let result = await startPreparation(id);
-          if (
-            result?.shortage?.length &&
-            (await confirmShortage(result.shortage))
-          ) {
-            result = await startPreparation(id, { coverShortage: true });
-          }
-          setLaunchError(result?.error ?? null);
-        } catch (err) {
-          setLaunchError(
-            err instanceof Error ? err.message : 'Erreur inattendue'
-          );
-        } finally {
-          setPending(id, false);
-        }
-      });
-    },
-    [setPending, confirmShortage]
-  );
-
-  const handleRequestDriver = useCallback(
-    (id: string) => {
-      setPending(id, true);
-      startTransition(async () => {
-        try {
-          await requestDriver(id);
-        } catch (err) {
-          console.error('[preparation] requestDriver échoué :', err);
-        } finally {
-          setPending(id, false);
-        }
-      });
-    },
-    [setPending]
-  );
-
-  const handleCancel = useCallback(
-    (id: string) => {
-      const order = orders.find((o) => o.id === id);
-      if (!confirm(`Annuler la commande ${order?.reference ?? ''} ?`)) return;
-      setPending(id, true);
-      setOptimisticHidden((prev) => new Set(prev).add(id));
-      startTransition(async () => {
-        try {
-          await cancelOrderFromKitchen(id);
-        } catch (err) {
-          console.error('[preparation] cancelOrderFromKitchen échoué :', err);
-        } finally {
-          setPending(id, false);
-        }
-      });
-    },
-    [orders, setPending]
-  );
+  const actions = usePreparationActions(orders);
+  const {
+    isPending,
+    optimisticHidden,
+    pendingIds,
+    launchError,
+    shortageDialog,
+    handleReady,
+    handleRetrieved,
+    handleStartPreparation,
+    handleRequestDriver,
+    handleCancel,
+  } = actions;
+  const {
+    cooking,
+    scheduled,
+    productionPlan,
+    toLaunchCount,
+    toLaunchUrgent,
+    ready,
+    toPay,
+    readyAlert,
+    selected,
+  } = usePreparationLists(orders, optimisticHidden, selectedId, now);
 
   // Grille principale vide : plus aucune commande à cuisiner maintenant.
   const isEmpty = cooking.length === 0;
@@ -347,8 +111,7 @@ function PreparationViewInner({
           cooking: cooking.length,
           scheduled: scheduled.length,
           ready: ready.length,
-          // Le compteur porte sur le premier jour chargé — « ce qu'il y a à
-          // faire là, tout de suite », pas un total de la semaine.
+          // Premier jour chargé : « ce qu'il y a à faire là, tout de suite », pas un total de la semaine.
           production: productionPlan[0]?.totalItems ?? 0,
           toPay: toPay.length,
         }}
@@ -408,8 +171,7 @@ function PreparationViewInner({
         </div>
       ) : (
         <div className="flex flex-1 flex-col gap-5 pt-4">
-          {/* À cuisiner maintenant : grille de cartes, visible d'un coup d'œil.
-              Toucher une carte l'agrandit dans le bottom sheet de détail. */}
+          {/* À cuisiner maintenant ; toucher une carte l'agrandit dans le bottom sheet de détail. */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {cooking.map((order) => (
               <PrepOrderCard
