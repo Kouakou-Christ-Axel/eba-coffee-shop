@@ -1,312 +1,28 @@
-// app/api/mcp/route.ts
+// Serveur MCP distant (transport « Streamable HTTP ») : administration de
+// l'app pour un client comme Claude. Doc : app/api/mcp/README.md.
 //
-// Serveur MCP (Model Context Protocol) distant — transport « Streamable HTTP ».
-// Expose l'administration de l'app (menu, stats, dépenses, caisse, fidélité…) à
-// un client MCP comme Claude.
+// Auth, dans l'ordre :
+//   1. Jeton statique `MCP_API_KEY` en Bearer (optionnel, clients « machine »).
+//   2. OAuth 2.0 (plugin MCP de Better Auth) : comptes ADMIN, MANAGER,
+//      COMPTABLE (outils finance, `FINANCE_TOOL_NAMES`) ou ANALYSTE (lecture
+//      seule, `READ_ONLY_TOOL_NAMES`).
+// `?toolset=` restreint en plus, par intersection avec le rôle.
 //
-// Deux façons de s'authentifier, dans cet ordre :
-//
-//   1. Jeton statique `MCP_API_KEY` en `Authorization: Bearer <token>`
-//      (comparaison à temps constant). Pratique pour un client « machine » qui
-//      gère ses en-têtes (Claude Code CLI, Claude Desktop, curl). Optionnel.
-//
-//   2. OAuth 2.0 (plugin MCP de Better Auth). Le client (Claude web/mobile) ne
-//      sait pas coller un en-tête Bearer : il suit le flux OAuth, l'utilisateur
-//      se connecte avec SON compte, et un jeton d'accès lui est délivré. On
-//      n'autorise que les comptes ADMIN, MANAGER, COMPTABLE ou ANALYSTE —
-//      chaque collaborateur a son propre accès, traçable et révocable.
-//      COMPTABLE est restreint aux outils finance (dépenses, investissements,
-//      régularisations, clôture, stats — cf. `FINANCE_TOOL_NAMES`). ANALYSTE
-//      est restreint aux outils en lecture seule, tous domaines confondus
-//      (cf. `READ_ONLY_TOOL_NAMES`).
-//
-// Un client peut en plus se restreindre volontairement à un sous-ensemble de
-// domaines via `?toolset=finance,inventaire` (cf. section « Filtrage par
-// toolset » ci-dessous) — composé PAR INTERSECTION avec la restriction de
-// rôle, jamais un remplacement.
-//
-// Le dispatch JSON-RPC vit dans `lib/mcp/handler.ts` ; cette route ne gère que
-// le transport HTTP (auth, parsing, réponse, CORS) et l'invalidation du cache.
+// Le dispatch JSON-RPC vit dans `lib/mcp/handler.ts` ; le transport HTTP
+// (auth, parsing, SSE, cache) dans `lib/mcp/http/`.
 
-import { NextResponse } from 'next/server';
-import { revalidatePath } from 'next/cache';
-import { timingSafeEqual } from 'node:crypto';
-import { withMcpAuth } from 'better-auth/plugins';
-import { auth } from '@/lib/auth';
-import prisma from '@/lib/prisma';
 import { withCors, corsPreflight } from '@/lib/mcp/cors';
-import { handleRpc } from '@/lib/mcp/handler';
-import {
-  FINANCE_TOOL_NAMES,
-  READ_ONLY_TOOL_NAMES,
-  TOOLSET_NAMES,
-  TOOLSET_TOOL_NAMES,
-} from '@/lib/mcp/tools';
-import type { UserRole } from '@/generated/prisma/client';
+import { processRpc } from '@/lib/mcp/http/rpc';
+import { withRoleGuard } from '@/lib/mcp/http/role-guard';
+import { sseStream } from '@/lib/mcp/http/sse';
+import { matchesStaticKey } from '@/lib/mcp/http/static-key';
+import { resolveToolsetParam } from '@/lib/mcp/http/toolset';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Le CORS (reflet des en-têtes + préflight) est partagé avec les endpoints de
-// découverte OAuth : voir `lib/mcp/cors.ts`.
-
-// ─── Authentification par jeton statique (optionnelle) ──────────────────────
-//
-// Retourne `true` UNIQUEMENT si `MCP_API_KEY` est configurée ET correspond au
-// Bearer fourni. Sinon `false` → on tente le chemin OAuth (le Bearer présenté
-// peut être un jeton d'accès OAuth, pas la clé statique).
-
-function matchesStaticKey(req: Request): boolean {
-  const expected = process.env.MCP_API_KEY;
-  if (!expected) return false;
-
-  const header = req.headers.get('authorization') ?? '';
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match) return false;
-
-  // Comparaison à temps constant. `timingSafeEqual` exige des buffers de même
-  // longueur — on encode les deux et on rejette d'abord les longueurs distinctes.
-  const a = Buffer.from(match[1]);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
-// ─── Invalidation du cache menu après écriture ──────────────────────────────
-//
-// Reproduit le comportement des server actions (`dashboard/menu/actions.ts`) :
-// après une mutation, on revalide les pages qui consomment le menu.
-
-function revalidateMenu() {
-  try {
-    revalidatePath('/api/menu');
-    revalidatePath('/carte');
-    revalidatePath('/');
-    revalidatePath('/dashboard/inventaire');
-  } catch (err) {
-    // En dehors d'un contexte de requête Next, revalidatePath peut échouer.
-    // L'écriture en base a déjà eu lieu : on ne fait pas échouer l'appel MCP.
-    console.warn('[mcp] revalidateMenu a échoué', err);
-  }
-}
-
-// ─── Filtrage par toolset (paramètre `?toolset=`) ────────────────────────────
-//
-// Un client peut restreindre `tools/list`/`tools/call` à un sous-ensemble de
-// domaines via `?toolset=finance,inventaire` (slugs séparés par des virgules,
-// cf. `TOOLSET_NAMES`). Se compose PAR INTERSECTION avec la restriction de
-// rôle déjà calculée par `withRoleGuard` — jamais un remplacement : un
-// ANALYSTE qui demande `?toolset=finance` reste borné à
-// `READ_ONLY_TOOL_NAMES` ∩ outils du domaine finance (peut légitimement
-// aboutir à un `tools/list` vide, ce n'est pas une erreur).
-
-type ToolsetParam = { allowedTools?: Set<string> };
-
-function invalidToolsetResponse(invalidSlug: string): Response {
-  return NextResponse.json(
-    {
-      jsonrpc: '2.0',
-      id: null,
-      error: {
-        code: -32602,
-        message:
-          `Toolset invalide : "${invalidSlug}". Valeurs autorisées : ` +
-          `${TOOLSET_NAMES.join(', ')}.`,
-      },
-    },
-    { status: 400 }
-  );
-}
-
-function resolveToolsetParam(req: Request): ToolsetParam | Response {
-  const raw = new URL(req.url).searchParams.get('toolset');
-  if (!raw || raw.trim() === '') return {};
-
-  const slugs = raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  if (slugs.length === 0) return invalidToolsetResponse(raw);
-
-  for (const slug of slugs) {
-    if (!(TOOLSET_NAMES as readonly string[]).includes(slug)) {
-      return invalidToolsetResponse(slug);
-    }
-  }
-
-  const allowedTools = new Set<string>();
-  for (const slug of slugs as (typeof TOOLSET_NAMES)[number][]) {
-    for (const name of TOOLSET_TOOL_NAMES[slug]) allowedTools.add(name);
-  }
-  return { allowedTools };
-}
-
-// `undefined` = aucune restriction (élément neutre de l'intersection).
-function intersectAllowedTools(
-  a: Set<string> | undefined,
-  b: Set<string> | undefined
-): Set<string> | undefined {
-  if (!a) return b;
-  if (!b) return a;
-  const out = new Set<string>();
-  for (const name of a) if (b.has(name)) out.add(name);
-  return out;
-}
-
-// ─── Traitement JSON-RPC (commun aux deux chemins d'auth) ───────────────────
-
-async function processRpc(
-  req: Request,
-  allowedTools?: Set<string>
-): Promise<Response> {
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json(
-      {
-        jsonrpc: '2.0',
-        id: null,
-        error: { code: -32700, message: 'Parse error' },
-      },
-      { status: 400 }
-    );
-  }
-
-  const options = { onWriteSuccess: revalidateMenu, allowedTools };
-
-  // JSON-RPC 2.0 : on accepte un message unique ou (compat clients anciens) un
-  // lot. Les notifications (sans réponse) sont filtrées.
-  if (Array.isArray(body)) {
-    if (body.length === 0) {
-      return NextResponse.json(
-        {
-          jsonrpc: '2.0',
-          id: null,
-          error: { code: -32600, message: 'Invalid Request' },
-        },
-        { status: 400 }
-      );
-    }
-    const responses = (
-      await Promise.all(body.map((m) => handleRpc(m, options)))
-    ).filter((r) => r !== null);
-    if (responses.length === 0) {
-      return new NextResponse(null, { status: 202 });
-    }
-    return NextResponse.json(responses);
-  }
-
-  const response = await handleRpc(body, options);
-  if (response === null) {
-    // Notification : pas de corps de réponse.
-    return new NextResponse(null, { status: 202 });
-  }
-  return NextResponse.json(response);
-}
-
-// ─── Chemin OAuth : jeton valide + rôle autorisé ────────────────────────────
-//
-// `withMcpAuth` valide le jeton d'accès OAuth (sinon 401 + `WWW-Authenticate`
-// pointant vers la métadonnée de ressource, ce qui amorce la découverte côté
-// client). On exige ensuite que l'utilisateur derrière le jeton ait un rôle
-// autorisé (ADMIN, MANAGER, COMPTABLE ou ANALYSTE). `withRoleGuard` enveloppe
-// un handler déjà autorisé (POST JSON-RPC ou flux SSE GET) : même logique
-// d'auth, deux usages. COMPTABLE reçoit en plus un `allowedTools` qui
-// restreint `tools/list`/`tools/call` aux outils finance ; ANALYSTE reçoit un
-// `allowedTools` restreint aux outils en lecture seule, tous domaines
-// confondus.
-
-const MCP_ROLES: UserRole[] = ['ADMIN', 'MANAGER', 'COMPTABLE', 'ANALYSTE'];
-
-function forbidden(): Response {
-  return NextResponse.json(
-    {
-      jsonrpc: '2.0',
-      id: null,
-      error: {
-        code: -32001,
-        message: 'Accès refusé : rôle non autorisé pour le serveur MCP',
-      },
-    },
-    { status: 403 }
-  );
-}
-
-function withRoleGuard(
-  handler: (
-    req: Request,
-    allowedTools?: Set<string>
-  ) => Response | Promise<Response>
-) {
-  return withMcpAuth(auth, async (req, session) => {
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-      select: { role: true, disabledAt: true },
-    });
-    if (!user || user.disabledAt || !MCP_ROLES.includes(user.role))
-      return forbidden();
-    const roleAllowedTools =
-      user.role === 'COMPTABLE'
-        ? FINANCE_TOOL_NAMES
-        : user.role === 'ANALYSTE'
-          ? READ_ONLY_TOOL_NAMES
-          : undefined;
-
-    const toolset = resolveToolsetParam(req);
-    if (toolset instanceof Response) return toolset;
-
-    return handler(
-      req,
-      intersectAllowedTools(roleAllowedTools, toolset.allowedTools)
-    );
-  });
-}
-
 const oauthPostHandler = withRoleGuard(processRpc);
 const oauthGetHandler = withRoleGuard(() => sseStream());
-
-// ─── Flux SSE pour GET (transport « Streamable HTTP ») ───────────────────────
-//
-// Le transport MCP « Streamable HTTP » prévoit que le client ouvre un flux SSE
-// via GET pour recevoir d'éventuels messages serveur→client. Notre serveur est
-// sans état et ne pousse rien, mais les clients (dont le proxy de Claude) ont
-// besoin que ce flux EXISTE : répondre 405 fait échouer la connexion
-// (« impossible de se connecter au serveur »). On ouvre donc un flux vide
-// maintenu en vie par des commentaires keep-alive.
-
-function sseStream(): Response {
-  const encoder = new TextEncoder();
-  let keepAlive: ReturnType<typeof setInterval> | undefined;
-
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(encoder.encode(': open\n\n'));
-      keepAlive = setInterval(() => {
-        try {
-          controller.enqueue(encoder.encode(': keep-alive\n\n'));
-        } catch {
-          // Flux déjà fermé : on ignore.
-        }
-      }, 25000);
-    },
-    cancel() {
-      if (keepAlive) clearInterval(keepAlive);
-    },
-  });
-
-  return new Response(stream, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-transform',
-      // Empêche nginx de bufferiser le flux SSE (sinon le client ne voit rien).
-      'X-Accel-Buffering': 'no',
-    },
-  });
-}
-
-// ─── POST : messages JSON-RPC ────────────────────────────────────────────────
 
 export async function POST(req: Request): Promise<Response> {
   // 1. Clé statique (propriétaire / clients « machine »).
@@ -319,21 +35,16 @@ export async function POST(req: Request): Promise<Response> {
   return withCors(await oauthPostHandler(req), req);
 }
 
-// ─── OPTIONS : préflight CORS ────────────────────────────────────────────────
-
 export const OPTIONS = corsPreflight;
 
-// ─── GET : flux SSE serveur→client (Streamable HTTP) ─────────────────────────
-
 export async function GET(req: Request): Promise<Response> {
-  // 1. Clé statique. On valide `?toolset=` même si `sseStream()` ne l'utilise
-  // pas (flux vide keep-alive) : mieux vaut un 400 immédiat ici qu'un échec
-  // tardif et confus sur le premier `tools/list` avec la même URL.
+  // 1. Clé statique. `?toolset=` validé même si le flux est vide : mieux vaut
+  // un 400 immédiat qu'un échec tardif sur le premier `tools/list`.
   if (matchesStaticKey(req)) {
     const toolset = resolveToolsetParam(req);
     if (toolset instanceof Response) return withCors(toolset, req);
     return withCors(sseStream(), req);
   }
-  // 2. OAuth (+ garde ADMIN). Sans jeton valide → 401 + WWW-Authenticate.
+  // 2. OAuth. Sans jeton valide → 401 + WWW-Authenticate.
   return withCors(await oauthGetHandler(req), req);
 }
