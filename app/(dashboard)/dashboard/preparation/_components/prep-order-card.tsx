@@ -1,56 +1,19 @@
 'use client';
 
-import { formatAbidjanTime } from '@/lib/timezone';
-import {
-  Bike,
-  Bot,
-  Check,
-  CheckCheck,
-  ChefHat,
-  Coffee,
-  Globe,
-  Maximize2,
-  ShoppingBag,
-  StickyNote,
-  Timer,
-  X,
-} from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { aggregateOrderSupplements, getPickupCode } from '@/lib/orders/format';
-import {
-  buildDriverRequestMessage,
-  buildWhatsAppLink,
-} from '@/lib/contact-links';
 import type { PreparationOrder } from '@/lib/preparation-queue';
 import type { ContactSettings } from '@/lib/contact-settings';
-import type { OrderType } from '@/generated/prisma/client';
 import {
   elapsedMinutes,
   elapsedTone,
-  formatElapsed,
   KITCHEN_ALERT_MIN,
   KITCHEN_WARN_MIN,
-  TONE_CLASS,
 } from './elapsed';
+import { CardActions } from './prep-card/card-actions';
+import { CardBody } from './prep-card/card-body';
+import { DriverRequest } from './prep-card/driver-request';
 
-export const ORDER_TYPE_META: Record<
-  OrderType,
-  { label: string; Icon: typeof Bike }
-> = {
-  DELIVERY: { label: 'Livraison', Icon: Bike },
-  DINE_IN: { label: 'Sur place', Icon: Coffee },
-  TAKEAWAY: { label: 'À emporter', Icon: ShoppingBag },
-};
-
-// Origine de création : même patron que la caisse
-// (`app/(dashboard)/dashboard/caisse/order-card.tsx`) — le cas courant
-// CASHIER n'affiche rien, ONLINE/MCP se distinguent d'un coup d'œil.
-export const SOURCE_META: Partial<
-  Record<PreparationOrder['source'], { label: string; Icon: typeof Globe }>
-> = {
-  ONLINE: { label: 'En ligne', Icon: Globe },
-  MCP: { label: 'MCP', Icon: Bot },
-};
+export { ORDER_TYPE_META, SOURCE_META } from './prep-card/meta';
 
 type Props = {
   order: PreparationOrder;
@@ -75,24 +38,12 @@ export function PrepOrderCard({
   onRequestDriver,
   onRetrieve,
 }: Props) {
-  const typeMeta = ORDER_TYPE_META[order.orderType];
-  const TypeIcon = typeMeta.Icon;
   const isDelivery = order.orderType === 'DELIVERY';
-  const driverLink = buildWhatsAppLink(
-    order.customerPhone,
-    buildDriverRequestMessage({
-      customerName: order.customerName,
-      dailyNumber: order.dailyNumber,
-      yangoLandmark: contactSettings.yangoLandmark,
-      phone: contactSettings.phone,
-    })
-  );
-  // Chrono « en cuisine depuis X » : depuis l'entrée en cuisine, repli createdAt
-  // pour les commandes antérieures à la colonne preparingStartedAt.
+  // Chrono « en cuisine depuis X » : repli createdAt pour les commandes
+  // antérieures à la colonne preparingStartedAt.
   const since = order.preparingStartedAt ?? order.createdAt;
   const mins = elapsedMinutes(since, now);
   const tone = elapsedTone(mins, KITCHEN_WARN_MIN, KITCHEN_ALERT_MIN);
-  const supplementLines = aggregateOrderSupplements(order.items);
 
   return (
     <article
@@ -105,220 +56,24 @@ export function PrepOrderCard({
             : 'border-border'
       )}
     >
-      {/* Corps tactile : toucher pour agrandir la commande dans un bottom sheet
-          lisible de loin. Les boutons d'action vivent hors de cette zone. */}
-      <button
-        type="button"
-        onClick={() => onExpand(order.id)}
-        aria-label={`Agrandir la commande #${String(order.dailyNumber).padStart(3, '0')}`}
-        className="flex flex-1 cursor-pointer flex-col gap-2 rounded-t-2xl p-3 text-left transition-colors hover:bg-muted/40 active:bg-muted/60"
-      >
-        {/* En-tête : n° + code retrait + chrono */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="flex items-center gap-1.5 font-mono text-xl font-bold leading-none">
-              #{String(order.dailyNumber).padStart(3, '0')}
-              <span
-                className="rounded bg-primary/10 px-1.5 text-base text-primary"
-                title="Code de retrait"
-              >
-                {getPickupCode(order.reference)}
-              </span>
-              <Maximize2
-                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                aria-hidden
-              />
-            </p>
-            <p className="mt-1 flex items-center gap-1.5 text-sm">
-              <TypeIcon
-                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                aria-label={typeMeta.label}
-              />
-              <span className="truncate font-medium">
-                {order.customerName ?? 'Client anonyme'}
-              </span>
-              {SOURCE_META[order.source] &&
-                (() => {
-                  const { Icon, label } = SOURCE_META[order.source]!;
-                  return (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                      <Icon className="h-3 w-3" aria-hidden="true" />
-                      {label}
-                    </span>
-                  );
-                })()}
-            </p>
-          </div>
-          <span
-            className={cn(
-              'flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-sm font-bold tabular-nums',
-              TONE_CLASS[tone]
-            )}
-            title="Temps écoulé en cuisine"
-          >
-            <Timer className="h-3.5 w-3.5" />
-            {formatElapsed(mins)}
-          </span>
-        </div>
+      <CardBody order={order} mins={mins} tone={tone} onExpand={onExpand} />
 
-        {/* Badges : non payé / créneau programmé */}
-        {(!order.isPaid || order.pickupTime) && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {!order.isPaid && (
-              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-medium text-orange-900 dark:bg-orange-950 dark:text-orange-100">
-                À encaisser après
-              </span>
-            )}
-            {order.pickupTime && (
-              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-900 dark:bg-indigo-950 dark:text-indigo-100">
-                Retrait {formatAbidjanTime(order.pickupTime)}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Note client */}
-        {order.note && (
-          <div className="flex items-start gap-1.5 rounded-lg border-l-2 border-amber-500 bg-amber-50/60 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
-            <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>{order.note}</span>
-          </div>
-        )}
-
-        {/* Articles */}
-        <ul className="space-y-1.5">
-          {order.items.map((item) => (
-            <li key={item.cartId} className="text-base leading-tight">
-              <span className="flex items-baseline gap-1.5">
-                <span className="font-bold tabular-nums text-primary">
-                  ×{item.quantity}
-                </span>
-                <span className="font-medium">{item.productName}</span>
-                {item.addedLater && (
-                  <span className="rounded-full bg-red-100 px-1.5 text-[10px] font-bold uppercase text-red-900 dark:bg-red-950 dark:text-red-100">
-                    Ajout
-                  </span>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-
-        {/* Zone Suppléments : séparée des articles pour ne jamais se perdre
-            dans la liste — fusionnée par produit + jeu de suppléments avec
-            quantité totale explicite (voir aggregateOrderSupplements). */}
-        {supplementLines.length > 0 && (
-          <div className="rounded-lg border border-secondary-200 bg-secondary-50/60 p-2 dark:border-secondary-900 dark:bg-secondary-950/20">
-            <p className="text-xs font-bold uppercase tracking-wide text-secondary-700 dark:text-secondary-300">
-              Suppléments
-            </p>
-            <ul className="mt-1 space-y-1">
-              {supplementLines.map((line) => (
-                <li key={line.key} className="text-sm">
-                  <span className="font-semibold">
-                    {line.productName}
-                    {line.quantity > 1 ? ` ×${line.quantity}` : ''}
-                  </span>{' '}
-                  <span className="text-secondary-700 dark:text-secondary-300">
-                    {line.supplements
-                      .map((s) =>
-                        s.quantity > 1
-                          ? `${s.optionName} ×${s.quantity}`
-                          : s.optionName
-                      )
-                      .join(', ')}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </button>
-
-      {/* Demander le livreur (livraison) — hors de la zone tactile d'agrandissement */}
       {isDelivery && (
-        <div className="px-3 pb-1">
-          {driverLink ? (
-            // Ouvre WhatsApp avec le message pré-rempli ET pose le drapeau
-            // `driverRequested` (bandeau lu par la caisse) dans le même geste.
-            <a
-              href={driverLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!order.driverRequested) onRequestDriver(order.id);
-              }}
-              className={cn(
-                'flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-xs font-semibold transition-colors',
-                order.driverRequested
-                  ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100'
-                  : 'border-amber-500 bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-950/50 dark:hover:bg-amber-900/40'
-              )}
-            >
-              <Bike className="h-3.5 w-3.5" />
-              {order.driverRequested
-                ? 'Livreur demandé'
-                : 'Demander le livreur'}
-            </a>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onRequestDriver(order.id)}
-              disabled={pending || order.driverRequested}
-              className={cn(
-                'flex w-full items-center justify-center gap-1.5 rounded-lg border py-1.5 text-xs font-semibold transition-colors',
-                order.driverRequested
-                  ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100'
-                  : 'border-amber-500 bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-950/50 dark:hover:bg-amber-900/40'
-              )}
-            >
-              <Bike className="h-3.5 w-3.5" />
-              {order.driverRequested
-                ? 'Livreur demandé'
-                : 'Demander le livreur'}
-            </button>
-          )}
-        </div>
+        <DriverRequest
+          order={order}
+          pending={pending}
+          contactSettings={contactSettings}
+          onRequestDriver={onRequestDriver}
+        />
       )}
 
-      {/* Actions */}
-      <div className="grid grid-cols-[1fr_2.5fr] gap-2 border-t p-2">
-        <button
-          type="button"
-          onClick={() => onCancel(order.id)}
-          disabled={pending}
-          aria-label="Annuler"
-          className="flex items-center justify-center gap-1 rounded-lg border border-red-200 bg-red-50 py-2.5 text-red-700 transition-colors hover:bg-red-100 active:bg-red-200 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300"
-        >
-          <X className="h-5 w-5" strokeWidth={2.5} />
-        </button>
-        <button
-          type="button"
-          onClick={() => onReady(order.id)}
-          disabled={pending}
-          className="flex items-center justify-center gap-1.5 rounded-lg bg-green-600 py-2.5 font-bold text-white shadow-sm transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-50"
-        >
-          {pending ? (
-            <ChefHat className="h-5 w-5 animate-pulse" />
-          ) : (
-            <Check className="h-5 w-5" strokeWidth={3} />
-          )}
-          Prête
-        </button>
-      </div>
-
-      {/* Récupération anticipée : discrète, pour ne pas concurrencer « Prête »
-          — le client peut repartir avant la fin de la préparation affichée. */}
-      <button
-        type="button"
-        onClick={() => onRetrieve(order.id)}
-        disabled={pending}
-        className="flex items-center justify-center gap-1 border-t py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground disabled:opacity-50"
-      >
-        <CheckCheck className="h-3 w-3" strokeWidth={2.5} />
-        Marquer récupérée
-      </button>
+      <CardActions
+        orderId={order.id}
+        pending={pending}
+        onReady={onReady}
+        onCancel={onCancel}
+        onRetrieve={onRetrieve}
+      />
     </article>
   );
 }
