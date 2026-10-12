@@ -7,29 +7,21 @@ import {
   ModalBody,
   ModalFooter,
   Button,
-  RadioGroup,
-  Radio,
-  Checkbox,
 } from '@heroui/react';
-import { ChevronDown, Minus, Plus } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { priceFormatter, type Product } from '@/config/menu';
-import type { CartItemSupplement } from '@/lib/cart-store';
+import { type CartItemSupplement } from '@/lib/cart-store';
 import {
   buildInitialSelections,
   canSubmitSelections,
-  effectiveMax,
   getSelectedSupplements,
   getSupplementsPrice,
-  groupConstraintLabel,
-  groupSelectionCount,
   multipleSelection,
-  optionQuantity,
   type Selections,
 } from '@/lib/supplements';
 import { useResettableState } from '@/lib/hooks/use-resettable-state';
 import { applyOptionStock } from '@/lib/caisse-restock';
-import { RestockControl } from '../_components/restock-control';
+import { SupplementGroupCard } from './_components/picker/supplement-group-card';
+import type { PickerCtx } from './_components/picker/types';
 
 type Props = {
   product: Product | null;
@@ -48,24 +40,13 @@ type Props = {
   editToken?: string;
   /** Libellé du verbe d'action (« Ajouter » par défaut, « Mettre à jour » en édition). */
   confirmVerb?: string;
-  /**
-   * Réappro caisse déclenchée depuis le sélecteur (cas tartelettes : recréditer
-   * le stock d'un goût épuisé). Quand fourni, un bouton de réappro apparaît sur
-   * chaque goût à stock suivi, quel que soit le type de son groupe (`single`,
-   * `multiple`, `quantity`). Le parent en profite pour synchroniser son menu
-   * (stock live).
-   */
+  /** Réappro depuis le sélecteur (recréditer un goût épuisé) : un bouton apparaît sur chaque goût à stock suivi ; le parent synchronise son menu. */
   onRestocked?: (
     groupName: string,
     optionName: string,
     stockQuantity: number | null
   ) => void;
-  /**
-   * La commande est pour un JOUR CIVIL ULTÉRIEUR : le stock d'aujourd'hui ne
-   * s'applique pas. Les goûts épuisés restent marqués mais redeviennent
-   * sélectionnables — et surtout, ils ne sont plus SILENCIEUSEMENT retirés de
-   * la ligne au moment de l'ajout (cf. `SupplementRules`, lib/supplements.ts).
-   */
+  /** Commande pour un jour civil ultérieur : les goûts épuisés redeviennent sélectionnables et ne sont plus retirés silencieusement (cf. `SupplementRules`). */
   forFutureDay?: boolean;
 };
 
@@ -80,10 +61,7 @@ export function SupplementPicker({
   onRestocked,
   forFutureDay = false,
 }: Props) {
-  // Règles de sélection : une seule valeur, passée à TOUTES les fonctions de
-  // `lib/supplements.ts` — comptage, validation ET conversion en ligne de
-  // panier doivent voir la même chose, sinon un goût validé à l'écran
-  // disparaîtrait à l'ajout.
+  // Une seule valeur de règles pour toutes les fonctions de `lib/supplements.ts` (comptage, validation, conversion en ligne) : sinon un goût validé à l'écran disparaîtrait à l'ajout.
   const rules = { ignoreSoldOut: forFutureDay };
   const resetKey = `${product?.id ?? ''}::${editToken ?? ''}`;
 
@@ -91,8 +69,7 @@ export function SupplementPicker({
     resetKey,
     () => buildInitialSelections(product, initialSupplements ?? [])
   );
-  // Copie « live » du produit : la réappro d'un goût met à jour le stock ici
-  // pour que le stepper le rende immédiatement commandable, sans rechargement.
+  // Copie « live » du produit : la réappro d'un goût met à jour le stock ici sans rechargement.
   const [liveProduct, setLiveProduct] = useResettableState<Product | null>(
     product?.id ?? '',
     () => product
@@ -172,6 +149,18 @@ export function SupplementPicker({
       getSelectedSupplements(activeProduct, selections, rules)
     );
 
+  const pickerCtx: PickerCtx = {
+    activeProduct,
+    selections,
+    rules,
+    forFutureDay,
+    hasRestock: Boolean(onRestocked),
+    setSingle,
+    toggleMultiple,
+    setQuantity,
+    handleOptionRestocked,
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -233,268 +222,14 @@ export function SupplementPicker({
   );
 
   function renderGroup(group: (typeof groups)[number]) {
-    const constraint = groupConstraintLabel(group);
-    const count = groupSelectionCount(group, selections, rules);
-    const max = effectiveMax(group);
-    const isOpen = openGroups[group.name] ?? false;
-
     return (
-      <div key={group.name} className="rounded-lg border border-foreground/10">
-        <button
-          type="button"
-          onClick={() => toggleGroup(group.name)}
-          className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
-        >
-          <span className="text-sm font-semibold text-foreground/80">
-            {group.name}
-            {group.required && (
-              <span className="ml-1 text-xs text-primary">(requis)</span>
-            )}
-          </span>
-          <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-            {count > 0 && (
-              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-medium text-primary">
-                {count}
-              </span>
-            )}
-            <ChevronDown
-              className={cn(
-                'size-4 transition-transform',
-                isOpen && 'rotate-180'
-              )}
-            />
-          </span>
-        </button>
-
-        {isOpen && (
-          <div className="space-y-2 px-3 pb-3">
-            {constraint && (
-              <p className="text-xs font-normal text-foreground/50">
-                {constraint}
-              </p>
-            )}
-
-            {group.type === 'single' && (
-              <RadioGroup
-                value={(selections[group.name] as string) ?? ''}
-                onValueChange={(v) => setSingle(group.name, v)}
-              >
-                {/* Option de désélection pour les groupes facultatifs :
-                        permet de revenir à « aucun choix ». */}
-                {!group.required && (
-                  <Radio value="">
-                    <span className="text-sm text-foreground/60">Aucun</span>
-                  </Radio>
-                )}
-                {group.options.map((opt) => (
-                  <div key={opt.name} className="flex items-center gap-2">
-                    <Radio
-                      value={opt.name}
-                      isDisabled={opt.soldOut && !forFutureDay}
-                      className="flex-1"
-                    >
-                      <span className="flex items-center justify-between gap-4">
-                        <span className="text-sm">
-                          {opt.name}
-                          {opt.soldOut && (
-                            <span
-                              className={cn(
-                                'ml-1.5 text-xs font-medium',
-                                forFutureDay ? 'text-warning' : 'text-danger'
-                              )}
-                            >
-                              {forFutureDay ? 'épuisé aujourd’hui' : 'épuisé'}
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-xs text-foreground/50">
-                          {opt.price === 0
-                            ? 'Inclus'
-                            : `+${priceFormatter.format(opt.price)} F`}
-                        </span>
-                      </span>
-                    </Radio>
-                    {onRestocked && opt.stockQuantity != null && (
-                      <RestockControl
-                        compact
-                        ariaLabel={`Réapprovisionner ${opt.name}`}
-                        body={{
-                          target: 'option',
-                          productId: activeProduct.id,
-                          groupName: group.name,
-                          optionName: opt.name,
-                        }}
-                        currentStock={opt.remaining ?? opt.stockQuantity}
-                        onDone={(stock) =>
-                          handleOptionRestocked(group.name, opt.name, stock)
-                        }
-                      />
-                    )}
-                  </div>
-                ))}
-              </RadioGroup>
-            )}
-
-            {group.type === 'multiple' && (
-              <div className="space-y-2">
-                {group.options.map((opt) => {
-                  const current = multipleSelection(selections, group.name);
-                  const isChecked = current.includes(opt.name);
-                  const isDisabled =
-                    (opt.soldOut && !forFutureDay) ||
-                    (!isChecked && count >= max);
-                  return (
-                    <div key={opt.name} className="flex items-center gap-2">
-                      <Checkbox
-                        isSelected={isChecked}
-                        isDisabled={isDisabled}
-                        onValueChange={() =>
-                          toggleMultiple(group.name, opt.name)
-                        }
-                        className="flex-1"
-                      >
-                        <span className="flex items-center justify-between gap-4">
-                          <span className="text-sm">
-                            {opt.name}
-                            {opt.soldOut && (
-                              <span
-                                className={cn(
-                                  'ml-1.5 text-xs font-medium',
-                                  forFutureDay ? 'text-warning' : 'text-danger'
-                                )}
-                              >
-                                {forFutureDay ? 'épuisé aujourd’hui' : 'épuisé'}
-                              </span>
-                            )}
-                          </span>
-                          <span className="text-xs text-foreground/50">
-                            +{priceFormatter.format(opt.price)} F
-                          </span>
-                        </span>
-                      </Checkbox>
-                      {onRestocked && opt.stockQuantity != null && (
-                        <RestockControl
-                          compact
-                          ariaLabel={`Réapprovisionner ${opt.name}`}
-                          body={{
-                            target: 'option',
-                            productId: activeProduct.id,
-                            groupName: group.name,
-                            optionName: opt.name,
-                          }}
-                          currentStock={opt.remaining ?? opt.stockQuantity}
-                          onDone={(stock) =>
-                            handleOptionRestocked(group.name, opt.name, stock)
-                          }
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {group.type === 'quantity' && (
-              <div className="space-y-2">
-                {group.options.map((opt) => {
-                  const qty = optionQuantity(group, selections, opt.name);
-                  // Plafond de l'option : borne du groupe (répartition
-                  // totale) ET stock restant de l'option elle-même — la
-                  // plus stricte des deux gagne. Sans ce plafond, le
-                  // compteur (qui exclut les options épuisées, cf.
-                  // `groupSelectionCount`) peut afficher « N / N » alors
-                  // qu'une option épuisée reste incrémentable en plus —
-                  // désynchronisant l'affichage de la sélection réelle.
-                  // Pour un retrait ultérieur, le stock du jour ne plafonne
-                  // rien : la quantité sera produite pour cette date.
-                  const optionCap = forFutureDay
-                    ? Infinity
-                    : (opt.remaining ?? Infinity);
-                  const canIncrement =
-                    (!opt.soldOut || forFutureDay) &&
-                    count < max &&
-                    qty < optionCap;
-                  return (
-                    <div
-                      key={opt.name}
-                      className="flex items-center justify-between gap-4"
-                    >
-                      <span className="text-sm">
-                        {opt.name}
-                        {opt.price > 0 && (
-                          <span className="ml-1 text-xs text-foreground/50">
-                            +{priceFormatter.format(opt.price)} F
-                          </span>
-                        )}
-                        {opt.soldOut ? (
-                          <span
-                            className={cn(
-                              'ml-1.5 text-xs font-medium',
-                              forFutureDay ? 'text-warning' : 'text-danger'
-                            )}
-                          >
-                            {forFutureDay ? 'épuisé aujourd’hui' : 'épuisé'}
-                          </span>
-                        ) : (
-                          opt.remaining != null && (
-                            <span className="ml-1.5 text-xs text-foreground/40">
-                              reste {opt.remaining}
-                            </span>
-                          )
-                        )}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        {onRestocked && opt.stockQuantity != null && (
-                          <RestockControl
-                            body={{
-                              target: 'option',
-                              productId: activeProduct.id,
-                              groupName: group.name,
-                              optionName: opt.name,
-                            }}
-                            currentStock={opt.remaining ?? opt.stockQuantity}
-                            onDone={(stock) =>
-                              handleOptionRestocked(group.name, opt.name, stock)
-                            }
-                          />
-                        )}
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="flat"
-                          isDisabled={qty === 0}
-                          aria-label={`Retirer ${opt.name}`}
-                          onPress={() => setQuantity(group.name, opt.name, -1)}
-                        >
-                          <Minus className="size-3.5" />
-                        </Button>
-                        <span className="w-5 text-center text-sm font-medium">
-                          {qty}
-                        </span>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="flat"
-                          isDisabled={!canIncrement}
-                          aria-label={`Ajouter ${opt.name}`}
-                          onPress={() => setQuantity(group.name, opt.name, 1)}
-                        >
-                          <Plus className="size-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-                {Number.isFinite(max) && (
-                  <p className="text-right text-xs text-foreground/50">
-                    {count} / {max} sélectionné(s)
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <SupplementGroupCard
+        key={group.name}
+        group={group}
+        ctx={pickerCtx}
+        isOpen={openGroups[group.name] ?? false}
+        onToggle={() => toggleGroup(group.name)}
+      />
     );
   }
 }
