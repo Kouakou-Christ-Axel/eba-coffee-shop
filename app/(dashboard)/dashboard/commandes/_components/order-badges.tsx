@@ -31,11 +31,13 @@ export function PaymentBadge({
   status,
   paymentMode,
   autoValidatedByAi,
+  paymentExpiresAt,
 }: {
   isPaid: boolean;
   status: OrderStatus;
   paymentMode: string | null;
   autoValidatedByAi: boolean;
+  paymentExpiresAt: Date | null;
 }) {
   if (isPaid) {
     return (
@@ -54,6 +56,13 @@ export function PaymentBadge({
   }
   if (status !== 'CANCELLED')
     return <Badge variant="secondary">À encaisser</Badge>;
+  // Annulée par le timeout de paiement en ligne (pas par le staff) : `paymentExpiresAt` reste non-nul (cf. lib/jeko/expiry.ts).
+  if (paymentExpiresAt)
+    return (
+      <Badge variant="outline" title="Paiement en ligne jamais reçu (Jèko)">
+        Expirée
+      </Badge>
+    );
   return <Badge variant="outline">—</Badge>;
 }
 

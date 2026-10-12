@@ -80,6 +80,7 @@ export function OrdersCardsMobile({
                   status={order.status}
                   paymentMode={order.paymentMode}
                   autoValidatedByAi={order.paymentAutoValidatedByAi}
+                  paymentExpiresAt={order.paymentExpiresAt}
                 />
               </div>
 

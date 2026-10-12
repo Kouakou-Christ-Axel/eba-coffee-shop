@@ -1,3 +1,5 @@
+import * as Sentry from '@sentry/nextjs';
+
 // Après un déploiement, les chunks `/_next/static/chunks/*.js` référencés par
 // une page déjà ouverte (ou servie depuis le cache HTTP du navigateur) sont
 // remplacés par de nouveaux fichiers hashés — les anciens n'existent plus sur
@@ -35,4 +37,14 @@ export function reloadOnChunkError(error: Error & { digest?: string }) {
 export function markChunkLoadHealthy() {
   if (typeof window === 'undefined') return;
   window.sessionStorage.removeItem(RELOAD_FLAG);
+}
+
+// Point d'entrée commun aux `error.tsx` (global, public, dashboard) : signale
+// un déploiement cassé (reload tenté) sans le remonter à Sentry, qui ne doit
+// voir que les vrais bugs.
+export function reportBoundaryError(error: Error & { digest?: string }) {
+  reloadOnChunkError(error);
+  if (!isChunkLoadError(error)) {
+    Sentry.captureException(error);
+  }
 }

@@ -1,6 +1,7 @@
 import { setDefaultResultOrder } from 'node:dns';
 import type { NextConfig } from 'next';
 import { varlockNextConfigPlugin } from '@varlock/nextjs-integration/plugin';
+import { withSentryConfig } from '@sentry/nextjs/config';
 
 setDefaultResultOrder('ipv4first');
 
@@ -158,4 +159,9 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default varlockNextConfigPlugin()(nextConfig);
+export default withSentryConfig(varlockNextConfigPlugin()(nextConfig), {
+  org: 'enpiss',
+  project: 'eba-coffee-shop',
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+});
