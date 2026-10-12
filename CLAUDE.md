@@ -53,6 +53,14 @@ Pre-commit hooks (Husky + lint-staged) run ESLint and Prettier on staged files a
 - **Theme colors:** Primary = deep purple, Secondary = golden orange, Background = cream/dark brown
 - **Taille de fichier : 300 lignes max.** Au-delà, extraire en modules plus petits (composants enfants, helpers dans `lib/`) plutôt que laisser grossir. S'applique au nouveau code et à tout fichier substantiellement modifié ; ne déclenche pas de refactor rétroactif des fichiers existants qui dépassent déjà ce seuil hors du périmètre de la tâche en cours.
 
+## État d'URL (nuqs)
+
+- **nuqs = défaut** pour tout état porté par l'URL (filtres, tri, pagination, recherche). Plus de `useSearchParams` + `router.push` + `URLSearchParams` à la main dans le code neuf.
+- **Une seule définition des parseurs par page** (`search-params.ts`, import depuis `nuqs/server`), partagée par le serveur (`createLoader`) et le client (`useQueryStates`) : valeur invalide → `null`/défaut des deux côtés. Modèle : `app/(dashboard)/dashboard/commandes/`.
+- `NuqsAdapter` est monté dans `app/(dashboard)/layout.tsx` (dashboard uniquement : le site public n'en a pas besoin, cf. « Performance du site public »). Une page hors dashboard qui adopte nuqs doit monter l'adaptateur elle-même.
+- Quand la page lit la base selon l'URL : `shallow: false` + `startTransition` (état d'attente partagé), et `limitUrlUpdates: debounce(ms)` pour la saisie au clavier — l'état local reste instantané.
+- Restent à migrer : `components/(dashboard)/pagination.tsx` et le mode par défaut de `date-range-filter.tsx` (partagés par ~8 pages).
+
 ## UI library policy
 
 - **HeroUI = défaut.** Tout composant interactif (Button, Input, Modal, Tabs, Card, Drawer, Select, Tooltip, Badge, Switch, Skeleton, etc.) utilise HeroUI.

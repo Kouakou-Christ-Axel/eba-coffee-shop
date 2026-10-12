@@ -1,6 +1,6 @@
 'use client';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useOrdersNav } from './use-orders-nav';
+import { useOrdersNav, type OrdersFilters } from './use-orders-nav';
 
 const TABS = [
   { value: 'all', label: 'Toutes' },
@@ -11,13 +11,12 @@ const TABS = [
   { value: 'CANCELLED', label: 'Annulées' },
 ];
 
-export function StatusTabs({ activeStatus }: { activeStatus?: string }) {
-  const { navigate } = useOrdersNav();
+export function StatusTabs() {
+  const { filters, update } = useOrdersNav();
 
   const handleChange = (value: string) => {
-    navigate((params) => {
-      if (value === 'all') params.delete('status');
-      else params.set('status', value);
+    update({
+      status: value === 'all' ? null : (value as OrdersFilters['status']),
     });
   };
 
@@ -29,7 +28,7 @@ export function StatusTabs({ activeStatus }: { activeStatus?: string }) {
   return (
     <div className="min-w-0 max-w-full overflow-x-auto">
       <Tabs
-        value={activeStatus ?? 'all'}
+        value={filters.status ?? 'all'}
         onValueChange={handleChange}
         className="w-fit"
       >

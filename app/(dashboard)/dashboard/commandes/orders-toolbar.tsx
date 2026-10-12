@@ -15,26 +15,13 @@ import { SortSelect } from './sort-select';
 import { OrdersNavProvider, useOrdersNavValue } from './use-orders-nav';
 
 type Props = {
-  status?: string;
-  payment?: string;
-  sort?: string;
-  search: string;
   from: string;
   to: string;
   isAll: boolean;
   exportHref: string;
 };
 
-export function OrdersToolbar({
-  status,
-  payment,
-  sort,
-  search,
-  from,
-  to,
-  isAll,
-  exportHref,
-}: Props) {
+export function OrdersToolbar({ from, to, isAll, exportHref }: Props) {
   const nav = useOrdersNavValue();
 
   return (
@@ -52,7 +39,17 @@ export function OrdersToolbar({
             to={to}
             isAll={isAll}
             showDayNav
-            navigate={nav.navigate}
+            onRangeChange={(next) =>
+              nav.update(
+                next.all
+                  ? { range: 'all', from: null, to: null }
+                  : {
+                      range: null,
+                      ...(next.from ? { from: next.from } : {}),
+                      ...(next.to ? { to: next.to } : {}),
+                    }
+              )
+            }
           />
           <Button asChild variant="outline" size="sm">
             <a href={exportHref}>
@@ -63,11 +60,11 @@ export function OrdersToolbar({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <StatusTabs activeStatus={status} />
+          <StatusTabs />
           <div className="flex flex-wrap items-center gap-2">
-            <PaymentFilter value={payment} />
-            <SortSelect value={sort} />
-            <OrderSearch initial={search} />
+            <PaymentFilter />
+            <SortSelect />
+            <OrderSearch />
           </div>
         </div>
       </div>
