@@ -10,6 +10,7 @@ import { useConfirmDialog } from '../../../_components/use-confirm-dialog';
 import { useShortageConfirm } from '../../../_components/use-shortage-confirm';
 import type { PaymentLine } from '../../payment-modal';
 import { callApi, undoableStatusMessage } from './call-api';
+import { useDriverRequest } from './use-driver-request';
 import type { OrderView } from './use-order-view';
 
 export function useOrderActions(order: CashierOrder, view: OrderView) {
@@ -182,6 +183,12 @@ export function useOrderActions(order: CashierOrder, view: OrderView) {
     });
   }
 
+  const { handleRequestDriver } = useDriverRequest(
+    order.id,
+    runMutation,
+    setActionError
+  );
+
   // Lance une commande programmée déjà payée ; confirmation si le retrait est un autre jour (le stock d'AUJOURD'HUI sera décompté).
   async function handleStartPreparation() {
     if (isDeferred) {
@@ -275,6 +282,7 @@ export function useOrderActions(order: CashierOrder, view: OrderView) {
     handleValidateWaveProof,
     handleStatusChange,
     handleDismissDriverRequest,
+    handleRequestDriver,
     handleStartPreparation,
     handleSendToKitchenWithoutPayment,
     handleUndoAutoValidation,

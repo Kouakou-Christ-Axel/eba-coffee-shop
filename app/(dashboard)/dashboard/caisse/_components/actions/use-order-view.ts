@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  buildDriverRequestMessage,
   buildPickupReadyMessage,
   buildTelLink,
   buildWaveRequestMessage,
@@ -70,6 +71,19 @@ export function useOrderView(
     })
   );
 
+  // Livraison en cuisine : la caisse peut appeler le livreur (même geste que l'écran cuisine).
+  const canRequestDriver =
+    order.orderType === 'DELIVERY' && order.status === 'PREPARING';
+  const driverLink = buildWhatsAppLink(
+    phone,
+    buildDriverRequestMessage({
+      customerName: order.customerName,
+      dailyNumber: order.dailyNumber,
+      yangoLandmark: contactSettings.yangoLandmark,
+      phone: contactSettings.phone,
+    })
+  );
+
   const payLabel =
     order.status === 'PREPARING' ||
     order.status === 'READY' ||
@@ -103,6 +117,8 @@ export function useOrderView(
     loyaltyTeaser,
     whatsappLink,
     readyLink,
+    canRequestDriver,
+    driverLink,
     payLabel,
     depositRemaining,
     needsDeposit,

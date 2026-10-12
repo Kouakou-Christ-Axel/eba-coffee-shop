@@ -5,20 +5,14 @@ import { OrderCard } from '../order-card';
 import { OrderCardActions } from '../order-card-actions';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
-import type { ContactSettings } from '@/lib/contact-settings';
 import { getUrgencyLevel, type TabKey } from '../urgency';
+import type { CaisseContactSettings } from './actions/types';
 
 type Props = {
   orders: CashierOrder[];
   tab: TabKey;
   menu: MenuCategory[];
-  contactSettings: Pick<
-    ContactSettings,
-    | 'yangoLandmark'
-    | 'mapsDirectionsUrl'
-    | 'wavePaymentNumber'
-    | 'orangeMoneyPaymentNumber'
-  >;
+  contactSettings: CaisseContactSettings;
   now: Date;
 };
 

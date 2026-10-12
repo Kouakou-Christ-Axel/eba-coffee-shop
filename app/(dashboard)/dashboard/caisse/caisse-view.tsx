@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import { CheckCircle2, PackageCheck, X } from 'lucide-react';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
-import type { ContactSettings } from '@/lib/contact-settings';
 import type { OrderStatus } from '@/generated/prisma/client';
 import {
   playNewOrderChime,
@@ -34,6 +33,7 @@ import {
 } from './_components/use-urgency-counts';
 import { SCHEDULED_ALERT_MINUTES } from '@/config/constants';
 import { UndoToastProvider } from '@/lib/hooks/use-undo-toast';
+import type { CaisseContactSettings } from './_components/actions/types';
 
 const SSE_URL = '/api/caisse/stream';
 const SOUND_STORAGE_KEY = 'eba.caisse.sound-enabled';
@@ -46,16 +46,24 @@ type RawCashierOrder = Omit<
   | 'preparingStartedAt'
   | 'readyAt'
   | 'stockReservedAt'
+  | 'driverRequestedAt'
 > & {
   pickupTime: string | null;
   createdAt: string;
   preparingStartedAt: string | null;
   readyAt: string | null;
   stockReservedAt: string | null;
+  driverRequestedAt: string | null;
 };
 
 function normalize(raw: unknown): CashierOrder {
-  return normalizeOrderDates(raw as RawCashierOrder);
+  const r = raw as RawCashierOrder;
+  return {
+    ...normalizeOrderDates(r),
+    driverRequestedAt: r.driverRequestedAt
+      ? new Date(r.driverRequestedAt)
+      : null,
+  };
 }
 
 export function CaisseView({
@@ -66,13 +74,7 @@ export function CaisseView({
 }: {
   initialQueue: CashierOrder[];
   menu: MenuCategory[];
-  contactSettings: Pick<
-    ContactSettings,
-    | 'yangoLandmark'
-    | 'mapsDirectionsUrl'
-    | 'wavePaymentNumber'
-    | 'orangeMoneyPaymentNumber'
-  >;
+  contactSettings: CaisseContactSettings;
   cashierName: string;
 }) {
   const [tab, setTab] = useState<TabKey>('to-pay');

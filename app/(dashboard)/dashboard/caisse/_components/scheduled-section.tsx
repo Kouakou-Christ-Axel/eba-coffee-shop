@@ -9,18 +9,12 @@ import { formatPickup, getUrgencyLevel } from '../urgency';
 import { kitchenLaunchState } from '@/lib/orders/scheduling';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
-import type { ContactSettings } from '@/lib/contact-settings';
+import type { CaisseContactSettings } from './actions/types';
 
 type Props = {
   orders: CashierOrder[];
   menu: MenuCategory[];
-  contactSettings: Pick<
-    ContactSettings,
-    | 'yangoLandmark'
-    | 'mapsDirectionsUrl'
-    | 'wavePaymentNumber'
-    | 'orangeMoneyPaymentNumber'
-  >;
+  contactSettings: CaisseContactSettings;
   now: Date;
 };
 

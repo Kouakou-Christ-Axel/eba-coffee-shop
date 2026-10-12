@@ -44,6 +44,7 @@ function makeOrder(
     paymentProofAnalysis: null,
     source: 'CASHIER',
     driverRequested: false,
+    driverRequestedAt: null,
     driverName: null,
     driverPhone: null,
     createdAt: NOW,

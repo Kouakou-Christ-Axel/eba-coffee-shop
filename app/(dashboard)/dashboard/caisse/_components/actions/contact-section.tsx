@@ -2,21 +2,10 @@
 
 import { Phone, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { CopyRecapButton } from '../../../_components/copy-recap-button';
-import type { CashierOrder } from '@/lib/cashier-queue';
-import type { CaisseContactSettings } from './types';
 import type { OrderView } from './use-order-view';
 
-export function ContactSection({
-  order,
-  view,
-  contactSettings,
-}: {
-  order: CashierOrder;
-  view: OrderView;
-  contactSettings: CaisseContactSettings;
-}) {
-  const { phone, telLink, trackingUrl, loyaltyTeaser, whatsappLink } = view;
+export function ContactSection({ view }: { view: OrderView }) {
+  const { phone, telLink, whatsappLink } = view;
   return (
     <>
       {/* Ligne contact : Appeler + Wave (2 colonnes) */}
@@ -56,19 +45,6 @@ export function ContactSection({
           </Button>
         </div>
       )}
-
-      {/* Copier le récap + lien Wave (fonctionne même sans téléphone) */}
-      <CopyRecapButton
-        customerName={order.customerName}
-        dailyNumber={order.dailyNumber}
-        reference={order.reference}
-        amount={order.total}
-        items={order.items}
-        loyaltyDiscount={order.loyaltyDiscount}
-        contactSettings={contactSettings}
-        trackingUrl={trackingUrl}
-        loyaltyTeaser={loyaltyTeaser}
-      />
     </>
   );
 }
