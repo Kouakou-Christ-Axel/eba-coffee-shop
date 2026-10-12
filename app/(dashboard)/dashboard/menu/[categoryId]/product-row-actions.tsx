@@ -1,38 +1,11 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import Link from 'next/link';
-import {
-  BarChart3,
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-  MoreHorizontal,
-  Package,
-  Star,
-  Trash2,
-  X,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Loader2, Star } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { ConfirmDialog } from '@/components/(dashboard)/confirm-dialog';
-import { useUndoToast } from '@/lib/hooks/use-undo-toast';
-import { useResettableState } from '@/lib/hooks/use-resettable-state';
-import {
-  toggleProductAvailabilityAction,
-  toggleProductFeaturedAction,
-  deleteProductAction,
-  restockProductAction,
-  moveProductAction,
-} from '../actions';
+import { RestockInline } from './_components/row-actions/restock-inline';
+import { RowActionsMenu } from './_components/row-actions/row-actions-menu';
+import { useRowActions } from './_components/row-actions/use-row-actions';
 
 export function ProductRowActions({
   id,
@@ -59,79 +32,18 @@ export function ProductRowActions({
   /** Fiche produit ouverte directement sur l'onglet « Statistiques ». */
   statsHref: string;
 }) {
-  const { pushToast } = useUndoToast();
-  const [isPending, startTransition] = useTransition();
-  const [isRestockOpen, setIsRestockOpen] = useState(false);
-  const [restockDelta, setRestockDelta] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  // Miroirs optimistes : l'interrupteur bascule tout de suite, puis se
-  // resynchronise sur la prop quand le re-rendu serveur arrive (sans
-  // `useEffect` — pattern « Adjusting state when a prop changes »). En cas
-  // d'échec on revient explicitement en arrière ; avant, la valeur restait
-  // fausse en silence jusqu'au prochain rafraîchissement.
-  const [optimisticAvailable, setOptimisticAvailable] = useResettableState(
-    String(available),
-    () => available
-  );
-  const [optimisticFeatured, setOptimisticFeatured] = useResettableState(
-    String(featured),
-    () => featured
-  );
-
-  function toggle(
-    next: boolean,
-    apply: (updater: (prev: boolean) => boolean) => void,
-    action: () => Promise<{ ok: true } | { ok: false; error: string }>,
-    labels: { on: string; off: string }
-  ) {
-    apply(() => next);
-    startTransition(async () => {
-      const result = await action();
-      if (result.ok) {
-        pushToast(next ? labels.on : labels.off);
-        return;
-      }
-      apply(() => !next);
-      pushToast(result.error, 'error');
-    });
-  }
-
-  function handleRestockConfirm() {
-    const delta = Number(restockDelta);
-    if (!Number.isInteger(delta) || delta <= 0) {
-      pushToast('Quantité invalide : entrez un entier positif.', 'error');
-      return;
-    }
-    startTransition(async () => {
-      const result = await restockProductAction(id, delta);
-      if (!result.ok) {
-        pushToast(result.error, 'error');
-        return;
-      }
-      setIsRestockOpen(false);
-      setRestockDelta('');
-      pushToast(`${name} : +${delta} en stock`);
-    });
-  }
-
-  function handleMove(direction: 'up' | 'down') {
-    startTransition(async () => {
-      const result = await moveProductAction(id, direction);
-      if (!result.ok) pushToast(result.error, 'error');
-    });
-  }
-
-  function handleDelete() {
-    startTransition(async () => {
-      const result = await deleteProductAction(id);
-      setConfirmDelete(false);
-      pushToast(
-        result.ok ? `${name} supprimé` : result.error,
-        result.ok ? 'success' : 'error'
-      );
-    });
-  }
+  const actions = useRowActions({ id, name, available, featured });
+  const {
+    isPending,
+    isRestockOpen,
+    confirmDelete,
+    setConfirmDelete,
+    optimisticAvailable,
+    optimisticFeatured,
+    toggleFeatured,
+    toggleAvailable,
+    handleDelete,
+  } = actions;
 
   return (
     <div className="flex items-center justify-end gap-2 sm:gap-3">
@@ -145,17 +57,7 @@ export function ProductRowActions({
         <Switch
           checked={optimisticFeatured}
           disabled={isPending}
-          onCheckedChange={(v) =>
-            toggle(
-              v,
-              setOptimisticFeatured,
-              () => toggleProductFeaturedAction(id),
-              {
-                on: `${name} mis en avant`,
-                off: `${name} retiré des incontournables`,
-              }
-            )
-          }
+          onCheckedChange={toggleFeatured}
           aria-label="Mettre en avant"
         />
       </div>
@@ -163,17 +65,7 @@ export function ProductRowActions({
       <Switch
         checked={optimisticAvailable}
         disabled={isPending}
-        onCheckedChange={(v) =>
-          toggle(
-            v,
-            setOptimisticAvailable,
-            () => toggleProductAvailabilityAction(id),
-            {
-              on: `${name} visible`,
-              off: `${name} masqué`,
-            }
-          )
-        }
+        onCheckedChange={toggleAvailable}
         aria-label="Disponibilité"
       />
 
@@ -185,115 +77,17 @@ export function ProductRowActions({
       )}
 
       {stockQuantity !== null && isRestockOpen ? (
-        <div className="flex items-center gap-1">
-          <Input
-            type="number"
-            min={1}
-            step={1}
-            autoFocus
-            placeholder="+N"
-            value={restockDelta}
-            onChange={(e) => setRestockDelta(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleRestockConfirm();
-              if (e.key === 'Escape') {
-                setIsRestockOpen(false);
-                setRestockDelta('');
-              }
-            }}
-            className="h-9 w-16 px-2 text-sm"
-            aria-label="Quantité à ajouter"
-          />
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={isPending}
-            onClick={handleRestockConfirm}
-            aria-label="Confirmer le réapprovisionnement"
-          >
-            <Check className="size-4 text-green-600" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={isPending}
-            onClick={() => {
-              setIsRestockOpen(false);
-              setRestockDelta('');
-            }}
-            aria-label="Annuler"
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
+        <RestockInline actions={actions} />
       ) : (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              disabled={isPending}
-              aria-label={`Autres actions pour ${name}`}
-            >
-              <MoreHorizontal className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link href={statsHref}>
-                <BarChart3 className="size-4" />
-                Statistiques
-              </Link>
-            </DropdownMenuItem>
-            {stockQuantity !== null && (
-              <DropdownMenuItem onSelect={() => setIsRestockOpen(true)}>
-                <Package className="size-4" />
-                Ajouter une fournée
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem
-              disabled={!canReorder || isFirst}
-              onSelect={() => handleMove('up')}
-            >
-              <ChevronUp className="size-4" />
-              Monter
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={!canReorder || isLast}
-              onSelect={() => handleMove('down')}
-            >
-              <ChevronDown className="size-4" />
-              Descendre
-            </DropdownMenuItem>
-            {/* Le miroir mobile de l'interrupteur « en vedette », masqué sous sm. */}
-            <DropdownMenuItem
-              className="sm:hidden"
-              onSelect={() =>
-                toggle(
-                  !optimisticFeatured,
-                  setOptimisticFeatured,
-                  () => toggleProductFeaturedAction(id),
-                  {
-                    on: `${name} mis en avant`,
-                    off: `${name} retiré des incontournables`,
-                  }
-                )
-              }
-            >
-              <Star className="size-4" />
-              {optimisticFeatured
-                ? 'Retirer des incontournables'
-                : 'Mettre en avant'}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              variant="destructive"
-              onSelect={() => setConfirmDelete(true)}
-            >
-              <Trash2 className="size-4" />
-              Supprimer
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <RowActionsMenu
+          actions={actions}
+          name={name}
+          stockQuantity={stockQuantity}
+          isFirst={isFirst}
+          isLast={isLast}
+          canReorder={canReorder}
+          statsHref={statsHref}
+        />
       )}
 
       <ConfirmDialog
