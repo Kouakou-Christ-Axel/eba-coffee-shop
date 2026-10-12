@@ -18,7 +18,10 @@ import type { Product } from '@/config/menu';
 const SHARED_FEEDBACK_MS = 1600;
 
 /** Lien profond vers un produit de la carte. Voir `product-deep-link.tsx`. */
-export function buildProductShareUrl(productId: string, origin: string): string {
+export function buildProductShareUrl(
+  productId: string,
+  origin: string
+): string {
   return `${origin}/carte?p=${encodeURIComponent(productId)}`;
 }
 
@@ -78,11 +81,7 @@ export function ShareProductButton({
         className
       )}
     >
-      {shared ? (
-        <Check className="h-4 w-4" />
-      ) : (
-        <Share2 className="h-4 w-4" />
-      )}
+      {shared ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
     </Button>
   );
 }
