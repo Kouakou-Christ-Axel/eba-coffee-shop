@@ -109,6 +109,14 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['eba.otw.ci', '127.0.0.1'],
+  // Le client Prisma généré (`generated/prisma`) importe
+  // `@prisma/client/runtime/client`. Sans cette déclaration, Turbopack le
+  // traite comme un externe « haché » (`@prisma/client-<hash>/runtime/client`)
+  // résolu via un lien symbolique écrit dans `.next/node_modules` au build :
+  // un process encore en vie pendant un déploiement (build/install avant le
+  // rechargement pm2) ne le retrouvait plus → « Cannot find module »
+  // (EBA-COFFEE-SHOP-5). Nom stable = résolution normale depuis node_modules.
+  serverExternalPackages: ['@prisma/client'],
   // NB : pas d'`experimental.optimizePackageImports` ici. Le réflexe serait de
   // l'activer pour `@heroui/react` (barrel importé par 72 fichiers), mais la
   // mesure donne un bundle identique à l'octet près : Turbopack, utilisé par
