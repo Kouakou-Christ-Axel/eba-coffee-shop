@@ -23,10 +23,7 @@ export type RangePreset =
       kind: 'month' | 'year';
     };
 
-type Navigate = (
-  mutate: (params: URLSearchParams) => void,
-  options?: { keepPage?: boolean }
-) => void;
+export type RangeChange = { from?: string; to?: string; all?: boolean };
 
 type Props = {
   /** Borne basse courante (YYYY-MM-DD) résolue côté serveur. */
@@ -42,10 +39,11 @@ type Props = {
   /** Affiche les flèches jour précédent / suivant (mode jour unique). */
   showDayNav?: boolean;
   /**
-   * Navigation partagée (transition + scroll figé). Si absente, le composant
-   * pousse l'URL lui-même (comportement par défaut sur les autres pages).
+   * Prend la main sur le changement de plage (ex. état d'URL géré par nuqs).
+   * Si absent, le composant pousse l'URL lui-même (comportement par défaut
+   * sur les autres pages).
    */
-  navigate?: Navigate;
+  onRangeChange?: (next: RangeChange) => void;
 };
 
 const DEFAULT_PRESETS: RangePreset[] = [
@@ -61,15 +59,12 @@ export function DateRangeFilter({
   presets = DEFAULT_PRESETS,
   allowAll = true,
   showDayNav = false,
-  navigate,
+  onRangeChange,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  function mutate(
-    params: URLSearchParams,
-    next: { from?: string; to?: string; all?: boolean }
-  ) {
+  function mutate(params: URLSearchParams, next: RangeChange) {
     if (next.all) {
       params.set('range', 'all');
       params.delete('from');
@@ -81,9 +76,9 @@ export function DateRangeFilter({
     }
   }
 
-  function apply(next: { from?: string; to?: string; all?: boolean }) {
-    if (navigate) {
-      navigate((params) => mutate(params, next));
+  function apply(next: RangeChange) {
+    if (onRangeChange) {
+      onRangeChange(next);
       return;
     }
     const params = new URLSearchParams(searchParams.toString());

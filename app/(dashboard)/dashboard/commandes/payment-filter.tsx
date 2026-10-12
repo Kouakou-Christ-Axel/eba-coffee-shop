@@ -4,7 +4,7 @@ import { Select, SelectItem } from '@heroui/react';
 import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
 import { PaymentMethodIcon } from '@/components/payment-method-badge';
 import type { PaymentMode } from '@/generated/prisma/client';
-import { useOrdersNav } from './use-orders-nav';
+import { useOrdersNav, type OrdersFilters } from './use-orders-nav';
 
 const OPTIONS = [
   { key: 'all', label: 'Tous paiements' },
@@ -12,9 +12,9 @@ const OPTIONS = [
   ...PAYMENT_MODES.map((m) => ({ key: m, label: PAYMENT_MODE_LABELS[m] })),
 ];
 
-export function PaymentFilter({ value }: { value?: string }) {
-  const { navigate } = useOrdersNav();
-  const selected = value ?? 'all';
+export function PaymentFilter() {
+  const { filters, update } = useOrdersNav();
+  const selected = filters.payment ?? 'all';
 
   return (
     <Select
@@ -29,9 +29,8 @@ export function PaymentFilter({ value }: { value?: string }) {
       onSelectionChange={(keys) => {
         if (keys === 'all') return;
         const next = String(Array.from(keys)[0] ?? 'all');
-        navigate((params) => {
-          if (next === 'all') params.delete('payment');
-          else params.set('payment', next);
+        update({
+          payment: next === 'all' ? null : (next as OrdersFilters['payment']),
         });
       }}
     >

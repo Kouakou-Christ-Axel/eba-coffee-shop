@@ -1,9 +1,13 @@
 'use client';
 
-// Navigation partagée des filtres de la liste des commandes. Un seul
+// Filtres de la liste des commandes, branchés sur l'URL via nuqs. Un seul
 // `useTransition` est partagé via contexte par tous les contrôles (statut,
-// recherche, paiement, tri, dates, pagination) : ils restent réactifs et
-// exposent un état d'attente commun (`isPending`) pour le retour visuel.
+// recherche, paiement, tri, dates) : ils restent réactifs et exposent un état
+// d'attente commun (`isPending`) pour le retour visuel.
+//
+// `shallow: false` : chaque changement d'URL relance le rendu serveur de la
+// page (c'est lui qui interroge la base). L'état local, lui, est mis à jour
+// immédiatement — y compris pendant un debounce — donc l'interface ne lagge pas.
 
 import {
   createContext,
@@ -12,45 +16,53 @@ import {
   useMemo,
   useTransition,
 } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import type { ReadonlyURLSearchParams } from 'next/navigation';
+import { debounce, useQueryStates, type Values } from 'nuqs';
+import { ordersParsers } from './search-params';
 
-type NavigateOptions = { keepPage?: boolean };
+export type OrdersFilters = Values<typeof ordersParsers>;
+export type OrdersFiltersPatch = {
+  [K in keyof OrdersFilters]?: OrdersFilters[K] | null;
+};
+
+type UpdateOptions = {
+  /** Retarde l'écriture dans l'URL (saisie au clavier). */
+  debounceMs?: number;
+};
 
 export type OrdersNav = {
-  /** Mute les params puis pousse l'URL dans une transition (scroll figé). */
-  navigate: (
-    mutate: (params: URLSearchParams) => void,
-    options?: NavigateOptions
-  ) => void;
+  filters: OrdersFilters;
+  /** Applique un patch de filtres ; repasse à la page 1 (`page` retiré de l'URL). */
+  update: (patch: OrdersFiltersPatch, options?: UpdateOptions) => void;
   isPending: boolean;
-  searchParams: ReadonlyURLSearchParams;
 };
 
 const OrdersNavContext = createContext<OrdersNav | null>(null);
 
-/** Crée l'objet de navigation (transition + router) à fournir via le provider. */
+/** Crée l'objet de navigation (transition + état nuqs) à fournir via le provider. */
 export function useOrdersNavValue(): OrdersNav {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const [filters, setFilters] = useQueryStates(ordersParsers, {
+    shallow: false,
+    history: 'push',
+    scroll: false,
+    startTransition,
+  });
 
-  const navigate = useCallback<OrdersNav['navigate']>(
-    (mutate, options) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (!options?.keepPage) params.delete('page');
-      mutate(params);
-      const query = params.toString();
-      startTransition(() => {
-        router.push(query ? `?${query}` : '?', { scroll: false });
-      });
+  const update = useCallback<OrdersNav['update']>(
+    (patch, options) => {
+      void setFilters(
+        { ...patch, page: null },
+        options?.debounceMs
+          ? { limitUrlUpdates: debounce(options.debounceMs) }
+          : undefined
+      );
     },
-    [router, searchParams]
+    [setFilters]
   );
 
   return useMemo(
-    () => ({ navigate, isPending, searchParams }),
-    [navigate, isPending, searchParams]
+    () => ({ filters, update, isPending }),
+    [filters, update, isPending]
   );
 }
 

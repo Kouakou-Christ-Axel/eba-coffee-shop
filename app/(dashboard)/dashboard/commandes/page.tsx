@@ -94,10 +94,6 @@ export default async function CommandesPage({
       </div>
 
       <OrdersToolbar
-        status={status}
-        payment={payment}
-        sort={sort}
-        search={search ?? ''}
         from={fromStr}
         to={toStr}
         isAll={isAll}
