@@ -11,8 +11,8 @@ export function EmptyState() {
       <h1 className="text-3xl font-bold">Rien à cuisiner pour le moment</h1>
       <p className="max-w-md text-base text-muted-foreground">
         Les commandes apparaissent ici dès qu&apos;elles sont encaissées par la
-        caisse, ou envoyées en cuisine manuellement. Les commandes programmées et
-        prêtes restent accessibles via les boutons en haut.
+        caisse, ou envoyées en cuisine manuellement. Les commandes programmées
+        et prêtes restent accessibles via les boutons en haut.
       </p>
     </div>
   );
