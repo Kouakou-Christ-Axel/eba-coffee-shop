@@ -15,7 +15,10 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { playNewOrderChime, useSoundPreference } from '@/lib/hooks/use-orders-stream';
+import {
+  playNewOrderChime,
+  useSoundPreference,
+} from '@/lib/hooks/use-orders-stream';
 
 const SOUND_STORAGE_KEY = 'eba.preparation.sound-enabled';
 
