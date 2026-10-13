@@ -16,7 +16,6 @@ type RawCashierOrder = Omit<
   stockReservedAt: string | null;
 };
 
-/** Reconstitue les `Date` d'une commande reçue par SSE (JSON : chaînes ISO). */
 export function normalize(raw: unknown): CashierOrder {
   return normalizeOrderDates(raw as RawCashierOrder);
 }

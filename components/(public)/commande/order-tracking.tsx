@@ -1,51 +1,29 @@
 'use client';
 
-// components/(public)/commande/order-tracking.tsx
-//
-// Page de suivi vivante d'une commande (/commande/:id). Remplace l'ancienne
-// confirmation statique : le client garde cette page ouverte (statut en
-// direct par polling) et la transfère à son livreur — code de retrait,
-// localisation, paiement Wave + preuve. Le client n'identifie plus son
-// livreur : il lui suffit de lui donner le code de retrait.
+// Page de suivi vivante d'une commande (/commande/:id) : statut en direct par
+// polling, code de retrait, paiement, livreur. Le client transmet le code de
+// retrait à son livreur.
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import { Button, Chip } from '@heroui/react';
-import { m, useReducedMotion } from 'framer-motion';
-import {
-  Bike,
-  CalendarClock,
-  Check,
-  CheckCircle2,
-  ChefHat,
-  Gift,
-  MapPin,
-  Receipt,
-  Share2,
-  ShoppingBag,
-  XCircle,
-} from 'lucide-react';
-import type { PublicOrderLoyaltyView, PublicOrderView } from '@/lib/orders';
-import { MapEmbed } from '@/components/(public)/_components/map-embed';
+import { useReducedMotion } from 'framer-motion';
+import type { PublicOrderView } from '@/lib/orders';
 import { OrderNotifications } from '@/components/(public)/commande/order-notifications';
 import { OrderNotificationsModal } from '@/components/(public)/commande/order-notifications-modal';
 import { PaymentSection } from '@/components/(public)/commande/payment-section';
 import type { PaymentReturn } from '@/lib/orders/payment-panel';
-import { cartItemToAnalyticsItem, trackPurchase } from '@/lib/analytics';
-import { formatSupplementLabel, getPickupCode } from '@/lib/orders/format';
-import { getItemGross } from '@/lib/orders/totals';
-import { formatPickupTime } from '@/lib/format-order';
 import { deferredPickupLabel } from '@/lib/orders/scheduling';
-import { priceFormatter } from '@/config/menu';
+import { STATUS_INDEX } from './tracking/constants';
+import { DriverSection } from './tracking/driver-section';
+import { LoyaltySection } from './tracking/loyalty-section';
+import { OrderItemsSection } from './tracking/order-items-section';
+import { PickupCodeCard } from './tracking/pickup-code-card';
+import { PickupPlace } from './tracking/pickup-place';
 import {
-  buildDriverShareMessage,
-  buildTrackingShareMessage,
-  buildWhatsAppShareLink,
-} from '@/lib/contact-links';
-import {
-  ORDER_TRACKING_POLL_FAST_INTERVAL_MS,
-  ORDER_TRACKING_POLL_INTERVAL_MS,
-} from '@/config/constants';
-import { cn } from '@/lib/utils';
+  CancelledBanner,
+  DeferredBanner,
+  StockAlert,
+} from './tracking/status-banners';
+import { StatusTimeline } from './tracking/status-timeline';
+import { useOrderTracking } from './tracking/use-order-tracking';
 
 type Props = {
   initialOrder: PublicOrderView;
@@ -56,28 +34,6 @@ type Props = {
   paymentReturn: PaymentReturn;
 };
 
-// ─── Timeline de statut ───────────────────────────────────────────────────────
-
-const STATUS_STEPS = [
-  { status: 'NEW', label: 'Reçue', Icon: Receipt },
-  { status: 'PREPARING', label: 'En préparation', Icon: ChefHat },
-  { status: 'READY', label: 'Prête', Icon: ShoppingBag },
-  { status: 'COMPLETED', label: 'Récupérée', Icon: CheckCircle2 },
-] as const;
-
-const STATUS_INDEX: Record<string, number> = {
-  NEW: 0,
-  PREPARING: 1,
-  READY: 2,
-  COMPLETED: 3,
-};
-
-// window.location.href via useSyncExternalStore : l'URL ne change jamais sur
-// cette page (pas de navigation interne), l'abonnement est donc un no-op.
-const subscribeNoop = () => () => {};
-const getLocationHref = () => window.location.href;
-const getEmptyString = () => '';
-
 export function OrderTracking({
   initialOrder,
   pickupAddress,
@@ -85,135 +41,34 @@ export function OrderTracking({
   whatsapp,
   paymentReturn,
 }: Props) {
-  const [order, setOrder] = useState<PublicOrderView>(initialOrder);
   const reduceMotion = useReducedMotion();
-  // URL de suivi, indisponible au rendu serveur (snapshot '') — partagée
-  // entre le partage du lien (code de retrait) et le bloc livreur.
-  const trackingUrl = useSyncExternalStore(
-    subscribeNoop,
-    getLocationHref,
-    getEmptyString
-  );
-
-  const isCancelled = order.status === 'CANCELLED';
-  // Annulée faute de paiement dans les temps : le message le dit, le client n'a
-  // rien été débité.
-  const paymentExpired =
-    isCancelled && !order.isPaid && order.payment.state === 'expired';
-  const isFinal = order.status === 'COMPLETED' || isCancelled;
-  const pickupCode = getPickupCode(order.reference);
-  // Le stock n'est réservé qu'à l'ENTRÉE EN CUISINE (voir
-  // lib/orders/availability.ts) : d'ici là, un article peut devenir
-  // indisponible (un autre client a pris la dernière unité). Une commande
-  // pour un autre jour n'est jamais signalée : son stock sera celui du jour J.
-  const hasUnavailableItem = !order.isPaid && !order.fulfillable;
-
-  // ── Polling léger : statut/paiement/livreur en direct tant que la commande
-  //    est active ; pause quand l'onglet est masqué, refresh au retour.
-  const refresh = useCallback(async () => {
-    if (typeof document !== 'undefined' && document.hidden) return;
-    try {
-      const res = await fetch(`/api/commandes/${initialOrder.id}`, {
-        cache: 'no-store',
-      });
-      if (!res.ok) return;
-      setOrder((await res.json()) as PublicOrderView);
-    } catch {
-      // Réseau instable : on retentera au tick suivant.
-    }
-  }, [initialOrder.id]);
-
-  // Paiement en ligne en cours : polling accéléré pour que le moment « payé »
-  // (qui débloque la préparation) se voie vite.
-  const awaitingOnlinePayment = order.payment.state === 'pending';
-
-  // Le paiement bloque la préparation → on remonte le bloc au-dessus du code
-  // de retrait. Total nul (récompense couvrant tout) : rien ne bloque.
-  const paymentBlocking =
-    !order.isPaid && order.status === 'NEW' && order.total > 0;
-
-  useEffect(() => {
-    if (isFinal) return;
-    const timer = setInterval(
-      refresh,
-      awaitingOnlinePayment
-        ? ORDER_TRACKING_POLL_FAST_INTERVAL_MS
-        : ORDER_TRACKING_POLL_INTERVAL_MS
-    );
-    document.addEventListener('visibilitychange', refresh);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', refresh);
-    };
-  }, [refresh, isFinal, awaitingOnlinePayment]);
-
-  // Conversion GA4 d'une commande en ligne : AU PAIEMENT, pas à la création (une
-  // commande abandonnée ne doit pas compter). Une seule fois par commande et par
-  // onglet, et seulement au retour de chez Jèko.
-  const purchaseTrackable =
-    order.isPaid && order.payment.onlineFee !== null && paymentReturn === 'ok';
-  useEffect(() => {
-    if (!purchaseTrackable) return;
-    const key = `eba-purchase-tracked-${order.id}`;
-    try {
-      if (window.sessionStorage.getItem(key)) return;
-      window.sessionStorage.setItem(key, '1');
-    } catch {
-      // sessionStorage indisponible : au pire l'événement part une fois de plus.
-    }
-    trackPurchase({
-      transactionId: order.reference,
-      value: order.total,
-      items: order.items.map(cartItemToAnalyticsItem),
-    });
-  }, [purchaseTrackable, order.id, order.reference, order.total, order.items]);
+  const {
+    order,
+    refresh,
+    trackingUrl,
+    isCancelled,
+    paymentExpired,
+    isFinal,
+    pickupCode,
+    hasUnavailableItem,
+    paymentBlocking,
+  } = useOrderTracking(initialOrder, paymentReturn);
 
   const currentStep = STATUS_INDEX[order.status] ?? 0;
   // Retrait un jour ultérieur : la commande reste « Reçue » jusqu'au jour J.
-  // Sans le dire, le client croit qu'elle est oubliée.
   const deferred = deferredPickupLabel(order, new Date());
 
   return (
     <div className="flex flex-col gap-5">
       {/* ── En-tête : état courant ── */}
       {isCancelled ? (
-        <div className="flex items-center gap-3 rounded-xl border border-danger/30 bg-danger/10 p-4">
-          <XCircle className="h-8 w-8 shrink-0 text-danger" />
-          <div>
-            <p className="font-semibold text-danger">
-              {paymentExpired
-                ? 'Paiement expiré — commande annulée'
-                : 'Commande annulée'}
-            </p>
-            <p className="text-sm text-foreground/60">
-              {paymentExpired
-                ? 'Le délai de paiement est dépassé : rien n’a été débité. Tu peux repasser commande depuis la carte.'
-                : 'Contacte le comptoir si tu penses qu’il s’agit d’une erreur.'}
-            </p>
-          </div>
-        </div>
+        <CancelledBanner paymentExpired={paymentExpired} />
       ) : (
         <StatusTimeline currentStep={currentStep} reduceMotion={reduceMotion} />
       )}
 
       {/* ── Commande pour un autre jour ── */}
-      {!isCancelled && deferred && (
-        <div className="flex items-center gap-3 rounded-xl border border-indigo-300/60 bg-indigo-50 p-4 dark:border-indigo-800 dark:bg-indigo-950/30">
-          <CalendarClock
-            className="h-6 w-6 shrink-0 text-indigo-700 dark:text-indigo-300"
-            aria-hidden="true"
-          />
-          <div>
-            <p className="font-semibold text-indigo-900 dark:text-indigo-100">
-              Prévue pour {deferred.day} à {deferred.time}
-            </p>
-            <p className="text-sm text-foreground/60">
-              Ta commande sera préparée le jour du retrait. Cette page passera à
-              « En préparation » dès qu’on s’y met.
-            </p>
-          </div>
-        </div>
-      )}
+      {!isCancelled && deferred && <DeferredBanner deferred={deferred} />}
 
       {/* ── Notifications push (statuts en direct) ── */}
       <OrderNotifications orderId={order.id} isFinal={isFinal} />
@@ -224,20 +79,7 @@ export function OrderTracking({
       />
 
       {/* ── Alerte stock (uniquement avant paiement) ── */}
-      {!isCancelled && hasUnavailableItem && (
-        <div className="flex items-center gap-3 rounded-xl border border-warning/30 bg-warning/15 p-4">
-          <XCircle className="h-6 w-6 shrink-0 text-warning-700 dark:text-warning" />
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold text-warning-700 dark:text-warning">
-              Un article n&apos;est plus disponible
-            </p>
-            <p className="text-sm text-foreground/60">
-              Contacte-nous avant de payer — un autre client a pris la dernière
-              quantité.
-            </p>
-          </div>
-        </div>
-      )}
+      {!isCancelled && hasUnavailableItem && <StockAlert />}
 
       {/* ── Payée après annulation ou expiration : le client doit le savoir ── */}
       {isCancelled && order.isPaid && (
@@ -259,51 +101,12 @@ export function OrderTracking({
         />
       )}
 
-      {/* ── Code de retrait ── */}
-      <div className="rounded-xl border border-foreground/10 bg-default-50 p-5 text-center">
-        <p className="text-xs font-semibold uppercase tracking-wider text-foreground/40">
-          Code de retrait
-        </p>
-        <p className="mt-1 font-mono text-4xl font-bold tracking-[0.3em] text-primary">
-          {pickupCode}
-        </p>
-        <p className="mt-1 font-mono text-xs text-foreground/40">
-          {order.reference}
-        </p>
-        <p className="mt-2 text-xs text-foreground/60">
-          À annoncer au comptoir (par toi ou ton livreur) pour retirer la
-          commande.
-        </p>
-        <p className="mt-2 text-sm">
-          <span className="text-foreground/50">Retrait&nbsp;:</span>{' '}
-          {order.pickupTime
-            ? formatPickupTime(new Date(order.pickupTime))
-            : 'dès que prêt'}
-        </p>
-        {/* Garder le lien : cette URL n'est montrée qu'ici — l'envoyer sur
-            WhatsApp (à soi-même ou un proche) évite de la perdre en fermant
-            l'onglet. Complémentaire de /mes-commandes (même appareil). */}
-        {!isFinal && trackingUrl && (
-          <Button
-            as="a"
-            href={buildWhatsAppShareLink(
-              buildTrackingShareMessage({
-                pickupCode,
-                customerName: order.customerName,
-                trackingUrl,
-              })
-            )}
-            target="_blank"
-            rel="noopener noreferrer"
-            variant="bordered"
-            size="sm"
-            className="mt-4"
-            startContent={<Share2 className="h-3.5 w-3.5" />}
-          >
-            Partager le lien de suivi
-          </Button>
-        )}
-      </div>
+      <PickupCodeCard
+        order={order}
+        pickupCode={pickupCode}
+        isFinal={isFinal}
+        trackingUrl={trackingUrl}
+      />
 
       {/* ── Fidélité ── */}
       {!isCancelled && order.loyalty && (
@@ -332,341 +135,14 @@ export function OrderTracking({
         />
       )}
 
-      {/* ── Articles ── */}
-      <div className="w-full">
-        <h2 className="mb-3 text-sm font-semibold">Articles</h2>
-        <div className="flex flex-col gap-2">
-          {order.items.map((item, i) => {
-            const unavailable = !order.isPaid && !item.available;
-            return (
-              <div
-                key={i}
-                className="flex items-start justify-between gap-2 text-sm"
-              >
-                <div className="min-w-0">
-                  {/* `div` et non `p` : le Chip rend un <div>, interdit dans un
-                      <p> — l'hydratation échouait dès qu'un article était
-                      indisponible, et les premiers clics étaient perdus. */}
-                  <div className="font-medium">
-                    {item.productName}{' '}
-                    <span className="text-foreground/50">x{item.quantity}</span>
-                    {unavailable && (
-                      <Chip
-                        color="warning"
-                        variant="flat"
-                        size="sm"
-                        className="ml-2 align-middle"
-                      >
-                        Indisponible
-                      </Chip>
-                    )}
-                  </div>
-                  {item.supplements.length > 0 && (
-                    <p className="text-xs text-foreground/50">
-                      {item.supplements.map(formatSupplementLabel).join(', ')}
-                    </p>
-                  )}
-                </div>
-                <p className="shrink-0 font-medium">
-                  {priceFormatter.format(getItemGross(item))}&nbsp;FCFA
-                </p>
-              </div>
-            );
-          })}
-        </div>
+      <OrderItemsSection order={order} />
 
-        {/* Somme des articles − récompense = Total (réconciliation visible). */}
-        {order.loyaltyDiscount != null && order.loyaltyDiscount > 0 && (
-          <div className="mt-4 flex justify-between border-t border-foreground/10 pt-4 text-sm">
-            <span className="text-foreground/60">Récompense fidélité 🎁</span>
-            <span className="font-medium text-primary">
-              −{priceFormatter.format(order.loyaltyDiscount)}&nbsp;FCFA
-            </span>
-          </div>
-        )}
-
-        <div className="mt-4 flex justify-between border-t border-foreground/10 pt-4 font-semibold">
-          <span>Total</span>
-          <span className="text-primary">
-            {priceFormatter.format(order.total)}&nbsp;FCFA
-          </span>
-        </div>
-
-        {order.note && (
-          <p className="mt-3 text-xs text-foreground/60">
-            <span className="font-semibold">Note&nbsp;:</span> {order.note}
-          </p>
-        )}
-      </div>
-
-      {/* ── Lieu de retrait ── */}
       {(pickupAddress || pickupMapsUrl) && (
-        <div className="w-full rounded-xl border border-foreground/10 bg-default-50 p-5">
-          <div className="flex items-start gap-3">
-            <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-            <div className="flex-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-foreground/40">
-                Lieu de retrait
-              </p>
-              {pickupAddress && (
-                <p className="mt-1 text-sm font-medium">{pickupAddress}</p>
-              )}
-              <p className="mt-1 text-xs text-foreground/60">
-                Ton livreur peut estimer le coût de la course avec la
-                localisation ci-dessous.
-              </p>
-            </div>
-          </div>
-          {pickupMapsUrl &&
-            (pickupMapsUrl.includes('/maps/embed') ? (
-              <MapEmbed
-                embedUrl={pickupMapsUrl}
-                // Un lien `/maps/embed` n'est pas destiné à être ouvert tel
-                // quel : le repli hors-iframe pointe donc sur une recherche
-                // Maps de l'adresse quand on en a une.
-                directionsUrl={
-                  pickupAddress
-                    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(pickupAddress)}`
-                    : pickupMapsUrl
-                }
-                title="Carte du lieu de retrait"
-                caption={pickupAddress ?? undefined}
-                className="mt-4 h-55 overflow-hidden rounded-lg border border-foreground/10"
-              />
-            ) : (
-              <a
-                href={pickupMapsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-block py-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
-              >
-                Voir sur Google Maps →
-              </a>
-            ))}
-        </div>
+        <PickupPlace
+          pickupAddress={pickupAddress}
+          pickupMapsUrl={pickupMapsUrl}
+        />
       )}
     </div>
-  );
-}
-
-// ─── Timeline ─────────────────────────────────────────────────────────────────
-
-function StatusTimeline({
-  currentStep,
-  reduceMotion,
-}: {
-  currentStep: number;
-  reduceMotion: boolean | null;
-}) {
-  return (
-    <div className="rounded-xl border border-foreground/10 bg-default-50 p-5">
-      <ol className="flex items-start">
-        {STATUS_STEPS.map((step, i) => {
-          const done = i < currentStep;
-          const active = i === currentStep;
-          const StepIcon = step.Icon;
-          return (
-            <li key={step.status} className="flex flex-1 flex-col items-center">
-              <div className="flex w-full items-center">
-                <div
-                  className={cn(
-                    'h-0.5 flex-1',
-                    i === 0
-                      ? 'bg-transparent'
-                      : i <= currentStep
-                        ? 'bg-primary'
-                        : 'bg-foreground/15'
-                  )}
-                />
-                <m.div
-                  initial={false}
-                  animate={
-                    active && !reduceMotion ? { scale: [1, 1.12, 1] } : {}
-                  }
-                  transition={{ duration: 1.6, repeat: Infinity }}
-                  className={cn(
-                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2',
-                    done || active
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-foreground/20 bg-background text-foreground/40'
-                  )}
-                >
-                  {done ? (
-                    <Check className="h-4 w-4" strokeWidth={3} />
-                  ) : (
-                    <StepIcon className="h-4 w-4" />
-                  )}
-                </m.div>
-                <div
-                  className={cn(
-                    'h-0.5 flex-1',
-                    i === STATUS_STEPS.length - 1
-                      ? 'bg-transparent'
-                      : i < currentStep
-                        ? 'bg-primary'
-                        : 'bg-foreground/15'
-                  )}
-                />
-              </div>
-              <p
-                className={cn(
-                  'mt-2 px-1 text-center text-[11px] font-medium leading-tight',
-                  active
-                    ? 'text-primary'
-                    : done
-                      ? 'text-foreground/70'
-                      : 'text-foreground/40'
-                )}
-              >
-                {step.label}
-              </p>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
-  );
-}
-
-// ─── Fidélité ─────────────────────────────────────────────────────────────────
-
-function LoyaltySection({ loyalty }: { loyalty: PublicOrderLoyaltyView }) {
-  const {
-    stampCount,
-    stampsPerCard,
-    tier1Stamps,
-    tier1RewardCap,
-    tier2RewardCap,
-    minOrderAmount,
-    availableRewardsCount,
-    isFirstOrder,
-  } = loyalty;
-
-  const reachedTier1 = stampCount >= tier1Stamps;
-  const nextTarget = reachedTier1 ? stampsPerCard : tier1Stamps;
-  const nextCap = reachedTier1 ? tier2RewardCap : tier1RewardCap;
-  const remaining = Math.max(0, nextTarget - stampCount);
-
-  return (
-    <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-foreground/40">
-          <Gift className="h-4 w-4" />
-          Ta fidélité
-        </p>
-        <span className="text-xs font-medium text-foreground/50">
-          {stampCount}/{stampsPerCard} tampons
-        </span>
-      </div>
-
-      {availableRewardsCount > 0 ? (
-        <p className="mt-3 text-sm font-medium text-primary">
-          🎁 Tu as {availableRewardsCount} réduction
-          {availableRewardsCount > 1 ? 's' : ''} prête
-          {availableRewardsCount > 1 ? 's' : ''} à utiliser — elle s’applique
-          toute seule à ta prochaine commande en ligne (ou montre cette page au
-          comptoir).
-        </p>
-      ) : isFirstOrder ? (
-        <p className="mt-3 text-sm text-foreground/70">
-          Merci pour ta première commande chez EBA&nbsp;! 🎉{' '}
-          {stampCount > 0
-            ? 'Tu viens de gagner ton premier tampon fidélité — encore quelques commandes et une réduction t’attend.'
-            : `Dès ${priceFormatter.format(minOrderAmount)} FCFA d’achat, chaque commande te fait gagner un tampon fidélité.`}
-        </p>
-      ) : (
-        <p className="mt-3 text-sm text-foreground/70">
-          Plus que {remaining} commande{remaining > 1 ? 's' : ''} pour ta
-          réduction (jusqu’à {priceFormatter.format(nextCap)} FCFA)&nbsp;!
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ─── Livreur ──────────────────────────────────────────────────────────────────
-
-function DriverSection({
-  order,
-  isFinal,
-  pickupAddress,
-  pickupMapsUrl,
-  pickupCode,
-  trackingUrl,
-}: {
-  order: PublicOrderView;
-  isFinal: boolean;
-  pickupAddress: string | null;
-  pickupMapsUrl: string | null;
-  pickupCode: string;
-  trackingUrl: string;
-}) {
-  const isReady = order.status === 'READY';
-  const reduceMotion = useReducedMotion();
-
-  // Le client n'identifie plus son livreur : il lui suffit de lui transférer
-  // le code de retrait (WhatsApp ouvre le sélecteur de contact).
-  const shareMessage = buildDriverShareMessage({
-    pickupCode,
-    customerName: order.customerName,
-    pickupAddress,
-    pickupMapsUrl,
-    trackingUrl,
-  });
-  const shareLink = buildWhatsAppShareLink(shareMessage);
-
-  // Avant que la commande soit prête, on ne montre ni formulaire ni partage
-  // — rien à faire tant que le livreur ne peut pas encore venir chercher la
-  // commande. La section complète apparaît dès le passage à READY.
-  if (!isFinal && !isReady) {
-    return (
-      <div className="rounded-xl border border-foreground/10 bg-default-50 p-5">
-        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-foreground/40">
-          <Bike className="h-4 w-4" />
-          Ton livreur
-        </p>
-        <p className="mt-3 text-sm text-foreground/60">
-          On te préviendra dès que ta commande est prête pour envoyer ton
-          livreur. Cette page se met à jour toute seule.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <m.div
-      initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="rounded-xl border border-foreground/10 bg-default-50 p-5"
-    >
-      <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-foreground/40">
-        <Bike className="h-4 w-4" />
-        Ton livreur
-      </p>
-
-      {/* Message contextuel : la commande est prête. */}
-      {!isFinal && (
-        <div className="mt-3 rounded-lg bg-success/15 px-3 py-2 text-sm font-medium text-success-700 dark:text-success">
-          C’est prêt ! Tu peux envoyer ton livreur dès maintenant.
-        </div>
-      )}
-
-      {/* Transfert au livreur : code + adresse + Maps + lien de suivi. */}
-      {!isFinal && trackingUrl && (
-        <Button
-          as="a"
-          href={shareLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          variant="bordered"
-          size="lg"
-          className="mt-4 w-full"
-          startContent={<Share2 className="h-4 w-4" />}
-        >
-          Partager au livreur sur WhatsApp
-        </Button>
-      )}
-    </m.div>
   );
 }

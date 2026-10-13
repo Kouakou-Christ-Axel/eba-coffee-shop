@@ -96,7 +96,9 @@ export function PickupModeToggle({
           <CalendarClock className="h-4 w-4" />
           Planifier
         </span>
-        <span className="text-xs text-foreground/50">Choisir jour et heure</span>
+        <span className="text-xs text-foreground/50">
+          Choisir jour et heure
+        </span>
       </button>
     </div>
   );

@@ -1,16 +1,9 @@
 'use client';
 
-// Modale d'association d'un client à une commande existante. Trois chemins :
-//   - rechercher et sélectionner un client déjà enregistré (CRM) ;
-//   - saisir un téléphone (+ nom) pour un nouveau client / lien direct ;
-//   - détacher la commande (la rendre anonyme) si elle est déjà liée.
-//
-// L'action serveur est injectée via `action` (défaut : `setOrderCustomerAction`,
-// commandes) — la cuisine passe `setOrderCustomerFromKitchen` pour associer un
-// client sans les droits caisse (même patron que `EncaisserButton`). La
-// recherche réutilise GET /api/customers/search.
+// Modale d'association d'un client à une commande : recherche CRM, saisie d'un
+// téléphone, ou détachement. `action` est injectée (la cuisine passe
+// `setOrderCustomerFromKitchen`, même patron que `EncaisserButton`).
 
-import { useEffect, useRef, useState, useTransition } from 'react';
 import {
   Modal,
   ModalContent,
@@ -18,21 +11,14 @@ import {
   ModalBody,
   ModalFooter,
   Button,
-  Input,
 } from '@heroui/react';
-import { UserPlus, UserCog, Search, X } from 'lucide-react';
+import { UserPlus, UserCog, X } from 'lucide-react';
 import { formatPhoneForDisplay } from '@/lib/phone';
 import { setOrderCustomerAction } from '../commandes/actions';
 import type { SetOrderCustomerInput } from '@/lib/schemas/order';
-
-const DEBOUNCE_MS = 350;
-const MIN_QUERY_LENGTH = 2;
-
-type CustomerHit = {
-  id: string;
-  name: string | null;
-  phone: string;
-};
+import { CustomerSearchSection } from './associate/customer-search-section';
+import { ManualCustomerSection } from './associate/manual-customer-section';
+import { useAssociateCustomer } from './associate/use-associate-customer';
 
 export type AssociateCustomerAction = (
   orderId: string,
@@ -55,94 +41,8 @@ export function AssociateCustomer({
   currentPhone,
   action = setOrderCustomerAction,
 }: Props) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<CustomerHit[]>([]);
-  const [searching, setSearching] = useState(false);
-
-  // Saisie manuelle (client non trouvé).
-  const [manualPhone, setManualPhone] = useState('');
-  const [manualName, setManualName] = useState('');
-
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abort = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-      abort.current?.abort();
-    };
-  }, []);
-
-  function resetState() {
-    setQuery('');
-    setResults([]);
-    setManualPhone('');
-    setManualName('');
-    setError(null);
-  }
-
-  function handleClose() {
-    if (isPending) return;
-    setIsOpen(false);
-    resetState();
-  }
-
-  function runSearch(term: string) {
-    // Une requête plus ancienne mais plus lente écrasait sinon un résultat
-    // plus récent (le sélecteur de `caisse/new` annule déjà correctement).
-    abort.current?.abort();
-    const q = term.trim();
-    if (q.length < MIN_QUERY_LENGTH) {
-      setResults([]);
-      setSearching(false);
-      return;
-    }
-    const controller = new AbortController();
-    abort.current = controller;
-    setSearching(true);
-    fetch(`/api/customers/search?q=${encodeURIComponent(q)}`, {
-      signal: controller.signal,
-    })
-      .then((res) => (res.ok ? res.json() : { customers: [] }))
-      .then((data: { customers?: CustomerHit[] }) => {
-        setResults(data.customers ?? []);
-        setSearching(false);
-      })
-      .catch(() => {
-        // Requête annulée : une plus récente est en vol, on lui laisse la
-        // main (y compris l'extinction de l'indicateur « Recherche… »).
-        if (controller.signal.aborted) return;
-        setResults([]);
-        setSearching(false);
-      });
-  }
-
-  function handleQueryChange(next: string) {
-    setQuery(next);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => runSearch(next), DEBOUNCE_MS);
-  }
-
-  function submit(input: SetOrderCustomerInput) {
-    setError(null);
-    startTransition(async () => {
-      try {
-        const result = await action(orderId, input);
-        if (result?.error) {
-          setError(result.error);
-          return;
-        }
-        setIsOpen(false);
-        resetState();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erreur serveur');
-      }
-    });
-  }
+  const state = useAssociateCustomer({ orderId, action });
+  const { isOpen, setIsOpen, error, isPending, handleClose, submit } = state;
 
   const isLinked = currentCustomerId !== null;
 
@@ -189,90 +89,12 @@ export function AssociateCustomer({
               </p>
             )}
 
-            {/* Recherche d'un client existant */}
-            <div className="space-y-2">
-              <Input
-                label="Rechercher un client"
-                placeholder="Nom ou téléphone"
-                value={query}
-                onValueChange={handleQueryChange}
-                startContent={<Search className="h-4 w-4 text-default-400" />}
-                isClearable
-                onClear={() => {
-                  setQuery('');
-                  setResults([]);
-                }}
-                autoComplete="off"
-              />
-              {query.trim().length >= MIN_QUERY_LENGTH && (
-                <ul className="max-h-56 divide-y divide-default-100 overflow-auto rounded-medium border border-default-200">
-                  {searching && (
-                    <li className="px-3 py-2 text-sm text-default-400">
-                      Recherche…
-                    </li>
-                  )}
-                  {!searching && results.length === 0 && (
-                    <li className="px-3 py-2 text-sm text-default-400">
-                      Aucun client trouvé
-                    </li>
-                  )}
-                  {results.map((hit) => (
-                    <li key={hit.id}>
-                      <button
-                        type="button"
-                        disabled={isPending || hit.id === currentCustomerId}
-                        onClick={() => submit({ customerId: hit.id })}
-                        className="flex w-full flex-col items-start px-3 py-2 text-left hover:bg-default-100 disabled:opacity-50"
-                      >
-                        <span className="font-medium">
-                          {hit.name || 'Sans nom'}
-                          {hit.id === currentCustomerId && ' (lié)'}
-                        </span>
-                        <span className="text-xs text-default-500">
-                          {formatPhoneForDisplay(hit.phone)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <CustomerSearchSection
+              state={state}
+              currentCustomerId={currentCustomerId}
+            />
 
-            {/* Saisie manuelle (nouveau client / lien direct par téléphone) */}
-            <div className="space-y-2 border-t border-default-200 pt-4">
-              <p className="text-sm font-medium text-default-600">
-                Ou saisir un nouveau client
-              </p>
-              <Input
-                label="Nom (optionnel)"
-                value={manualName}
-                onValueChange={setManualName}
-                autoComplete="off"
-              />
-              <Input
-                label="Téléphone"
-                type="tel"
-                inputMode="tel"
-                placeholder="07 88 12 34 56"
-                value={manualPhone}
-                onValueChange={setManualPhone}
-                autoComplete="off"
-              />
-              <Button
-                type="button"
-                color="primary"
-                isDisabled={manualPhone.trim().length === 0}
-                isLoading={isPending}
-                onPress={() =>
-                  submit({
-                    phone: manualPhone.trim(),
-                    name: manualName.trim() || null,
-                  })
-                }
-              >
-                Associer ce client
-              </Button>
-            </div>
+            <ManualCustomerSection state={state} />
           </ModalBody>
 
           <ModalFooter className="justify-between">

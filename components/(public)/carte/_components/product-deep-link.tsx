@@ -94,7 +94,5 @@ export function ProductDeepLink({ menuData }: { menuData: MenuCategory[] }) {
 
   if (!product) return null;
 
-  return (
-    <SupplementModal product={product} isOpen onClose={handleClose} />
-  );
+  return <SupplementModal product={product} isOpen onClose={handleClose} />;
 }

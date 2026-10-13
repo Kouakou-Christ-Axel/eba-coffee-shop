@@ -2,23 +2,22 @@
 
 import { CheckCircle2, PackageCheck, X } from 'lucide-react';
 
-/** Confirmation de création : « Commande #012 créée » (retour de `/caisse/new`). */
-export function CreatedFlash({
-  dailyNumber,
+export function CreatedFlashBanner({
+  createdFlash,
   onClose,
 }: {
-  dailyNumber: string;
+  createdFlash: string;
   onClose: () => void;
 }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border-2 border-primary/30 bg-primary/10 px-4 py-3 text-primary shadow-sm">
       <CheckCircle2 className="h-6 w-6 shrink-0" aria-hidden="true" />
       <p className="min-w-0 flex-1 text-sm font-bold">
-        Commande #{dailyNumber.padStart(3, '0')} créée
+        Commande #{createdFlash.padStart(3, '0')} créée
       </p>
       <button
         type="button"
-        onClick={onClose}
+        onClick={() => onClose()}
         aria-label="Fermer"
         className="shrink-0 rounded-full p-1 transition-colors hover:bg-primary/15"
       >
@@ -28,12 +27,11 @@ export function CreatedFlash({
   );
 }
 
-/** Bandeau éphémère : la cuisine vient de marquer ces commandes « prêtes ». */
-export function ReadyFlash({
-  dailyNumbers,
+export function ReadyFlashBanner({
+  readyFlash,
   onClose,
 }: {
-  dailyNumbers: number[];
+  readyFlash: number[];
   onClose: () => void;
 }) {
   return (
@@ -41,18 +39,18 @@ export function ReadyFlash({
       <PackageCheck className="h-6 w-6 shrink-0" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-bold">
-          {dailyNumbers.length > 1
-            ? `${dailyNumbers.length} commandes prêtes !`
+          {readyFlash.length > 1
+            ? `${readyFlash.length} commandes prêtes !`
             : 'Commande prête !'}
         </p>
         <p className="truncate text-xs">
-          {dailyNumbers.map((n) => `#${String(n).padStart(3, '0')}`).join(', ')}{' '}
-          — à remettre au client
+          {readyFlash.map((n) => `#${String(n).padStart(3, '0')}`).join(', ')} —
+          à remettre au client
         </p>
       </div>
       <button
         type="button"
-        onClick={onClose}
+        onClick={() => onClose()}
         aria-label="Fermer"
         className="shrink-0 rounded-full p-1 text-green-700 transition-colors hover:bg-green-100 dark:text-green-300 dark:hover:bg-green-900/40"
       >

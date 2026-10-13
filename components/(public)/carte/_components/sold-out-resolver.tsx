@@ -18,34 +18,22 @@
 // Chargé via `next/dynamic` : rien de ce code n'entre dans le chunk initial
 // des pages qui l'utilisent.
 
-import dynamic from 'next/dynamic';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Button,
-  Chip,
   Modal,
   ModalBody,
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Skeleton,
 } from '@heroui/react';
-import { CalendarClock, Check, Plus, RefreshCw, Trash2 } from 'lucide-react';
-import type { CartItem, CartItemDraft } from '@/lib/cart-store';
+import { CalendarClock, Check } from 'lucide-react';
+import type { CartItem } from '@/lib/cart-store';
 import type { SoldOutLine } from '@/lib/schemas/order';
-import { priceFormatter, type MenuCategory, type Product } from '@/config/menu';
-import { formatSupplementLabel } from '@/lib/orders/format';
-import { selectReplacementProducts } from '@/lib/replacements';
-import { ProductMedia } from './product-media';
-import { useQuickAdd, type QuickAddSink } from './use-quick-add';
-
-const SupplementModal = dynamic(
-  () => import('@/components/(public)/carte/supplement-modal'),
-  { ssr: false }
-);
-const RestockAlertButton = dynamic(() => import('./restock-alert-button'), {
-  ssr: false,
-});
+import type { MenuCategory } from '@/config/menu';
+import { ResolveRow } from './sold-out/resolve-row';
+import type { ReplaceHandler } from './sold-out/types';
+import { useMenuWhenOpen } from './sold-out/use-menu-when-open';
 
 export type SoldOutResolverProps = {
   isOpen: boolean;
@@ -55,12 +43,7 @@ export type SoldOutResolverProps = {
   /** Panier courant : une ligne remplacée/retirée en disparaît, c'est ce qui
    * la marque comme résolue. */
   items: CartItem[];
-  onReplace: (
-    cartId: string,
-    item: CartItemDraft,
-    quantity: number,
-    maxQuantity: number | undefined
-  ) => void;
+  onReplace: ReplaceHandler;
   /** Garder la quantité encore en stock — panier uniquement (absent = option
    * non proposée). */
   onReduce?: (cartId: string, quantity: number) => void;
@@ -74,31 +57,6 @@ export type SoldOutResolverProps = {
    * requête. Absent = chargé à l'ouverture. */
   menu?: MenuCategory[] | null;
 };
-
-/** Menu frais (stock compris) : celui de l'appelant s'il l'a déjà chargé,
- * sinon chargé à l'ouverture du panneau. `null` = en cours, `[]` = échec. */
-function useMenuWhenOpen(
-  isOpen: boolean,
-  preloaded: MenuCategory[] | null | undefined
-): MenuCategory[] | null {
-  const [menu, setMenu] = useState<MenuCategory[] | null>(null);
-  useEffect(() => {
-    if (!isOpen || menu || preloaded) return;
-    let cancelled = false;
-    fetch('/api/menu')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: MenuCategory[] | null) => {
-        if (!cancelled) setMenu(Array.isArray(data) ? data : []);
-      })
-      .catch(() => {
-        if (!cancelled) setMenu([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen, menu, preloaded]);
-  return preloaded ?? menu;
-}
 
 export default function SoldOutResolver({
   isOpen,
@@ -210,237 +168,5 @@ export default function SoldOutResolver({
         </ModalFooter>
       </ModalContent>
     </Modal>
-  );
-}
-
-// ─── Une ligne à résoudre ────────────────────────────────────────────────────
-
-function ResolveRow({
-  line,
-  item,
-  menu,
-  productIdsInCart,
-  onReplace,
-  onReduce,
-  onRemove,
-}: {
-  line: SoldOutLine;
-  item: CartItem;
-  menu: MenuCategory[] | null;
-  productIdsInCart: string[];
-  onReplace: SoldOutResolverProps['onReplace'];
-  onReduce?: (quantity: number) => void;
-  onRemove: () => void;
-}) {
-  const [flavourOpen, setFlavourOpen] = useState(false);
-  const sink: QuickAddSink = (draft, quantity, max) =>
-    onReplace(line.cartId, draft, quantity, max);
-
-  const product =
-    menu?.flatMap((c) => c.products).find((p) => p.id === line.productId) ??
-    null;
-  // Seul un goût manque, le produit est là : on propose de changer de goût
-  // plutôt que de changer de produit.
-  const flavourOnly =
-    !line.missingProduct &&
-    line.missingOptionNames.length > 0 &&
-    product != null &&
-    product.soldOut !== true;
-  // Stock court mais pas nul : garder ce qui reste est une vraie option.
-  const canReduce =
-    onReduce !== undefined &&
-    line.missingProduct &&
-    line.missingOptionNames.length === 0 &&
-    line.remaining != null &&
-    line.remaining > 0 &&
-    line.remaining < item.quantity;
-
-  const replacements = useMemo(
-    () =>
-      menu && !flavourOnly
-        ? selectReplacementProducts(menu, item, {
-            excludeProductIds: productIdsInCart,
-          })
-        : [],
-    [menu, flavourOnly, item, productIdsInCart]
-  );
-
-  // Cible de l'alerte « de retour » : le goût manquant s'il est seul en
-  // cause (et identifiable dans la ligne), sinon le produit.
-  const missingFlavourGroup = flavourOnly
-    ? item.supplements.find((s) => s.optionName === line.missingOptionNames[0])
-        ?.groupName
-    : undefined;
-  const alertTarget = missingFlavourGroup
-    ? {
-        productId: line.productId,
-        groupName: missingFlavourGroup,
-        optionName: line.missingOptionNames[0],
-      }
-    : { productId: line.productId };
-
-  const reason = line.missingProduct
-    ? canReduce
-      ? `Il n’en reste que ${line.remaining}`
-      : 'Épuisé aujourd’hui'
-    : `${line.missingOptionNames.join(', ')} épuisé${line.missingOptionNames.length > 1 ? 's' : ''}`;
-
-  return (
-    <section className="rounded-2xl border border-foreground/10 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">
-            {item.quantity}× {item.productName}
-          </p>
-          {item.supplements.length > 0 && (
-            <p className="text-xs text-foreground/45">
-              {item.supplements.map(formatSupplementLabel).join(', ')}
-            </p>
-          )}
-          <Chip size="sm" color="warning" variant="flat" className="mt-1.5">
-            {reason}
-          </Chip>
-        </div>
-        <Button
-          isIconOnly
-          variant="light"
-          aria-label={`Retirer ${item.productName}`}
-          className="h-11 w-11 shrink-0 text-foreground/50"
-          onPress={onRemove}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <div className="mt-3">
-        {flavourOnly && product ? (
-          <>
-            <Button
-              color="primary"
-              className="w-full"
-              startContent={
-                <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              }
-              onPress={() => setFlavourOpen(true)}
-            >
-              Changer de goût
-            </Button>
-            <SupplementModal
-              product={product}
-              isOpen={flavourOpen}
-              onClose={() => setFlavourOpen(false)}
-              initialSupplements={item.supplements.filter(
-                (s) => !line.missingOptionNames.includes(s.optionName)
-              )}
-              editToken={line.cartId}
-              initialQuantity={item.quantity}
-              strictStock
-              onConfirm={sink}
-            />
-          </>
-        ) : (
-          <>
-            <p className="text-xs font-semibold text-foreground/60">
-              Remplacer par
-            </p>
-            {menu === null ? (
-              <div className="mt-2 flex gap-3">
-                {[0, 1, 2].map((i) => (
-                  <Skeleton key={i} className="h-36 w-28 rounded-xl" />
-                ))}
-              </div>
-            ) : replacements.length === 0 ? (
-              <p className="mt-1 text-sm text-foreground/55">
-                Pas d’alternative disponible pour l’instant.
-              </p>
-            ) : (
-              <div className="-mx-1 mt-2 overflow-x-auto px-1 pb-1 scrollbar-none">
-                <div className="flex snap-x gap-3">
-                  {replacements.map((p) => (
-                    <ReplacementCard
-                      key={p.id}
-                      product={p}
-                      quantity={item.quantity}
-                      sink={sink}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Rien ne convient ? Être prévenu du retour de CE qui manque —
-            le goût précis s'il n'y a que lui, sinon le produit. */}
-        <RestockAlertButton className="mt-2" target={alertTarget} />
-
-        {canReduce && (
-          <Button
-            variant="flat"
-            size="sm"
-            className="mt-2 min-h-9"
-            onPress={() => onReduce?.(line.remaining!)}
-          >
-            Garder les {line.remaining} disponibles
-          </Button>
-        )}
-      </div>
-    </section>
-  );
-}
-
-// ─── Carte d'alternative ─────────────────────────────────────────────────────
-
-function ReplacementCard({
-  product,
-  quantity,
-  sink,
-}: {
-  product: Product;
-  quantity: number;
-  sink: QuickAddSink;
-}) {
-  const { hasOptions, isModalOpen, closeModal, handleAdd } = useQuickAdd(
-    product,
-    { sink, quantity }
-  );
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={handleAdd}
-        aria-label={`Remplacer par ${product.name}`}
-        className="w-28 shrink-0 cursor-pointer snap-start text-left"
-      >
-        <div className="relative h-24 w-28 overflow-hidden rounded-xl">
-          <ProductMedia
-            product={product}
-            sizes="112px"
-            monogramClassName="text-3xl"
-          />
-          <span className="absolute bottom-1.5 right-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-white text-primary shadow-md">
-            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-          </span>
-        </div>
-        <p className="mt-1.5 truncate text-xs font-medium text-foreground">
-          {product.name}
-        </p>
-        <p className="text-xs font-semibold text-primary">
-          {priceFormatter.format(product.price)}&nbsp;F
-        </p>
-      </button>
-
-      {hasOptions && (
-        <SupplementModal
-          product={product}
-          isOpen={isModalOpen}
-          onClose={closeModal}
-          initialQuantity={quantity}
-          strictStock
-          onConfirm={sink}
-        />
-      )}
-    </>
   );
 }
