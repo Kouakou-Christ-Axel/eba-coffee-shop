@@ -10,6 +10,8 @@ import {
   mockProdUpdate,
   mockProdFindUnique,
   mockSupGroupFindMany,
+  mockSupGroupUpdate,
+  mockSupGroupCreate,
   mockSupOptionUpdate,
   mockSupOptionCreate,
   mockSupOptionDeleteMany,
@@ -189,6 +191,63 @@ describe('updateProduct', () => {
     expect(mockSupOptionUpdate).toHaveBeenCalledWith({
       where: { id: 'opt-vanille' },
       data: expect.objectContaining({ stockQuantity: 2 }),
+    });
+  });
+
+  // Un payload partiel (ex. client MCP) qui ignore `kind` ne doit pas remettre
+  // un groupe de goûts à « supplément ».
+  it('laisse `kind` intact quand le payload ne le fournit pas', async () => {
+    mockProdFindUnique.mockResolvedValue({ id: 'p1' } as never);
+    mockProdUpdate.mockResolvedValue({ id: 'p1' } as never);
+    mockSupGroupFindMany.mockResolvedValue([
+      { id: 'g1', name: 'Goûts', kind: 'flavor', options: [] },
+    ] as never);
+
+    await updateProduct('p1', {
+      supplementGroups: [
+        {
+          name: 'Goûts',
+          type: 'single',
+          required: true,
+          available: true,
+          minSelect: null,
+          maxSelect: null,
+          options: [{ name: 'Vanille', price: 0, available: true }],
+        },
+      ],
+    });
+
+    const data = mockSupGroupUpdate.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty('kind');
+  });
+
+  it('écrit `kind` quand il est fourni, et crée par défaut un supplément', async () => {
+    mockProdFindUnique.mockResolvedValue({ id: 'p1' } as never);
+    mockProdUpdate.mockResolvedValue({ id: 'p1' } as never);
+    mockSupGroupFindMany.mockResolvedValue([
+      { id: 'g1', name: 'Goûts', kind: 'extra', options: [] },
+    ] as never);
+
+    const base = {
+      type: 'single' as const,
+      required: false,
+      available: true,
+      minSelect: null,
+      maxSelect: null,
+      options: [{ name: 'Vanille', price: 0, available: true }],
+    };
+    await updateProduct('p1', {
+      supplementGroups: [
+        { ...base, name: 'Goûts', kind: 'flavor' },
+        { ...base, name: 'Sauces' },
+      ],
+    });
+
+    expect(mockSupGroupUpdate.mock.calls[0][0].data).toMatchObject({
+      kind: 'flavor',
+    });
+    expect(mockSupGroupCreate.mock.calls[0][0].data).toMatchObject({
+      kind: 'extra',
     });
   });
 });

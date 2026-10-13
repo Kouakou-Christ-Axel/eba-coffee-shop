@@ -8,6 +8,10 @@ export const cartItemSupplementSchema = z.object({
   groupName: z.string(),
   optionName: z.string(),
   price: z.number().int().nonnegative(),
+  // 'flavor' = goût (dans le produit), absent = supplément (par-dessus). Figé à
+  // la création comme le prix : la cuisine sépare les deux sur le ticket
+  // (`kindStamp`, lib/supplements/kind.ts).
+  kind: z.literal('flavor').optional(),
   // Nombre de fois où cette option est choisie (groupe type 'quantity', ex.
   // 2x « Vanille »). Absent/1 pour les choix 'single'/'multiple' classiques.
   quantity: z.number().int().positive().optional().default(1),

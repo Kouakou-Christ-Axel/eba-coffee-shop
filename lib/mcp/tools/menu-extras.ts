@@ -56,7 +56,9 @@ export const menuExtrasTools: McpTool[] = [
     description:
       'Crée un groupe d’extras global (sans option — les ajouter ensuite via ' +
       '`create_global_extra_option`). `type` ∈ single (un choix) / multiple ' +
-      '(cases à cocher) / quantity (répartition d’une quantité entre options).',
+      '(cases à cocher) / quantity (répartition d’une quantité entre options). ' +
+      '`kind` ∈ extra (supplément, défaut) / flavor (goût : séparé des ' +
+      'suppléments sur le ticket de cuisine).',
     inputSchema: globalExtraGroupInputSchema,
     readOnly: false,
     handler: (args) => createGlobalExtraGroup(args as GlobalExtraGroupInput),
@@ -66,7 +68,7 @@ export const menuExtrasTools: McpTool[] = [
     toolset: 'menu',
     title: 'Modifier un groupe d’extras global',
     description:
-      'Met à jour PARTIELLEMENT un groupe d’extras global (nom, requis, ' +
+      'Met à jour PARTIELLEMENT un groupe d’extras global (nom, `kind`, requis, ' +
       'disponibilité, bornes). Champs non fournis = inchangés.',
     inputSchema: globalExtraGroupUpdateSchema.extend({ id: idSchema }),
     readOnly: false,

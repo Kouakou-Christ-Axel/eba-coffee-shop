@@ -9,6 +9,8 @@ export type CartItemSupplement = {
   groupName: string;
   optionName: string;
   price: number;
+  // 'flavor' = goût ; absent = supplément (voir `kindStamp`, lib/supplements/kind.ts).
+  kind?: 'flavor';
   // Nombre de fois où cette option est choisie (groupe type 'quantity').
   // Absent = 1 (choix 'single'/'multiple' classiques).
   quantity?: number;

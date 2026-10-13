@@ -9,8 +9,15 @@ export type SupplementOption = {
   soldOut?: boolean;
 };
 
+/**
+ * Nature d'un groupe : `flavor` = goût (dans le produit), `extra` = supplément
+ * (ajouté par-dessus). Absent = `extra` (données antérieures au champ).
+ */
+export type SupplementKind = 'flavor' | 'extra';
+
 export type SupplementGroup = {
   name: string;
+  kind?: SupplementKind;
   type: 'single' | 'multiple' | 'quantity';
   required: boolean;
   // Bornes sur le nombre d'options cochées ('multiple') ou sur la quantité

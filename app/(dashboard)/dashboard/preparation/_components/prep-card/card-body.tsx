@@ -7,6 +7,7 @@ import { aggregateOrderSupplements, getPickupCode } from '@/lib/orders/format';
 import type { PreparationOrder } from '@/lib/preparation-queue';
 import { formatElapsed, TONE_CLASS, type elapsedTone } from '../elapsed';
 import { ORDER_TYPE_META, SOURCE_META } from './meta';
+import { SupplementPanels } from '../supplement-panels';
 
 export function CardBody({
   order,
@@ -121,35 +122,7 @@ export function CardBody({
         ))}
       </ul>
 
-      {/* Zone Suppléments : séparée des articles pour ne jamais se perdre
-            dans la liste — fusionnée par produit + jeu de suppléments avec
-            quantité totale explicite (voir aggregateOrderSupplements). */}
-      {supplementLines.length > 0 && (
-        <div className="rounded-lg border border-secondary-200 bg-secondary-50/60 p-2 dark:border-secondary-900 dark:bg-secondary-950/20">
-          <p className="text-xs font-bold uppercase tracking-wide text-secondary-700 dark:text-secondary-300">
-            Suppléments
-          </p>
-          <ul className="mt-1 space-y-1">
-            {supplementLines.map((line) => (
-              <li key={line.key} className="text-sm">
-                <span className="font-semibold">
-                  {line.productName}
-                  {line.quantity > 1 ? ` ×${line.quantity}` : ''}
-                </span>{' '}
-                <span className="text-secondary-700 dark:text-secondary-300">
-                  {line.supplements
-                    .map((s) =>
-                      s.quantity > 1
-                        ? `${s.optionName} ×${s.quantity}`
-                        : s.optionName
-                    )
-                    .join(', ')}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <SupplementPanels lines={supplementLines} size="md" />
     </button>
   );
 }

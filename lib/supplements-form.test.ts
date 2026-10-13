@@ -25,6 +25,7 @@ function option(overrides: Partial<SupplementOption> = {}): SupplementOption {
 function group(overrides: Partial<SupplementGroup> = {}): SupplementGroup {
   return {
     name: 'Parfum',
+    kind: 'extra',
     type: 'single',
     required: false,
     available: true,
@@ -71,6 +72,7 @@ describe('pruneSupplementGroups', () => {
     expect(Object.keys(pruned[0]).sort()).toEqual(
       [
         'available',
+        'kind',
         'maxSelect',
         'minSelect',
         'name',
@@ -92,6 +94,7 @@ describe('toCanonicalGroup', () => {
   // formulaire devient sale à l'ouverture, sans qu'on ait rien saisi.
   const PAGE_ORDER = [
     'name',
+    'kind',
     'type',
     'required',
     'available',
@@ -228,6 +231,12 @@ describe('summarizeGroup', () => {
   it('signale un groupe sans option', () => {
     expect(summarizeGroup(group({ options: [blankOption] }))).toBe(
       'Choix unique · aucune option'
+    );
+  });
+
+  it('signale un groupe de goûts en tête de ligne', () => {
+    expect(summarizeGroup(group({ kind: 'flavor' }))).toBe(
+      'Goût · Choix unique · 1 option'
     );
   });
 

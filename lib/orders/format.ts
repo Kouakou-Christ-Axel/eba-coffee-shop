@@ -21,6 +21,8 @@ export function formatSupplementLabel(s: CartItemSupplement): string {
 export type AggregatedSupplement = {
   groupName: string;
   optionName: string;
+  /** 'flavor' = goût (dans le produit) ; absent = supplément (par-dessus). */
+  kind?: 'flavor';
   /** Quantité totale de ce supplément sur tous les cartId fusionnés. */
   quantity: number;
 };
@@ -48,7 +50,10 @@ export function aggregateOrderSupplements(
   for (const item of items) {
     if (item.supplements.length === 0) continue;
     const supplementKey = item.supplements
-      .map((s) => `${s.groupName}:${s.optionName}:${s.quantity ?? 1}`)
+      .map(
+        (s) =>
+          `${s.kind ?? ''}${s.groupName}:${s.optionName}:${s.quantity ?? 1}`
+      )
       .sort()
       .join('|');
     const key = `${item.productId}::${supplementKey}`;
@@ -69,6 +74,7 @@ export function aggregateOrderSupplements(
         supplements: item.supplements.map((s) => ({
           groupName: s.groupName,
           optionName: s.optionName,
+          ...(s.kind === 'flavor' ? { kind: 'flavor' as const } : {}),
           quantity: item.quantity * (s.quantity ?? 1),
         })),
       });

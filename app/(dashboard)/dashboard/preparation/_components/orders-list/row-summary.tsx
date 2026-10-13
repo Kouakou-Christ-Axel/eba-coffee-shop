@@ -8,6 +8,7 @@ import type { PreparationOrder } from '@/lib/preparation-queue';
 import { SOURCE_META } from '../prep-order-card';
 import { formatElapsed } from '../elapsed';
 import type { RowState } from './row-state';
+import { SupplementPanels } from '../supplement-panels';
 
 export function RowSummary({
   order,
@@ -101,36 +102,7 @@ export function RowSummary({
         ))}
       </ul>
 
-      {/* Zone Suppléments : séparée des articles, fusionnée par produit +
-            jeu de suppléments avec quantité totale explicite (voir
-            aggregateOrderSupplements) pour ne jamais lire "1" là où il y en
-            a 2. */}
-      {supplementLines.length > 0 && (
-        <div className="rounded-lg border border-secondary-200 bg-secondary-50/60 p-2 dark:border-secondary-900 dark:bg-secondary-950/20">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-secondary-700 dark:text-secondary-300">
-            Suppléments
-          </p>
-          <ul className="mt-1 space-y-0.5">
-            {supplementLines.map((line) => (
-              <li key={line.key} className="text-sm">
-                <span className="font-semibold">
-                  {line.productName}
-                  {line.quantity > 1 ? ` ×${line.quantity}` : ''}
-                </span>{' '}
-                <span className="text-secondary-700 dark:text-secondary-300">
-                  {line.supplements
-                    .map((s) =>
-                      s.quantity > 1
-                        ? `${s.optionName} ×${s.quantity}`
-                        : s.optionName
-                    )
-                    .join(', ')}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <SupplementPanels lines={supplementLines} size="sm" />
 
       {isToPay && (
         <p className="text-lg font-bold text-orange-700 dark:text-orange-300">

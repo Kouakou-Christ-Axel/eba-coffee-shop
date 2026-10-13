@@ -22,6 +22,7 @@ export default async function GlobalExtrasPage() {
       <GlobalExtrasForm
         initialGroups={groups.map((g) => ({
           name: g.name,
+          kind: g.kind,
           type: g.type,
           required: g.required,
           available: g.available,

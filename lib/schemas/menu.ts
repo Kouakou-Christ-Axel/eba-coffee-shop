@@ -24,6 +24,12 @@ export const supplementOptionSchema = z.object({
   stockQuantity: z.number().int().nonnegative().nullable().optional(),
 });
 
+// 'flavor' = goût (dans le produit), 'extra' = supplément (par-dessus). Sans
+// défaut Zod : un payload partiel qui l'omet (ex. MCP `update_product`) doit
+// laisser la valeur en base intacte, pas la remettre à 'extra' (cf.
+// `syncSupplementGroups`, qui ne l'écrit que s'il est fourni).
+export const supplementKindSchema = z.enum(['flavor', 'extra']);
+
 export const supplementGroupSchema = z
   .object({
     name: z
@@ -31,6 +37,7 @@ export const supplementGroupSchema = z
       .trim()
       .min(1, 'Nom requis')
       .max(80, 'Nom trop long (max 80 caractères)'),
+    kind: supplementKindSchema.optional(),
     // 'single' : un seul choix (radio). 'multiple' : cases à cocher, chaque
     // option 0 ou 1 fois. 'quantity' : quantité par option (ex. répartir 3
     // parts entre 3 goûts) — chaque option peut être choisie plusieurs fois.
@@ -89,6 +96,7 @@ export const globalExtraGroupInputSchema = z
       .trim()
       .min(1, 'Nom requis')
       .max(80, 'Nom trop long (max 80 caractères)'),
+    kind: supplementKindSchema.optional(),
     type: z.enum(['single', 'multiple', 'quantity']),
     required: z.boolean().optional().default(false),
     available: z.boolean().optional().default(true),
@@ -106,6 +114,7 @@ export const globalExtraGroupInputSchema = z
 
 export const globalExtraGroupUpdateSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
+  kind: supplementKindSchema.optional(),
   required: z.boolean().optional(),
   available: z.boolean().optional(),
   minSelect: z.number().int().nonnegative().nullable().optional(),

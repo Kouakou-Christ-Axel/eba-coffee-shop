@@ -1,7 +1,11 @@
 import prisma from '@/lib/prisma';
 import type { MenuCategory } from '@/config/menu';
 import { formatLocalDateOnly } from '@/lib/timezone';
-import { intersectAvailableDays, effectiveAdvanceOrderDays } from './helpers';
+import {
+  intersectAvailableDays,
+  effectiveAdvanceOrderDays,
+  toSupplementKind,
+} from './helpers';
 
 export async function getMenu(): Promise<MenuCategory[]> {
   const [categories, globalGroups] = await Promise.all([
@@ -43,6 +47,7 @@ export async function getMenu(): Promise<MenuCategory[]> {
     .filter((g) => g.options.length > 0)
     .map((g) => ({
       name: g.name,
+      kind: toSupplementKind(g.kind),
       type: g.type as 'single' | 'multiple' | 'quantity',
       required: g.required,
       minSelect: g.minSelect,
@@ -102,6 +107,7 @@ export async function getMenu(): Promise<MenuCategory[]> {
             .filter((g) => g.options.length > 0)
             .map((g) => ({
               name: g.name,
+              kind: toSupplementKind(g.kind),
               type: g.type as 'single' | 'multiple' | 'quantity',
               required: g.required,
               minSelect: g.minSelect,
