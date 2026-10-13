@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
 import {
@@ -8,13 +8,14 @@ import {
   useOrdersStream,
   useSoundPreference,
 } from '@/lib/hooks/use-orders-stream';
-import { matchesOrderSearch, parseOrderSearchTerm } from '@/lib/orders/search';
+import { parseOrderSearchTerm, searchOrders } from '@/lib/orders/search';
 import {
   minutesUntilPickup,
   pickFirstCriticalTab,
   type TabKey,
 } from './urgency';
 import { useNowTick } from './use-now-tick';
+import { useCaisseParams } from './use-caisse-params';
 import { CaisseHeader } from './_components/caisse-header';
 import { CaisseSearch } from './_components/caisse-search';
 import { CaisseSearchResults } from './_components/caisse-search-results';
@@ -51,8 +52,7 @@ export function CaisseView({
   contactSettings: CaisseContactSettings;
   cashierName: string;
 }) {
-  const [tab, setTab] = useState<TabKey>('to-pay');
-  const [search, setSearch] = useState('');
+  const { tab, setTab, search, setSearch } = useCaisseParams();
   const { soundEnabled, soundEnabledRef, toggleSound } =
     useSoundPreference(SOUND_STORAGE_KEY);
   const now = useNowTick(30_000);
@@ -109,11 +109,10 @@ export function CaisseView({
   // (à encaisser + en cours + prêtes + programmées), donc le résultat est
   // inter-onglets sans aucun aller-retour serveur.
   const parsedSearch = useMemo(() => parseOrderSearchTerm(search), [search]);
+  // Classés par pertinence : un code de retrait exact sort seul, en tête,
+  // même s'il est tout en bas de la file.
   const results = useMemo(
-    () =>
-      parsedSearch
-        ? queue.filter((o) => matchesOrderSearch(o, parsedSearch))
-        : [],
+    () => (parsedSearch ? searchOrders(queue, parsedSearch) : []),
     [queue, parsedSearch]
   );
   const searching = parsedSearch !== null;

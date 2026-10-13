@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   matchesOrderSearch,
   parseOrderSearchTerm,
+  searchOrders,
   type SearchableOrder,
 } from './search';
 
@@ -153,5 +154,82 @@ describe('matchesOrderSearch — nom du client', () => {
       customerPhone: null,
     });
     expect(matches(anonymous, 'axel')).toBe(false);
+  });
+});
+
+describe('termes avec lettres : pas de bruit « chiffres »', () => {
+  it('« A3F9 » ne matche pas les n° du jour contenant 3 et 9', () => {
+    const other = makeOrder({
+      reference: 'EBA-20260706-ZZZZ',
+      dailyNumber: 39,
+      customerName: null,
+      customerPhone: '+22507391234567',
+    });
+    expect(matches(other, 'A3F9')).toBe(false);
+  });
+
+  it('un terme purement numérique garde la recherche par n° et téléphone', () => {
+    const other = makeOrder({
+      reference: 'EBA-20260706-ZZZZ',
+      dailyNumber: 39,
+    });
+    expect(matches(other, '39')).toBe(true);
+    expect(matches(other, '078812')).toBe(true);
+  });
+});
+
+describe('searchOrders — classement', () => {
+  const target = makeOrder({
+    reference: 'EBA-20260706-A3F9',
+    dailyNumber: 12,
+    customerName: 'Awa',
+    customerPhone: null,
+  });
+  const partial = makeOrder({
+    reference: 'EBA-20260706-A3F9X',
+    dailyNumber: 5,
+    customerName: 'Koffi',
+    customerPhone: null,
+  });
+  const noise = makeOrder({
+    reference: 'EBA-20260706-QQQQ',
+    dailyNumber: 39,
+    customerName: 'A3F9 Café',
+    customerPhone: null,
+  });
+
+  it('le code exact est renvoyé seul, même placé en dernier dans la file', () => {
+    const parsed = parseOrderSearchTerm('a3f9')!;
+    expect(searchOrders([partial, noise, target], parsed)).toEqual([target]);
+  });
+
+  it('accepte le dièse devant le code', () => {
+    const parsed = parseOrderSearchTerm('#A3F9')!;
+    expect(searchOrders([partial, target], parsed)).toEqual([target]);
+  });
+
+  it('sans code exact : n° du jour, puis code partiel, puis nom', () => {
+    const byName = makeOrder({
+      reference: 'EBA-20260706-NAME',
+      dailyNumber: 77,
+      customerName: 'Kofi',
+      customerPhone: null,
+    });
+    const byCode = makeOrder({
+      reference: 'EBA-20260706-KOF1',
+      dailyNumber: 78,
+      customerName: null,
+      customerPhone: null,
+    });
+    const parsed = parseOrderSearchTerm('kof')!;
+    expect(searchOrders([byName, byCode], parsed)).toEqual([byCode, byName]);
+  });
+
+  it('tri stable à rang égal et aucun résultat si rien ne correspond', () => {
+    const a = makeOrder({ reference: 'EBA-20260706-AB12', dailyNumber: 1 });
+    const b = makeOrder({ reference: 'EBA-20260706-AB34', dailyNumber: 2 });
+    const parsed = parseOrderSearchTerm('ab')!;
+    expect(searchOrders([a, b], parsed)).toEqual([a, b]);
+    expect(searchOrders([a, b], parseOrderSearchTerm('zzzz')!)).toEqual([]);
   });
 });
