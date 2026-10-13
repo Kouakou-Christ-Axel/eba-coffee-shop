@@ -4,7 +4,9 @@ import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
 import { ActionModals } from './_components/actions/action-modals';
 import { ContactSection } from './_components/actions/contact-section';
-import { EditSection } from './_components/actions/edit-section';
+import { DriverRequestButton } from './_components/actions/driver-request-button';
+import { MoreActions } from './_components/actions/more-actions';
+import { PrimaryAction } from './_components/actions/primary-action';
 import { PaymentSection } from './_components/actions/payment-section';
 import { SignalsSection } from './_components/actions/signals-section';
 import { StatusSection } from './_components/actions/status-section';
@@ -27,15 +29,20 @@ export function OrderCardActions({
   return (
     <>
       <div className="flex flex-col gap-2">
-        <ContactSection
+        <SignalsSection order={order} view={view} actions={actions} />
+        <PrimaryAction order={order} view={view} actions={actions} />
+        {view.canRequestDriver && (
+          <DriverRequestButton order={order} view={view} actions={actions} />
+        )}
+        <StatusSection order={order} view={view} />
+        <ContactSection view={view} />
+        <PaymentSection order={order} view={view} actions={actions} />
+        <MoreActions
           order={order}
           view={view}
+          actions={actions}
           contactSettings={contactSettings}
         />
-        <SignalsSection order={order} view={view} actions={actions} />
-        <PaymentSection order={order} view={view} actions={actions} />
-        <StatusSection order={order} view={view} actions={actions} />
-        <EditSection order={order} view={view} actions={actions} />
       </div>
       <ActionModals order={order} view={view} actions={actions} menu={menu} />
     </>

@@ -257,4 +257,55 @@ describe('setOrderStatus — fidélité à l’annulation', () => {
     );
     expect(revokeLoyaltyForOrder).not.toHaveBeenCalled();
   });
+  it('reprendre une commande expirée en caisse lève le masquage staff (paymentExpiresAt → null)', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'CANCELLED',
+      dailyNumber: 4,
+      customerId: null,
+      isPaid: false,
+      total: 2000,
+      loyaltyRewardId: null,
+      paymentExpiresAt: new Date(),
+    } as never);
+
+    await setOrderStatus('o1', 'NEW', 'CASHIER');
+
+    expect(mockOrderUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'o1', status: 'CANCELLED' },
+      data: expect.objectContaining({ status: 'NEW', paymentExpiresAt: null }),
+    });
+  });
+
+  it('une annulée classique ne touche pas à paymentExpiresAt', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'CANCELLED',
+      dailyNumber: 4,
+      customerId: null,
+      isPaid: false,
+      total: 2000,
+      loyaltyRewardId: null,
+      paymentExpiresAt: null,
+    } as never);
+
+    await setOrderStatus('o1', 'NEW', 'CASHIER');
+
+    const data = mockOrderUpdateMany.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty('paymentExpiresAt');
+  });
+
+  it('une commande remboursée ne peut pas revenir « à encaisser » (409)', async () => {
+    mockOrderFindUnique.mockResolvedValue({
+      status: 'CANCELLED',
+      dailyNumber: 4,
+      customerId: null,
+      isPaid: true,
+      total: 2000,
+      loyaltyRewardId: null,
+      paymentExpiresAt: null,
+    } as never);
+
+    await expect(setOrderStatus('o1', 'NEW', 'CASHIER')).rejects.toThrow(
+      OrderMutationError
+    );
+  });
 });

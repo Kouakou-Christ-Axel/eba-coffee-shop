@@ -8,14 +8,22 @@ type RawCashierOrder = Omit<
   | 'preparingStartedAt'
   | 'readyAt'
   | 'stockReservedAt'
+  | 'driverRequestedAt'
 > & {
   pickupTime: string | null;
   createdAt: string;
   preparingStartedAt: string | null;
   readyAt: string | null;
   stockReservedAt: string | null;
+  driverRequestedAt: string | null;
 };
 
 export function normalize(raw: unknown): CashierOrder {
-  return normalizeOrderDates(raw as RawCashierOrder);
+  const r = raw as RawCashierOrder;
+  return {
+    ...normalizeOrderDates(r),
+    driverRequestedAt: r.driverRequestedAt
+      ? new Date(r.driverRequestedAt)
+      : null,
+  };
 }

@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils';
 import { formatAbidjanTime } from '@/lib/timezone';
 import { type CashierOrder } from '@/lib/cashier-queue';
+import { formatElapsedShort } from '../../urgency';
 import { PaymentProofVerdictBadge } from './payment-proof';
 
 export function OrderCardAlerts({
@@ -20,12 +21,14 @@ export function OrderCardAlerts({
   readyLate,
   overdue,
   driverTelLink,
+  now,
 }: {
   order: CashierOrder;
   readyMinutes: number | null;
   readyLate: boolean;
   overdue: boolean;
   driverTelLink: string | null | undefined;
+  now: Date;
 }) {
   return (
     <>
@@ -58,14 +61,18 @@ export function OrderCardAlerts({
         </div>
       )}
 
-      {/* Signal cuisine "demander livreur" */}
+      {/* Livreur demandé (cuisine ou caisse) */}
       {order.driverRequested && (
         <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-xs font-medium text-amber-900 ring-1 ring-amber-300 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-800">
           <AlertTriangle
             className="h-4 w-4 shrink-0 animate-pulse"
             aria-hidden="true"
           />
-          <span>La cuisine demande d&apos;appeler le livreur</span>
+          <span>
+            Livreur demandé
+            {order.driverRequestedAt &&
+              ` ${formatElapsedShort(order.driverRequestedAt, now)}`}
+          </span>
         </div>
       )}
 

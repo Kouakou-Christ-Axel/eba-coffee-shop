@@ -6,4 +6,5 @@ export type CaisseContactSettings = Pick<
   | 'mapsDirectionsUrl'
   | 'wavePaymentNumber'
   | 'orangeMoneyPaymentNumber'
+  | 'phone'
 >;

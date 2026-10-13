@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
-import type { ContactSettings } from '@/lib/contact-settings';
 import {
   playNewOrderChime,
   useOrdersStream,
@@ -36,6 +35,7 @@ import { useCaisseAlerts } from './_components/view/use-caisse-alerts';
 import { useCreatedFlash } from './_components/view/use-created-flash';
 import { SCHEDULED_ALERT_MINUTES } from '@/config/constants';
 import { UndoToastProvider } from '@/lib/hooks/use-undo-toast';
+import type { CaisseContactSettings } from './_components/actions/types';
 
 const SSE_URL = '/api/caisse/stream';
 const SOUND_STORAGE_KEY = 'eba.caisse.sound-enabled';
@@ -48,13 +48,7 @@ export function CaisseView({
 }: {
   initialQueue: CashierOrder[];
   menu: MenuCategory[];
-  contactSettings: Pick<
-    ContactSettings,
-    | 'yangoLandmark'
-    | 'mapsDirectionsUrl'
-    | 'wavePaymentNumber'
-    | 'orangeMoneyPaymentNumber'
-  >;
+  contactSettings: CaisseContactSettings;
   cashierName: string;
 }) {
   const [tab, setTab] = useState<TabKey>('to-pay');

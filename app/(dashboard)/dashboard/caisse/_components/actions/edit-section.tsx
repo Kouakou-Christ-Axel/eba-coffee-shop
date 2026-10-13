@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { CashierOrder } from '@/lib/cashier-queue';
+import { CopyRecapButton } from '../../../_components/copy-recap-button';
+import type { CaisseContactSettings } from './types';
 import type { OrderActions } from './use-order-actions';
 import type { OrderView } from './use-order-view';
 
@@ -17,12 +19,14 @@ export function EditSection({
   order,
   view,
   actions,
+  contactSettings,
 }: {
   order: CashierOrder;
   view: OrderView;
   actions: OrderActions;
+  contactSettings: CaisseContactSettings;
 }) {
-  const { canEditItems, canEditLoyalty } = view;
+  const { canEditItems, canEditLoyalty, trackingUrl, loyaltyTeaser } = view;
   const {
     isPending,
     actionError,
@@ -34,6 +38,19 @@ export function EditSection({
   } = actions;
   return (
     <>
+      {/* Copier le récap + lien Wave (fonctionne même sans téléphone) */}
+      <CopyRecapButton
+        customerName={order.customerName}
+        dailyNumber={order.dailyNumber}
+        reference={order.reference}
+        amount={order.total}
+        items={order.items}
+        loyaltyDiscount={order.loyaltyDiscount}
+        contactSettings={contactSettings}
+        trackingUrl={trackingUrl}
+        loyaltyTeaser={loyaltyTeaser}
+      />
+
       {/* Ajouter / retirer des produits */}
       {canEditItems && (
         <Button

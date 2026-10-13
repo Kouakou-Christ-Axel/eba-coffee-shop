@@ -18,6 +18,7 @@ import {
 } from './urgency';
 import { OrderCardAlerts } from './_components/card/order-card-alerts';
 import { OrderCardHeader } from './_components/card/order-card-header';
+import { OrderProgress } from './_components/card/order-progress';
 import { OrderCardItems } from './_components/card/order-card-items';
 import { ORDER_TYPE_META } from './_components/card/meta';
 import { getPaymentBadge } from './_components/card/payment-badge';
@@ -75,12 +76,14 @@ export function OrderCard({ order, urgency = 'normal', now, actions }: Props) {
         elapsed={elapsed}
         tickNow={tickNow}
       />
+      <OrderProgress order={order} />
       <OrderCardAlerts
         order={order}
         readyMinutes={readyMinutes}
         readyLate={readyLate}
         overdue={overdue}
         driverTelLink={driverTelLink}
+        now={tickNow}
       />
       <OrderCardItems order={order} />
 

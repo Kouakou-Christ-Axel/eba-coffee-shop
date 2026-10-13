@@ -25,7 +25,7 @@ export function SignalsSection({
   } = actions;
   return (
     <>
-      {/* Dismiss signal cuisine (livreur demandé) */}
+      {/* Retire le signal « livreur demandé » une fois le livreur là */}
       {order.driverRequested && (
         <Button
           type="button"
@@ -40,7 +40,7 @@ export function SignalsSection({
           ) : (
             <BellOff className="mr-1.5 h-4 w-4" />
           )}
-          Demande livreur gérée
+          Livreur arrivé
         </Button>
       )}
 

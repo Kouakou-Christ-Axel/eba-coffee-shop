@@ -105,6 +105,7 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       paymentProofAnalysis: o.paymentProofAnalysis,
       source: o.source,
       driverRequested: o.driverRequested,
+      driverRequestedAt: o.driverRequestedAt,
       driverName: o.driverName,
       driverPhone: o.driverPhone,
       createdAt: o.createdAt,

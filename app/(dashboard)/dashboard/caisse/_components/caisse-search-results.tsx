@@ -8,7 +8,7 @@ import { isScheduledAhead, type TabKey } from '../urgency';
 import type { UrgencyIndex } from './use-urgency-counts';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
-import type { ContactSettings } from '@/lib/contact-settings';
+import type { CaisseContactSettings } from './actions/types';
 
 // Pastille de statut : la file de recherche est INTER-ONGLETS, il faut donc
 // dire d'où vient chaque commande. Libellés alignés sur les onglets.
@@ -36,13 +36,7 @@ type Props = {
   /** Terme saisi, pour le repli « chercher dans toutes les commandes ». */
   term: string;
   menu: MenuCategory[];
-  contactSettings: Pick<
-    ContactSettings,
-    | 'yangoLandmark'
-    | 'mapsDirectionsUrl'
-    | 'wavePaymentNumber'
-    | 'orangeMoneyPaymentNumber'
-  >;
+  contactSettings: CaisseContactSettings;
   now: Date;
 };
 

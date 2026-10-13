@@ -55,3 +55,16 @@ export function undoableStatusMessage(
       return null;
   }
 }
+
+type ApiResult<T> = Awaited<ReturnType<typeof callApi<T>>>;
+
+/** En cas de pénurie (409), propose d'enregistrer la production sur place puis réessaie avec `coverShortage`. */
+export async function withShortageRetry<T>(
+  call: (coverShortage: boolean) => Promise<ApiResult<T>>,
+  confirmShortage: (shortage: ShortageLine[]) => Promise<boolean>
+): Promise<ApiResult<T>> {
+  const first = await call(false);
+  if (first.ok || !first.shortage?.length) return first;
+  if (!(await confirmShortage(first.shortage))) return first;
+  return call(true);
+}

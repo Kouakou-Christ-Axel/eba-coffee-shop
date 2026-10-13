@@ -9,7 +9,12 @@ import { formatPickup } from '@/lib/orders/scheduling';
 import { useConfirmDialog } from '../../../_components/use-confirm-dialog';
 import { useShortageConfirm } from '../../../_components/use-shortage-confirm';
 import type { PaymentLine } from '../../payment-modal';
-import { callApi, undoableStatusMessage } from './call-api';
+import {
+  callApi,
+  undoableStatusMessage,
+  withShortageRetry as retryOnShortage,
+} from './call-api';
+import { useDriverRequest } from './use-driver-request';
 import type { OrderView } from './use-order-view';
 
 export function useOrderActions(order: CashierOrder, view: OrderView) {
@@ -59,17 +64,9 @@ export function useOrderActions(order: CashierOrder, view: OrderView) {
     });
   }
 
-  // En cas de pénurie, propose d'enregistrer la production sur place puis réessaie avec `coverShortage`.
-  async function withShortageRetry<T>(
-    call: (
-      coverShortage: boolean
-    ) => Promise<Awaited<ReturnType<typeof callApi<T>>>>
-  ) {
-    const first = await call(false);
-    if (first.ok || !first.shortage?.length) return first;
-    if (!(await confirmShortage(first.shortage))) return first;
-    return call(true);
-  }
+  const withShortageRetry = <T>(
+    call: Parameters<typeof retryOnShortage<T>>[0]
+  ) => retryOnShortage(call, confirmShortage);
 
   function handlePaymentConfirm(payments: PaymentLine[]) {
     setPaymentError(null);
@@ -182,6 +179,12 @@ export function useOrderActions(order: CashierOrder, view: OrderView) {
     });
   }
 
+  const { handleRequestDriver } = useDriverRequest(
+    order.id,
+    runMutation,
+    setActionError
+  );
+
   // Lance une commande programmée déjà payée ; confirmation si le retrait est un autre jour (le stock d'AUJOURD'HUI sera décompté).
   async function handleStartPreparation() {
     if (isDeferred) {
@@ -275,6 +278,7 @@ export function useOrderActions(order: CashierOrder, view: OrderView) {
     handleValidateWaveProof,
     handleStatusChange,
     handleDismissDriverRequest,
+    handleRequestDriver,
     handleStartPreparation,
     handleSendToKitchenWithoutPayment,
     handleUndoAutoValidation,

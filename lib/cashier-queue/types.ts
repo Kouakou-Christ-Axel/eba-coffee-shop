@@ -41,6 +41,8 @@ export type CashierOrder = {
   paymentProofAnalysis: unknown;
   source: OrderSource;
   driverRequested: boolean;
+  /** Instant de la demande de livreur (caisse ou cuisine) ; null si non demandé. */
+  driverRequestedAt: Date | null;
   driverName: string | null;
   driverPhone: string | null;
   createdAt: Date;

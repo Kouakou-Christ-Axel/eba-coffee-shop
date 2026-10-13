@@ -5,7 +5,7 @@ import { Bell, BellOff, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ConnectionBadge } from '@/lib/hooks/connection-badge';
 import { StaleDataBanner } from '@/lib/hooks/stale-data-banner';
-import { CancelledSheet } from './cancelled-sheet';
+import { ReopenSheet } from './reopen-sheet';
 import { PendingPaymentSheet } from './pending-payment-sheet';
 import type { ConnState } from '@/lib/hooks/use-orders-stream';
 
@@ -55,7 +55,7 @@ export function CaisseHeader({
             )}
           </button>
           <PendingPaymentSheet />
-          <CancelledSheet />
+          <ReopenSheet />
           {/* Action la plus fréquente de l'écran : elle mérite un libellé et
               une cible tactile pleine, pas une pastille de 32 px. */}
           <Link
