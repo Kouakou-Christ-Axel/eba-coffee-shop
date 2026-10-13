@@ -122,7 +122,7 @@ export default async function CommandesPage({
         />
       )}
 
-      {totalPages > 1 && <Pagination page={page} totalPages={totalPages} />}
+      {totalPages > 1 && <Pagination totalPages={totalPages} />}
     </div>
   );
 }
