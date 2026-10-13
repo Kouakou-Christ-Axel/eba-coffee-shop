@@ -1,9 +1,17 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useTransition } from 'react';
+import { useQueryStates } from 'nuqs';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import {
+  dateRangeParsers,
+  pageParser,
+  rangeChangeToParams,
+  type RangeChange,
+} from '@/lib/url-state/shared-params';
 import {
   todayDateString,
   shiftDateString,
@@ -23,8 +31,6 @@ export type RangePreset =
       kind: 'month' | 'year';
     };
 
-export type RangeChange = { from?: string; to?: string; all?: boolean };
-
 type Props = {
   /** Borne basse courante (YYYY-MM-DD) résolue côté serveur. */
   from: string;
@@ -39,9 +45,10 @@ type Props = {
   /** Affiche les flèches jour précédent / suivant (mode jour unique). */
   showDayNav?: boolean;
   /**
-   * Prend la main sur le changement de plage (ex. état d'URL géré par nuqs).
-   * Si absent, le composant pousse l'URL lui-même (comportement par défaut
-   * sur les autres pages).
+   * Prend la main sur le changement de plage (ex. une page qui partage sa
+   * transition entre tous ses filtres, cf. `commandes/orders-toolbar.tsx`).
+   * Si absent, le composant écrit lui-même dans l'URL via nuqs (comportement
+   * par défaut des autres pages).
    */
   onRangeChange?: (next: RangeChange) => void;
 };
@@ -61,30 +68,18 @@ export function DateRangeFilter({
   showDayNav = false,
   onRangeChange,
 }: Props) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  function mutate(params: URLSearchParams, next: RangeChange) {
-    if (next.all) {
-      params.set('range', 'all');
-      params.delete('from');
-      params.delete('to');
-    } else {
-      params.delete('range');
-      if (next.from) params.set('from', next.from);
-      if (next.to) params.set('to', next.to);
-    }
-  }
+  const [isPending, startTransition] = useTransition();
+  const [, setParams] = useQueryStates(
+    { ...dateRangeParsers, page: pageParser },
+    { shallow: false, history: 'push', scroll: false, startTransition }
+  );
 
   function apply(next: RangeChange) {
     if (onRangeChange) {
       onRangeChange(next);
       return;
     }
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('page');
-    mutate(params, next);
-    router.push(`?${params.toString()}`);
+    void setParams(rangeChangeToParams(next));
   }
 
   function applyPreset(preset: RangePreset) {
@@ -105,7 +100,13 @@ export function DateRangeFilter({
   const isSingleDay = !isAll && from === to;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div
+      aria-busy={isPending}
+      className={cn(
+        'flex flex-wrap items-center gap-2 transition-opacity',
+        isPending && 'pointer-events-none opacity-60'
+      )}
+    >
       {showDayNav && (
         <Button
           variant="outline"
