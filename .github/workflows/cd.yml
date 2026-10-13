@@ -58,7 +58,7 @@ jobs:
               # Même fuseau qu'au runtime (cf. ecosystem.config.cjs) : le build
               # prérend des pages, et une date figée dans le fuseau du VPS
               # ressortirait décalée par rapport au serveur qui les sert.
-              TZ=UTC pnpm build
+              NEXT_DEPLOYMENT_ID="$NEW_SHA" TZ=UTC pnpm build
             else
               echo "Aucun fichier source du build modifié, rebuild Next.js ignoré."
             fi
