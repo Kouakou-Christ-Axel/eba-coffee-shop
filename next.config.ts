@@ -110,10 +110,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['eba.otw.ci', '127.0.0.1'],
   serverExternalPackages: ['@prisma/client'],
-  // Identifiant de déploiement (SHA du commit, injecté par le CD). Sans lui,
-  // un onglet resté ouvert avant un déploiement appelle une Server Action dont
-  // l'ID n'existe plus : « Failed to find Server Action ». Avec lui, le client
-  // détecte le décalage de version et recharge la page au lieu d'échouer.
+  // SHA du commit (CD) : le client recharge au lieu de « Failed to find Server Action ».
   deploymentId: process.env.NEXT_DEPLOYMENT_ID || undefined,
   // NB : pas d'`experimental.optimizePackageImports` ici. Le réflexe serait de
   // l'activer pour `@heroui/react` (barrel importé par 72 fichiers), mais la
