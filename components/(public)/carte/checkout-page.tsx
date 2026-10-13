@@ -11,7 +11,7 @@ import { useCartStore, useCartHydration, getItemTotal } from '@/lib/cart-store';
 import { priceFormatter, type MenuCategory } from '@/config/menu';
 import { useCartAvailability } from '@/lib/hooks/use-cart-availability';
 import { CartLineStatusChip } from './_components/cart-line-status';
-import { formatSupplementLabel } from '@/lib/orders/format';
+import { formatSupplementsSummary } from '@/lib/orders/format';
 import { CheckoutForm } from './checkout-form';
 import { PaymentBreakdown } from './_components/payment-breakdown';
 import { useOnlinePayment } from '@/lib/hooks/use-online-payment';
@@ -112,7 +112,7 @@ export function CheckoutPage() {
                 </p>
                 {item.supplements.length > 0 && (
                   <p className="text-xs text-foreground/45">
-                    {item.supplements.map(formatSupplementLabel).join(', ')}
+                    {formatSupplementsSummary(item.supplements)}
                   </p>
                 )}
                 <CartLineStatusChip

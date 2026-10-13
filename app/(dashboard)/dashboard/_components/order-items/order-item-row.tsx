@@ -8,7 +8,7 @@ import {
   getItemNet,
   getMaxItemDiscount,
 } from '@/lib/orders/totals';
-import { formatSupplementLabel } from '@/lib/orders/format';
+import { formatSupplementsSummary } from '@/lib/orders/format';
 import { productHasOptions } from '@/lib/catalog';
 import { LineDiscountControl } from '../line-discount-control';
 import { fmt } from './helpers';
@@ -49,7 +49,7 @@ export function OrderItemRow({
         </p>
         {item.supplements.length > 0 && (
           <p className="truncate text-xs text-muted-foreground">
-            {item.supplements.map(formatSupplementLabel).join(', ')}
+            {formatSupplementsSummary(item.supplements)}
           </p>
         )}
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">

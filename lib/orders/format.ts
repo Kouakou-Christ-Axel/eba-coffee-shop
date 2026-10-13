@@ -7,6 +7,7 @@
 // donc en chaîne ISO et doivent être re-désérialisés en `Date` côté client.
 
 import type { CartItem, CartItemSupplement } from '@/lib/cart-store';
+import { splitSupplementsByKind } from '@/lib/supplements/kind';
 
 /**
  * Libellé d'un supplément choisi, avec sa quantité si > 1 (ex. « Vanille
@@ -16,6 +17,29 @@ export function formatSupplementLabel(s: CartItemSupplement): string {
   return s.quantity && s.quantity > 1
     ? `${s.optionName} ×${s.quantity}`
     : s.optionName;
+}
+
+/**
+ * Résumé d'une ligne pour les écrans qui affichent les choix sur une seule
+ * ligne (panier, suivi, caisse). Les goûts sont toujours étiquetés « Goûts : »
+ * et passent en premier ; les suppléments ne le sont (« Suppléments : ») que si
+ * la ligne a aussi des goûts — sans goût, le rendu reste celui d'avant.
+ */
+export function formatSupplementsSummary(
+  supplements: CartItemSupplement[],
+  itemSeparator = ', '
+): string {
+  const { flavors, extras } = splitSupplementsByKind(supplements);
+  const join = (list: CartItemSupplement[]) =>
+    list.map(formatSupplementLabel).join(itemSeparator);
+  const parts: string[] = [];
+  if (flavors.length > 0) parts.push(`Goûts : ${join(flavors)}`);
+  if (extras.length > 0) {
+    parts.push(
+      flavors.length > 0 ? `Suppléments : ${join(extras)}` : join(extras)
+    );
+  }
+  return parts.join(' · ');
 }
 
 export type AggregatedSupplement = {

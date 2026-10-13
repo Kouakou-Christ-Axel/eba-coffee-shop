@@ -1,6 +1,6 @@
 import { Chip } from '@heroui/react';
 import type { PublicOrderView } from '@/lib/orders';
-import { formatSupplementLabel } from '@/lib/orders/format';
+import { formatSupplementsSummary } from '@/lib/orders/format';
 import { getItemGross } from '@/lib/orders/totals';
 import { priceFormatter } from '@/config/menu';
 
@@ -36,7 +36,7 @@ export function OrderItemsSection({ order }: { order: PublicOrderView }) {
                 </div>
                 {item.supplements.length > 0 && (
                   <p className="text-xs text-foreground/50">
-                    {item.supplements.map(formatSupplementLabel).join(', ')}
+                    {formatSupplementsSummary(item.supplements)}
                   </p>
                 )}
               </div>

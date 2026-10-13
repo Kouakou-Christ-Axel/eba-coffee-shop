@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { Product } from '@/config/menu';
-import { aggregateOrderSupplements } from '@/lib/orders/format';
+import {
+  aggregateOrderSupplements,
+  formatSupplementsSummary,
+} from '@/lib/orders/format';
 import type { CartItem } from '@/lib/cart-store';
 import { getSelectedSupplements } from './selections';
 import { kindStamp, splitSupplementsByKind } from './kind';
@@ -105,5 +108,38 @@ describe('aggregateOrderSupplements', () => {
       },
     ]);
     expect(lines).toHaveLength(2);
+  });
+});
+
+describe('formatSupplementsSummary', () => {
+  const flavor = {
+    groupName: 'Goûts',
+    optionName: 'Chocolat',
+    price: 0,
+    kind: 'flavor' as const,
+  };
+  const sauce = { groupName: 'Sauces', optionName: 'Chocolat', price: 200 };
+
+  it('étiquette les deux natures quand la ligne a les deux', () => {
+    expect(formatSupplementsSummary([sauce, flavor])).toBe(
+      'Goûts : Chocolat · Suppléments : Chocolat'
+    );
+  });
+
+  it('étiquette un goût seul', () => {
+    expect(formatSupplementsSummary([{ ...flavor, quantity: 2 }])).toBe(
+      'Goûts : Chocolat ×2'
+    );
+  });
+
+  it('laisse les suppléments seuls sans étiquette (rendu inchangé)', () => {
+    expect(formatSupplementsSummary([sauce])).toBe('Chocolat');
+  });
+
+  it('respecte le séparateur d’éléments', () => {
+    const vanille = { ...flavor, optionName: 'Vanille' };
+    expect(formatSupplementsSummary([flavor, vanille], ' · ')).toBe(
+      'Goûts : Chocolat · Vanille'
+    );
   });
 });
