@@ -49,6 +49,7 @@ export async function syncSupplementGroups(
       await tx.supplementGroup.create({
         data: {
           ...groupData,
+          kind: g.kind ?? 'extra',
           ...scope,
           options: {
             create: g.options.map((o, oi) => ({
@@ -66,7 +67,8 @@ export async function syncSupplementGroups(
 
     await tx.supplementGroup.update({
       where: { id: match.id },
-      data: groupData,
+      // `kind` absent = payload qui ne le connaît pas : on garde la valeur en base.
+      data: { ...groupData, ...(g.kind !== undefined && { kind: g.kind }) },
     });
 
     // Appariement par nom, mais via une FILE par nom (pas une valeur

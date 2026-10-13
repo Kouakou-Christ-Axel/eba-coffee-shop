@@ -9,7 +9,7 @@ import {
   getItemNet,
   getMaxItemDiscount,
 } from '@/lib/orders/totals';
-import { formatSupplementLabel } from '@/lib/orders/format';
+import { formatSupplementsSummary } from '@/lib/orders/format';
 import { LineDiscountControl } from '../../_components/line-discount-control';
 import type { LoyaltyCard } from '@/lib/hooks/use-new-order';
 import { computeRequiredDeposit } from '@/lib/deposits';
@@ -104,7 +104,7 @@ export function CartSummary({
                   </p>
                   {item.supplements.length > 0 && (
                     <p className="truncate text-xs text-muted-foreground">
-                      {item.supplements.map(formatSupplementLabel).join(' · ')}
+                      {formatSupplementsSummary(item.supplements, ' · ')}
                     </p>
                   )}
                   <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">

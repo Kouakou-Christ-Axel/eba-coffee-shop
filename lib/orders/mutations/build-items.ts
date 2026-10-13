@@ -1,6 +1,7 @@
 // Mutations de commandes — build-items.
 
 import { getMenuAdmin } from '@/lib/menu';
+import { kindStamp } from '@/lib/supplements/kind';
 import { cartItemSchema, type CartItemInput } from '@/lib/schemas/order';
 
 export type OrderItemRef = {
@@ -42,6 +43,7 @@ export async function buildOrderItemsFromMenu(
         groupName: group.name,
         optionName: option.name,
         price: option.price,
+        ...kindStamp(group),
         quantity: s.quantity ?? 1,
       };
     });

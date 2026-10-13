@@ -9,6 +9,7 @@ import {
   groupSelectionCount,
   isFixedPortionGroup,
 } from '@/lib/supplements';
+import { SupplementKindBadge } from '@/components/supplement-kind-badge';
 import { PortionComposer } from '../portion-composer';
 import { orderableFirst } from './helpers';
 import {
@@ -56,6 +57,7 @@ export function SupplementGroupCard({
       >
         <span className="text-sm font-semibold text-foreground/80">
           {group.name}
+          <SupplementKindBadge kind={group.kind} />
           {group.required && (
             <span className="ml-1 text-xs text-primary">(requis)</span>
           )}

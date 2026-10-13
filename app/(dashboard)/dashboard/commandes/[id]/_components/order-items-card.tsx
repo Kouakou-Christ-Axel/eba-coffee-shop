@@ -6,6 +6,7 @@ import type { ContactSettings } from '@/lib/contact-settings';
 import type { CartItem } from '@/lib/cart-store';
 import { getItemGross, getItemNet } from '@/lib/orders/totals';
 import { formatSupplementLabel } from '@/lib/orders/format';
+import { splitSupplementsByKind } from '@/lib/supplements/kind';
 import { CopyRecapButton } from '../../../_components/copy-recap-button';
 import { EditOrderItems } from '../edit-order-items';
 import type { OrderDetail } from './helpers';
@@ -96,8 +97,16 @@ export function OrderItemsCard({
                 </div>
                 {item.supplements.length > 0 && (
                   <ul className="mt-1 space-y-0.5 pl-4 text-sm text-muted-foreground">
-                    {item.supplements.map((sup, i) => (
+                    {[
+                      ...splitSupplementsByKind(item.supplements).flavors,
+                      ...splitSupplementsByKind(item.supplements).extras,
+                    ].map((sup, i) => (
                       <li key={i}>
+                        {sup.kind === 'flavor' && (
+                          <span className="mr-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                            Goût
+                          </span>
+                        )}
                         {sup.groupName} : {formatSupplementLabel(sup)}
                         {sup.price > 0
                           ? ` (+${sup.price * (sup.quantity ?? 1)} FCFA)`

@@ -83,6 +83,7 @@ export default async function EditProductPage({
     weeklySpecials,
     supplementGroups: product.supplementGroups.map((g) => ({
       name: g.name,
+      kind: g.kind === 'flavor' ? ('flavor' as const) : ('extra' as const),
       type: g.type as 'single' | 'multiple' | 'quantity',
       required: g.required,
       available: g.available,

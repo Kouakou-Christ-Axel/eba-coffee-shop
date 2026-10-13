@@ -12,8 +12,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  GROUP_KINDS,
   GROUP_TYPES,
   type SupplementGroupIssues,
+  type SupplementGroupKind,
   type SupplementGroupType,
 } from '@/lib/supplements-form';
 import type { UiGroup } from './model';
@@ -47,6 +49,33 @@ export function GroupFields({
           ))}
         </ul>
       )}
+
+      <div className="space-y-1.5">
+        <Label htmlFor={`${id}-kind`}>Nature du groupe</Label>
+        <Select
+          value={group.kind}
+          onValueChange={(value) =>
+            onUpdate({ kind: value as SupplementGroupKind })
+          }
+        >
+          <SelectTrigger
+            id={`${id}-kind`}
+            className="w-full data-[size=default]:h-11 sm:data-[size=default]:h-9"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(GROUP_KINDS).map(([value, { label }]) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          {GROUP_KINDS[group.kind].help}
+        </p>
+      </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">

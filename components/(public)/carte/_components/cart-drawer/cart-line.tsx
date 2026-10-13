@@ -2,7 +2,7 @@ import { Button } from '@heroui/react';
 import { Copy, Minus, Plus, Trash2 } from 'lucide-react';
 import { getItemTotal, type CartItem } from '@/lib/cart-store';
 import { priceFormatter } from '@/config/menu';
-import { formatSupplementLabel } from '@/lib/orders/format';
+import { formatSupplementsSummary } from '@/lib/orders/format';
 import { CartLineStatusChip } from '../cart-line-status';
 import { ProductMedia } from '../product-media';
 import type { CartDrawerState } from './use-cart-drawer';
@@ -39,7 +39,7 @@ export function CartLine({
             </p>
             {item.supplements.length > 0 && (
               <p className="mt-0.5 text-xs text-foreground/45">
-                {item.supplements.map(formatSupplementLabel).join(', ')}
+                {formatSupplementsSummary(item.supplements)}
               </p>
             )}
             <CartLineStatusChip

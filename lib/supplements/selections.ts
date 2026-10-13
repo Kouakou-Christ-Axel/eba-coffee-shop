@@ -5,6 +5,7 @@ import {
   type SupplementRules,
   isOptionSoldOut,
 } from './rules';
+import { kindStamp } from './kind';
 
 export function buildInitialSelections(
   product: Product | null,
@@ -49,6 +50,7 @@ export function getSelectedSupplements(
             groupName: group.name,
             optionName: opt.name,
             price: opt.price,
+            ...kindStamp(group),
           });
         }
       }
@@ -62,6 +64,7 @@ export function getSelectedSupplements(
               groupName: group.name,
               optionName: opt.name,
               price: opt.price,
+              ...kindStamp(group),
             });
           }
         });
@@ -76,6 +79,7 @@ export function getSelectedSupplements(
             groupName: group.name,
             optionName: opt.name,
             price: opt.price,
+            ...kindStamp(group),
             quantity: n,
           });
         }

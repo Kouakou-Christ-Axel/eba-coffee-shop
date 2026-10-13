@@ -3,6 +3,7 @@
 import { StickyNote } from 'lucide-react';
 import { aggregateOrderSupplements } from '@/lib/orders/format';
 import type { PreparationOrder } from '@/lib/preparation-queue';
+import { SupplementPanels } from '../supplement-panels';
 
 export function OrderDetailContent({ order }: { order: PreparationOrder }) {
   const supplementLines = aggregateOrderSupplements(order.items);
@@ -36,36 +37,7 @@ export function OrderDetailContent({ order }: { order: PreparationOrder }) {
         ))}
       </ul>
 
-      {/* Zone Suppléments : séparée des articles, fusionnée par produit +
-            jeu de suppléments avec quantité totale explicite (voir
-            aggregateOrderSupplements) pour ne jamais lire "1" là où il y en
-            a 2. */}
-      {supplementLines.length > 0 && (
-        <div className="mt-4 rounded-xl border border-secondary-200 bg-secondary-50/60 p-4 dark:border-secondary-900 dark:bg-secondary-950/20">
-          <p className="text-sm font-bold uppercase tracking-wide text-secondary-700 dark:text-secondary-300">
-            Suppléments
-          </p>
-          <ul className="mt-2 space-y-2">
-            {supplementLines.map((line) => (
-              <li key={line.key} className="text-lg">
-                <span className="font-bold">
-                  {line.productName}
-                  {line.quantity > 1 ? ` ×${line.quantity}` : ''}
-                </span>{' '}
-                <span className="font-semibold text-secondary-700 dark:text-secondary-300">
-                  {line.supplements
-                    .map((s) =>
-                      s.quantity > 1
-                        ? `${s.optionName} ×${s.quantity}`
-                        : s.optionName
-                    )
-                    .join(', ')}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <SupplementPanels lines={supplementLines} size="lg" />
     </div>
   );
 }

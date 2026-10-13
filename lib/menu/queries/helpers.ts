@@ -1,3 +1,10 @@
+import type { SupplementKind } from '@/config/menu-types';
+
+/** Valeur lue en base → `SupplementKind` ; tout ce qui n'est pas 'flavor' est un supplément. */
+export function toSupplementKind(kind: string): SupplementKind {
+  return kind === 'flavor' ? 'flavor' : 'extra';
+}
+
 /** Jours communs produit/catégorie : null = sans restriction, sinon un tableau (même vide). */
 export function intersectAvailableDays(
   a: number[] | null,

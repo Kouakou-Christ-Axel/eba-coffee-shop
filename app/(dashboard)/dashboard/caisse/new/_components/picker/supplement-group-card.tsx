@@ -7,6 +7,7 @@ import {
   groupConstraintLabel,
   groupSelectionCount,
 } from '@/lib/supplements';
+import { SupplementKindBadge } from '@/components/supplement-kind-badge';
 import type { Group, GroupCtx, PickerCtx } from './types';
 import { SingleOptions } from './single-options';
 import { MultipleOptions } from './multiple-options';
@@ -39,6 +40,7 @@ export function SupplementGroupCard({
       >
         <span className="text-sm font-semibold text-foreground/80">
           {group.name}
+          <SupplementKindBadge kind={group.kind} />
           {group.required && (
             <span className="ml-1 text-xs text-primary">(requis)</span>
           )}
