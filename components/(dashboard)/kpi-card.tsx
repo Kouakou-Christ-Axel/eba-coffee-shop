@@ -84,7 +84,11 @@ function DeltaBadge({ delta }: { delta: KpiDelta }) {
     <p
       className={cn(
         'mt-0.5 flex items-center gap-1 text-xs tabular-nums',
-        flat ? 'text-muted-foreground' : good ? 'text-green-600' : 'text-destructive'
+        flat
+          ? 'text-muted-foreground'
+          : good
+            ? 'text-green-600'
+            : 'text-destructive'
       )}
     >
       <TrendIcon className="h-3.5 w-3.5" />

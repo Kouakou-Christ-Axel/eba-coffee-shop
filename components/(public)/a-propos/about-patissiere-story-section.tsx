@@ -14,6 +14,10 @@ import PatissiereImageColumn from './_components/patissiere-image-column';
 import TimelineLine from './_components/timeline-line';
 import StoryBlock from './_components/story-block';
 import { storyBlocks } from './_components/story-blocks';
+import { animateDesktop } from './_components/story-animations/desktop';
+import { animateMobile } from './_components/story-animations/mobile';
+import { applyReducedMotion } from './_components/story-animations/reduced-motion';
+import { collectStoryTargets } from './_components/story-animations/targets';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -27,313 +31,26 @@ function AboutPatissiereStorySection() {
       const sectionElement = sectionRef.current;
       if (!sectionElement) return;
 
-      const blocks = gsap.utils.toArray<HTMLElement>(
-        '[data-story-block]',
-        sectionElement
-      );
-      const decorLines = gsap.utils.toArray<HTMLElement>(
-        '[data-decor-line]',
-        sectionElement
-      );
-      const heading = sectionElement.querySelector('[data-heading]');
-      const subtitle = sectionElement.querySelector('[data-subtitle]');
-      const signature = sectionElement.querySelector('[data-signature]');
-      const timelineLine = sectionElement.querySelector('[data-timeline-line]');
-      const credentialCard = sectionElement.querySelector(
-        '[data-credential-card]'
-      );
-      const detailImage = sectionElement.querySelector('[data-detail-image]');
-      const statItems = gsap.utils.toArray<HTMLElement>(
-        '[data-stat-item]',
-        sectionElement
-      );
-      const mainImage = sectionElement.querySelector('[data-main-image]');
+      const targets = collectStoryTargets(sectionElement);
 
       const mm = gsap.matchMedia();
 
       mm.add('(prefers-reduced-motion: reduce)', () => {
-        gsap.set(
-          [
-            blocks,
-            heading,
-            subtitle,
-            signature,
-            credentialCard,
-            detailImage,
-            statItems,
-          ],
-          { autoAlpha: 1, y: 0 }
-        );
-        if (timelineLine) gsap.set(timelineLine, { scaleY: 1 });
-        decorLines.forEach((line) => gsap.set(line, { scaleX: 1 }));
+        applyReducedMotion(targets);
       });
 
       mm.add(
         '(min-width: 1024px) and (prefers-reduced-motion: no-preference)',
         () => {
           if (!imageColumnRef.current) return;
-
-          if (mainImage) {
-            gsap.fromTo(
-              mainImage,
-              { yPercent: -4 },
-              {
-                yPercent: 4,
-                ease: 'none',
-                scrollTrigger: {
-                  trigger: sectionElement,
-                  start: 'top bottom',
-                  end: 'bottom top',
-                  scrub: 0.8,
-                },
-              }
-            );
-          }
-
-          if (credentialCard) {
-            gsap.fromTo(
-              credentialCard,
-              { autoAlpha: 0, y: 40 },
-              {
-                autoAlpha: 1,
-                y: 0,
-                duration: 1,
-                delay: 0.3,
-                ease: 'power3.out',
-                scrollTrigger: {
-                  trigger: imageColumnRef.current,
-                  start: 'top 70%',
-                  toggleActions: 'play none none reverse',
-                },
-              }
-            );
-          }
-
-          if (detailImage) {
-            gsap.fromTo(
-              detailImage,
-              { autoAlpha: 0, x: 30, scale: 0.92 },
-              {
-                autoAlpha: 1,
-                x: 0,
-                scale: 1,
-                duration: 0.9,
-                delay: 0.5,
-                ease: 'power3.out',
-                scrollTrigger: {
-                  trigger: imageColumnRef.current,
-                  start: 'top 70%',
-                  toggleActions: 'play none none reverse',
-                },
-              }
-            );
-          }
-
-          if (statItems.length) {
-            statItems.forEach((stat, i) => {
-              gsap.fromTo(
-                stat,
-                { autoAlpha: 0, y: 12 },
-                {
-                  autoAlpha: 1,
-                  y: 0,
-                  duration: 0.5,
-                  delay: 0.6 + i * 0.12,
-                  ease: 'power2.out',
-                  scrollTrigger: {
-                    trigger: imageColumnRef.current,
-                    start: 'top 70%',
-                    toggleActions: 'play none none reverse',
-                  },
-                }
-              );
-            });
-          }
-
-          if (heading) {
-            gsap.fromTo(
-              heading,
-              { autoAlpha: 0, y: 30 },
-              {
-                autoAlpha: 1,
-                y: 0,
-                duration: 0.9,
-                ease: 'power3.out',
-                scrollTrigger: {
-                  trigger: heading,
-                  start: 'top 85%',
-                  toggleActions: 'play none none reverse',
-                },
-              }
-            );
-          }
-
-          if (subtitle) {
-            gsap.fromTo(
-              subtitle,
-              { autoAlpha: 0, y: 20 },
-              {
-                autoAlpha: 1,
-                y: 0,
-                duration: 0.8,
-                delay: 0.15,
-                ease: 'power3.out',
-                scrollTrigger: {
-                  trigger: subtitle,
-                  start: 'top 88%',
-                  toggleActions: 'play none none reverse',
-                },
-              }
-            );
-          }
-
-          if (timelineLine) {
-            gsap.fromTo(
-              timelineLine,
-              { scaleY: 0 },
-              {
-                scaleY: 1,
-                ease: 'none',
-                scrollTrigger: {
-                  trigger: timelineRef.current,
-                  start: 'top 75%',
-                  end: 'bottom 60%',
-                  scrub: 0.5,
-                },
-              }
-            );
-          }
-
-          blocks.forEach((block, i) => {
-            gsap.fromTo(
-              block,
-              { autoAlpha: 0, y: 32, x: 16 },
-              {
-                autoAlpha: 1,
-                y: 0,
-                x: 0,
-                duration: 0.8,
-                ease: 'power2.out',
-                scrollTrigger: {
-                  trigger: block,
-                  start: 'top 82%',
-                  toggleActions: 'play none none reverse',
-                },
-              }
-            );
-
-            if (decorLines[i]) {
-              gsap.fromTo(
-                decorLines[i],
-                { scaleX: 0 },
-                {
-                  scaleX: 1,
-                  duration: 0.6,
-                  delay: 0.3,
-                  ease: 'power2.inOut',
-                  scrollTrigger: {
-                    trigger: block,
-                    start: 'top 78%',
-                    toggleActions: 'play none none reverse',
-                  },
-                }
-              );
-            }
-          });
-
-          if (signature) {
-            gsap.fromTo(
-              signature,
-              { autoAlpha: 0, y: 16 },
-              {
-                autoAlpha: 1,
-                y: 0,
-                duration: 0.7,
-                ease: 'power2.out',
-                scrollTrigger: {
-                  trigger: signature,
-                  start: 'top 90%',
-                  toggleActions: 'play none none reverse',
-                },
-              }
-            );
-          }
+          animateDesktop(sectionElement, imageColumnRef, timelineRef, targets);
         }
       );
 
       mm.add(
         '(max-width: 1023px) and (prefers-reduced-motion: no-preference)',
         () => {
-          if (credentialCard) {
-            gsap.fromTo(
-              credentialCard,
-              { autoAlpha: 0, y: 24 },
-              {
-                autoAlpha: 1,
-                y: 0,
-                duration: 0.7,
-                ease: 'power2.out',
-                scrollTrigger: {
-                  trigger: credentialCard,
-                  start: 'top 88%',
-                  toggleActions: 'play none none reverse',
-                },
-              }
-            );
-          }
-
-          if (heading) {
-            gsap.fromTo(
-              heading,
-              { autoAlpha: 0, y: 24 },
-              {
-                autoAlpha: 1,
-                y: 0,
-                duration: 0.7,
-                ease: 'power2.out',
-                scrollTrigger: {
-                  trigger: heading,
-                  start: 'top 88%',
-                  toggleActions: 'play none none reverse',
-                },
-              }
-            );
-          }
-
-          if (timelineLine) {
-            gsap.fromTo(
-              timelineLine,
-              { scaleY: 0 },
-              {
-                scaleY: 1,
-                ease: 'none',
-                scrollTrigger: {
-                  trigger: timelineRef.current,
-                  start: 'top 80%',
-                  end: 'bottom 50%',
-                  scrub: 0.5,
-                },
-              }
-            );
-          }
-
-          blocks.forEach((block, i) => {
-            gsap.fromTo(
-              block,
-              { autoAlpha: i === 0 ? 1 : 0, y: i === 0 ? 0 : 24 },
-              {
-                autoAlpha: 1,
-                y: 0,
-                duration: 0.6,
-                ease: 'power2.out',
-                scrollTrigger: {
-                  trigger: block,
-                  start: 'top 88%',
-                  toggleActions: 'play none none reverse',
-                },
-              }
-            );
-          });
+          animateMobile(timelineRef, targets);
         }
       );
 
