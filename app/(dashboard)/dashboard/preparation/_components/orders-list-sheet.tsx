@@ -1,6 +1,5 @@
 'use client';
 
-import { Fragment } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -12,7 +11,9 @@ import {
 import type { PreparationOrder } from '@/lib/preparation-queue';
 import { buildQueueEntries } from '@/lib/orders/customer-groups';
 import type { KitchenGroup } from '@/lib/orders/kitchen-group';
-import { ReadyGroupHeader } from './group/ready-group-header';
+import { GroupFrame } from './group/group-frame';
+import { orderRef } from '@/lib/orders/customer-groups';
+import { summarizeKitchenGroup } from '@/lib/orders/kitchen-group';
 import { OrdersListRow } from './orders-list/orders-list-row';
 import type { OrdersListVariant, RowCallbacks } from './orders-list/types';
 import { VARIANT_META } from './orders-list/variant-meta';
@@ -103,15 +104,33 @@ export function OrdersListSheet({
                   />
                 );
                 if (entry.kind === 'single') return row(entry.order);
+                const s = summarizeKitchenGroup(entry.group);
+                const readyIds = s.ready.map((o) => o.id);
                 return (
-                  <Fragment key={entry.group.key}>
-                    <ReadyGroupHeader
-                      group={entry.group}
-                      pending={entry.inTab.some((o) => pendingIds.has(o.id))}
-                      onRetrieveMany={onRetrieveMany ?? (() => {})}
-                    />
+                  <GroupFrame
+                    key={entry.group.key}
+                    group={entry.group}
+                    label="À remettre ensemble"
+                    trailing={`${s.ready.length}/${s.total} prêtes`}
+                    notice={
+                      s.cooking.length > 0
+                        ? `Attendre ${s.cooking.map(orderRef).join(' · ')} avant de remettre`
+                        : undefined
+                    }
+                    action={
+                      readyIds.length > 0
+                        ? {
+                            label: `Tout marquer récupéré (${readyIds.length})`,
+                            disabled: entry.inTab.some((o) =>
+                              pendingIds.has(o.id)
+                            ),
+                            onClick: () => onRetrieveMany?.(readyIds),
+                          }
+                        : undefined
+                    }
+                  >
                     {entry.inTab.map(row)}
-                  </Fragment>
+                  </GroupFrame>
                 );
               })}
             </ul>

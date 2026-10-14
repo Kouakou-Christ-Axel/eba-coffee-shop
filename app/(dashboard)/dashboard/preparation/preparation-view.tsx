@@ -277,6 +277,7 @@ function PreparationViewInner({
       />
       <OrdersSearchSheet
         orders={visible}
+        groups={groups}
         now={now}
         open={openSheet === 'search'}
         onOpenChange={(o) => setOpenSheet(o ? 'search' : null)}

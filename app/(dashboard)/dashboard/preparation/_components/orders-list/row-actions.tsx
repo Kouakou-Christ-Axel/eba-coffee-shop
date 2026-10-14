@@ -50,12 +50,12 @@ export function RowActions({
               <X className="h-4 w-4" strokeWidth={2.5} />
             </button>
           )}
-          <TrackingLinkButton orderId={order.id} className="flex-1" />
+          <TrackingLinkButton orderId={order.id} className="min-w-0 flex-1" />
           <button
             type="button"
             onClick={() => onRetrieve(order.id)}
             disabled={pending}
-            className="flex items-center justify-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-50"
+            className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-sm font-bold text-white shadow-sm transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-50"
           >
             <CheckCheck className="h-4 w-4" strokeWidth={2.5} />
             Récupérée

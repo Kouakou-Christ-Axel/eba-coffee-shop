@@ -62,6 +62,8 @@ export function CookingGrid({
           <KitchenGroupCluster
             key={entry.group.key}
             group={entry.group}
+            members={entry.inTab}
+            onExpand={callbacks.onExpand}
             pending={isPending}
             contactSettings={contactSettings}
             onReadyMany={onReadyMany}

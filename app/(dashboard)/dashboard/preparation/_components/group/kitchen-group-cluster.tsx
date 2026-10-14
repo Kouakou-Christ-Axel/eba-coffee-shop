@@ -1,7 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { Bike, CheckCheck, Users } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { Bike, CheckCheck, ChevronDown, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   buildGroupDriverRequestMessage,
@@ -13,11 +13,18 @@ import {
   type KitchenGroup,
 } from '@/lib/orders/kitchen-group';
 import type { ContactSettings } from '@/lib/contact-settings';
+import type { PreparationOrder } from '@/lib/preparation-queue';
 import { groupColor } from './group-color';
 import { GroupPills } from './group-pills';
 
+/** Au-delà, les tickets d'un groupe se replient sur mobile (la page ferait plus d'un écran). */
+const COLLAPSE_FROM = 3;
+
 type Props = {
   group: KitchenGroup;
+  /** Les commandes du groupe affichées dans la grille (en cuisine). */
+  members: PreparationOrder[];
+  onExpand: (id: string) => void;
   pending: boolean;
   contactSettings: Pick<ContactSettings, 'yangoLandmark' | 'phone'>;
   onReadyMany: (ids: string[]) => void;
@@ -37,12 +44,16 @@ const driverTone =
  */
 export function KitchenGroupCluster({
   group,
+  members,
+  onExpand,
   pending,
   contactSettings,
   onReadyMany,
   onRequestDriverMany,
   children,
 }: Props) {
+  const [open, setOpen] = useState(false);
+  const collapsible = members.length >= COLLAPSE_FROM;
   const color = groupColor(group.key);
   const s = summarizeKitchenGroup(group);
   const readyIds = s.cooking.map((o) => o.id);
@@ -57,7 +68,7 @@ export function KitchenGroupCluster({
     })
   );
   const driverBtn =
-    'flex min-h-11 items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold transition-colors';
+    'flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold transition-colors sm:w-auto';
 
   return (
     <section
@@ -101,13 +112,13 @@ export function KitchenGroupCluster({
           </p>
         )}
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
           {readyIds.length > 0 && (
             <button
               type="button"
               disabled={pending}
               onClick={() => onReadyMany(readyIds)}
-              className="flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-green-600 px-4 font-bold text-white shadow-sm transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-50"
+              className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-green-600 px-4 font-bold text-white shadow-sm transition-colors hover:bg-green-700 active:bg-green-800 disabled:opacity-50 sm:w-auto"
             >
               <CheckCheck className="h-5 w-5" strokeWidth={2.5} aria-hidden />
               Tout prêt ({readyIds.length})
@@ -139,7 +150,7 @@ export function KitchenGroupCluster({
               </button>
             ))}
           {s.deliveries.length > 0 && driverIds.length === 0 && (
-            <span className="flex min-h-11 items-center gap-1.5 rounded-lg bg-amber-50 px-3 text-sm font-semibold text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+            <span className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-amber-50 px-3 text-sm font-semibold text-amber-900 dark:bg-amber-950/40 dark:text-amber-100 sm:w-auto sm:justify-start">
               <Bike className="h-4 w-4" aria-hidden />
               Livreur demandé pour tout le groupe
             </span>
@@ -147,7 +158,52 @@ export function KitchenGroupCluster({
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {collapsible && !open && (
+        // Mobile, groupe replié : une ligne tactile par commande (n° + articles) — la cuisine voit toujours QUOI préparer.
+        <ul className="mb-2 flex flex-col gap-1.5 sm:hidden">
+          {members.map((o) => (
+            <li key={o.id}>
+              <button
+                type="button"
+                onClick={() => onExpand(o.id)}
+                className="flex min-h-11 w-full items-baseline gap-2 rounded-lg border bg-background px-3 py-2 text-left"
+              >
+                <span className="font-mono font-bold">{orderRef(o)}</span>
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {o.items
+                    .map((i) => `×${i.quantity} ${i.productName}`)
+                    .join(' · ')}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {collapsible && (
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className="mb-3 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border bg-background text-sm font-semibold sm:hidden"
+        >
+          {open ? 'Masquer les tickets' : `Voir les ${members.length} tickets`}
+          <ChevronDown
+            className={cn(
+              'h-4 w-4 transition-transform motion-reduce:transition-none',
+              open && 'rotate-180'
+            )}
+            aria-hidden
+          />
+        </button>
+      )}
+
+      <div
+        className={cn(
+          'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+          collapsible && !open && 'hidden sm:grid'
+        )}
+      >
         {children}
       </div>
     </section>
