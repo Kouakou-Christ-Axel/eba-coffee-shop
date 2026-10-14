@@ -45,6 +45,7 @@ model User {
   inventoryCountsCreated    InventoryCount[]        @relation("InventoryCountCreatedBy")
   restockBatchesCreated     InventoryRestockBatch[] @relation("RestockBatchCreatedBy")
   pushSubscriptions         PushSubscription[]
+  assistantConversations    AssistantConversation[]
   createdPolls              Poll[]                  @relation("PollCreatedBy")
   createdTiktokVideos       TiktokVideo[]           @relation("TiktokVideoCreatedBy")
   moderatedPollSuggestions  PollSuggestion[]        @relation("PollSuggestionModeratedBy")
@@ -1477,4 +1478,21 @@ model PushSubscription {
   @@index([userId])
   @@index([orderId])
   @@map("push_subscription")
+}
+
+// Historique de l'assistant IA du dashboard (lib/ai/assistant/). Une
+// conversation = l'historique OpenAI complet (messages utilisateur, appels
+// d'outils, résultats) en JSON : il est renvoyé tel quel au modèle à la reprise.
+// Privé à son auteur ; supprimé avec le compte.
+model AssistantConversation {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  messages  Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, updatedAt])
+  @@map("assistant_conversation")
 }
