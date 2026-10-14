@@ -23,6 +23,8 @@ type Props = {
   menu: MenuCategory[];
   contactSettings: CaisseContactSettings;
   now: Date;
+  /** Où sont les autres commandes du groupe : « Dans un autre onglet » (file) ou « Hors de la recherche ». */
+  othersLabel?: string;
 };
 
 /**
@@ -38,6 +40,7 @@ export function OrderGroupCard({
   menu,
   contactSettings,
   now,
+  othersLabel = 'Dans un autre onglet',
 }: Props) {
   const actions = useGroupActions(group, contactSettings);
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -51,7 +54,7 @@ export function OrderGroupCard({
 
       {elsewhere.length > 0 && (
         <p className="mt-2 text-xs text-muted-foreground">
-          Dans un autre onglet : {elsewhere.map((o) => orderRef(o)).join(', ')}
+          {othersLabel} : {elsewhere.map((o) => orderRef(o)).join(', ')}
         </p>
       )}
 

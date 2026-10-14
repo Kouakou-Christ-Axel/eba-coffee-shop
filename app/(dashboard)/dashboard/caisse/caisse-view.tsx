@@ -167,6 +167,7 @@ export function CaisseView({
             orders={results}
             urgencyIndex={urgencyIndex}
             term={search.trim()}
+            groups={groups}
             menu={menu}
             contactSettings={contactSettings}
             now={now}

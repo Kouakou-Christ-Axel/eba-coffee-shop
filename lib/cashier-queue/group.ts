@@ -65,6 +65,19 @@ export function summarizeGroup(group: CashierGroup): GroupSummary {
   };
 }
 
+export type GroupFocusTab = 'to-pay' | 'in-progress' | 'ready';
+
+/**
+ * Onglet dont les actions de groupe s'appliquent quand le groupe est affiché HORS
+ * onglet (résultats de recherche) : la prochaine étape du groupe — encaisser s'il
+ * reste de l'impayé, sinon finir la cuisine, sinon remettre.
+ */
+export function groupFocusTab(summary: GroupSummary): GroupFocusTab {
+  if (summary.payable.length > 0) return 'to-pay';
+  if (summary.preparing.length > 0) return 'in-progress';
+  return 'ready';
+}
+
 export type OrderPayments = { orderId: string; payments: PaymentLine[] };
 export type PaymentLine = { mode: PaymentMode; amount: number };
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { OrderStatus } from '@/generated/prisma/client';
 import { DEFAULT_LOYALTY_SETTINGS } from '@/lib/loyalty-settings';
 import type { CashierOrder } from './types';
-import { allocatePayments, summarizeGroup } from './group';
+import { allocatePayments, groupFocusTab, summarizeGroup } from './group';
 import {
   buildCustomerGroups,
   buildQueueEntries,
@@ -215,5 +215,34 @@ describe('allocatePayments', () => {
     expect(
       allocatePayments([{ mode: 'CASH', amount: 5000 }], targets)
     ).toBeNull();
+  });
+});
+
+describe('groupFocusTab', () => {
+  const summaryOf = (orders: CashierOrder[]) =>
+    summarizeGroup([...buildCustomerGroups(orders, NOW).values()][0]);
+
+  it('encaisser d’abord s’il reste de l’impayé', () => {
+    const s = summaryOf([
+      makeOrder('1', { isPaid: false, status: 'NEW' }),
+      makeOrder('2', { status: 'READY' }),
+    ]);
+    expect(groupFocusTab(s)).toBe('to-pay');
+  });
+
+  it('puis la cuisine, puis la remise', () => {
+    expect(
+      groupFocusTab(
+        summaryOf([makeOrder('1'), makeOrder('2', { status: 'READY' })])
+      )
+    ).toBe('in-progress');
+    expect(
+      groupFocusTab(
+        summaryOf([
+          makeOrder('1', { status: 'READY' }),
+          makeOrder('2', { status: 'READY' }),
+        ])
+      )
+    ).toBe('ready');
   });
 });

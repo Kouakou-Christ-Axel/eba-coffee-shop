@@ -4,6 +4,13 @@ import Link from 'next/link';
 import { SearchX } from 'lucide-react';
 import { OrderCard } from '../order-card';
 import { OrderCardActions } from '../order-card-actions';
+import {
+  groupFocusTab,
+  summarizeGroup,
+  type CashierGroup,
+} from '@/lib/cashier-queue/group';
+import { buildQueueEntries } from '@/lib/orders/customer-groups';
+import { OrderGroupCard } from './group/order-group-card';
 import { isScheduledAhead, type TabKey } from '../urgency';
 import type { UrgencyIndex } from './use-urgency-counts';
 import type { CashierOrder } from '@/lib/cashier-queue';
@@ -38,6 +45,8 @@ type Props = {
   menu: MenuCategory[];
   contactSettings: CaisseContactSettings;
   now: Date;
+  /** Clients à plusieurs commandes : leurs résultats se rangent dans un même bloc de groupe. */
+  groups: Map<string, CashierGroup>;
 };
 
 /**
@@ -57,6 +66,7 @@ export function CaisseSearchResults({
   menu,
   contactSettings,
   now,
+  groups,
 }: Props) {
   if (orders.length === 0) {
     return (
@@ -81,7 +91,23 @@ export function CaisseSearchResults({
         {orders.length} résultat{orders.length > 1 ? 's' : ''} — tous les
         onglets
       </p>
-      {orders.map((o) => {
+      {buildQueueEntries(orders, groups).map((result) => {
+        if (result.kind === 'group') {
+          // Hors onglet : les actions de groupe suivent la PROCHAINE étape du groupe.
+          return (
+            <OrderGroupCard
+              key={result.group.key}
+              group={result.group}
+              inTab={result.inTab}
+              tab={groupFocusTab(summarizeGroup(result.group))}
+              menu={menu}
+              contactSettings={contactSettings}
+              now={now}
+              othersLabel="Hors de la recherche"
+            />
+          );
+        }
+        const o = result.order;
         const entry = urgencyIndex.get(o.id);
         const tabs = entry?.tabs ?? [];
         return (
