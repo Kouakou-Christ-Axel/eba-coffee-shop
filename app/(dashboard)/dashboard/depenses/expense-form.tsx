@@ -1,6 +1,5 @@
 'use client';
 
-import { todayDateString } from '@/lib/timezone';
 import { ExpenseActionBar } from './_components/expense-form/expense-action-bar';
 import { ExpenseFieldsSection } from './_components/expense-form/expense-fields-section';
 import { ExpenseItemsSection } from './_components/expense-form/expense-items-section';
@@ -17,20 +16,6 @@ export type {
   ExpenseFormValues,
   ExpenseItemFormValues,
 } from './_components/expense-form/types';
-
-/** Valeurs par défaut d'une nouvelle dépense (formulaire vierge). */
-export function emptyExpense(categories: Category[]): ExpenseFormValues {
-  return {
-    date: todayDateString(),
-    amount: '',
-    categoryId: categories[0]?.id ?? '',
-    paymentMethod: 'CASH',
-    supplier: '',
-    note: '',
-    receiptUrl: null,
-    items: [],
-  };
-}
 
 export function ExpenseForm({
   categories,

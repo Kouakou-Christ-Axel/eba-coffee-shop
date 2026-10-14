@@ -24,6 +24,7 @@ import { groupMates } from '@/lib/orders/kitchen-group';
 import { OrderDetailSheet } from './_components/order-detail-sheet';
 import { OrdersListSheet } from './_components/orders-list-sheet';
 import { ProductionSheet } from './_components/production-sheet';
+import { OrdersSearchSheet } from './_components/orders-search-sheet';
 import { normalize } from './_components/view/normalize';
 import { useCreatedFlash } from './_components/view/use-created-flash';
 import { usePreparationActions } from './_components/view/use-preparation-actions';
@@ -57,7 +58,7 @@ function PreparationViewInner({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Bottom sheet de liste ouvert, null = aucun.
   const [openSheet, setOpenSheet] = useState<
-    'scheduled' | 'ready' | 'topay' | 'production' | null
+    'scheduled' | 'ready' | 'topay' | 'production' | 'search' | null
   >(null);
   const { soundEnabled, soundEnabledRef, toggleSound } =
     useSoundPreference(SOUND_STORAGE_KEY);
@@ -94,6 +95,7 @@ function PreparationViewInner({
     handleCancel,
   } = actions;
   const {
+    visible,
     cooking,
     scheduled,
     productionPlan,
@@ -139,6 +141,7 @@ function PreparationViewInner({
         onOpenReady={() => setOpenSheet('ready')}
         onOpenProduction={() => setOpenSheet('production')}
         onOpenToPay={() => setOpenSheet('topay')}
+        onOpenSearch={() => setOpenSheet('search')}
       />
 
       <div className="mt-3 flex justify-end">
@@ -271,6 +274,16 @@ function PreparationViewInner({
         onRetrieve={handleRetrieved}
         onCancel={handleCancel}
         action={markOrderPaidFromKitchen}
+      />
+      <OrdersSearchSheet
+        orders={visible}
+        now={now}
+        open={openSheet === 'search'}
+        onOpenChange={(o) => setOpenSheet(o ? 'search' : null)}
+        onSelect={(id) => {
+          setOpenSheet(null);
+          setSelectedId(id);
+        }}
       />
       {shortageDialog}
     </div>

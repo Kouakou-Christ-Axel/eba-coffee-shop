@@ -7,6 +7,7 @@ import {
   CalendarClock,
   ClipboardList,
   PackageCheck,
+  Search,
   Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -39,6 +40,7 @@ type Props = {
   onOpenReady: () => void;
   onOpenProduction: () => void;
   onOpenToPay: () => void;
+  onOpenSearch: () => void;
 };
 
 export function PreparationHeader({
@@ -55,6 +57,7 @@ export function PreparationHeader({
   onOpenReady,
   onOpenProduction,
   onOpenToPay,
+  onOpenSearch,
 }: Props) {
   return (
     <div className="flex flex-col gap-2 border-b pb-3">
@@ -157,6 +160,16 @@ export function PreparationHeader({
               Synchro à {format(lastSync, 'HH:mm:ss')}
             </span>
           )}
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            aria-label="Rechercher une commande"
+            title="Rechercher une commande"
+            className="flex h-11 items-center gap-2 rounded-full bg-primary/10 px-4 text-sm font-bold text-primary transition-colors hover:bg-primary/20"
+          >
+            <Search className="h-4 w-4" />
+            <span className="hidden sm:inline">Rechercher</span>
+          </button>
           <button
             type="button"
             onClick={onToggleSound}
