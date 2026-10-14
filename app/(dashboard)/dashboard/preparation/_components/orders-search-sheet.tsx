@@ -106,7 +106,7 @@ export function OrdersSearchSheet({
               onChange={(e) => setTerm(e.target.value)}
               placeholder="Code de retrait, n°, nom ou téléphone…"
               aria-label="Rechercher une commande"
-              className="h-11 pl-8 pr-9 text-base"
+              className="h-11 pl-8 pr-9 text-base [&::-webkit-search-cancel-button]:hidden"
             />
             {term && (
               <Button
