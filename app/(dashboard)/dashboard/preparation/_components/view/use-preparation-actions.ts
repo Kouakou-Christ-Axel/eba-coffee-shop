@@ -122,6 +122,56 @@ export function usePreparationActions(orders: PreparationOrder[]) {
     [setPending]
   );
 
+  // Lot (groupe d'un même client) : un seul `startTransition`, une commande après l'autre ; un échec n'arrête pas les suivantes.
+  const runMany = useCallback(
+    (ids: string[], fn: (id: string) => Promise<unknown>, label: string) => {
+      ids.forEach((id) => setPending(id, true));
+      startTransition(async () => {
+        try {
+          for (const id of ids) {
+            try {
+              await fn(id);
+            } catch (err) {
+              console.error(`[preparation] ${label} échoué :`, err);
+            }
+          }
+        } finally {
+          ids.forEach((id) => setPending(id, false));
+        }
+      });
+    },
+    [setPending]
+  );
+
+  const handleReadyMany = useCallback(
+    (ids: string[]) => runMany(ids, markOrderReady, 'markOrderReady'),
+    [runMany]
+  );
+
+  const handleRequestDriverMany = useCallback(
+    (ids: string[]) => runMany(ids, requestDriver, 'requestDriver'),
+    [runMany]
+  );
+
+  const handleRetrievedMany = useCallback(
+    (ids: string[]) => {
+      const targets = orders.filter((o) => ids.includes(o.id));
+      runMany(ids, markOrderRetrieved, 'markOrderRetrieved');
+      if (targets.length === 0) return;
+      pushUndo({
+        message: `Groupe récupéré (${targets.map((o) => `#${String(o.dailyNumber).padStart(3, '0')}`).join(' · ')})`,
+        onUndo: async () => {
+          for (const o of targets) {
+            if (o.status === 'READY' || o.status === 'PREPARING') {
+              await revertOrderRetrieved(o.id, o.status);
+            }
+          }
+        },
+      });
+    },
+    [orders, runMany, pushUndo]
+  );
+
   const handleCancel = useCallback(
     (id: string) => {
       const order = orders.find((o) => o.id === id);
@@ -150,6 +200,9 @@ export function usePreparationActions(orders: PreparationOrder[]) {
     handleRetrieved,
     handleStartPreparation,
     handleRequestDriver,
+    handleReadyMany,
+    handleRequestDriverMany,
+    handleRetrievedMany,
     handleCancel,
   };
 }

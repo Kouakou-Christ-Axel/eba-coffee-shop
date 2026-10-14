@@ -11,6 +11,7 @@ import type { MenuCategory } from '@/config/menu';
 import { OrderDetailActions } from './order-detail/order-detail-actions';
 import { OrderDetailContent } from './order-detail/order-detail-content';
 import { OrderDetailHeader } from './order-detail/order-detail-header';
+import { MatesBanner } from './group/mates-banner';
 import { OrderEditModal } from './order-detail/order-edit-modal';
 import type { ContactInfo, OrderDetailCallbacks } from './order-detail/types';
 
@@ -21,6 +22,9 @@ type Props = OrderDetailCallbacks & {
   pending: boolean;
   contactSettings: ContactInfo;
   onClose: () => void;
+  /** Autres commandes du même client (groupe) + clé du groupe ; vide = commande seule. */
+  mates?: PreparationOrder[];
+  groupKey?: string;
 };
 
 /**
@@ -43,6 +47,8 @@ export function OrderDetailSheet({
   onRetrieve,
   payAction,
   customerAction,
+  mates,
+  groupKey,
 }: Props) {
   const open = order !== null;
 
@@ -72,6 +78,8 @@ export function OrderDetailSheet({
             onRetrieve={onRetrieve}
             payAction={payAction}
             customerAction={customerAction}
+            mates={mates}
+            groupKey={groupKey}
           />
         )}
       </SheetContent>
@@ -85,8 +93,12 @@ function OrderDetailBody({
   now,
   pending,
   contactSettings,
+  mates = [],
+  groupKey,
   ...callbacks
 }: OrderDetailCallbacks & {
+  mates?: PreparationOrder[];
+  groupKey?: string;
   order: PreparationOrder;
   menu: MenuCategory[];
   now: Date;
@@ -98,6 +110,7 @@ function OrderDetailBody({
   return (
     <>
       <OrderDetailHeader order={order} now={now} />
+      {groupKey && <MatesBanner mates={mates} groupKey={groupKey} />}
       <OrderDetailContent order={order} />
       <OrderDetailActions
         order={order}

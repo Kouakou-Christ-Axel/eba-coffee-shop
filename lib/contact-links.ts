@@ -17,5 +17,6 @@ export {
 } from './contact-links/order-messages';
 export {
   buildDriverRequestMessage,
+  buildGroupDriverRequestMessage,
   buildDriverShareMessage,
 } from './contact-links/driver-messages';

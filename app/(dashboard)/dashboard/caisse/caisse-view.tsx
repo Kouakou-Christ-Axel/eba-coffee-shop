@@ -8,6 +8,7 @@ import {
   useOrdersStream,
   useSoundPreference,
 } from '@/lib/hooks/use-orders-stream';
+import { buildCustomerGroups } from '@/lib/orders/customer-groups';
 import { parseOrderSearchTerm, searchOrders } from '@/lib/orders/search';
 import {
   minutesUntilPickup,
@@ -100,6 +101,10 @@ export function CaisseView({
     [queue, now]
   );
 
+  // Clients à plusieurs commandes : calculé sur toute la file (pas l'onglet) pour que
+  // l'en-tête de groupe dise l'état de TOUTES leurs commandes.
+  const groups = useMemo(() => buildCustomerGroups(queue, now), [queue, now]);
+
   const visibleOrders = useMemo(
     () => filterByTab(queue, tab, now),
     [queue, tab, now]
@@ -162,6 +167,7 @@ export function CaisseView({
             orders={results}
             urgencyIndex={urgencyIndex}
             term={search.trim()}
+            groups={groups}
             menu={menu}
             contactSettings={contactSettings}
             now={now}
@@ -191,6 +197,7 @@ export function CaisseView({
               menu={menu}
               contactSettings={contactSettings}
               now={now}
+              groups={groups}
             />
           </>
         )}

@@ -5,6 +5,7 @@ import { CountBadge } from './count-badge';
 import { CaisseOrderList } from './caisse-order-list';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
+import type { CashierGroup } from '@/lib/cashier-queue/group';
 import type { TabKey } from '../urgency';
 import type { CaisseContactSettings } from './actions/types';
 
@@ -18,6 +19,7 @@ type Props = {
   menu: MenuCategory[];
   contactSettings: CaisseContactSettings;
   now: Date;
+  groups: Map<string, CashierGroup>;
 };
 
 const TAB_ORDER: TabKey[] = ['to-pay', 'in-progress', 'ready'];
@@ -30,6 +32,7 @@ export function UrgencyTabs({
   menu,
   contactSettings,
   now,
+  groups,
 }: Props) {
   return (
     <Tabs
@@ -71,6 +74,7 @@ export function UrgencyTabs({
             menu={menu}
             contactSettings={contactSettings}
             now={now}
+            groups={groups}
           />
         </TabsContent>
       ))}
