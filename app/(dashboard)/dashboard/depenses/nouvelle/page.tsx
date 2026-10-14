@@ -3,8 +3,8 @@ import prisma from '@/lib/prisma';
 import { getExpenseForEdit, listExpenseCategories } from '@/lib/expenses';
 import { todayDateString } from '@/lib/timezone';
 import { BackButton } from '@/components/(dashboard)/back-button';
-import { ExpenseForm, emptyExpense } from '../expense-form';
-import { expenseToFormValues } from '../expense-form-values';
+import { ExpenseForm } from '../expense-form';
+import { emptyExpense, expenseToFormValues } from '../expense-form-values';
 import { loadArticleOptions } from '../_components/article-options';
 
 // Page d'administration : données live, jamais prérendue.

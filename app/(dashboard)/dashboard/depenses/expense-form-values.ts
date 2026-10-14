@@ -1,11 +1,28 @@
-// Conversion d'une dépense enregistrée vers les valeurs du formulaire.
-// Isolée du composant pour être réutilisable par les deux pages de saisie
-// (édition et duplication) qui la préparent côté serveur.
+// Valeurs initiales du formulaire de dépense (vierge ou issues d'une dépense
+// enregistrée). Isolées du composant client (`'use client'`) car les pages de
+// saisie (création, édition, duplication) les préparent côté serveur.
 
 import { emptyExpenseItemDraft } from '@/lib/expense-item-draft';
 import type { ExpenseForEdit } from '@/lib/expenses';
 import { formatLocalDateOnly, todayDateString } from '@/lib/timezone';
-import type { ExpenseFormValues } from './expense-form';
+import type {
+  Category,
+  ExpenseFormValues,
+} from './_components/expense-form/types';
+
+/** Valeurs par défaut d'une nouvelle dépense (formulaire vierge). */
+export function emptyExpense(categories: Category[]): ExpenseFormValues {
+  return {
+    date: todayDateString(),
+    amount: '',
+    categoryId: categories[0]?.id ?? '',
+    paymentMethod: 'CASH',
+    supplier: '',
+    note: '',
+    receiptUrl: null,
+    items: [],
+  };
+}
 
 /**
  * `mode: 'duplicate'` recopie le détail mais repart d'une dépense neuve : pas
