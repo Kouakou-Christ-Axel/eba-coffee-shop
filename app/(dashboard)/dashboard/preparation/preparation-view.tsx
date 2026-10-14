@@ -278,6 +278,11 @@ function PreparationViewInner({
       <OrdersSearchSheet
         orders={visible}
         groups={groups}
+        pendingIds={pendingIds}
+        onReady={handleReady}
+        onCancel={handleCancel}
+        onRetrieve={handleRetrieved}
+        onStartPreparation={handleStartPreparation}
         now={now}
         open={openSheet === 'search'}
         onOpenChange={(o) => setOpenSheet(o ? 'search' : null)}
