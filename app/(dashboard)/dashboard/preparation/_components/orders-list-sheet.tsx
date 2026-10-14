@@ -117,16 +117,20 @@ export function OrdersListSheet({
                         ? `Attendre ${s.cooking.map(orderRef).join(' · ')} avant de remettre`
                         : undefined
                     }
-                    action={
+                    actions={
                       readyIds.length > 0
-                        ? {
-                            label: `Tout marquer récupéré (${readyIds.length})`,
-                            disabled: entry.inTab.some((o) =>
-                              pendingIds.has(o.id)
-                            ),
-                            onClick: () => onRetrieveMany?.(readyIds),
-                          }
-                        : undefined
+                        ? [
+                            {
+                              label: `Tout marquer récupéré (${readyIds.length})`,
+                              variant: 'outline' as const,
+                              icon: 'retrieve' as const,
+                              disabled: entry.inTab.some((o) =>
+                                pendingIds.has(o.id)
+                              ),
+                              onClick: () => onRetrieveMany?.(readyIds),
+                            },
+                          ]
+                        : []
                     }
                   >
                     {entry.inTab.map(row)}

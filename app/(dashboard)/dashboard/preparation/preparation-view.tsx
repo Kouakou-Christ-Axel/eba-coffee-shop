@@ -283,6 +283,8 @@ function PreparationViewInner({
         onCancel={handleCancel}
         onRetrieve={handleRetrieved}
         onStartPreparation={handleStartPreparation}
+        onReadyMany={handleReadyMany}
+        onRetrieveMany={handleRetrievedMany}
         now={now}
         open={openSheet === 'search'}
         onOpenChange={(o) => setOpenSheet(o ? 'search' : null)}

@@ -16,7 +16,10 @@ import { Button } from '@/components/ui/button';
 import { parseOrderSearchTerm, searchOrders } from '@/lib/orders/search';
 import type { PreparationOrder } from '@/lib/preparation-queue';
 import { buildQueueEntries } from '@/lib/orders/customer-groups';
-import type { KitchenGroup } from '@/lib/orders/kitchen-group';
+import {
+  summarizeKitchenGroup,
+  type KitchenGroup,
+} from '@/lib/orders/kitchen-group';
 import { GroupFrame } from './group/group-frame';
 import { SearchResultRow, type SearchRowCallbacks } from './orders-search-row';
 
@@ -31,6 +34,9 @@ type Props = SearchRowCallbacks & {
   onSelect: (id: string) => void;
   /** Clients à plusieurs commandes : leurs résultats se rangent dans un même cadre. */
   groups: Map<string, KitchenGroup>;
+  /** Gestes de groupe : tout marquer prêt / tout récupérer (cf. `usePreparationActions`). */
+  onReadyMany: (ids: string[]) => void;
+  onRetrieveMany: (ids: string[]) => void;
 };
 
 /**
@@ -47,6 +53,8 @@ export function OrdersSearchSheet({
   onSelect,
   groups,
   pendingIds,
+  onReadyMany,
+  onRetrieveMany,
   ...rowCallbacks
 }: Props) {
   const [term, setTerm] = useState('');
@@ -55,6 +63,36 @@ export function OrdersSearchSheet({
     () => (parsed ? searchOrders(orders, parsed) : []),
     [orders, parsed]
   );
+
+  // Gestes de TOUT le groupe (pas seulement des résultats affichés) : finir la cuisine, puis remettre.
+  const groupActions = (group: KitchenGroup) => {
+    const s = summarizeKitchenGroup(group);
+    const busy = group.orders.some((o) => pendingIds.has(o.id));
+    return [
+      ...(s.cooking.length > 0
+        ? [
+            {
+              label: `Tout prêt (${s.cooking.length})`,
+              variant: 'primary' as const,
+              icon: 'ready' as const,
+              disabled: busy,
+              onClick: () => onReadyMany(s.cooking.map((o) => o.id)),
+            },
+          ]
+        : []),
+      ...(s.ready.length > 0
+        ? [
+            {
+              label: `Tout marquer récupéré (${s.ready.length})`,
+              variant: 'outline' as const,
+              icon: 'retrieve' as const,
+              disabled: busy,
+              onClick: () => onRetrieveMany(s.ready.map((o) => o.id)),
+            },
+          ]
+        : []),
+    ];
+  };
 
   const row = (order: PreparationOrder) => (
     <SearchResultRow
@@ -147,6 +185,7 @@ export function OrdersSearchSheet({
                       key={entry.group.key}
                       group={entry.group}
                       label={`${entry.group.orders.length} commandes ensemble`}
+                      actions={groupActions(entry.group)}
                     >
                       {entry.inTab.map(row)}
                     </GroupFrame>
