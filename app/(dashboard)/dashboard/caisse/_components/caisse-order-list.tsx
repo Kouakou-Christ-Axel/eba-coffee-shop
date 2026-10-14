@@ -5,7 +5,9 @@ import { OrderCard } from '../order-card';
 import { OrderCardActions } from '../order-card-actions';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
+import { buildQueueEntries, type OrderGroup } from '@/lib/cashier-queue/group';
 import { getUrgencyLevel, type TabKey } from '../urgency';
+import { OrderGroupCard } from './group/order-group-card';
 import type { CaisseContactSettings } from './actions/types';
 
 type Props = {
@@ -14,6 +16,8 @@ type Props = {
   menu: MenuCategory[];
   contactSettings: CaisseContactSettings;
   now: Date;
+  /** Clients ayant 2 commandes ou plus aujourd'hui (cf. `buildCustomerGroups`). */
+  groups: Map<string, OrderGroup>;
 };
 
 export function CaisseOrderList({
@@ -22,6 +26,7 @@ export function CaisseOrderList({
   menu,
   contactSettings,
   now,
+  groups,
 }: Props) {
   if (orders.length === 0) {
     return (
@@ -42,21 +47,34 @@ export function CaisseOrderList({
        `xl`, la barre latérale du dashboard laisse trop peu de largeur pour
        deux colonnes lisibles. */
     <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-2">
-      {orders.map((o) => (
-        <OrderCard
-          key={o.id}
-          order={o}
-          urgency={getUrgencyLevel(o, tab, now)}
-          now={now}
-          actions={
-            <OrderCardActions
-              order={o}
+      {buildQueueEntries(orders, groups).map((entry) =>
+        entry.kind === 'group' ? (
+          <div key={entry.group.key} className="xl:col-span-2">
+            <OrderGroupCard
+              group={entry.group}
+              inTab={entry.inTab}
+              tab={tab}
               menu={menu}
               contactSettings={contactSettings}
+              now={now}
             />
-          }
-        />
-      ))}
+          </div>
+        ) : (
+          <OrderCard
+            key={entry.order.id}
+            order={entry.order}
+            urgency={getUrgencyLevel(entry.order, tab, now)}
+            now={now}
+            actions={
+              <OrderCardActions
+                order={entry.order}
+                menu={menu}
+                contactSettings={contactSettings}
+              />
+            }
+          />
+        )
+      )}
     </div>
   );
 }
