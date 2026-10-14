@@ -130,7 +130,9 @@ describe('runAssistant', () => {
       actor,
       [{ role: 'user', content: 'boucle' }],
       {},
-      fetchReturning(loop, loop, loop, loop, loop, loop, loop)
+      vi.fn(async () =>
+        Response.json({ choices: [{ message: loop }] })
+      ) as unknown as typeof fetch
     );
     expect(res.messages.at(-1)).toMatchObject({ role: 'assistant' });
     expect(res.pending).toEqual([]);

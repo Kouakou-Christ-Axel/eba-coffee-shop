@@ -24,7 +24,7 @@ import {
 import type { AssistantResponse, PendingAction, StoredMessage } from './types';
 import type { UserRole } from '@/generated/prisma/client';
 
-const MAX_STEPS = 6;
+const MAX_STEPS = 10;
 const REFUSED = "Refusé par l'utilisateur : n'exécute pas cette action.";
 
 type Actor = { name: string | null; role: UserRole };

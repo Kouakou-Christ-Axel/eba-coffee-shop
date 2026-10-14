@@ -68,8 +68,14 @@ export function assistantToolDefinitions(role: UserRole): ToolDefinition[] {
   return assistantTools(role).map(toDefinition);
 }
 
+// Brouillons d'achat : persistés avec une durée de vie limitée mais SANS rien
+// écrire de définitif (dépense, article). Exécutés sans confirmation ; seul
+// `confirm_*` enregistre — et passe par la carte Confirmer / Refuser.
+const DRAFT_TOOLS = new Set(['prepare_purchase', 'prepare_other_expense']);
+
 /** Une action qui modifie des données exige l'accord de l'utilisateur. */
 export function isWriteTool(name: string): boolean {
+  if (DRAFT_TOOLS.has(name)) return false;
   const tool = toolsByName.get(name);
   return !tool || !tool.readOnly;
 }
@@ -107,7 +113,7 @@ export async function runAssistantTool(
 
   try {
     const data = await tool.handler(parsed.data);
-    if (!tool.readOnly) revalidateMenu();
+    if (!tool.readOnly && !DRAFT_TOOLS.has(name)) revalidateMenu();
     const text =
       data === undefined || data === null ? 'OK' : JSON.stringify(data);
     return {

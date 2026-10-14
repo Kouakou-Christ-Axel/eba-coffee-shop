@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import type { Attachment } from './attachments';
 import type {
   AssistantResponse,
   ConversationSummary,
@@ -61,8 +62,30 @@ export function useAssistant() {
     [conversationId, refreshHistory]
   );
 
-  const ask = (text: string) =>
-    send([...messages, { role: 'user', content: text }]);
+  const ask = (text: string, files: Attachment[] = []) =>
+    send([
+      ...messages,
+      {
+        role: 'user',
+        content:
+          files.length === 0
+            ? text
+            : [
+                { type: 'text', text: text || 'Voici le fichier.' },
+                ...files.map((f) =>
+                  f.kind === 'pdf'
+                    ? {
+                        type: 'file' as const,
+                        file: { filename: f.name, file_data: f.dataUrl },
+                      }
+                    : {
+                        type: 'image_url' as const,
+                        image_url: { url: f.dataUrl },
+                      }
+                ),
+              ],
+      },
+    ]);
 
   const decide = (decisions: Decisions) => send(messages, decisions);
 

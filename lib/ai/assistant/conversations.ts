@@ -4,7 +4,12 @@
 // toute requête est filtrée par `userId`.
 
 import prisma from '@/lib/prisma';
-import { chatMessageSchema, MAX_MESSAGES } from './types';
+import {
+  chatMessageSchema,
+  MAX_MESSAGES,
+  stripAttachments,
+  userText,
+} from './types';
 import type { ConversationSummary, StoredMessage } from './types';
 import { z } from 'zod';
 
@@ -13,7 +18,7 @@ const LIST_LIMIT = 50;
 
 export function titleFrom(messages: StoredMessage[]): string {
   const first = messages.find((m) => m.role === 'user');
-  const text = (first?.content ?? 'Nouvelle conversation')
+  const text = (first ? userText(first.content) : 'Nouvelle conversation')
     .replace(/\s+/g, ' ')
     .trim();
   return text.length > TITLE_MAX ? `${text.slice(0, TITLE_MAX - 1)}…` : text;
@@ -55,8 +60,9 @@ export async function getConversation(userId: string, id: string) {
 export async function saveConversation(
   userId: string,
   id: string | undefined,
-  messages: StoredMessage[]
+  rawMessages: StoredMessage[]
 ): Promise<string> {
+  const messages = stripAttachments(rawMessages);
   if (id) {
     const res = await prisma.assistantConversation.updateMany({
       where: { id, userId },

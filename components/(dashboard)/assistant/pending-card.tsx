@@ -20,8 +20,12 @@ export function PendingCard({
   busy: boolean;
   onDecide: (decision: 'approve' | 'reject') => void;
 }) {
+  // L'identifiant de brouillon n'a aucun sens pour l'utilisateur : le détail
+  // est dans le tableau récapitulatif affiché juste au-dessus.
   const entries = (args: unknown) =>
-    args && typeof args === 'object' ? Object.entries(args) : [];
+    args && typeof args === 'object'
+      ? Object.entries(args).filter(([k]) => k !== 'draftId')
+      : [];
 
   return (
     <div className="rounded-xl border border-secondary bg-secondary/10 p-3">

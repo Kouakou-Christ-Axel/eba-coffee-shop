@@ -38,6 +38,13 @@ describe('outils de l’assistant par rôle', () => {
     expect(def?.function.parameters).not.toHaveProperty('$schema');
   });
 
+  it('brouillons sans confirmation, confirm_* avec', () => {
+    expect(isWriteTool('prepare_purchase')).toBe(false);
+    expect(isWriteTool('prepare_other_expense')).toBe(false);
+    expect(isWriteTool('confirm_purchase')).toBe(true);
+    expect(isWriteTool('confirm_other_expense')).toBe(true);
+  });
+
   it('refuse un outil hors rôle et des arguments invalides', async () => {
     expect(
       (await runAssistantTool('create_expense', '{}', 'ANALYSTE')).ok
