@@ -869,6 +869,12 @@ model SupplementGroup {
   // 'single' (un choix), 'multiple' (cases à cocher) ou 'quantity' (répartition
   // d'une quantité totale entre les options, ex. 3 parts à répartir sur 3 goûts).
   type      String
+  // Nature du groupe : 'flavor' (goût / parfum : ce qu'on met DANS le produit,
+  // ex. Chocolat, Vanille) ou 'extra' (supplément : ce qu'on AJOUTE par-dessus,
+  // ex. sauce chocolat, chantilly). Sans lui, un goût « Chocolat » et un
+  // supplément « Chocolat » étaient indiscernables sur le ticket de cuisine.
+  // Recopié sur la ligne de commande à la création (`kind`, lib/schemas/order/cart.ts).
+  kind      String             @default("extra")
   required  Boolean            @default(false)
   sortOrder Int                @default(0)
   // Disponibilité : un groupe désactivé reste configuré mais n'est plus proposé

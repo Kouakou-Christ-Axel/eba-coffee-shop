@@ -1,4 +1,6 @@
 import prisma from '@/lib/prisma';
+import type { SupplementKind } from '@/config/menu-types';
+import { toSupplementKind } from './helpers';
 
 export type GlobalExtraOption = {
   id: string;
@@ -11,6 +13,7 @@ export type GlobalExtraOption = {
 export type GlobalExtraGroup = {
   id: string;
   name: string;
+  kind: SupplementKind;
   type: 'single' | 'multiple' | 'quantity';
   required: boolean;
   available: boolean;
@@ -30,6 +33,7 @@ export async function getGlobalExtras(): Promise<GlobalExtraGroup[]> {
   return groups.map((g) => ({
     id: g.id,
     name: g.name,
+    kind: toSupplementKind(g.kind),
     type: g.type as 'single' | 'multiple' | 'quantity',
     required: g.required,
     available: g.available,

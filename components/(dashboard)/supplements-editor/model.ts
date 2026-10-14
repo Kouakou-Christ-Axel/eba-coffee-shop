@@ -54,6 +54,7 @@ export function emptyGroup(): UiGroup {
   return {
     uid: nextUid(),
     name: '',
+    kind: 'extra',
     type: 'single',
     required: false,
     available: true,

@@ -33,6 +33,8 @@ export const mockSupGroupFindMany = prisma.supplementGroup
   .findMany as MockedFunction<typeof prisma.supplementGroup.findMany>;
 export const mockSupGroupCreate = prisma.supplementGroup
   .create as MockedFunction<typeof prisma.supplementGroup.create>;
+export const mockSupGroupUpdate = prisma.supplementGroup
+  .update as MockedFunction<typeof prisma.supplementGroup.update>;
 export const mockSupOptionUpdate = prisma.supplementOption
   .update as MockedFunction<typeof prisma.supplementOption.update>;
 export const mockSupOptionCreate = prisma.supplementOption

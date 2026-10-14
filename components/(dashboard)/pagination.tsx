@@ -1,32 +1,28 @@
 'use client';
 
-// Pagination générique du dashboard : pilote elle-même la navigation
-// (met à jour `page` dans l'URL en conservant les autres paramètres),
-// via une transition dédiée pour rester réactive sans sauter le scroll.
+// Pagination générique du dashboard, branchée sur l'URL via nuqs (`?page=`).
+// Elle pilote elle-même la navigation : les autres paramètres sont conservés
+// par nuqs, et `shallow: false` relance le rendu serveur de la page (c'est lui
+// qui relit la base). Transition dédiée pour rester réactive sans sauter le
+// scroll.
 
 import { useTransition } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryState } from 'nuqs';
 import { Pagination as HeroPagination } from '@heroui/react';
 import { cn } from '@/lib/utils';
+import { pageParser } from '@/lib/url-state/shared-params';
 
-export function Pagination({
-  page,
-  totalPages,
-}: {
-  page: number;
-  totalPages: number;
-}) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+export function Pagination({ totalPages }: { totalPages: number }) {
   const [isPending, startTransition] = useTransition();
-
-  function goTo(p: number) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', String(p));
-    startTransition(() => {
-      router.push(`?${params.toString()}`, { scroll: false });
-    });
-  }
+  const [page, setPage] = useQueryState(
+    'page',
+    pageParser.withOptions({
+      shallow: false,
+      history: 'push',
+      scroll: false,
+      startTransition,
+    })
+  );
 
   return (
     <div
@@ -39,7 +35,7 @@ export function Pagination({
       <HeroPagination
         page={page}
         total={totalPages}
-        onChange={goTo}
+        onChange={(p) => void setPage(p)}
         color="primary"
         showControls
       />

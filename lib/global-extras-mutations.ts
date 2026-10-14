@@ -33,6 +33,7 @@ export async function createGlobalExtraGroup(input: GlobalExtraGroupInput) {
   return prisma.supplementGroup.create({
     data: {
       name: data.name,
+      kind: data.kind ?? 'extra',
       type: data.type,
       required: data.required,
       available: data.available,
@@ -78,6 +79,7 @@ export async function updateGlobalExtraGroup(
     where: { id },
     data: {
       ...(data.name !== undefined && { name: data.name }),
+      ...(data.kind !== undefined && { kind: data.kind }),
       ...(data.required !== undefined && { required: data.required }),
       ...(data.available !== undefined && { available: data.available }),
       ...(data.minSelect !== undefined && { minSelect: data.minSelect }),

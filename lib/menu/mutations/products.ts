@@ -40,6 +40,7 @@ export async function createProduct(input: ProductInput) {
       supplementGroups: {
         create: data.supplementGroups.map((g, gi) => ({
           name: g.name,
+          kind: g.kind ?? 'extra',
           type: g.type,
           required: g.required,
           available: g.available,

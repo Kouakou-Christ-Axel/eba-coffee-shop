@@ -4,6 +4,7 @@ import { Gift } from 'lucide-react';
 import { type CashierOrder } from '@/lib/cashier-queue';
 import { getItemGross, getItemNet } from '@/lib/orders/totals';
 import { formatSupplementLabel } from '@/lib/orders/format';
+import { splitSupplementsByKind } from '@/lib/supplements/kind';
 import { priceFormatter } from './format';
 
 export function OrderCardItems({ order }: { order: CashierOrder }) {
@@ -16,6 +17,9 @@ export function OrderCardItems({ order }: { order: CashierOrder }) {
             const gross = getItemGross(item);
             const net = getItemNet(item);
             const discounted = gross !== net;
+            const { flavors, extras } = splitSupplementsByKind(
+              item.supplements
+            );
             return (
               <li key={item.cartId} className="flex justify-between gap-3">
                 <div className="min-w-0">
@@ -32,12 +36,13 @@ export function OrderCardItems({ order }: { order: CashierOrder }) {
                   </span>
                   {item.supplements.length > 0 && (
                     <div className="pl-8">
-                      {item.supplements.map((s) => (
+                      {[...flavors, ...extras].map((s) => (
                         <span
                           key={`${s.groupName}:${s.optionName}`}
                           className="block text-xs text-muted-foreground"
                         >
-                          + {formatSupplementLabel(s)}
+                          {s.kind === 'flavor' ? 'Goût : ' : '+ '}
+                          {formatSupplementLabel(s)}
                         </span>
                       ))}
                     </div>

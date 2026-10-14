@@ -6,7 +6,7 @@ import { RefreshCw, Trash2 } from 'lucide-react';
 import type { CartItem } from '@/lib/cart-store';
 import type { SoldOutLine } from '@/lib/schemas/order';
 import type { MenuCategory } from '@/config/menu';
-import { formatSupplementLabel } from '@/lib/orders/format';
+import { formatSupplementsSummary } from '@/lib/orders/format';
 import { selectReplacementProducts } from '@/lib/replacements';
 import type { QuickAddSink } from '../use-quick-add';
 import { RestockAlertButton, SupplementModal } from './lazy';
@@ -94,7 +94,7 @@ export function ResolveRow({
           </p>
           {item.supplements.length > 0 && (
             <p className="text-xs text-foreground/45">
-              {item.supplements.map(formatSupplementLabel).join(', ')}
+              {formatSupplementsSummary(item.supplements)}
             </p>
           )}
           <Chip size="sm" color="warning" variant="flat" className="mt-1.5">

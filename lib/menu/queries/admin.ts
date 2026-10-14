@@ -1,9 +1,11 @@
 import prisma from '@/lib/prisma';
+import type { SupplementKind } from '@/config/menu-types';
 import { formatLocalDateOnly } from '@/lib/timezone';
 import {
   intersectAvailableDays,
   effectiveAdvanceOrderDays,
   globalSupplementGroupsInclude,
+  toSupplementKind,
 } from './helpers';
 
 export type AdminMenuSupplementOption = {
@@ -16,6 +18,7 @@ export type AdminMenuSupplementOption = {
 
 export type AdminMenuSupplementGroup = {
   name: string;
+  kind: SupplementKind;
   type: 'single' | 'multiple' | 'quantity';
   required: boolean;
   available: boolean;
@@ -103,6 +106,7 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
   const adminGlobalGroups: AdminMenuSupplementGroup[] = globalGroups.map(
     (g) => ({
       name: g.name,
+      kind: toSupplementKind(g.kind),
       type: g.type as 'single' | 'multiple' | 'quantity',
       required: g.required,
       available: g.available,
@@ -166,6 +170,7 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
         supplements: [
           ...p.supplementGroups.map((g) => ({
             name: g.name,
+            kind: toSupplementKind(g.kind),
             type: g.type as 'single' | 'multiple' | 'quantity',
             required: g.required,
             available: g.available,

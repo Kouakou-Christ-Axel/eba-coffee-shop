@@ -30,8 +30,11 @@ export type SupplementOption = {
 
 export type SupplementGroupType = 'single' | 'multiple' | 'quantity';
 
+export type SupplementGroupKind = 'flavor' | 'extra';
+
 export type SupplementGroup = {
   name: string;
+  kind: SupplementGroupKind;
   type: SupplementGroupType;
   required: boolean;
   available: boolean;
@@ -62,6 +65,25 @@ export const GROUP_TYPES: Record<
   quantity: {
     label: 'Quantité à répartir',
     help: 'Le client répartit une quantité entre les options (ex. 3 parts entre 3 goûts).',
+  },
+};
+
+/**
+ * Nature d'un groupe. La distinction existe pour la cuisine : un goût
+ * « Chocolat » (dans le produit) et un supplément « Chocolat » (ajouté
+ * dessus) ne se préparent pas pareil et ne doivent pas se confondre sur le ticket.
+ */
+export const GROUP_KINDS: Record<
+  SupplementGroupKind,
+  { label: string; help: string }
+> = {
+  flavor: {
+    label: 'Goût',
+    help: 'Parfum du produit (ex. Chocolat, Vanille). Affiché à part en cuisine.',
+  },
+  extra: {
+    label: 'Supplément',
+    help: 'Ajout par-dessus (ex. sauce, chantilly).',
   },
 };
 
@@ -99,7 +121,11 @@ function describeBounds(g: SupplementGroup): string | null {
  * d'options, seul indicateur de complétude (« aucune option » = invalide).
  */
 export function summarizeGroup(g: SupplementGroup): string {
-  const parts: string[] = [GROUP_TYPES[g.type].label];
+  // Seul le goût est signalé : « Supplément » est le cas ordinaire, le répéter
+  // sur chaque ligne ne dirait rien.
+  const parts: string[] = [];
+  if (g.kind === 'flavor') parts.push(GROUP_KINDS.flavor.label);
+  parts.push(GROUP_TYPES[g.type].label);
   if (g.required) parts.push('Obligatoire');
   const bounds = describeBounds(g);
   if (bounds) parts.push(bounds);
@@ -231,6 +257,7 @@ export function validateSupplementGroups(
 export function toCanonicalGroup(g: SupplementGroup): SupplementGroup {
   return {
     name: g.name,
+    kind: g.kind,
     type: g.type,
     required: g.required,
     available: g.available,

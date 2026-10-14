@@ -32,6 +32,11 @@ export {
   getSupplementsPrice,
 } from './supplements/selections';
 export {
+  kindStamp,
+  isFlavor,
+  splitSupplementsByKind,
+} from './supplements/kind';
+export {
   isFixedPortionGroup,
   portionCount,
   portionSlots,

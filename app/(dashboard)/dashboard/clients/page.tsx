@@ -91,7 +91,7 @@ export default async function ClientsPage({
 
       <CustomersTable customers={customers} sort={sort} dir={dir} />
 
-      {totalPages > 1 && <Pagination page={page} totalPages={totalPages} />}
+      {totalPages > 1 && <Pagination totalPages={totalPages} />}
     </div>
   );
 }

@@ -59,7 +59,8 @@ Pre-commit hooks (Husky + lint-staged) run ESLint and Prettier on staged files a
 - **Une seule définition des parseurs par page** (`search-params.ts`, import depuis `nuqs/server`), partagée par le serveur (`createLoader`) et le client (`useQueryStates`) : valeur invalide → `null`/défaut des deux côtés. Modèle : `app/(dashboard)/dashboard/commandes/`.
 - `NuqsAdapter` est monté dans `app/(dashboard)/layout.tsx` (dashboard uniquement : le site public n'en a pas besoin, cf. « Performance du site public »). Une page hors dashboard qui adopte nuqs doit monter l'adaptateur elle-même.
 - Quand la page lit la base selon l'URL : `shallow: false` + `startTransition` (état d'attente partagé), et `limitUrlUpdates: debounce(ms)` pour la saisie au clavier — l'état local reste instantané.
-- Restent à migrer : `components/(dashboard)/pagination.tsx` et le mode par défaut de `date-range-filter.tsx` (partagés par ~8 pages).
+- **Paramètres communs** : `lib/url-state/shared-params.ts` (`pageParser`, `dateRangeParsers`, `rangeChangeToParams`) — utilisés par `components/(dashboard)/pagination.tsx` et `date-range-filter.tsx` (déjà sur nuqs), et réutilisés par `commandes/search-params.ts`. Une page qui a besoin d'autres paramètres les étend par spread plutôt que de les redéclarer.
+- Restent sur `useSearchParams` + `router.push` (à migrer au fil de l'eau) : `clients/{customers-table,customer-search}.tsx`, `depenses/{expense-filters,category-filter,articles-table,article-history-sheet}.tsx`, `investissements/source-filter.tsx`, `regularisations/mode-filter.tsx`, `cloture/closing-date-picker.tsx`, `menu/**` (filtres produits, stock-supplements). Ils cohabitent sans conflit avec nuqs : tous lisent l'URL réelle.
 
 ## UI library policy
 
@@ -115,6 +116,13 @@ Le site vitrine est vu depuis Abidjan, en mobile, sur des liens où le **RTT pè
 - **Comment** : relire le chapitre dans le doc, corriger le texte avec les outils Docs (un chapitre à la fois, jamais une réécriture globale), puis refaire seulement les captures qui ont changé : app lancée en local sur une base de démo (`pnpm db:push` + `pnpm db:seed`, comptes de test par rôle), captures Playwright, pastilles ajoutées dans la page avant la capture, téléversement dans le doc. Garder la numérotation des pastilles cohérente avec la liste qui l'explique. Ne mettre dans les captures aucune donnée réelle de clients.
 - **Dire ce qui n'a pas pu être vérifié** (paiement Jèko, notifications push, installation PWA, connexion de Claude) plutôt que de l'affirmer : c'est le rôle de l'annexe « Ce manuel et ses limites ».
 - Terminer la tâche en résumant à l'utilisateur quels chapitres ont été mis à jour.
+
+## Goûts vs suppléments
+
+- `SupplementGroup.kind` : `'flavor'` (goût, dans le produit) ou `'extra'` (supplément, par-dessus ; défaut). Existe pour la cuisine : un goût « Chocolat » et un supplément « Chocolat » ne doivent pas se confondre sur le ticket.
+- **Figé sur la ligne de commande** (`CartItemSupplement.kind`, `lib/schemas/order/cart.ts`) comme le prix. Seul `'flavor'` est écrit (`kindStamp`, `lib/supplements/kind.ts`) : absent = supplément, ce qui garde les commandes antérieures lisibles. Tout code qui fabrique une ligne depuis un groupe (`getSelectedSupplements`, `reorder`, `buildOrderItemsFromMenu`) doit passer par `kindStamp`, sinon le champ est perdu.
+- `kind` n'a **pas de défaut Zod** : un payload partiel (MCP `update_product`) qui l'omet laisse la valeur en base (`syncSupplementGroups` ne l'écrit que s'il est fourni).
+- Cuisine : `SupplementPanels` (`dashboard/preparation/_components/supplement-panels.tsx`) affiche deux cadres, « Goûts » puis « Suppléments ». `aggregateOrderSupplements` inclut `kind` dans sa clé de fusion.
 
 ## Serveur MCP (gestion du menu)
 

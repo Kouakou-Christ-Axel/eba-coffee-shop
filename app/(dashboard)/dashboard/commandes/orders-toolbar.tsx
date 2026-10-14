@@ -8,6 +8,7 @@ import { Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { DateRangeFilter } from '@/components/(dashboard)/date-range-filter';
+import { rangeChangeToParams } from '@/lib/url-state/shared-params';
 import { StatusTabs } from './status-tabs';
 import { OrderSearch } from './order-search';
 import { PaymentFilter } from './payment-filter';
@@ -39,17 +40,7 @@ export function OrdersToolbar({ from, to, isAll, exportHref }: Props) {
             to={to}
             isAll={isAll}
             showDayNav
-            onRangeChange={(next) =>
-              nav.update(
-                next.all
-                  ? { range: 'all', from: null, to: null }
-                  : {
-                      range: null,
-                      ...(next.from ? { from: next.from } : {}),
-                      ...(next.to ? { to: next.to } : {}),
-                    }
-              )
-            }
+            onRangeChange={(next) => nav.update(rangeChangeToParams(next))}
           />
           <Button asChild variant="outline" size="sm">
             <a href={exportHref}>

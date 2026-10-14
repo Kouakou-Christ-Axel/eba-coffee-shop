@@ -14,7 +14,7 @@
 
 import type { CartItem, CartItemSupplement } from '@/lib/cart-store';
 import type { MenuCategory, Product, SupplementGroup } from '@/config/menu';
-import { isOrderableNow } from '@/lib/supplements';
+import { isOrderableNow, kindStamp } from '@/lib/supplements';
 
 /** Ligne prête pour `useCartStore().addItem`, avec sa quantité et son plafond. */
 export type ReorderLine = {
@@ -60,6 +60,7 @@ function reconcileSupplements(
         groupName: group.name,
         optionName: option.name,
         price: option.price,
+        ...kindStamp(group),
         ...(chosen.quantity != null ? { quantity: chosen.quantity } : {}),
       },
     ];
