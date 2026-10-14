@@ -3,7 +3,7 @@
 import { Bike, CheckCheck, ChefHat, Loader2, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { priceFormatter } from '@/config/menu';
-import { orderRef } from '@/lib/cashier-queue/group';
+import { orderRef } from '@/lib/orders/customer-groups';
 import type { TabKey } from '../../urgency';
 import type { GroupActions } from './use-group-actions';
 

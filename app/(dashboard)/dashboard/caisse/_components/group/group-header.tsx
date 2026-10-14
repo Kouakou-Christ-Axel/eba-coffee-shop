@@ -1,11 +1,8 @@
 import { Bike, Check, Phone, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { priceFormatter } from '@/config/menu';
-import {
-  orderRef,
-  type GroupSummary,
-  type OrderGroup,
-} from '@/lib/cashier-queue/group';
+import type { CashierGroup, GroupSummary } from '@/lib/cashier-queue/group';
+import { orderRef } from '@/lib/orders/customer-groups';
 import type { CashierOrder } from '@/lib/cashier-queue';
 
 const STATUS_PILL: Record<
@@ -63,7 +60,7 @@ export function GroupHeader({
   group,
   summary,
 }: {
-  group: OrderGroup;
+  group: CashierGroup;
   summary: GroupSummary;
 }) {
   const readyCount = summary.ready.length;

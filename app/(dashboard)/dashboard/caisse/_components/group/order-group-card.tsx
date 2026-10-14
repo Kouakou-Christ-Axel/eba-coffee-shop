@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CashierOrder } from '@/lib/cashier-queue';
-import { orderRef, type OrderGroup } from '@/lib/cashier-queue/group';
+import type { CashierGroup } from '@/lib/cashier-queue/group';
+import { orderRef } from '@/lib/orders/customer-groups';
 import type { MenuCategory } from '@/config/menu';
 import { OrderCard } from '../../order-card';
 import { OrderCardActions } from '../../order-card-actions';
@@ -16,7 +17,7 @@ import { GroupHeader } from './group-header';
 import { useGroupActions } from './use-group-actions';
 
 type Props = {
-  group: OrderGroup;
+  group: CashierGroup;
   inTab: CashierOrder[];
   tab: TabKey;
   menu: MenuCategory[];

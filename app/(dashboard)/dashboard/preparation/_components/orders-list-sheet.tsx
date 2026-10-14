@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -9,6 +10,9 @@ import {
   ignoreNestedModalInteraction,
 } from '@/components/ui/sheet';
 import type { PreparationOrder } from '@/lib/preparation-queue';
+import { buildQueueEntries } from '@/lib/orders/customer-groups';
+import type { KitchenGroup } from '@/lib/orders/kitchen-group';
+import { ReadyGroupHeader } from './group/ready-group-header';
 import { OrdersListRow } from './orders-list/orders-list-row';
 import type { OrdersListVariant, RowCallbacks } from './orders-list/types';
 import { VARIANT_META } from './orders-list/variant-meta';
@@ -23,6 +27,9 @@ type Props = Omit<RowCallbacks, 'onExpand'> & {
   onOpenChange: (open: boolean) => void;
   onExpand: (id: string) => void;
   pendingIds: Set<string>;
+  /** Clients à plusieurs commandes (variante `ready`) : leurs lignes se suivent sous un en-tête commun. */
+  groups?: Map<string, KitchenGroup>;
+  onRetrieveMany?: (ids: string[]) => void;
 };
 
 /**
@@ -44,6 +51,8 @@ export function OrdersListSheet({
   onStartPreparation,
   onCancel,
   action,
+  groups,
+  onRetrieveMany,
 }: Props) {
   const meta = VARIANT_META[variant];
   const Icon = meta.Icon;
@@ -75,20 +84,36 @@ export function OrdersListSheet({
             </p>
           ) : (
             <ul className="space-y-3">
-              {orders.map((order) => (
-                <OrdersListRow
-                  key={order.id}
-                  variant={variant}
-                  order={order}
-                  now={now}
-                  onExpand={onExpand}
-                  pending={pendingIds.has(order.id)}
-                  onRetrieve={onRetrieve}
-                  onStartPreparation={onStartPreparation}
-                  onCancel={onCancel}
-                  action={action}
-                />
-              ))}
+              {(variant === 'ready' && groups
+                ? buildQueueEntries(orders, groups)
+                : orders.map((order) => ({ kind: 'single' as const, order }))
+              ).map((entry) => {
+                const row = (order: PreparationOrder) => (
+                  <OrdersListRow
+                    key={order.id}
+                    variant={variant}
+                    order={order}
+                    now={now}
+                    onExpand={onExpand}
+                    pending={pendingIds.has(order.id)}
+                    onRetrieve={onRetrieve}
+                    onStartPreparation={onStartPreparation}
+                    onCancel={onCancel}
+                    action={action}
+                  />
+                );
+                if (entry.kind === 'single') return row(entry.order);
+                return (
+                  <Fragment key={entry.group.key}>
+                    <ReadyGroupHeader
+                      group={entry.group}
+                      pending={entry.inTab.some((o) => pendingIds.has(o.id))}
+                      onRetrieveMany={onRetrieveMany ?? (() => {})}
+                    />
+                    {entry.inTab.map(row)}
+                  </Fragment>
+                );
+              })}
             </ul>
           )}
         </div>

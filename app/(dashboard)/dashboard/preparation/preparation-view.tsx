@@ -19,7 +19,8 @@ import {
 import { useNowTick } from '@/lib/hooks/use-now-tick';
 import { PreparationHeader } from './_components/preparation-header';
 import { EmptyState } from './_components/empty-state';
-import { PrepOrderCard } from './_components/prep-order-card';
+import { CookingGrid } from './_components/group/cooking-grid';
+import { groupMates } from '@/lib/orders/kitchen-group';
 import { OrderDetailSheet } from './_components/order-detail-sheet';
 import { OrdersListSheet } from './_components/orders-list-sheet';
 import { ProductionSheet } from './_components/production-sheet';
@@ -87,6 +88,9 @@ function PreparationViewInner({
     handleRetrieved,
     handleStartPreparation,
     handleRequestDriver,
+    handleReadyMany,
+    handleRequestDriverMany,
+    handleRetrievedMany,
     handleCancel,
   } = actions;
   const {
@@ -97,9 +101,17 @@ function PreparationViewInner({
     toLaunchUrgent,
     ready,
     toPay,
+    groups,
     readyAlert,
     selected,
   } = usePreparationLists(orders, optimisticHidden, selectedId, now);
+
+  // Groupe de la commande agrandie (retrouvé par client) : alimente « À emballer avec … » dans le détail.
+  const selectedGroup = selected
+    ? [...groups.values()].find((g) =>
+        g.orders.some((o) => o.id === selected.id)
+      )
+    : undefined;
 
   // Grille principale vide : plus aucune commande à cuisiner maintenant.
   const isEmpty = cooking.length === 0;
@@ -172,22 +184,21 @@ function PreparationViewInner({
       ) : (
         <div className="flex flex-1 flex-col gap-5 pt-4">
           {/* À cuisiner maintenant ; toucher une carte l'agrandit dans le bottom sheet de détail. */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {cooking.map((order) => (
-              <PrepOrderCard
-                key={order.id}
-                order={order}
-                now={now}
-                pending={pendingIds.has(order.id) || isPending}
-                contactSettings={contactSettings}
-                onExpand={setSelectedId}
-                onReady={handleReady}
-                onCancel={handleCancel}
-                onRequestDriver={handleRequestDriver}
-                onRetrieve={handleRetrieved}
-              />
-            ))}
-          </div>
+          <CookingGrid
+            cooking={cooking}
+            groups={groups}
+            now={now}
+            pendingIds={pendingIds}
+            isPending={isPending}
+            contactSettings={contactSettings}
+            onExpand={setSelectedId}
+            onReady={handleReady}
+            onCancel={handleCancel}
+            onRequestDriver={handleRequestDriver}
+            onRetrieve={handleRetrieved}
+            onReadyMany={handleReadyMany}
+            onRequestDriverMany={handleRequestDriverMany}
+          />
         </div>
       )}
 
@@ -214,6 +225,8 @@ function PreparationViewInner({
         }}
         payAction={markOrderPaidFromKitchen}
         customerAction={setOrderCustomerFromKitchen}
+        mates={selectedGroup ? groupMates(selectedGroup, selected!) : []}
+        groupKey={selectedGroup?.key}
       />
 
       {/* Commandes hors du travail courant, rangées dans des bottom sheets. */}
@@ -236,6 +249,8 @@ function PreparationViewInner({
       />
       <OrdersListSheet
         variant="ready"
+        groups={groups}
+        onRetrieveMany={handleRetrievedMany}
         orders={ready}
         now={now}
         open={openSheet === 'ready'}

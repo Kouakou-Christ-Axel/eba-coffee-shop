@@ -8,7 +8,7 @@ import {
   useOrdersStream,
   useSoundPreference,
 } from '@/lib/hooks/use-orders-stream';
-import { buildCustomerGroups } from '@/lib/cashier-queue/group';
+import { buildCustomerGroups } from '@/lib/orders/customer-groups';
 import { parseOrderSearchTerm, searchOrders } from '@/lib/orders/search';
 import {
   minutesUntilPickup,

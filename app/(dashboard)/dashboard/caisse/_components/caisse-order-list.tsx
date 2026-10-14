@@ -5,7 +5,8 @@ import { OrderCard } from '../order-card';
 import { OrderCardActions } from '../order-card-actions';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
-import { buildQueueEntries, type OrderGroup } from '@/lib/cashier-queue/group';
+import type { CashierGroup } from '@/lib/cashier-queue/group';
+import { buildQueueEntries } from '@/lib/orders/customer-groups';
 import { getUrgencyLevel, type TabKey } from '../urgency';
 import { OrderGroupCard } from './group/order-group-card';
 import type { CaisseContactSettings } from './actions/types';
@@ -17,7 +18,7 @@ type Props = {
   contactSettings: CaisseContactSettings;
   now: Date;
   /** Clients ayant 2 commandes ou plus aujourd'hui (cf. `buildCustomerGroups`). */
-  groups: Map<string, OrderGroup>;
+  groups: Map<string, CashierGroup>;
 };
 
 export function CaisseOrderList({

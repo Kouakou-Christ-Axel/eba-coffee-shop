@@ -2,14 +2,13 @@ import { describe, it, expect } from 'vitest';
 import type { OrderStatus } from '@/generated/prisma/client';
 import { DEFAULT_LOYALTY_SETTINGS } from '@/lib/loyalty-settings';
 import type { CashierOrder } from './types';
+import { allocatePayments, summarizeGroup } from './group';
 import {
-  allocatePayments,
   buildCustomerGroups,
   buildQueueEntries,
   customerGroupKey,
   normalizePhoneKey,
-  summarizeGroup,
-} from './group';
+} from '@/lib/orders/customer-groups';
 
 const NOW = new Date('2026-06-13T12:00:00Z');
 

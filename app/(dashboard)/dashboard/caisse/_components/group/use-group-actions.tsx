@@ -4,12 +4,12 @@ import { useMemo, useState } from 'react';
 import type { OrderStatus } from '@/generated/prisma/client';
 import {
   allocatePayments,
-  orderRef,
   remainingToPay,
   summarizeGroup,
-  type OrderGroup,
+  type CashierGroup,
   type PaymentLine,
 } from '@/lib/cashier-queue/group';
+import { orderRef } from '@/lib/orders/customer-groups';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import {
   buildGroupDriverRequestMessage,
@@ -46,7 +46,7 @@ function sharedDriver(orders: CashierOrder[]) {
  * commande par commande pour que le caissier sache exactement quoi reprendre.
  */
 export function useGroupActions(
-  group: OrderGroup,
+  group: CashierGroup,
   contactSettings: CaisseContactSettings
 ) {
   const summary = useMemo(() => summarizeGroup(group), [group]);

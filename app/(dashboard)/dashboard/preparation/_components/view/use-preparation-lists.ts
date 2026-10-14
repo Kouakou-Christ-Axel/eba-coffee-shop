@@ -7,6 +7,7 @@ import {
   isScheduledAhead,
   kitchenLaunchState,
 } from '@/lib/orders/scheduling';
+import { buildCustomerGroups } from '@/lib/orders/customer-groups';
 import { buildProductionPlan } from '@/lib/orders/production-plan';
 import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
 import { elapsedMinutes } from '../elapsed';
@@ -63,6 +64,11 @@ export function usePreparationLists(
     () => visible.filter((o) => o.status === 'READY'),
     [visible]
   );
+  // Clients à plusieurs commandes À EMBALLER (en cuisine + prêtes) : les programmées lointaines et les NEW pas lancées n'y entrent pas.
+  const groups = useMemo(
+    () => buildCustomerGroups([...cooking, ...ready], now),
+    [cooking, ready, now]
+  );
   // Ardoise : en cuisine mais non payée ; exclut les NEW programmées (pas physiquement présentes).
   const toPay = useMemo(
     () => visible.filter((o) => !o.isPaid && o.status !== 'NEW'),
@@ -91,6 +97,7 @@ export function usePreparationLists(
     toLaunchUrgent,
     ready,
     toPay,
+    groups,
     readyAlert,
     selected,
   };
