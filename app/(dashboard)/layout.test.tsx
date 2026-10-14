@@ -34,6 +34,9 @@ vi.mock('next/link', () => ({
     React.createElement('a', { href }, children),
 }));
 
+// `ENV` (varlock) n'est pas peuplée hors runtime Next : assistant désactivé.
+vi.mock('@/lib/ai/config', () => ({ openRouterConfig: () => null }));
+
 vi.mock('@/lib/auth', () => ({
   auth: {
     api: {
