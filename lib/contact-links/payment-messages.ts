@@ -60,9 +60,10 @@ export function buildPaymentReminderMessage(params: {
   const { customerName, dailyNumber, trackingUrl, deadline } = params;
   const number = String(dailyNumber).padStart(3, '0');
   return [
-    customerName ? `Bonjour ${customerName},` : 'Bonjour,',
-    `votre commande #${number} chez EBA Coffee Shop attend son paiement.`,
-    `Vous pouvez la régler ici${deadline ? ` avant ${deadline}` : ''} : ${trackingUrl}`,
-    'Vous pouvez aussi passer la régler au comptoir.',
+    customerName ? `Bonjour ${customerName} 👋` : 'Bonjour 👋',
+    '',
+    `Ta commande #${number} attend son paiement ⏳`,
+    '',
+    `👉 Paye ici${deadline ? ` avant ${deadline}` : ''} : ${trackingUrl}`,
   ].join('\n');
 }
