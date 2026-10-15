@@ -1,7 +1,5 @@
 import type { CartItem } from '@/lib/cart-store';
 import { getPickupCode } from '@/lib/orders/format';
-import { computeCheckoutLoyaltyMessage } from '@/lib/loyalty-messaging';
-import type { LoyaltySettings } from '@/lib/loyalty-settings';
 import { priceFormatter, formatItemLine } from './format';
 import { buildWaveLink } from './links';
 
@@ -16,12 +14,7 @@ export function buildWaveRequestMessage(params: {
   wavePaymentNumber: string;
   /** Numéro Orange Money pour un paiement manuel, idem. */
   orangeMoneyPaymentNumber: string;
-  /** Repère à indiquer comme destination dans l'appli Yango, idem. */
-  yangoLandmark: string;
-  /** Lien Google Maps (itinéraire) à joindre pour estimer la course. */
-  mapsDirectionsUrl: string;
   trackingUrl?: string;
-  loyaltyTeaser?: { settings: LoyaltySettings; stampCount: number } | null;
 }): string {
   const {
     customerName,
@@ -32,46 +25,28 @@ export function buildWaveRequestMessage(params: {
     loyaltyDiscount,
     wavePaymentNumber,
     orangeMoneyPaymentNumber,
-    yangoLandmark,
-    mapsDirectionsUrl,
     trackingUrl,
-    loyaltyTeaser,
   } = params;
-  const greeting = customerName ? `Bonjour ${customerName}` : 'Bonjour';
+  const greeting = customerName ? `Bonjour ${customerName} 👋` : 'Bonjour 👋';
   const number = String(dailyNumber).padStart(3, '0');
-  const itemsBlock = items.map(formatItemLine).join('\n');
   const waveLink = buildWaveLink(amount);
-  const waveLine = waveLink
-    ? `Wave : ${waveLink}`
-    : 'Wave : [lien à compléter]';
 
-  const lines = [`${greeting}, ta commande EBA #${number} :`, itemsBlock];
+  const lines = [greeting, '', `Ta commande #${number} :`];
+  lines.push(...items.map(formatItemLine));
   if (loyaltyDiscount && loyaltyDiscount > 0) {
-    lines.push(`Fidélité 🎁 : -${priceFormatter.format(loyaltyDiscount)} F`);
+    lines.push(`🎁 Fidélité : -${priceFormatter.format(loyaltyDiscount)} F`);
   }
-  lines.push(`Total : ${priceFormatter.format(amount)} F`);
-  lines.push(`Code de retrait : ${getPickupCode(reference)}`);
-  if (trackingUrl) lines.push(`Suivi : ${trackingUrl}`);
   lines.push(
     '',
-    waveLine,
-    `Sinon : Wave ${wavePaymentNumber} / Orange Money ${orangeMoneyPaymentNumber}`,
+    `💰 Total : ${priceFormatter.format(amount)} F`,
+    `🔑 Code : ${getPickupCode(reference)}`,
     '',
-    `⚠️ Yango seulement quand c'est prêt — repère : « ${yangoLandmark} »`,
-    `Itinéraire : ${mapsDirectionsUrl}`
+    waveLink
+      ? `👉 Payer par Wave : ${waveLink}`
+      : '👉 Payer par Wave : [lien à compléter]',
+    `(ou par numéro : Wave ${wavePaymentNumber} · Orange Money ${orangeMoneyPaymentNumber})`
   );
-  if (loyaltyTeaser?.settings.enabled) {
-    lines.push(
-      '',
-      computeCheckoutLoyaltyMessage({
-        cartTotal: amount,
-        stampCount: loyaltyTeaser.stampCount,
-        settings: loyaltyTeaser.settings,
-      })
-    );
-  }
-  lines.push('', 'Merci !');
-
+  if (trackingUrl) lines.push('', `👉 Suivi : ${trackingUrl}`);
   return lines.join('\n');
 }
 

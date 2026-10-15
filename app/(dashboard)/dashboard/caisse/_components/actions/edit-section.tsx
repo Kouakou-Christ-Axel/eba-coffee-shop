@@ -26,7 +26,7 @@ export function EditSection({
   actions: OrderActions;
   contactSettings: CaisseContactSettings;
 }) {
-  const { canEditItems, canEditLoyalty, trackingUrl, loyaltyTeaser } = view;
+  const { canEditItems, canEditLoyalty, trackingUrl } = view;
   const {
     isPending,
     actionError,
@@ -48,7 +48,6 @@ export function EditSection({
         loyaltyDiscount={order.loyaltyDiscount}
         contactSettings={contactSettings}
         trackingUrl={trackingUrl}
-        loyaltyTeaser={loyaltyTeaser}
       />
 
       {/* Ajouter / retirer des produits */}

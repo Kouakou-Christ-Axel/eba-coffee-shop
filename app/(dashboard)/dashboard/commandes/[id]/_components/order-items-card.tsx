@@ -18,7 +18,6 @@ export function OrderItemsCard({
   menu,
   contactSettings,
   trackingUrl,
-  loyaltyTeaser,
   canCash,
   canSeeMargins,
 }: {
@@ -27,7 +26,6 @@ export function OrderItemsCard({
   menu: MenuCategory[];
   contactSettings: ContactSettings;
   trackingUrl: string | undefined;
-  loyaltyTeaser: React.ComponentProps<typeof CopyRecapButton>['loyaltyTeaser'];
   canCash: boolean;
   canSeeMargins: boolean;
 }) {
@@ -46,7 +44,6 @@ export function OrderItemsCard({
               loyaltyDiscount={order.loyaltyDiscount}
               contactSettings={contactSettings}
               trackingUrl={trackingUrl}
-              loyaltyTeaser={loyaltyTeaser}
               size="sm"
               className="w-auto"
             />

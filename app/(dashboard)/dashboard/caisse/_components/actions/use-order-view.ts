@@ -30,11 +30,6 @@ export function useOrderView(
     typeof window === 'undefined'
       ? undefined
       : `${window.location.origin}/commande/${order.id}`;
-  // Incitation fidélité : seulement pour un client identifié et si le programme est actif.
-  const loyaltyTeaser =
-    order.customerId && order.loyaltyStampCount !== null
-      ? { settings: order.loyaltySettings, stampCount: order.loyaltyStampCount }
-      : null;
   const whatsappLink = buildWhatsAppLink(
     phone,
     buildWaveRequestMessage({
@@ -45,7 +40,6 @@ export function useOrderView(
       items: order.items,
       loyaltyDiscount: order.loyaltyDiscount,
       trackingUrl,
-      loyaltyTeaser,
       ...contactSettings,
     })
   );
@@ -114,7 +108,6 @@ export function useOrderView(
     phone,
     telLink,
     trackingUrl,
-    loyaltyTeaser,
     whatsappLink,
     readyLink,
     canRequestDriver,
