@@ -266,3 +266,14 @@
 .tiktok-embed:has(iframe) section {
   display: none;
 }
+
+/*
+ * Modale HeroUI ouverte par-dessus un Sheet/Dialog Radix (ex. édition des
+ * articles depuis le détail d'une commande en cuisine). Radix pose
+ * `pointer-events: none` sur `body` et ne le rend qu'à son propre contenu : la
+ * modale HeroUI, portée hors du Sheet, en héritait — le clic traversait jusqu'au
+ * fond du Sheet, HeroUI y voyait un clic extérieur et fermait la modale.
+ */
+[data-slot='wrapper'] {
+  pointer-events: auto;
+}
