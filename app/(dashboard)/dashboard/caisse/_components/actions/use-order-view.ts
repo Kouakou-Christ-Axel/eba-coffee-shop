@@ -30,11 +30,6 @@ export function useOrderView(
     typeof window === 'undefined'
       ? undefined
       : `${window.location.origin}/commande/${order.id}`;
-  // Incitation fidélité : seulement pour un client identifié et si le programme est actif.
-  const loyaltyTeaser =
-    order.customerId && order.loyaltyStampCount !== null
-      ? { settings: order.loyaltySettings, stampCount: order.loyaltyStampCount }
-      : null;
   const whatsappLink = buildWhatsAppLink(
     phone,
     buildWaveRequestMessage({
@@ -45,17 +40,16 @@ export function useOrderView(
       items: order.items,
       loyaltyDiscount: order.loyaltyDiscount,
       trackingUrl,
-      loyaltyTeaser,
       ...contactSettings,
     })
   );
   const readyLink = buildWhatsAppLink(
     phone,
     buildPickupReadyMessage({
+      customerName: order.customerName,
       dailyNumber: order.dailyNumber,
       reference: order.reference,
       yangoLandmark: contactSettings.yangoLandmark,
-      mapsDirectionsUrl: contactSettings.mapsDirectionsUrl,
       trackingUrl,
       loyalty:
         order.customerId &&
@@ -71,9 +65,9 @@ export function useOrderView(
     })
   );
 
-  // Livraison en cuisine : la caisse peut appeler le livreur (même geste que l'écran cuisine).
-  const canRequestDriver =
-    order.orderType === 'DELIVERY' && order.status === 'PREPARING';
+  // Commande en cuisine : la caisse peut appeler le livreur, quel que soit le type
+  // de commande (même geste que l'écran cuisine).
+  const canRequestDriver = order.status === 'PREPARING';
   const driverLink = buildWhatsAppLink(
     phone,
     buildDriverRequestMessage({
@@ -114,7 +108,6 @@ export function useOrderView(
     phone,
     telLink,
     trackingUrl,
-    loyaltyTeaser,
     whatsappLink,
     readyLink,
     canRequestDriver,

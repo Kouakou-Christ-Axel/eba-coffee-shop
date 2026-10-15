@@ -14,7 +14,7 @@ describe('buildGroupDriverRequestMessage', () => {
       dailyNumbers: [14, 17, 21],
     });
     expect(msg).toContain('Bonjour Awa');
-    expect(msg).toContain('3 commandes EBA (#014, #017, #021)');
+    expect(msg).toContain('3 commandes #014 · #017 · #021');
     expect(msg).toContain('Un seul livreur');
     expect(msg).toContain(base.yangoLandmark);
     expect(msg).toContain(base.phone);
@@ -26,6 +26,6 @@ describe('buildGroupDriverRequestMessage', () => {
       customerName: null,
       dailyNumbers: [1, 2],
     });
-    expect(msg.startsWith('Bonjour, tes 2 commandes')).toBe(true);
+    expect(msg.startsWith('Bonjour 👋\n\nTes 2 commandes')).toBe(true);
   });
 });

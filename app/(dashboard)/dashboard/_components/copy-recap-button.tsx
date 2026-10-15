@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { buildWaveRequestMessage } from '@/lib/contact-links';
 import type { CartItem } from '@/lib/cart-store';
 import type { ContactSettings } from '@/lib/contact-settings';
-import type { LoyaltySettings } from '@/lib/loyalty-settings';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -18,16 +17,10 @@ type Props = {
   loyaltyDiscount?: number | null;
   contactSettings: Pick<
     ContactSettings,
-    | 'yangoLandmark'
-    | 'mapsDirectionsUrl'
-    | 'wavePaymentNumber'
-    | 'orangeMoneyPaymentNumber'
+    'wavePaymentNumber' | 'orangeMoneyPaymentNumber'
   >;
   /** URL publique de suivi (/commande/:id), si disponible. */
   trackingUrl?: string;
-  /** Client identifié (compteur de tampons) : déclenche le message incitatif
-   * fidélité en bas du récap. `null`/absent = commande anonyme. */
-  loyaltyTeaser?: { settings: LoyaltySettings; stampCount: number } | null;
   className?: string;
   size?: React.ComponentProps<typeof Button>['size'];
   variant?: React.ComponentProps<typeof Button>['variant'];
@@ -48,7 +41,6 @@ export function CopyRecapButton({
   loyaltyDiscount,
   contactSettings,
   trackingUrl,
-  loyaltyTeaser,
   className,
   size = 'lg',
   variant = 'outline',
@@ -65,7 +57,6 @@ export function CopyRecapButton({
       items,
       loyaltyDiscount,
       trackingUrl,
-      loyaltyTeaser,
       ...contactSettings,
     });
     try {

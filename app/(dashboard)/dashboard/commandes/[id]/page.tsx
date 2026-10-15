@@ -3,7 +3,6 @@ import { getOrder } from '@/lib/orders';
 import { getMenu } from '@/lib/menu';
 import { getContactSettings } from '@/lib/contact-settings-db';
 import { requireOrdersView, ROLE_GROUPS } from '@/lib/auth-helpers';
-import { getLoyaltyCard } from '@/lib/loyalty';
 import type { CartItem } from '@/lib/cart-store';
 import { normalizeSiteUrl } from '@/lib/site-url';
 import type { OrderStatus } from '@/generated/prisma/client';
@@ -44,13 +43,6 @@ export default async function CommandeDetailPage({
   // Un caissier encaisse sans avoir à connaître la marge du produit ; un
   // ANALYSTE lit les commandes sans accéder à la structure de coûts.
   const canSeeMargins = ROLE_GROUPS.MANAGER_PLUS.includes(session.user.role);
-  // Message incitatif fidélité (récap) : uniquement si un client est associé.
-  const loyaltyCard = order.customerId
-    ? await getLoyaltyCard(order.customerId)
-    : null;
-  const loyaltyTeaser = loyaltyCard
-    ? { settings: loyaltyCard.settings, stampCount: loyaltyCard.stampCount }
-    : null;
   const trackingUrl = process.env.NEXT_PUBLIC_SITE_URL
     ? `${normalizeSiteUrl(process.env.NEXT_PUBLIC_SITE_URL)}/commande/${order.id}`
     : undefined;
@@ -69,7 +61,6 @@ export default async function CommandeDetailPage({
         menu={menu}
         contactSettings={contactSettings}
         trackingUrl={trackingUrl}
-        loyaltyTeaser={loyaltyTeaser}
         canCash={canCash}
         canSeeMargins={canSeeMargins}
       />

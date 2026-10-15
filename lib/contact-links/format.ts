@@ -15,5 +15,5 @@ export function formatItemLine(item: CartItem): string {
     gross !== net
       ? `${priceFormatter.format(net)} F (remise -${priceFormatter.format(gross - net)} F)`
       : `${priceFormatter.format(net)} F`;
-  return `- ${item.quantity}× ${item.productName}${supplementsLabel} : ${priceLabel}`;
+  return `• ${item.quantity}× ${item.productName}${supplementsLabel} : ${priceLabel}`;
 }
