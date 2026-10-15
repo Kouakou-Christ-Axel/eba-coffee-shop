@@ -71,9 +71,9 @@ export function useOrderView(
     })
   );
 
-  // Livraison en cuisine : la caisse peut appeler le livreur (même geste que l'écran cuisine).
-  const canRequestDriver =
-    order.orderType === 'DELIVERY' && order.status === 'PREPARING';
+  // Commande en cuisine : la caisse peut appeler le livreur, quel que soit le type
+  // de commande (même geste que l'écran cuisine).
+  const canRequestDriver = order.status === 'PREPARING';
   const driverLink = buildWhatsAppLink(
     phone,
     buildDriverRequestMessage({
