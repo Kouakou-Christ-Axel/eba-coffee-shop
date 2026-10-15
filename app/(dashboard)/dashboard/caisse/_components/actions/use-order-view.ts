@@ -52,10 +52,10 @@ export function useOrderView(
   const readyLink = buildWhatsAppLink(
     phone,
     buildPickupReadyMessage({
+      customerName: order.customerName,
       dailyNumber: order.dailyNumber,
       reference: order.reference,
       yangoLandmark: contactSettings.yangoLandmark,
-      mapsDirectionsUrl: contactSettings.mapsDirectionsUrl,
       trackingUrl,
       loyalty:
         order.customerId &&

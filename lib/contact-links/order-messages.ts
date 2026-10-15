@@ -1,18 +1,13 @@
 import { getPickupCode } from '@/lib/orders/format';
-import {
-  computePickupMessage,
-  PICKUP_GENERIC_MESSAGE,
-} from '@/lib/loyalty-messaging';
 import type { LoyaltySettings } from '@/lib/loyalty-settings';
 
 /** Message "ta commande est prête" via WhatsApp. */
 export function buildPickupReadyMessage(params: {
+  customerName?: string | null;
   dailyNumber: number;
   reference: string;
   /** Repère à indiquer comme destination dans l'appli Yango. */
   yangoLandmark: string;
-  /** Lien Google Maps (itinéraire) à joindre pour estimer la course. */
-  mapsDirectionsUrl: string;
   /** URL publique de suivi (/commande/:id) à joindre au message. */
   trackingUrl?: string;
   /** Issue fidélité de CETTE commande (tampon crédité ou non, etc.). */
@@ -24,27 +19,34 @@ export function buildPickupReadyMessage(params: {
   } | null;
 }): string {
   const {
+    customerName,
     dailyNumber,
     reference,
     yangoLandmark,
-    mapsDirectionsUrl,
     trackingUrl,
     loyalty,
   } = params;
   const number = String(dailyNumber).padStart(3, '0');
-  const confirmation =
-    loyalty && loyalty.settings.enabled
-      ? computePickupMessage(loyalty)
-      : PICKUP_GENERIC_MESSAGE;
+  const greeting = customerName ? `Bonjour ${customerName} 👋` : 'Bonjour 👋';
 
   const lines = [
-    confirmation,
+    greeting,
     '',
-    `Commande EBA #${number} · Code : ${getPickupCode(reference)}`,
-    `Viens, ou Yango (repère : « ${yangoLandmark} ») : ${mapsDirectionsUrl}`,
+    `Ta commande #${number} est prête ✅`,
+    `🔑 Code : ${getPickupCode(reference)}`,
   ];
-  if (trackingUrl) lines.push(`Suivi : ${trackingUrl}`);
-  lines.push('À tout de suite !');
+  // Une seule ligne fidélité, et seulement si un tampon vient d'être gagné.
+  if (loyalty?.settings.enabled && loyalty.stampEarned) {
+    const { stampCount, settings } = loyalty;
+    lines.push(
+      stampCount === 0
+        ? '🎁 Carte complète : grande réduction débloquée !'
+        : `🎁 Tampon ${stampCount}/${settings.stampsPerCard}`
+    );
+  }
+  lines.push('', `📍 Yango : « ${yangoLandmark} »`);
+  if (trackingUrl) lines.push(`👉 Suivi : ${trackingUrl}`);
+  lines.push('', 'À tout de suite ☕');
   return lines.join('\n');
 }
 
