@@ -7,15 +7,16 @@ export function buildDriverRequestMessage(params: {
   phone: string;
 }): string {
   const { customerName, dailyNumber, yangoLandmark, phone } = params;
-  const greeting = customerName ? `Bonjour ${customerName}` : 'Bonjour';
+  const greeting = customerName ? `Bonjour ${customerName} 👋` : 'Bonjour 👋';
   const number = String(dailyNumber).padStart(3, '0');
   return [
-    `${greeting}, ta commande EBA #${number} est bientôt prête.`,
+    greeting,
     '',
-    'Tu peux envoyer ton livreur.',
-    `Localisation : ${yangoLandmark}`,
-    `Le numéro : ${phone}`,
-    'Et envoie la capture pour le livreur.',
+    `Ta commande #${number} est bientôt prête ⏳`,
+    '',
+    '🛵 Envoie ton livreur Yango',
+    `📍 Destination : « ${yangoLandmark} »`,
+    `📞 Numéro pour le livreur : ${phone}`,
   ].join('\n');
 }
 
@@ -27,17 +28,18 @@ export function buildGroupDriverRequestMessage(params: {
   phone: string;
 }): string {
   const { customerName, dailyNumbers, yangoLandmark, phone } = params;
-  const greeting = customerName ? `Bonjour ${customerName}` : 'Bonjour';
+  const greeting = customerName ? `Bonjour ${customerName} 👋` : 'Bonjour 👋';
   const refs = dailyNumbers
     .map((n) => `#${String(n).padStart(3, '0')}`)
-    .join(', ');
+    .join(' · ');
   return [
-    `${greeting}, tes ${dailyNumbers.length} commandes EBA (${refs}) sont bientôt prêtes.`,
+    greeting,
     '',
-    'Un seul livreur peut tout récupérer.',
-    `Localisation : ${yangoLandmark}`,
-    `Le numéro : ${phone}`,
-    'Et envoie la capture pour le livreur.',
+    `Tes ${dailyNumbers.length} commandes ${refs} sont bientôt prêtes ⏳`,
+    '',
+    '🛵 Un seul livreur Yango suffit',
+    `📍 Destination : « ${yangoLandmark} »`,
+    `📞 Numéro pour le livreur : ${phone}`,
   ].join('\n');
 }
 
