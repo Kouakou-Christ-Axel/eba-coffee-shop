@@ -1,23 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Sheet,
   SheetContent,
   ignoreNestedModalInteraction,
 } from '@/components/ui/sheet';
 import type { PreparationOrder } from '@/lib/preparation-queue';
-import type { MenuCategory } from '@/config/menu';
 import { OrderDetailActions } from './order-detail/order-detail-actions';
 import { OrderDetailContent } from './order-detail/order-detail-content';
 import { OrderDetailHeader } from './order-detail/order-detail-header';
 import { MatesBanner } from './group/mates-banner';
-import { OrderEditModal } from './order-detail/order-edit-modal';
 import type { ContactInfo, OrderDetailCallbacks } from './order-detail/types';
 
 type Props = OrderDetailCallbacks & {
   order: PreparationOrder | null;
-  menu: MenuCategory[];
   now: Date;
   pending: boolean;
   contactSettings: ContactInfo;
@@ -36,7 +33,6 @@ type Props = OrderDetailCallbacks & {
  */
 export function OrderDetailSheet({
   order,
-  menu,
   now,
   pending,
   contactSettings,
@@ -61,14 +57,13 @@ export function OrderDetailSheet({
     >
       <SheetContent
         side="bottom"
-        className="h-[70vh] max-h-[85vh] gap-0 rounded-t-3xl p-0"
+        className="h-[94dvh] max-h-[94dvh] gap-0 rounded-t-3xl p-0"
         onPointerDownOutside={ignoreNestedModalInteraction}
         onFocusOutside={ignoreNestedModalInteraction}
       >
         {order && (
           <OrderDetailBody
             order={order}
-            menu={menu}
             now={now}
             pending={pending}
             contactSettings={contactSettings}
@@ -89,7 +84,6 @@ export function OrderDetailSheet({
 
 function OrderDetailBody({
   order,
-  menu,
   now,
   pending,
   contactSettings,
@@ -100,12 +94,11 @@ function OrderDetailBody({
   mates?: PreparationOrder[];
   groupKey?: string;
   order: PreparationOrder;
-  menu: MenuCategory[];
   now: Date;
   pending: boolean;
   contactSettings: ContactInfo;
 }) {
-  const [isEditOpen, setIsEditOpen] = useState(false);
+  const router = useRouter();
 
   return (
     <>
@@ -116,14 +109,10 @@ function OrderDetailBody({
         order={order}
         pending={pending}
         contactSettings={contactSettings}
-        onEdit={() => setIsEditOpen(true)}
+        onEdit={() =>
+          router.push(`/dashboard/preparation/${order.id}/modifier`)
+        }
         {...callbacks}
-      />
-      <OrderEditModal
-        order={order}
-        menu={menu}
-        isOpen={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
       />
     </>
   );

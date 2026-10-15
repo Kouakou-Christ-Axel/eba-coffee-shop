@@ -62,7 +62,7 @@ export function OrdersListSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="h-[60vh] max-h-[85vh] gap-0 rounded-t-3xl p-0"
+        className="h-[94dvh] max-h-[94dvh] gap-0 rounded-t-3xl p-0"
         onPointerDownOutside={ignoreNestedModalInteraction}
         onFocusOutside={ignoreNestedModalInteraction}
       >

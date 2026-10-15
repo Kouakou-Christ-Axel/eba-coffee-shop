@@ -9,7 +9,6 @@ import {
 } from './actions';
 import { UndoToastProvider } from '@/lib/hooks/use-undo-toast';
 import { type PreparationOrder } from '@/lib/preparation-queue';
-import type { MenuCategory } from '@/config/menu';
 import type { ContactSettings } from '@/lib/contact-settings';
 import {
   playNewOrderChime,
@@ -35,7 +34,6 @@ const SSE_URL = '/api/preparation/stream';
 
 export function PreparationView(props: {
   initialQueue: PreparationOrder[];
-  menu: MenuCategory[];
   contactSettings: Pick<ContactSettings, 'yangoLandmark' | 'phone'>;
 }) {
   return (
@@ -47,11 +45,9 @@ export function PreparationView(props: {
 
 function PreparationViewInner({
   initialQueue,
-  menu,
   contactSettings,
 }: {
   initialQueue: PreparationOrder[];
-  menu: MenuCategory[];
   contactSettings: Pick<ContactSettings, 'yangoLandmark' | 'phone'>;
 }) {
   // Commande agrandie dans le bottom sheet de détail (null = fermé).
@@ -208,7 +204,6 @@ function PreparationViewInner({
       {/* Détail agrandi (lisible de loin), ouvert au toucher d'une carte/ligne. */}
       <OrderDetailSheet
         order={selected}
-        menu={menu}
         now={now}
         pending={selected ? pendingIds.has(selected.id) || isPending : false}
         contactSettings={contactSettings}
