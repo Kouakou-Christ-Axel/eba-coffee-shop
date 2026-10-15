@@ -90,7 +90,7 @@ describe('buildPaymentReminderMessage', () => {
       deadline: '14:35',
     });
 
-    expect(message).toContain('Bonjour Awa,');
+    expect(message).toContain('Bonjour Awa 👋');
     expect(message).toContain('#012');
     expect(message).toContain('avant 14:35');
     expect(message).toContain('https://eba-coffee.com/commande/o1');
@@ -104,7 +104,7 @@ describe('buildPaymentReminderMessage', () => {
       deadline: null,
     });
 
-    expect(message.startsWith('Bonjour,')).toBe(true);
+    expect(message.startsWith('Bonjour 👋')).toBe(true);
     expect(message).not.toContain('avant');
   });
 });
