@@ -140,10 +140,19 @@ function SheetDescription({
  * compris sur un simple choix de mode de paiement, avant même la
  * confirmation. `data-slot="wrapper"`/`aria-modal="true"` identifient le
  * contenu HeroUI (`@heroui/modal`, `ModalContent`) ; cf. `payment-modal.tsx`.
+ * Même chose si le focus tombe sur `body` parce qu'un bouton de la modale
+ * vient de se démonter (édition des articles en cuisine).
  */
 export function ignoreNestedModalInteraction(event: Event) {
   const target = event.target as Element | null;
   if (target?.closest('[data-slot="wrapper"], [aria-modal="true"]')) {
+    event.preventDefault();
+    return;
+  }
+  // Cible détachée ou `body` : un bouton de la modale s'est démonté sous le doigt
+  // (ex. produit ajouté puis retour à la liste) et le focus est tombé hors de
+  // tout. Tant qu'une modale HeroUI est montée, ce n'est pas une sortie du Sheet.
+  if (document.querySelector('[data-slot="wrapper"]')) {
     event.preventDefault();
   }
 }
