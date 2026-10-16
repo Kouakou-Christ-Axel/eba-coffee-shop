@@ -27,12 +27,23 @@ const ASSISTANT_ROLES: UserRole[] = [
 // textuel et très coûteux en jetons.
 const EXCLUDED = /^set_.*(image|receipt|document)$/;
 
+// Outils écartés pour l'assistant : `get_menu` renvoie tout le menu (bien au-delà
+// de RESULT_MAX_CHARS, sans paramètre pour affiner → boucle) et
+// `toggle_product_availability` inverse l'état (non idempotent) ; remplacés par
+// `search_products` et `set_product_availability`.
+const ASSISTANT_EXCLUDED_TOOLS = new Set([
+  'get_menu',
+  'toggle_product_availability',
+]);
+
 export function canUseAssistant(role: UserRole): boolean {
   return ASSISTANT_ROLES.includes(role);
 }
 
 function allowedForRole(tool: McpTool, role: UserRole): boolean {
-  if (EXCLUDED.test(tool.name)) return false;
+  if (EXCLUDED.test(tool.name) || ASSISTANT_EXCLUDED_TOOLS.has(tool.name)) {
+    return false;
+  }
   if (role === 'COMPTABLE') return tool.scope === 'finance';
   if (role === 'ANALYSTE') return tool.readOnly;
   return role === 'ADMIN' || role === 'MANAGER';
@@ -120,7 +131,7 @@ export async function runAssistantTool(
       ok: true,
       content:
         text.length > RESULT_MAX_CHARS
-          ? `${text.slice(0, RESULT_MAX_CHARS)}… [résultat tronqué : affine ta requête]`
+          ? `${text.slice(0, RESULT_MAX_CHARS)}… [RÉSULTAT TRONQUÉ : n'appelle pas cet outil à nouveau à l'identique ; utilise un outil de recherche plus ciblé ou demande une précision à l'utilisateur]`
           : text,
     };
   } catch (err) {

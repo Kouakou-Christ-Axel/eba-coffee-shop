@@ -14,6 +14,7 @@ import {
   type OpenRouterConfig,
   type ToolCall,
 } from '../openrouter';
+import { pendingLabel } from './labels';
 import { systemPrompt } from './prompt';
 import {
   assistantToolDefinitions,
@@ -26,6 +27,8 @@ import type { UserRole } from '@/generated/prisma/client';
 
 const MAX_STEPS = 10;
 const REFUSED = "Refusé par l'utilisateur : n'exécute pas cette action.";
+const REPEATED =
+  "Appel identique déjà effectué : le résultat serait le même. Change d'approche (autre outil, autres arguments) ou pose une question à l'utilisateur.";
 
 type Actor = { name: string | null; role: UserRole };
 
@@ -57,7 +60,8 @@ async function executeCalls(
   calls: ToolCall[],
   decisions: Record<string, 'approve' | 'reject'>,
   actor: Actor,
-  out: StoredMessage[]
+  out: StoredMessage[],
+  seen: Set<string>
 ): Promise<PendingAction[]> {
   const pending: PendingAction[] = [];
   for (const call of calls) {
@@ -65,11 +69,13 @@ async function executeCalls(
     if (isWriteTool(name)) {
       const decision = decisions[call.id];
       if (!decision) {
+        const args = parseArgs(raw);
         pending.push({
           id: call.id,
           name,
           title: toolTitle(name),
-          args: parseArgs(raw),
+          label: await pendingLabel(args),
+          args,
         });
         continue;
       }
@@ -78,6 +84,14 @@ async function executeCalls(
         continue;
       }
     }
+    // Anti-boucle : une LECTURE identique (même outil, mêmes arguments) donnerait
+    // le même résultat. Les écritures approuvées ne passent pas ici deux fois.
+    const key = `${name}:${raw}`;
+    if (!isWriteTool(name) && seen.has(key)) {
+      out.push({ role: 'tool', tool_call_id: call.id, content: REPEATED });
+      continue;
+    }
+    seen.add(key);
     const result = await runAssistantTool(name, raw, actor.role);
     out.push({
       role: 'tool',
@@ -100,10 +114,17 @@ export async function runAssistant(
 
   // Reprise : traiter d'abord les appels laissés en attente au tour précédent.
   let calls = unresolvedCalls(messages);
+  const seen = new Set<string>();
 
   for (let step = 0; step < MAX_STEPS; step++) {
     if (calls.length > 0) {
-      const pending = await executeCalls(calls, decisions, actor, messages);
+      const pending = await executeCalls(
+        calls,
+        decisions,
+        actor,
+        messages,
+        seen
+      );
       if (pending.length > 0) return { messages, pending };
       calls = [];
     }
@@ -135,7 +156,7 @@ export async function runAssistant(
   messages.push({
     role: 'assistant',
     content:
-      "Je m'arrête ici : la demande demande trop d'étapes. Reformule-la plus précisément.",
+      "Je n'arrive pas à terminer cette demande (trop d'étapes sans résultat). Dites-moi précisément le nom du produit ou de l'élément concerné, ou reformulez.",
   });
   return { messages, pending: [] };
 }

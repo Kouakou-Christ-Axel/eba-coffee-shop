@@ -83,6 +83,8 @@ export type PendingAction = {
   id: string;
   name: string;
   title: string;
+  /** Cible lisible de l'action (ex. « Produit : Chou à la crème »), si résolue. */
+  label?: string;
   /** Arguments tels que proposés par le modèle (JSON). */
   args: unknown;
 };

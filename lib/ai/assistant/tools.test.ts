@@ -45,6 +45,16 @@ describe('outils de l’assistant par rôle', () => {
     expect(isWriteTool('confirm_other_expense')).toBe(true);
   });
 
+  it('écarte get_menu (trop gros) et le toggle non idempotent', () => {
+    const names = assistantTools('ADMIN').map((t) => t.name);
+    expect(names).not.toContain('get_menu');
+    expect(names).not.toContain('toggle_product_availability');
+    expect(names).toContain('search_products');
+    expect(names).toContain('set_product_availability');
+    expect(isWriteTool('search_products')).toBe(false);
+    expect(isWriteTool('set_product_availability')).toBe(true);
+  });
+
   it('refuse un outil hors rôle et des arguments invalides', async () => {
     expect(
       (await runAssistantTool('create_expense', '{}', 'ANALYSTE')).ok
