@@ -22,9 +22,12 @@ export function PendingCard({
 }) {
   // L'identifiant de brouillon n'a aucun sens pour l'utilisateur : le détail
   // est dans le tableau récapitulatif affiché juste au-dessus.
-  const entries = (args: unknown) =>
-    args && typeof args === 'object'
-      ? Object.entries(args).filter(([k]) => k !== 'draftId')
+  // `id` masqué seulement quand le libellé lisible le remplace.
+  const entries = (a: PendingAction) =>
+    a.args && typeof a.args === 'object'
+      ? Object.entries(a.args).filter(
+          ([k]) => k !== 'draftId' && !(k === 'id' && a.label)
+        )
       : [];
 
   return (
@@ -38,8 +41,9 @@ export function PendingCard({
         {actions.map((a) => (
           <div key={a.id}>
             <p className="text-sm font-semibold">{a.title}</p>
+            {a.label && <p className="text-sm">{a.label}</p>}
             <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
-              {entries(a.args).map(([k, v]) => (
+              {entries(a).map(([k, v]) => (
                 <div key={k} className="contents">
                   <dt className="text-muted-foreground">{k}</dt>
                   <dd className="break-words">{format(v)}</dd>

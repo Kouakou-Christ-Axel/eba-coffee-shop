@@ -28,6 +28,7 @@ export {
   reorderProducts,
   deleteProduct,
   toggleProductAvailability,
+  setProductAvailability,
   toggleProductFeatured,
 } from './menu/mutations/products';
 export {

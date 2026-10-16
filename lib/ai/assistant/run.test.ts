@@ -8,6 +8,9 @@ vi.mock('./tools', () => ({
   toolTitle: (n: string) => `Titre ${n}`,
 }));
 vi.mock('./prompt', () => ({ systemPrompt: () => 'sys' }));
+vi.mock('./labels', () => ({
+  pendingLabel: async () => 'Produit : Chou (Pâtisseries)',
+}));
 
 import { runAssistant } from './run';
 
@@ -68,6 +71,7 @@ describe('runAssistant', () => {
         id: '9',
         name: 'create_expense',
         title: 'Titre create_expense',
+        label: 'Produit : Chou (Pâtisseries)',
         args: { amount: 5000 },
       },
     ]);
@@ -136,5 +140,51 @@ describe('runAssistant', () => {
     );
     expect(res.messages.at(-1)).toMatchObject({ role: 'assistant' });
     expect(res.pending).toEqual([]);
+  });
+
+  it('ajoute le libellé lisible de la cible à l’action en attente', async () => {
+    const res = await runAssistant(
+      config,
+      actor,
+      [{ role: 'user', content: 'masque le chou' }],
+      {},
+      fetchReturning({
+        role: 'assistant',
+        content: null,
+        tool_calls: [call('5', 'create_set', '{"id":"p1","available":false}')],
+      })
+    );
+    expect(res.pending[0]).toMatchObject({
+      label: 'Produit : Chou (Pâtisseries)',
+    });
+  });
+
+  it('ne rejoue pas une lecture identique (anti-boucle)', async () => {
+    runTool.mockResolvedValue({ ok: true, content: 'tronqué' });
+    const same = {
+      role: 'assistant',
+      content: null,
+      tool_calls: [call('1', 'list_x', '{}')],
+    };
+    const res = await runAssistant(
+      config,
+      actor,
+      [{ role: 'user', content: 'cherche' }],
+      {},
+      fetchReturning(
+        same,
+        { ...same, tool_calls: [call('2', 'list_x', '{}')] },
+        { role: 'assistant', content: 'Quel produit exactement ?' }
+      )
+    );
+    expect(runTool).toHaveBeenCalledTimes(1);
+    expect(
+      res.messages.some(
+        (m) => m.role === 'tool' && m.content.includes('Appel identique')
+      )
+    ).toBe(true);
+    expect(res.messages.at(-1)).toMatchObject({
+      content: 'Quel produit exactement ?',
+    });
   });
 });

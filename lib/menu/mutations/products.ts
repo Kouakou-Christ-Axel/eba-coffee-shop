@@ -200,6 +200,13 @@ export async function toggleProductAvailability(id: string) {
   });
 }
 
+/** Idempotent (contrairement à `toggle`) : rejouer l'appel ne change rien. */
+export async function setProductAvailability(id: string, available: boolean) {
+  const p = await prisma.product.findUnique({ where: { id } });
+  if (!p) throw new Error('Produit introuvable');
+  return prisma.product.update({ where: { id }, data: { available } });
+}
+
 export async function toggleProductFeatured(id: string) {
   const p = await prisma.product.findUnique({ where: { id } });
   if (!p) throw new Error('Produit introuvable');
