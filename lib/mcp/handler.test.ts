@@ -118,6 +118,9 @@ describe('tools/list', () => {
     const getMenu = tools.find((t) => t.name === 'get_menu')!;
     expect(getMenu.annotations.readOnlyHint).toBe(true);
     expect(getMenu.inputSchema.type).toBe('object');
+    // Catalogue allégé : pas de `$schema` ni de `title` dupliqué en annotations.
+    expect(getMenu.inputSchema).not.toHaveProperty('$schema');
+    expect(getMenu.annotations).not.toHaveProperty('title');
   });
 
   it('restreint la liste aux `allowedTools` (rôle COMPTABLE)', async () => {
@@ -137,7 +140,7 @@ describe('tools/list', () => {
 describe('tools/call — lecture', () => {
   it('get_menu renvoie le menu en contenu texte', async () => {
     mockGetMenuAdmin.mockResolvedValue([
-      { id: 'c1', slug: 'cafes', name: 'Cafés' },
+      { id: 'c1', slug: 'cafes', name: 'Cafés', available: true, products: [] },
     ] as never);
     const res = await handleRpc({
       jsonrpc: '2.0',
@@ -152,6 +155,23 @@ describe('tools/call — lecture', () => {
     expect(result.isError).toBe(false);
     expect(result.content[0].text).toContain('Cafés');
     expect(mockGetMenuAdmin).toHaveBeenCalledOnce();
+  });
+
+  it('réponse compacte : JSON sans indentation, sans structuredContent', async () => {
+    mockGetMenuAdmin.mockResolvedValue([
+      { id: 'c1', slug: 'cafes', name: 'Cafés', available: true, products: [] },
+    ] as never);
+    const res = await handleRpc({
+      jsonrpc: '2.0',
+      id: 3,
+      method: 'tools/call',
+      params: { name: 'get_menu', arguments: {} },
+    });
+    const result = res!.result as Record<string, unknown> & {
+      content: Array<{ text: string }>;
+    };
+    expect(result).not.toHaveProperty('structuredContent');
+    expect(result.content[0].text).not.toContain('\n');
   });
 
   it('refuse un outil hors `allowedTools` (rôle COMPTABLE sur get_menu)', async () => {
@@ -229,6 +249,7 @@ describe('tools/call — écriture', () => {
       content: { text: string }[];
     };
     expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/^Arguments invalides.*\n- price/s);
     expect(mockCreateProduct).not.toHaveBeenCalled();
   });
 

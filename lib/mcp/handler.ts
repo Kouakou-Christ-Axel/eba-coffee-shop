@@ -15,7 +15,12 @@
 // testable isolément, sans Request/Response Next.js.
 
 import { z } from 'zod';
-import { tools, toolsByName, type McpTool } from '@/lib/mcp/tools';
+import { tools, toolsByName } from '@/lib/mcp/tools';
+import {
+  formatZodError,
+  serializeTool,
+  stringifyResult,
+} from '@/lib/mcp/format';
 
 // Dernière version du protocole que l’on connaît. Si le client en demande une
 // autre, on lui renvoie la sienne quand elle nous est connue, sinon la nôtre.
@@ -83,24 +88,6 @@ export type HandleOptions = {
   allowedTools?: Set<string>;
 };
 
-// ─── Sérialisation d’un outil pour tools/list ──────────────────────────────────
-
-function serializeTool(tool: McpTool) {
-  return {
-    name: tool.name,
-    title: tool.title,
-    description: tool.description,
-    inputSchema: z.toJSONSchema(tool.inputSchema, { io: 'input' }),
-    annotations: {
-      title: tool.title,
-      readOnlyHint: tool.readOnly,
-      destructiveHint: tool.name.startsWith('delete_'),
-      idempotentHint: tool.readOnly,
-      openWorldHint: false,
-    },
-  };
-}
-
 // ─── tools/call ────────────────────────────────────────────────────────────────
 
 async function callTool(
@@ -129,11 +116,7 @@ async function callTool(
     callParams.data.arguments ?? {}
   );
   if (!parsedArgs.success) {
-    return toolError(
-      id,
-      'Arguments invalides : ' +
-        JSON.stringify(z.flattenError(parsedArgs.error))
-    );
+    return toolError(id, formatZodError(parsedArgs.error));
   }
 
   // Erreurs d’exécution → renvoyées DANS le résultat (`isError: true`), pas
@@ -142,9 +125,10 @@ async function callTool(
   try {
     const data = await tool.handler(parsedArgs.data);
     if (!tool.readOnly) options.onWriteSuccess?.(tool.name);
+    // Pas de `structuredContent` : aucun `outputSchema` n'est déclaré et il
+    // doublerait le nombre de tokens de chaque réponse.
     return ok(id, {
-      content: [{ type: 'text', text: stringify(data) }],
-      structuredContent: toStructured(data),
+      content: [{ type: 'text', text: stringifyResult(data) }],
       isError: false,
     });
   } catch (err) {
@@ -158,20 +142,6 @@ function toolError(id: JsonRpcId, message: string): JsonRpcResponse {
     content: [{ type: 'text', text: message }],
     isError: true,
   });
-}
-
-function stringify(data: unknown): string {
-  if (data === undefined || data === null) return 'OK';
-  return JSON.stringify(data, null, 2);
-}
-
-// `structuredContent` doit être un objet JSON. On enveloppe les valeurs non-objet
-// (tableaux, primitives, undefined) sous une clé `result`.
-function toStructured(data: unknown): Record<string, unknown> {
-  if (data && typeof data === 'object' && !Array.isArray(data)) {
-    return data as Record<string, unknown>;
-  }
-  return { result: data ?? null };
 }
 
 // ─── Dispatch principal ─────────────────────────────────────────────────────────
@@ -211,9 +181,12 @@ export async function handleRpc(
         capabilities: { tools: { listChanged: false } },
         serverInfo: SERVER_INFO,
         instructions:
-          'Serveur de gestion du menu EBA Coffee Shop. Appelle d’abord ' +
-          '`get_menu` pour récupérer les identifiants avant toute modification. ' +
-          'Les prix sont en francs CFA (entiers).',
+          'Administration EBA Coffee Shop. Appelle d’abord `get_menu` pour ' +
+          'récupérer les `id` avant toute modification (cible toujours par ' +
+          '`id`, jamais par nom). Prix et montants : FCFA entiers. Dates : ' +
+          '`YYYY-MM-DD` (jour civil Abidjan). Le stock est décompté à ' +
+          'l’entrée en cuisine, pas à la création de commande. Pour les `list_*`, ' +
+          'filtre (dates, `search`) et pagine plutôt que de tout relire.',
       });
     }
 

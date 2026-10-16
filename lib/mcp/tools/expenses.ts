@@ -78,23 +78,15 @@ export const expensesTools: McpTool[] = [
     scope: 'finance',
     title: 'Créer une dépense',
     description:
-      '⚠️ Déprécié pour les achats fournisseur : préférez `prepare_purchase` → ' +
-      '`confirm_purchase` (récapitulatif + confirmation). Conservé pour les ' +
-      'dépenses simples et la compatibilité. ' +
-      'Enregistre une dépense. `date` au format `YYYY-MM-DD`, `amount` en ' +
-      'francs CFA entiers, `categoryId` issu de `list_expense_categories`. ' +
-      '`paymentMethod` ∈ CASH/WAVE/BANK/OTHER (défaut CASH). `supplier`, ' +
-      '`note` et `receiptUrl` sont optionnels ; pour joindre une photo encodée, ' +
-      'utilise `set_expense_receipt` après création. Un numéro de reçu ' +
-      '`receiptNo` (DEP-YYYY-MM-NNNN) est attribué automatiquement et renvoyé. ' +
-      '`items[]` optionnel détaille la dépense par article (comportement par ' +
-      'défaut : dépense globale, sans détail) : `articleName` (texte libre — ' +
-      'rapproche ou crée l’article) ou `articleId` (article existant, cf. ' +
-      '`search_article`/`detect_article`), `rawLabel` (libellé brut saisi, ' +
-      'toujours conservé), `formatQty`/`formatSize`/`unit` (format d’achat) et ' +
-      '`unitPrice`. `amount` de la ligne peut être omis s’il est dérivable de ' +
-      '`formatQty × formatSize × unitPrice` ; la somme des lignes doit alors ' +
-      'égaler le montant total de la dépense.',
+      '⚠️ Achats fournisseur : préfère `prepare_purchase` → `confirm_purchase`. ' +
+      'Ici : dépense simple. `date` YYYY-MM-DD, `amount` FCFA entier, ' +
+      '`categoryId` de `list_expense_categories`, `paymentMethod` ' +
+      'CASH/WAVE/BANK/OTHER (défaut CASH). Photo : `set_expense_receipt` après ' +
+      'création. Renvoie `receiptNo`. `items[]` (optionnel) détaille par ' +
+      'article : `articleName` ou `articleId` (`search_article`), `rawLabel`, ' +
+      '`formatQty`/`formatSize`/`unit`, `unitPrice` ; `amount` de ligne ' +
+      'dérivable de formatQty × formatSize × unitPrice, et la somme des lignes ' +
+      'doit égaler le total.',
     inputSchema: expenseInputSchema,
     readOnly: false,
     handler: (args) => createExpense(args),
