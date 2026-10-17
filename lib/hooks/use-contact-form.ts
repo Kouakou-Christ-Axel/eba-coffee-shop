@@ -2,40 +2,18 @@
 
 // lib/hooks/use-contact-form.ts
 //
-// Hook simple pour le formulaire de contact public. Validation via un schéma
-// Zod local (pas d'API backend dédiée pour l'instant ; la soumission renvoie
-// simplement un statut succès simulé après le `await submit()`).
+// Hook du formulaire de contact public. Validation via le schéma partagé
+// (lib/schemas/contact.ts), puis envoi à POST /api/contact.
 //
 // Le composant `<ContactFormSection>` reste responsable de l'UI ; il consomme
 // values / errors / status / setField / submit.
 
 import { useCallback, useState } from 'react';
-import { z } from 'zod';
+import { contactFormSchema } from '@/lib/schemas/contact';
 
 // ─── Schéma ──────────────────────────────────────────────────────────────────
 
-export const contactFormSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, 'Nom requis (min 2 caractères)')
-    .max(80, 'Nom trop long (max 80 caractères)'),
-  email: z.string().trim().email('Email invalide').max(120, 'Email trop long'),
-  phone: z
-    .string()
-    .trim()
-    .max(30, 'Téléphone trop long')
-    .optional()
-    .or(z.literal('')),
-  subject: z.enum(['question', 'reservation', 'partenariat'], {
-    message: 'Choisissez un motif',
-  }),
-  message: z
-    .string()
-    .trim()
-    .min(10, 'Message trop court (min 10 caractères)')
-    .max(2000, 'Message trop long (max 2000 caractères)'),
-});
+export { contactFormSchema };
 
 export type ContactFormValues = {
   name: string;
@@ -135,11 +113,33 @@ export function useContactForm(): UseContactFormResult {
 
     setIsSubmitting(true);
     setErrors({});
-    // TODO: brancher sur une vraie route /api/contact quand elle existera.
-    // Pour l'instant on simule un succès court (préserve le comportement
-    // visuel sans inventer de side-effect serveur).
-    await new Promise((r) => setTimeout(r, 300));
-    setIsSubmitting(false);
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setErrors({
+          submit:
+            data?.error ??
+            "Impossible d'envoyer votre message pour le moment. Réessayez.",
+        });
+        setStatus('error');
+        return false;
+      }
+    } catch {
+      setErrors({
+        submit: 'Connexion impossible. Vérifiez votre réseau et réessayez.',
+      });
+      setStatus('error');
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
     setStatus('success');
     setValues(INITIAL);
     return true;

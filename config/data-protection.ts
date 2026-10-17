@@ -25,6 +25,8 @@ export const RETENTION = {
   assistantConversationDays: 90,
   /** Captures de preuve de paiement. */
   paymentProofMonths: 13,
+  /** Abonnements push liés à une commande, après sa création. */
+  orderPushDays: 30,
   /** Validité du choix cookies. */
   consentMonths: 13,
 } as const;

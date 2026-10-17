@@ -6,6 +6,7 @@
 
 import dynamic from 'next/dynamic';
 import { Button } from '@heroui/react';
+import { PrivacyNotice } from '@/components/(public)/legal/privacy-notice';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import { priceFormatter } from '@/config/menu';
 import { ContactFields } from './_components/contact-fields';
@@ -205,6 +206,7 @@ export function CheckoutForm(props: CheckoutFormProps) {
           ? `Payer ${priceFormatter.format(amountDue)} F`
           : 'Confirmer la commande'}
       </Button>
+      <PrivacyNotice kind="order" />
     </form>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button, Card, CardBody } from '@heroui/react';
+import { PrivacyNotice } from '@/components/(public)/legal/privacy-notice';
 import { m, useReducedMotion } from 'framer-motion';
 import { Send } from 'lucide-react';
 import { useContactForm } from '@/lib/hooks/use-contact-form';
@@ -99,6 +100,7 @@ function ContactFormSection({
                       Envoyer le message
                     </Button>
                   </div>
+                  <PrivacyNotice kind="contact" />
                 </m.form>
               </CardBody>
             </Card>

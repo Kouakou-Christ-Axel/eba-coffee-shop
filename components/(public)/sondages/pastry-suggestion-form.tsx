@@ -13,6 +13,7 @@ import {
   uploadToCloudinary,
   confirmCloudinaryUrl,
 } from '@/lib/cloudinary-client';
+import { PrivacyNotice } from '@/components/(public)/legal/privacy-notice';
 
 const MAX_MB = Math.round(MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
 
@@ -140,6 +141,7 @@ function PastrySuggestionForm({ pollId }: { pollId: string }) {
       >
         Envoyer ma suggestion
       </Button>
+      <PrivacyNotice kind="suggestion" />
     </form>
   );
 }

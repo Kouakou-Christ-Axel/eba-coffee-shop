@@ -427,6 +427,11 @@ model Customer {
   trustedSince DateTime?
   trustedNote  String?
 
+  // Droit à l'effacement / fin de durée de conservation : renseigné quand la
+  // fiche a été anonymisée (lib/customer-privacy.ts). Le téléphone est alors
+  // remplacé par un marqueur `anon-<id>` pour respecter l'unicité.
+  anonymizedAt DateTime?
+
   orders    Order[]
   rewards   LoyaltyReward[]
   ledger    LoyaltyLedger[]

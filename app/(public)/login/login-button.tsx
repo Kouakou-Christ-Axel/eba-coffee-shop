@@ -5,6 +5,7 @@ import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PrivacyNotice } from '@/components/(public)/legal/privacy-notice';
 
 type Step = 'email' | 'otp';
 
@@ -128,6 +129,7 @@ export default function LoginButton({
       <Button type="submit" disabled={loading || !email}>
         {loading ? 'Envoi...' : 'Recevoir un code'}
       </Button>
+      <PrivacyNotice kind="login" />
     </form>
   );
 }

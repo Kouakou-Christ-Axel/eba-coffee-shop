@@ -9,10 +9,7 @@ import {
   LegalSection,
   LegalValue,
 } from '@/components/(public)/legal/legal-page';
-import {
-  PROCESSING_ACTIVITIES,
-  PROCESSORS,
-} from '@/config/data-protection';
+import { PROCESSING_ACTIVITIES, PROCESSORS } from '@/config/data-protection';
 import type { ContactSettings } from '@/lib/contact-settings';
 
 const TRIGGER_LABEL = {
@@ -32,8 +29,8 @@ export function PrivacyContent({ contact }: { contact: ContactSettings }) {
           <strong className="text-foreground">
             <LegalValue value={contact.legalName} />
           </strong>{' '}
-          (EBA Coffee Shop), {contact.address}, {contact.district}. Contact
-          pour toute question sur vos données&nbsp;:{' '}
+          (EBA Coffee Shop), {contact.address}, {contact.district}. Contact pour
+          toute question sur vos données&nbsp;:{' '}
           <a
             href={`mailto:${rightsEmail}`}
             className="underline underline-offset-2 hover:text-primary"
@@ -43,11 +40,11 @@ export function PrivacyContent({ contact }: { contact: ContactSettings }) {
           .
         </p>
         <p>
-          Nous traitons vos données conformément à la loi ivoirienne
-          n°2013-450 du 19&nbsp;juin 2013 relative à la protection des données
-          à caractère personnel, sous le contrôle de l&apos;ARTCI (Autorité de
-          régulation des télécommunications/TIC de Côte d&apos;Ivoire).
-          N° de déclaration ou d&apos;autorisation&nbsp;:{' '}
+          Nous traitons vos données conformément à la loi ivoirienne n°2013-450
+          du 19&nbsp;juin 2013 relative à la protection des données à caractère
+          personnel, sous le contrôle de l&apos;ARTCI (Autorité de régulation
+          des télécommunications/TIC de Côte d&apos;Ivoire). N° de déclaration
+          ou d&apos;autorisation&nbsp;:{' '}
           <LegalValue value={contact.artciReference} />.
         </p>
       </LegalSection>
@@ -55,7 +52,10 @@ export function PrivacyContent({ contact }: { contact: ContactSettings }) {
       <LegalSection title="Ce que nous collectons, pourquoi, combien de temps">
         <ul className="space-y-4">
           {PROCESSING_ACTIVITIES.map((a) => (
-            <li key={a.id} className="rounded-large border border-default-200 p-4">
+            <li
+              key={a.id}
+              className="rounded-large border border-default-200 p-4"
+            >
               <p className="font-medium text-foreground">{a.label}</p>
               <dl className="mt-2 space-y-1">
                 <Row term="Finalité" value={a.purpose} />
@@ -77,9 +77,9 @@ export function PrivacyContent({ contact }: { contact: ContactSettings }) {
       <LegalSection title="Transferts hors de Côte d’Ivoire">
         <p>
           Certains prestataires sont établis à l&apos;étranger. Vos données ne
-          leur parviennent que dans les conditions ci-dessous, et nous
-          demandons à l&apos;ARTCI l&apos;autorisation de ces transferts lorsque
-          la loi l&apos;exige.
+          leur parviennent que dans les conditions ci-dessous, et nous demandons
+          à l&apos;ARTCI l&apos;autorisation de ces transferts lorsque la loi
+          l&apos;exige.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[32rem] text-left text-xs">
@@ -112,10 +112,10 @@ export function PrivacyContent({ contact }: { contact: ContactSettings }) {
         <p>
           Vous pouvez à tout moment demander l&apos;accès à vos données, leur
           rectification, leur suppression ou vous opposer à leur traitement, et
-          retirer un consentement donné. Pour supprimer votre fiche client
-          (nom, téléphone, fidélité), écrivez-nous&nbsp;: elle est anonymisée,
-          seules les écritures comptables des commandes (montant, date)
-          subsistent, sans nom ni téléphone.
+          retirer un consentement donné. Pour supprimer votre fiche client (nom,
+          téléphone, fidélité), écrivez-nous&nbsp;: elle est anonymisée, seules
+          les écritures comptables des commandes (montant, date) subsistent,
+          sans nom ni téléphone.
         </p>
         <p>
           Écrivez à{' '}

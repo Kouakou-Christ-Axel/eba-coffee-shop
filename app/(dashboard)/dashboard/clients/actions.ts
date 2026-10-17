@@ -8,6 +8,7 @@ import {
   setCustomerTrusted,
   updateCustomer,
 } from '@/lib/customer-mutations';
+import { anonymizeCustomer, exportCustomerData } from '@/lib/customer-privacy';
 import { awardMissedOrderStamps } from '@/lib/loyalty-mutations';
 import {
   MISSED_ORDER_STAMPS_MAX,
@@ -165,6 +166,39 @@ export async function addMissedOrderStampsAction(
     );
     revalidate(customerId);
     return { ok: true, stampCount, rewardsCreated };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erreur inattendue',
+    };
+  }
+}
+
+/** Droit d'accès : toutes les données d'un client, en JSON téléchargeable. */
+export async function exportCustomerDataAction(
+  id: string
+): Promise<{ ok: true; json: string } | { ok: false; error: string }> {
+  await requireAdminId();
+  try {
+    const data = await exportCustomerData(id);
+    return { ok: true, json: JSON.stringify(data, null, 2) };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erreur inattendue',
+    };
+  }
+}
+
+/** Droit à l'effacement : anonymise la fiche (cf. lib/customer-privacy.ts). */
+export async function anonymizeCustomerAction(
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireAdminId();
+  try {
+    await anonymizeCustomer(id);
+    revalidate(id);
+    return { ok: true };
   } catch (err) {
     return {
       ok: false,

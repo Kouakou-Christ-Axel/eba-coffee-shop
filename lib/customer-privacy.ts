@@ -1,0 +1,122 @@
+// lib/customer-privacy.ts
+//
+// Droits des personnes sur la fiche client (loi ivoirienne 2013-450 : accès,
+// rectification, suppression). Deux gestes :
+//   - `exportCustomerData` : tout ce que nous savons d'un client, en JSON.
+//   - `anonymizeCustomer`  : effacement. On ne supprime pas la ligne `Order`
+//     (comptabilité : montant, date, articles) mais on en retire nom,
+//     téléphone et note, ainsi que tout ce qui rattache la personne (fidélité,
+//     votes, suggestions, notifications push). Le téléphone de la fiche est
+//     remplacé par `anon-<id>` pour respecter l'unicité de la colonne.
+
+import prisma from '@/lib/prisma';
+
+export class CustomerHasDebtError extends Error {
+  constructor() {
+    super(
+      'Ce client a des commandes impayées (ardoise) : réglez-les ou annulez-les avant de l’anonymiser.'
+    );
+  }
+}
+
+export const anonymousPhoneMarker = (id: string) => `anon-${id}`;
+
+export function isAnonymizedPhone(phone: string): boolean {
+  return phone.startsWith('anon-');
+}
+
+export async function exportCustomerData(id: string) {
+  const customer = await prisma.customer.findUnique({
+    where: { id },
+    include: {
+      orders: {
+        select: {
+          reference: true,
+          createdAt: true,
+          status: true,
+          total: true,
+          isPaid: true,
+          customerName: true,
+          customerPhone: true,
+          note: true,
+          pickupTime: true,
+          items: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      },
+      rewards: true,
+      ledger: true,
+      pollVotes: {
+        select: { pollId: true, optionId: true, createdAt: true },
+      },
+    },
+  });
+  if (!customer) throw new Error('Client introuvable.');
+  const suggestions = await prisma.pollSuggestion.findMany({
+    where: { submitterPhone: customer.phone },
+    select: { label: true, description: true, status: true, createdAt: true },
+  });
+  return { exportedAt: new Date().toISOString(), customer, suggestions };
+}
+
+/** Anonymise un client. `now` injectable pour les tests. */
+export async function anonymizeCustomer(id: string, now = new Date()) {
+  const customer = await prisma.customer.findUnique({
+    where: { id },
+    select: { id: true, phone: true, anonymizedAt: true },
+  });
+  if (!customer) throw new Error('Client introuvable.');
+  if (customer.anonymizedAt) return { alreadyAnonymized: true as const };
+
+  const debt = await prisma.order.count({
+    where: {
+      OR: [{ customerId: id }, { customerPhone: customer.phone }],
+      isPaid: false,
+      status: { not: 'CANCELLED' },
+    },
+  });
+  if (debt > 0) throw new CustomerHasDebtError();
+
+  const orderOwner = {
+    OR: [{ customerId: id }, { customerPhone: customer.phone }],
+  };
+
+  await prisma.$transaction([
+    prisma.pushSubscription.deleteMany({ where: { order: orderOwner } }),
+    prisma.order.updateMany({
+      where: orderOwner,
+      data: { customerName: null, customerPhone: null, note: null },
+    }),
+    prisma.pollVote.updateMany({
+      where: { OR: [{ customerId: id }, { voterPhone: customer.phone }] },
+      data: {
+        voterPhone: null,
+        voterToken: null,
+        ipAddress: null,
+        userAgent: null,
+        customerId: null,
+      },
+    }),
+    prisma.pollSuggestion.updateMany({
+      where: { submitterPhone: customer.phone },
+      data: { submitterPhone: null, submitterName: null },
+    }),
+    prisma.loyaltyReward.deleteMany({ where: { customerId: id } }),
+    prisma.loyaltyLedger.deleteMany({ where: { customerId: id } }),
+    prisma.customer.update({
+      where: { id },
+      data: {
+        phone: anonymousPhoneMarker(id),
+        name: null,
+        dateOfBirth: null,
+        stampCount: 0,
+        lastStampDate: null,
+        isTrusted: false,
+        trustedSince: null,
+        trustedNote: null,
+        anonymizedAt: now,
+      },
+    }),
+  ]);
+  return { alreadyAnonymized: false as const };
+}
