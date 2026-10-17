@@ -63,8 +63,12 @@ type CompletionResponse = {
   };
 };
 
+// Fournisseurs qui acceptent un point d'arrêt `cache_control` explicite. Les
+// autres (OpenAI, DeepSeek…) mettent le préfixe en cache tout seuls.
+const CACHE_CONTROL_PROVIDERS = ['anthropic/', 'google/'];
+
 /**
- * Cache de prompt Anthropic : le préfixe (outils + consigne système), identique
+ * Cache de prompt (Anthropic, Gemini) : le préfixe (outils + consigne système), identique
  * à chaque étape, est relu à ~10 % du prix. Le point d'arrêt sur le message
  * système couvre aussi les définitions d'outils qui le précèdent.
  */
@@ -72,7 +76,9 @@ export function withPromptCache(
   model: string,
   messages: ChatMessage[]
 ): ChatMessage[] {
-  if (!model.startsWith('anthropic/')) return messages;
+  if (!CACHE_CONTROL_PROVIDERS.some((p) => model.startsWith(p))) {
+    return messages;
+  }
   return messages.map((m, i) =>
     i === 0 && m.role === 'system'
       ? {
