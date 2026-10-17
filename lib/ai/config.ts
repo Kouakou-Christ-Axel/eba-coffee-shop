@@ -7,7 +7,7 @@
 import { ENV } from 'varlock/env';
 import type { OpenRouterConfig } from './openrouter';
 
-export const DEFAULT_ASSISTANT_MODEL = 'anthropic/claude-sonnet-4.5';
+export const DEFAULT_ASSISTANT_MODEL = 'google/gemini-3.1-flash-lite';
 
 export function openRouterConfig(): OpenRouterConfig | null {
   if (!ENV.OPENROUTER_API_KEY) return null;

@@ -55,7 +55,45 @@ export class OpenRouterError extends Error {
 type CompletionResponse = {
   choices?: { message?: AssistantMessage }[];
   error?: { message?: string };
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    cost?: number;
+    prompt_tokens_details?: { cached_tokens?: number };
+  };
 };
+
+// Fournisseurs qui acceptent un point d'arrêt `cache_control` explicite. Les
+// autres (OpenAI, DeepSeek…) mettent le préfixe en cache tout seuls.
+const CACHE_CONTROL_PROVIDERS = ['anthropic/', 'google/'];
+
+/**
+ * Cache de prompt (Anthropic, Gemini) : le préfixe (outils + consigne système), identique
+ * à chaque étape, est relu à ~10 % du prix. Le point d'arrêt sur le message
+ * système couvre aussi les définitions d'outils qui le précèdent.
+ */
+export function withPromptCache(
+  model: string,
+  messages: ChatMessage[]
+): ChatMessage[] {
+  if (!CACHE_CONTROL_PROVIDERS.some((p) => model.startsWith(p))) {
+    return messages;
+  }
+  return messages.map((m, i) =>
+    i === 0 && m.role === 'system'
+      ? {
+          ...m,
+          content: [
+            {
+              type: 'text',
+              text: m.content,
+              cache_control: { type: 'ephemeral' },
+            },
+          ] as unknown as string,
+        }
+      : m
+  );
+}
 
 export async function chatCompletion(
   config: OpenRouterConfig,
@@ -74,11 +112,12 @@ export async function chatCompletion(
       },
       body: JSON.stringify({
         model: config.model,
-        messages: input.messages,
+        messages: withPromptCache(config.model, input.messages),
         ...(input.tools?.length
           ? { tools: input.tools, tool_choice: 'auto' }
           : {}),
         temperature: 0.2,
+        usage: { include: true },
       }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
@@ -95,6 +134,13 @@ export async function chatCompletion(
     throw new OpenRouterError(
       json?.error?.message ?? `OpenRouter a répondu ${res.status}`,
       res.status
+    );
+  }
+  const u = json.usage;
+  if (u) {
+    // Trace de consommation (jetons, cache, coût en USD) pour piloter la dépense.
+    console.info(
+      `[assistant] ${config.model} in=${u.prompt_tokens ?? '?'} cached=${u.prompt_tokens_details?.cached_tokens ?? 0} out=${u.completion_tokens ?? '?'} cost=$${u.cost ?? '?'}`
     );
   }
   return json.choices[0].message;

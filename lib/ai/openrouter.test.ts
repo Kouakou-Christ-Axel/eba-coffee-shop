@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { chatCompletion, OpenRouterError } from './openrouter';
+import { chatCompletion, OpenRouterError, withPromptCache } from './openrouter';
 
 const config = { apiKey: 'k', model: 'm/x' };
 const ok = (message: unknown) =>
@@ -49,5 +49,33 @@ describe('chatCompletion', () => {
       message: 'quota',
     });
     expect(OpenRouterError).toBeDefined();
+  });
+});
+
+describe('withPromptCache', () => {
+  const messages = [
+    { role: 'system' as const, content: 'consigne' },
+    { role: 'user' as const, content: 'hi' },
+  ];
+
+  it.each(['anthropic/claude-haiku-5.5', 'google/gemini-3.1-flash-lite'])(
+    'pose un point de cache sur le message système (%s)',
+    (model) => {
+      const [system, user] = withPromptCache(model, messages);
+      expect(system.content).toEqual([
+        {
+          type: 'text',
+          text: 'consigne',
+          cache_control: { type: 'ephemeral' },
+        },
+      ]);
+      expect(user).toBe(messages[1]);
+    }
+  );
+
+  it('laisse intacts les modèles à cache automatique', () => {
+    expect(withPromptCache('deepseek/deepseek-v4.1-flash', messages)).toBe(
+      messages
+    );
   });
 });
