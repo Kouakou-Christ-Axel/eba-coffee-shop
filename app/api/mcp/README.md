@@ -182,6 +182,7 @@ réduite, voire vide, ce n'est pas une erreur.
 | Outil                            | Domaine    | Type     | Description                                                                                  |
 | -------------------------------- | ---------- | -------- | -------------------------------------------------------------------------------------------- |
 | `get_menu`                       | menu       | lecture  | Menu compact (`id`, nom, prix, stock) ; `search`, `categoryId`, `productId`, `detail:"full"` |
+| `search_products`                | menu       | lecture  | Recherche compacte de produits par nom (tolère accents/fautes) — préférer à `get_menu`       |
 | `get_daily_stats`                | stats      | lecture  | Stats agrégées de la journée en cours                                                        |
 | `get_range_stats`                | stats      | lecture  | KPIs sur une plage (`from`/`to`, `YYYY-MM-DD`)                                               |
 | `get_daily_series`               | stats      | lecture  | Série jour par jour (commandes + CA) sur plage                                               |
@@ -264,7 +265,8 @@ réduite, voire vide, ce n'est pas une erreur.
 | `set_product_image`              | menu       | écriture | Téléverser (base64) ou rattacher une image                                                   |
 | `move_product`                   | menu       | écriture | Réordonner un produit (`up` / `down`)                                                        |
 | `delete_product`                 | menu       | écriture | Supprimer un produit (soft delete)                                                           |
-| `toggle_product_availability`    | menu       | écriture | Afficher / masquer un produit                                                                |
+| `toggle_product_availability`    | menu       | écriture | Inverser la visibilité d'un produit (non idempotent)                                         |
+| `set_product_availability`       | menu       | écriture | Masquer (`available: false`) / afficher un produit — idempotent                              |
 | `toggle_product_featured`        | menu       | écriture | Mettre en avant / retirer un produit                                                         |
 | `set_product_stock`              | menu       | écriture | Définir (absolu) le stock d’un produit                                                       |
 | `set_option_stock`               | menu       | écriture | Définir (absolu) le stock d’une option                                                       |

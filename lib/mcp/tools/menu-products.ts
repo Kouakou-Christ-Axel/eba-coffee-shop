@@ -8,6 +8,7 @@ import {
   updateProduct,
   deleteProduct,
   toggleProductAvailability,
+  setProductAvailability,
   toggleProductFeatured,
   moveProduct,
   productInputSchema,
@@ -148,6 +149,23 @@ export const menuProductsTools: McpTool[] = [
     inputSchema: z.object({ id: idSchema }),
     readOnly: false,
     handler: (args) => toggleProductAvailability((args as { id: string }).id),
+  },
+  {
+    name: 'set_product_availability',
+    toolset: 'menu',
+    title: 'Masquer / afficher un produit',
+    description:
+      'Fixe la disponibilité d’un produit sur le site public : `available: ' +
+      'false` le MASQUE (désactivé), `true` l’affiche. Idempotent (rejouer ne ' +
+      'change rien, contrairement à `toggle_product_availability`). Pour une ' +
+      'pause temporaire avec retour automatique, utilise `pause_product`. ' +
+      '`id` provient de `search_products` ou `get_menu`.',
+    inputSchema: z.object({ id: idSchema, available: z.boolean() }),
+    readOnly: false,
+    handler: (args) => {
+      const { id, available } = args as { id: string; available: boolean };
+      return setProductAvailability(id, available);
+    },
   },
   {
     name: 'toggle_product_featured',
