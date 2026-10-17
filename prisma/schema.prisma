@@ -791,6 +791,12 @@ model Product {
   // de dupliquer un second mécanisme — voir `Order.depositRequired` et
   // `sendOrderToKitchen` (lib/order-mutations.ts).
   requiresDeposit  Boolean                @default(false)
+  // Précommande (retrait un jour civil ultérieur) autorisée pour ce produit.
+  // `false` = commandable uniquement pour le jour même côté public ; la caisse
+  // n'est pas bloquée. Sans effet si le produit (ou sa catégorie) exige déjà un
+  // délai `advanceOrderDays` : il ne se commande alors qu'à l'avance. Voir
+  // `isPreorderable` (lib/supplements.ts).
+  preorderable     Boolean                @default(true)
   restockAlerts    RestockAlert[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt

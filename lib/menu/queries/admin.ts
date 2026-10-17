@@ -60,6 +60,8 @@ export type AdminMenuProduct = {
   // Commande spéciale sur mesure (ex. gâteau grand format) : exige un acompte
   // minimum au checkout — voir `Product.requiresDeposit`, prisma/schema.prisma.
   requiresDeposit: boolean;
+  // Précommande autorisée (`Product.preorderable`).
+  preorderable: boolean;
   weeklySpecials: AdminMenuWeeklySpecial[];
   supplements: AdminMenuSupplementGroup[];
 };
@@ -161,6 +163,7 @@ export async function getMenuAdmin(): Promise<AdminMenuCategory[]> {
           categoryAdvanceOrderDays
         ),
         requiresDeposit: p.requiresDeposit,
+        preorderable: p.preorderable,
         weeklySpecials: p.weeklySpecials.map((w) => ({
           id: w.id,
           startDate: formatLocalDateOnly(w.startDate),

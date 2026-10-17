@@ -9,6 +9,7 @@ import { DayChips, DaySlots } from './slot-picker-day-view';
 import { PickupModeToggle } from './pickup-mode-toggle';
 import {
   AdvanceOrderNotice,
+  SameDayOnlyNotice,
   ScheduleRestrictedNotice,
 } from './slot-picker/constraint-notices';
 import { DefaultSlotShortcut } from './slot-picker/default-slot-shortcut';
@@ -69,6 +70,7 @@ export function SlotPicker(props: SlotPickerProps) {
             soldOutRestricted={soldOutRestricted}
           />
 
+          {picker.sameDayOnly && <SameDayOnlyNotice />}
           {picker.scheduleRestricted && <ScheduleRestrictedNotice />}
 
           <PickupModeToggle

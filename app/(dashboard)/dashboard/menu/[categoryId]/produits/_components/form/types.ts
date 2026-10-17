@@ -20,6 +20,8 @@ export type ProductFormInitial = {
   advanceOrderDays: number | null;
   // Commande sur mesure : acompte minimum exigé au checkout (`Product.requiresDeposit`).
   requiresDeposit: boolean;
+  // Précommande autorisée (`Product.preorderable`).
+  preorderable: boolean;
   weeklySpecials: WeeklySpecialRow[];
 };
 
@@ -39,6 +41,7 @@ export const EMPTY: ProductFormInitial = {
   scheduleId: null,
   advanceOrderDays: null,
   requiresDeposit: false,
+  preorderable: true,
   weeklySpecials: [],
 };
 
@@ -63,5 +66,6 @@ export function initialSnapshot(initial: ProductFormInitial | undefined) {
     scheduleId: initial?.scheduleId ?? EMPTY.scheduleId,
     advanceOrderDays: initial?.advanceOrderDays ?? EMPTY.advanceOrderDays,
     requiresDeposit: initial?.requiresDeposit ?? EMPTY.requiresDeposit,
+    preorderable: initial?.preorderable ?? EMPTY.preorderable,
   });
 }

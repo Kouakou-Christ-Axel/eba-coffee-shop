@@ -16,6 +16,15 @@ export class ScheduleUnavailableError extends Error {
   }
 }
 
+export class PreorderNotAllowedError extends Error {
+  constructor(public readonly productNames: string[]) {
+    super(
+      `${productNames.join(', ')} ne peut pas être précommandé : choisissez un retrait aujourd’hui.`
+    );
+    this.name = 'PreorderNotAllowedError';
+  }
+}
+
 export class SoldOutTodayError extends Error {
   /** Noms dédoublonnés (une ligne par variante de goûts partage le nom). */
   public readonly productNames: string[];

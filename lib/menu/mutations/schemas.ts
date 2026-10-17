@@ -51,6 +51,8 @@ export const availabilityFieldsSchema = {
   ...scheduleFieldSchema,
   ...advanceOrderDaysFieldSchema,
   requiresDeposit: z.boolean().optional(),
+  // `false` = pas de précommande (retrait le jour même uniquement).
+  preorderable: z.boolean().optional(),
 };
 
 export const productInputSchema = z.object({

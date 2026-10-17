@@ -6,6 +6,7 @@ export {
   isWithinAnyPeriod,
   isOrderableNow,
   canOrderForLaterDay,
+  isPreorderable,
   isPickupDateAllowed,
   effectiveItemAdvanceDays,
   minAllowedPickupDateString,

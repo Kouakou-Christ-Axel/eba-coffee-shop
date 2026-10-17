@@ -7,6 +7,7 @@ import {
   canOrderForLaterDay,
   effectiveItemAdvanceDays,
   isOrderableNow,
+  isPreorderable,
 } from '../supplements';
 
 const WEDNESDAY = new Date('2026-08-05T10:00:00.000Z');
@@ -119,6 +120,41 @@ describe('canOrderForLaterDay', () => {
       ],
     } as Product;
     expect(canOrderForLaterDay(p)).toBe(false);
+  });
+});
+
+describe('isPreorderable', () => {
+  it('autorisée par défaut (absent ou true)', () => {
+    expect(isPreorderable({})).toBe(true);
+    expect(isPreorderable({ preorderable: true })).toBe(true);
+  });
+
+  it('refusée quand le drapeau est false', () => {
+    expect(isPreorderable({ preorderable: false })).toBe(false);
+    expect(isPreorderable({ preorderable: false, advanceOrderDays: 0 })).toBe(
+      false
+    );
+  });
+
+  it('un délai de commande à l’avance l’emporte sur le drapeau', () => {
+    expect(isPreorderable({ preorderable: false, advanceOrderDays: 2 })).toBe(
+      true
+    );
+  });
+});
+
+describe('canOrderForLaterDay — précommande refusée', () => {
+  const base = { id: 'p1', name: 'X', description: '', price: 100 };
+
+  it('un produit épuisé qui refuse la précommande n’est plus commandable', () => {
+    const p = { ...base, soldOut: true, preorderable: false } as Product;
+    expect(canOrderForLaterDay(p)).toBe(false);
+  });
+
+  it('en stock, il reste commandable (pour aujourd’hui)', () => {
+    const p = { ...base, preorderable: false } as Product;
+    expect(canOrderForLaterDay(p)).toBe(true);
+    expect(isOrderableNow(p)).toBe(true);
   });
 });
 

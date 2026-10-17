@@ -34,6 +34,7 @@ vi.mock('@/lib/order-create-rate-limit', () => ({
 
 import {
   AdvanceOrderRequiredError,
+  PreorderNotAllowedError,
   ScheduleUnavailableError,
   SoldOutTodayError,
   createOrder,
@@ -130,6 +131,16 @@ describe('POST /api/commandes — codes d’erreur', () => {
     expect(await res.json()).toMatchObject({
       code: 'SCHEDULE_UNAVAILABLE',
       productName: 'Brunch',
+    });
+  });
+
+  it('PREORDER_NOT_ALLOWED avec les produits en cause', async () => {
+    mockCreateOrder.mockRejectedValue(new PreorderNotAllowedError(['Café']));
+    const res = await post(validBody);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'PREORDER_NOT_ALLOWED',
+      productNames: ['Café'],
     });
   });
 

@@ -11,6 +11,12 @@ import {
   isPickupDateAllowed,
   isWithinAnyPeriod,
 } from '@/lib/supplements';
+import {
+  preorderConflictMessage,
+  sameDayOnlyItems,
+  sameDayOnlyMessage,
+} from '@/lib/cart-preorder';
+import { isDeferredPickup } from '@/lib/orders/scheduling';
 import type { CheckoutFormValues, CheckoutFormErrors } from './types';
 
 /** Valide les champs côté client en s'appuyant sur `createOrderSchema`. */
@@ -53,6 +59,18 @@ export function validateCheckoutForm(
   // de rendez-vous (pickupTime null, traité comme un walk-in côté caisse).
   if (values.timing === 'scheduled' && !values.pickupTime) {
     errors.pickupTime = 'Veuillez choisir un créneau';
+  }
+
+  if (!errors.pickupTime) {
+    const conflict = preorderConflictMessage(items);
+    const submitted = values.timing === 'scheduled' ? values.pickupTime : null;
+    if (conflict) errors.pickupTime = conflict;
+    else if (
+      sameDayOnlyItems(items).length > 0 &&
+      isDeferredPickup(submitted)
+    ) {
+      errors.pickupTime = sameDayOnlyMessage(items);
+    }
   }
 
   if (!errors.pickupTime) {

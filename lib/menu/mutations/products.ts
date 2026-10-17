@@ -37,6 +37,7 @@ export async function createProduct(input: ProductInput) {
       scheduleId: data.scheduleId ?? null,
       advanceOrderDays: data.advanceOrderDays ?? null,
       requiresDeposit: data.requiresDeposit ?? false,
+      preorderable: data.preorderable ?? true,
       supplementGroups: {
         create: data.supplementGroups.map((g, gi) => ({
           name: g.name,
@@ -100,6 +101,9 @@ export async function updateProduct(id: string, input: ProductUpdate) {
     }),
     ...(data.requiresDeposit !== undefined && {
       requiresDeposit: data.requiresDeposit,
+    }),
+    ...(data.preorderable !== undefined && {
+      preorderable: data.preorderable,
     }),
   };
 

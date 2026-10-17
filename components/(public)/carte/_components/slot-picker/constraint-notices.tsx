@@ -40,3 +40,12 @@ export function ScheduleRestrictedNotice() {
     </p>
   );
 }
+
+export function SameDayOnlyNotice() {
+  return (
+    <p className="text-xs text-foreground/60">
+      Un article de votre panier ne se commande que pour aujourd&apos;hui : les
+      autres jours sont masqués.
+    </p>
+  );
+}

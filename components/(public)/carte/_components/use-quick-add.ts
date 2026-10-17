@@ -104,6 +104,7 @@ export function useQuickAdd(
       weeklySpecialPeriods: product.weeklySpecialPeriods,
       soldOutToday: soldOut || undefined,
       requiresDeposit: product.requiresDeposit,
+      preorderable: product.preorderable,
     };
     // ⚠️ Pas de plafond pour un article épuisé : `addItem` refuse
     // SILENCIEUSEMENT l'ajout quand `maxQuantity <= 0` (cf. cart-store.ts).
