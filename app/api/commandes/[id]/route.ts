@@ -7,14 +7,20 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getPublicOrder } from '@/lib/orders';
+import { allowOrderTrackingRead, clientIp } from '@/lib/enumeration-rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  // Le suivi s'ouvre par un identifiant secret : freiner les essais en rafale.
+  if (!allowOrderTrackingRead(clientIp(req))) {
+    return NextResponse.json({ error: 'Trop de requêtes' }, { status: 429 });
+  }
 
   try {
     const order = await getPublicOrder(id);

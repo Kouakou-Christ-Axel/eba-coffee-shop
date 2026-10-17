@@ -10,6 +10,7 @@
 //     remplacé par `anon-<id>` pour respecter l'unicité de la colonne.
 
 import prisma from '@/lib/prisma';
+import { withStaffVisible } from '@/lib/orders/visibility';
 
 export class CustomerHasDebtError extends Error {
   constructor() {
@@ -68,12 +69,14 @@ export async function anonymizeCustomer(id: string, now = new Date()) {
   if (!customer) throw new Error('Client introuvable.');
   if (customer.anonymizedAt) return { alreadyAnonymized: true as const };
 
+  // withStaffVisible : une commande en ligne en attente de paiement (jamais
+  // honorée) n'est pas une dette.
   const debt = await prisma.order.count({
-    where: {
+    where: withStaffVisible({
       OR: [{ customerId: id }, { customerPhone: customer.phone }],
       isPaid: false,
       status: { not: 'CANCELLED' },
-    },
+    }),
   });
   if (debt > 0) throw new CustomerHasDebtError();
 

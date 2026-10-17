@@ -30,7 +30,7 @@ Pre-commit hooks (Husky + lint-staged) run ESLint and Prettier on staged files a
 - **Runtime:** Node.js with pnpm + Next.js 16 App Router, React 19
 - **Styling:** Tailwind CSS v4 (via `@tailwindcss/postcss`) + HeroUI component library with custom theme in `config/hero.ts`
 - **Database:** PostgreSQL with Prisma ORM (`prisma/schema.prisma`), singleton client in `lib/prisma.ts`
-- **Auth:** Better Auth (`lib/auth.ts` server, `lib/auth-client.ts` client) with Google OAuth, API routes at `/api/auth/[...all]`
+- **Auth:** Better Auth (`lib/auth.ts` server, `lib/auth-client.ts` client), connexion du personnel par code e-mail (plugin `emailOTP`) + plugin `mcp` (OAuth pour Claude) ; pas de Google OAuth. API routes at `/api/auth/[...all]`
 - **Animations:** GSAP (`@gsap/react`) and Framer Motion
 - **Environment:** varlock for type-safe env vars; schema in `.env.schema`, types generated to `env.d.ts`
 
@@ -117,6 +117,18 @@ Le site vitrine est vu depuis Abidjan, en mobile, sur des liens où le **RTT pè
 - **Comment** : relire le chapitre dans le doc, corriger le texte avec les outils Docs (un chapitre à la fois, jamais une réécriture globale), puis refaire seulement les captures qui ont changé : app lancée en local sur une base de démo (`pnpm db:push` + `pnpm db:seed`, comptes de test par rôle), captures Playwright, pastilles ajoutées dans la page avant la capture, téléversement dans le doc. Garder la numérotation des pastilles cohérente avec la liste qui l'explique. Ne mettre dans les captures aucune donnée réelle de clients.
 - **Dire ce qui n'a pas pu être vérifié** (paiement Jèko, notifications push, installation PWA, connexion de Claude) plutôt que de l'affirmer : c'est le rôle de l'annexe « Ce manuel et ses limites ».
 - Terminer la tâche en résumant à l'utilisateur quels chapitres ont été mis à jour.
+
+## Données personnelles (loi ivoirienne 2013-450, ARTCI)
+
+- **Cadre** : loi n°2013-450 du 19 juin 2013 (autorité : ARTCI), RGPD en second. Ne jamais écrire de numéro d'article dans une page publique sans validation juridique.
+- **Source unique** : `config/data-protection.ts` (`RETENTION`, `PROCESSING_ACTIVITIES`, `PROCESSORS`) — lue par `/confidentialite`, par la purge et par le dossier `docs/conformite/` (régénéré par `pnpm exec tsx scripts/gen-compliance-docs.ts`). Ajouter un sous-traitant ou une durée **là**, pas ailleurs.
+- **Pages légales** : `/mentions-legales`, `/confidentialite`, `/cgv`, `/cookies` (gabarit `components/(public)/legal/legal-page.tsx`). L'identité légale (RCCM, NCC, n° ARTCI, hébergeur…) vit dans `ContactSettings`, éditable dans Paramètres ; vide ⇒ « à compléter ». Tout formulaire public qui collecte nom/téléphone/e-mail affiche `PrivacyNotice`.
+- **Droits** : `lib/customer-privacy.ts` — `exportCustomerData` (accès) et `anonymizeCustomer` (efface nom/téléphone des commandes, fidélité, votes ; garde montants et dates ; refuse si dette ouverte). Boutons sur la fiche client.
+- **Purge** : `lib/data-retention.ts` via `POST /api/cron/data-retention` (`CRON_SECRET`), à planifier chaque jour. Ne jamais purger une commande impayée.
+- **Votes de sondage** : IP hachée (`lib/hash-ip.ts`), user-agent non conservé.
+- **Consentement cookies** : valable 13 mois (`CONSENT_MAX_AGE_MS`) ; un retrait révoque Meta et efface `_ga*`/`_fbp` (`clearTrackingCookies`). Le même seuil est dupliqué dans `consent-boot.tsx`.
+- **Assistant IA et Sentry** : téléphones masqués avant envoi au modèle (`lib/ai/assistant/mask-pii.ts`) ; `scrubPii` retire corps, cookies, query string et identifiants de commande des événements Sentry. Un nouvel outil qui renvoie un téléphone sous une clé `*phone*` est masqué automatiquement.
+- **Après déploiement** : `pnpm db:push` (colonnes d'identité légale, `Customer.anonymizedAt`) ; saisir l'identité légale dans Paramètres.
 
 ## Assistant IA (OpenRouter)
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shouldDropEvent } from './sentry.shared.config';
+import { scrubPii, scrubUrl, shouldDropEvent } from './sentry.shared.config';
 
 type Event = Parameters<typeof shouldDropEvent>[0];
 
@@ -66,5 +66,34 @@ describe('shouldDropEvent', () => {
 
   it('ne plante pas sans exception', () => {
     expect(shouldDropEvent({ message: 'hello' })).toBe(false);
+  });
+});
+
+describe('scrubUrl / scrubPii', () => {
+  it('retire le jeton de commande et la query string des URLs', () => {
+    expect(scrubUrl('https://eba-coffee.com/commande/clx9abc123?x=1')).toBe(
+      'https://eba-coffee.com/commande/:id'
+    );
+    expect(scrubUrl('https://eba-coffee.com/api/loyalty-info?phone=0700')).toBe(
+      'https://eba-coffee.com/api/loyalty-info'
+    );
+  });
+
+  it('supprime corps, cookies, IP et e-mail de l’événement', () => {
+    const event = scrubPii({
+      request: {
+        url: 'https://eba-coffee.com/api/commandes/clx9abc123?phone=0700',
+        data: { customerPhone: '0700000000' },
+        cookies: { session: 'secret' },
+        query_string: 'phone=0700000000',
+        headers: { cookie: 'a=b', accept: '*/*' },
+      },
+      user: { id: 'u1', email: 'a@b.ci', ip_address: '1.2.3.4' },
+    });
+    expect(event.request).not.toHaveProperty('data');
+    expect(event.request).not.toHaveProperty('cookies');
+    expect(event.request?.url).toBe('https://eba-coffee.com/api/commandes/:id');
+    expect(event.request?.headers).toEqual({ accept: '*/*' });
+    expect(event.user).toEqual({ id: 'u1' });
   });
 });

@@ -58,6 +58,9 @@ function formatDateTime(d: Date | null): string {
   return dateTimeFmt.format(d).replace(',', '');
 }
 
+const PERSONAL_COLUMNS = new Set(['Client', 'Téléphone', 'Note']);
+const IDENTITY_ROLES: string[] = ['ADMIN', 'MANAGER', 'ASSISTANT_MANAGER'];
+
 export async function GET(req: NextRequest) {
   const session = await getCurrentSession();
   if (!session || !ROLE_GROUPS.STATS.includes(session.user.role)) {
@@ -135,7 +138,15 @@ export async function GET(req: NextRequest) {
     o.note ?? '',
   ]);
 
-  const csv = toCsv(headers, rows);
+  // Minimisation : le comptable (et tout rôle hors équipe de direction) n'a
+  // pas besoin de l'identité du client pour rapprocher les montants — on
+  // retire Client, Téléphone et Note de son export.
+  const withIdentity = IDENTITY_ROLES.includes(session.user.role);
+  const keep = headers.map((h) => withIdentity || !PERSONAL_COLUMNS.has(h));
+  const csv = toCsv(
+    headers.filter((_, i) => keep[i]),
+    rows.map((row) => row.filter((_, i) => keep[i]))
+  );
   const filename = `commandes_${fromStr}_${toStr}.csv`;
   return csvResponse(filename, csv);
 }

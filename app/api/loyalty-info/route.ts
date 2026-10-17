@@ -25,6 +25,7 @@ import {
 } from '@/lib/loyalty';
 import { computeCheckoutLoyaltyMessage } from '@/lib/loyalty-messaging';
 import { ORDER_CUSTOMER_PHONE_MAX } from '@/config/constants';
+import { allowLoyaltyLookup, clientIp } from '@/lib/enumeration-rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +43,13 @@ export async function GET(req: NextRequest) {
     }
     if (phone.length < 8 || phone.length > ORDER_CUSTOMER_PHONE_MAX) {
       return NextResponse.json({ ...base, reward: null, message: null });
+    }
+    // Sonde l'existence d'un client par son numéro : freiner l'énumération.
+    if (!allowLoyaltyLookup(clientIp(req))) {
+      return NextResponse.json(
+        { error: 'Trop de requêtes, réessayez dans une minute.' },
+        { status: 429 }
+      );
     }
 
     const cartTotalRaw = req.nextUrl.searchParams.get('cartTotal');

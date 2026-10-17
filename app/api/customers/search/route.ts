@@ -11,14 +11,22 @@
 import { NextResponse } from 'next/server';
 import { requireCashier } from '@/lib/auth-helpers';
 import { listCustomers } from '@/lib/customers';
+import { allowCustomerLookup } from '@/lib/enumeration-rate-limit';
 
-const MIN_QUERY_LENGTH = 2;
+// 3 caractères minimum et 8 résultats au plus : une saisie de 1-2 lettres ne doit
+// pas permettre de parcourir tout le fichier clients.
+const MIN_QUERY_LENGTH = 3;
+const MAX_RESULTS = 8;
 
 export async function GET(req: Request) {
+  let userId: string;
   try {
-    await requireCashier();
+    userId = (await requireCashier()).user.id;
   } catch {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  }
+  if (!allowCustomerLookup(`search:${userId}`)) {
+    return NextResponse.json({ error: 'Trop de requêtes' }, { status: 429 });
   }
 
   const q = new URL(req.url).searchParams.get('q')?.trim() ?? '';
@@ -29,7 +37,7 @@ export async function GET(req: Request) {
   try {
     const { customers } = await listCustomers({ search: q });
     return NextResponse.json({
-      customers: customers.map((c) => ({
+      customers: customers.slice(0, MAX_RESULTS).map((c) => ({
         id: c.id,
         name: c.name,
         phone: c.phone,
