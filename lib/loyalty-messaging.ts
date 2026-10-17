@@ -69,6 +69,14 @@ export function computeCheckoutLoyaltyMessage(params: {
   return `☕ ${stampCount}/${stampsPerCard} tampons en poche — valide pour continuer vers ta grande réduction jusqu'à ${fmt(tier2RewardCap)} F.`;
 }
 
+/**
+ * Message AVANT paiement quand cette commande débloque une récompense : le
+ * serveur l'applique d'office à la création, le récapitulatif l'annonce déjà.
+ */
+export function computeUpcomingRewardMessage(capAmount: number): string {
+  return `🎁 Cette commande te fait gagner ta réduction fidélité : jusqu'à ${fmt(capAmount)} F déjà déduits de ton total 💛`;
+}
+
 export const PICKUP_GENERIC_MESSAGE =
   '✅ Ta commande est prête, passe la récupérer !';
 

@@ -11,6 +11,8 @@
 import { NextResponse } from 'next/server';
 import { requireCashier } from '@/lib/auth-helpers';
 import { getLoyaltyCardByPhone } from '@/lib/loyalty';
+import { computeUpcomingReward } from '@/lib/loyalty-compute';
+import { todayDailyDate } from '@/lib/daily-numbering';
 
 export async function GET(req: Request) {
   try {
@@ -29,10 +31,22 @@ export async function GET(req: Request) {
     if (!card) {
       return NextResponse.json({ card: null });
     }
+    // Récompense que le PROCHAIN tampon débloquera (appliquée d'office par le
+    // serveur à la création) : la caisse l'annonce dans le panier, le test du
+    // montant minimum se fait côté client sur le total courant.
+    const nextStampReward = computeUpcomingReward({
+      stampCount: card.stampCount,
+      lastStampDate: card.customer.lastStampDate,
+      today: todayDailyDate(),
+      cartTotal: card.settings.minOrderAmount,
+      settings: card.settings,
+    });
     return NextResponse.json({
       card: {
         stampCount: card.stampCount,
         stampsPerCard: card.settings.stampsPerCard,
+        minOrderAmount: card.settings.minOrderAmount,
+        nextStampReward,
         availableRewards: card.availableRewards.map((r) => ({
           id: r.id,
           tier: r.tier,

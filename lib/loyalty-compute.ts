@@ -63,3 +63,52 @@ export function computeStampRevert(
   if (currentStampCount > 0) return currentStampCount - 1;
   return Math.max(0, cfg.stampsPerCard - 1);
 }
+
+/**
+ * Récompense que la commande en cours débloquera en créditant son tampon
+ * (appliquée d'office par le serveur à la création) — `null` si aucune.
+ * Miroir en lecture seule de `awardLoyaltyForOrder` : mêmes conditions
+ * (programme actif, total >= minimum, 1 tampon/jour) pour que l'aperçu du
+ * récapitulatif corresponde exactement à ce que le serveur appliquera.
+ */
+export function computeUpcomingReward(params: {
+  stampCount: number;
+  lastStampDate: Date | null;
+  today: Date;
+  /** Total de la commande tel que testé par `awardLoyaltyForOrder` (net). */
+  cartTotal: number;
+  settings: LoyaltyConfig & {
+    enabled: boolean;
+    minOrderAmount: number;
+    oneStampPerDay: boolean;
+  };
+}): { capAmount: number } | null {
+  const { stampCount, lastStampDate, today, cartTotal, settings } = params;
+  if (!settings.enabled || cartTotal < settings.minOrderAmount) return null;
+  if (
+    settings.oneStampPerDay &&
+    lastStampDate &&
+    lastStampDate.getTime() === today.getTime()
+  ) {
+    return null;
+  }
+  const reward = computeStampAward(stampCount, settings).rewards[0];
+  return reward ? { capAmount: reward.capAmount } : null;
+}
+
+/**
+ * Réduction à venir pour un total donné, à partir de ce que la caisse a déjà
+ * en main (`nextStampReward` : récompense que le prochain tampon débloquera,
+ * déjà filtrée par la règle 1 tampon/jour). `netTotal` = total après une
+ * récompense déjà acquise, comme testé par `awardLoyaltyForOrder`.
+ */
+export function upcomingRewardDiscount(
+  card: {
+    nextStampReward: { capAmount: number } | null;
+    minOrderAmount: number;
+  } | null,
+  netTotal: number
+): number {
+  if (!card?.nextStampReward || netTotal < card.minOrderAmount) return 0;
+  return Math.min(card.nextStampReward.capAmount, netTotal);
+}

@@ -11,7 +11,13 @@ export async function getLoyaltyCard(customerId: string) {
     getLoyaltySettings(),
     prisma.customer.findUnique({
       where: { id: customerId },
-      select: { id: true, name: true, phone: true, stampCount: true },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        stampCount: true,
+        lastStampDate: true,
+      },
     }),
     prisma.loyaltyReward.findMany({
       where: { customerId, status: 'AVAILABLE' },

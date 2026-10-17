@@ -67,15 +67,28 @@ export function useCheckoutFlow({
 
   const activeReward =
     reward.status === 'ready' && rewardApplied ? reward : null;
-  const discount = activeReward ? Math.min(activeReward.capAmount, total) : 0;
-  // Total net (après remise éventuelle) : c'est ce montant qui détermine si un
-  // tampon sera crédité (`awardLoyaltyForOrder` teste le total NET). Le
-  // message incitatif du récapitulatif se calcule donc dessus, dans un second
-  // appel débouncé distinct de la recherche de récompense ci-dessus (celle-ci
-  // ne dépend pas du total, la boucler dessus créerait une dépendance
-  // circulaire reward → discount → netTotal → reward).
+  const rewardDiscount = activeReward
+    ? Math.min(activeReward.capAmount, total)
+    : 0;
+  // Total net de la récompense déjà acquise : c'est lui que `awardLoyaltyForOrder`
+  // teste pour créditer un tampon. Le message incitatif et l'aperçu de la
+  // réduction à venir se calculent donc dessus, dans un second appel débouncé
+  // distinct de la recherche de récompense ci-dessus (celle-ci ne dépend pas du
+  // total, la boucler dessus créerait une dépendance circulaire
+  // reward → discount → netTotal → reward).
+  const { message: loyaltyMessage, upcomingReward } = useLoyaltyTeaser(
+    values.customerPhone,
+    total - rewardDiscount
+  );
+  // Réduction débloquée par cette commande : le serveur l'applique d'office à
+  // la création (sauf si une récompense acquise est déjà utilisée), on la
+  // déduit donc d'avance pour que le récapitulatif corresponde au montant réel.
+  const upcomingDiscount =
+    upcomingReward && !activeReward
+      ? Math.min(upcomingReward.capAmount, total)
+      : 0;
+  const discount = rewardDiscount + upcomingDiscount;
   const netTotal = Math.max(0, total - discount);
-  const loyaltyMessage = useLoyaltyTeaser(values.customerPhone, netTotal);
   // Paiement en ligne : montant réellement débité = total net + frais.
   const payOnline = onlinePayment.status === 'ready' && onlinePayment.enabled;
   const { amountDue } = withOnlineFee(

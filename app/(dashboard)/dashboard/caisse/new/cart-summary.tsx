@@ -13,6 +13,7 @@ import { formatSupplementsSummary } from '@/lib/orders/format';
 import { LineDiscountControl } from '../../_components/line-discount-control';
 import type { LoyaltyCard } from '@/lib/hooks/use-new-order';
 import { computeRequiredDeposit } from '@/lib/deposits';
+import { upcomingRewardDiscount } from '@/lib/loyalty-compute';
 
 type Props = {
   items: CartItem[];
@@ -64,7 +65,11 @@ export function CartSummary({
   const loyaltyDiscount = selectedReward
     ? Math.min(selectedReward.capAmount, total)
     : 0;
-  const depositAmount = computeRequiredDeposit(items, total - loyaltyDiscount);
+  const upcomingDiscount = selectedReward
+    ? 0
+    : upcomingRewardDiscount(loyaltyCard, total);
+  const totalDue = total - loyaltyDiscount - upcomingDiscount;
+  const depositAmount = computeRequiredDeposit(items, totalDue);
 
   return (
     <div className="rounded-xl border bg-card">
@@ -204,12 +209,21 @@ export function CartSummary({
         </div>
       )}
 
+      {upcomingDiscount > 0 && (
+        <div className="flex items-center justify-between border-t px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+          <span>Réduction fidélité débloquée par cette commande</span>
+          <span className="tabular-nums">
+            -{priceFormatter.format(upcomingDiscount)} F
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between border-t px-3 py-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Total
         </span>
         <span className="text-base font-bold tabular-nums">
-          {priceFormatter.format(total - loyaltyDiscount)} F
+          {priceFormatter.format(totalDue)} F
         </span>
       </div>
 
