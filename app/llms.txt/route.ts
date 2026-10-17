@@ -65,6 +65,9 @@ ${link('Le lieu', '/le-lieu', "description de l'espace, ambiance et accès")}
 ${link('À propos', '/a-propos', "histoire de l'enseigne, la pâtissière fondatrice et les engagements qualité")}
 ${link('Contact', '/contact', 'formulaire, coordonnées et plan')}
 ${link('Sondages', '/sondages', 'votes ouverts au public sur les prochaines créations')}
+${link('Mentions légales', '/mentions-legales', 'éditeur et hébergeur')}
+${link('Politique de confidentialité', '/confidentialite', 'données personnelles et droits')}
+${link('Conditions générales de vente', '/cgv', 'commande, paiement et retrait')}
 
 ## Réseaux sociaux
 

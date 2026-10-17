@@ -35,6 +35,13 @@ const SOCIAL_ICONS: Record<
   youtube: IconBrandYoutube,
 };
 
+const LEGAL_LINKS = [
+  { href: '/mentions-legales', label: 'Mentions légales' },
+  { href: '/confidentialite', label: 'Confidentialité' },
+  { href: '/cgv', label: 'CGV' },
+  { href: '/cookies', label: 'Gérer mes cookies' },
+] as const;
+
 function SiteFooter({ contact }: { contact: ContactSettings }) {
   const reduceMotion = useReducedMotion();
   const socialItems = buildSocialProfiles(contact);
@@ -211,16 +218,21 @@ function SiteFooter({ contact }: { contact: ContactSettings }) {
               : { duration: 0.5, ease: 'easeOut', delay: 0.3 }
           }
         >
-          <p>
-            &copy; {new Date().getFullYear()} EBA. Tous droits réservés.
-            {' · '}
-            <Link
-              href="/cookies"
-              className="inline-block py-1.5 text-sm text-white/60 underline underline-offset-2 hover:text-primary"
-            >
-              Cookies
-            </Link>
-          </p>
+          <p>&copy; {new Date().getFullYear()} EBA. Tous droits réservés.</p>
+          <nav
+            aria-label="Informations légales"
+            className="mt-1 flex flex-wrap justify-center gap-x-3"
+          >
+            {LEGAL_LINKS.map(({ href, label }) => (
+              <Link
+                key={href}
+                href={href}
+                className="inline-block py-1.5 text-sm text-white/60 underline underline-offset-2 hover:text-primary"
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
         </m.div>
       </div>
     </footer>

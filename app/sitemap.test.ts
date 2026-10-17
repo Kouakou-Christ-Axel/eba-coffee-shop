@@ -70,6 +70,9 @@ describe('GET /sitemap.xml', () => {
       'https://eba-coffee.com/carte',
       'https://eba-coffee.com/sondages',
       'https://eba-coffee.com/cookies',
+      'https://eba-coffee.com/mentions-legales',
+      'https://eba-coffee.com/confidentialite',
+      'https://eba-coffee.com/cgv',
       'https://eba-coffee.com/sondages/poll-1',
     ]);
   });
@@ -87,7 +90,7 @@ describe('GET /sitemap.xml', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { default: sitemap } = await import('./sitemap');
     const urls = (await sitemap()).map((e) => e.url);
-    expect(urls).toHaveLength(7);
+    expect(urls).toHaveLength(10);
     expect(urls).not.toContain('https://eba-coffee.com/sondages/poll-1');
   });
 });

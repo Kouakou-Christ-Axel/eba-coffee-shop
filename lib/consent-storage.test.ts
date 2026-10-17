@@ -9,6 +9,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  CONSENT_MAX_AGE_MS,
   CONSENT_STORAGE_KEY,
   CONSENT_VERSION,
   clearConsent,
@@ -79,7 +80,11 @@ describe('consent-storage', () => {
   it("retombe sur 'pending' si la version a changé (politique révisée)", () => {
     store.set(
       CONSENT_STORAGE_KEY,
-      JSON.stringify({ version: CONSENT_VERSION - 1, analytics: true, ts: 1 })
+      JSON.stringify({
+        version: CONSENT_VERSION - 1,
+        analytics: true,
+        ts: Date.now(),
+      })
     );
     expect(readConsentStatus()).toBe('pending');
   });
@@ -87,7 +92,11 @@ describe('consent-storage', () => {
   it("retombe sur 'pending' si `analytics` n'est pas un booléen", () => {
     store.set(
       CONSENT_STORAGE_KEY,
-      JSON.stringify({ version: CONSENT_VERSION, analytics: 'oui', ts: 1 })
+      JSON.stringify({
+        version: CONSENT_VERSION,
+        analytics: 'oui',
+        ts: Date.now(),
+      })
     );
     expect(readConsentStatus()).toBe('pending');
   });
@@ -95,9 +104,34 @@ describe('consent-storage', () => {
   it('aligne `ads` sur `analytics` quand le champ manque (ancien format)', () => {
     store.set(
       CONSENT_STORAGE_KEY,
-      JSON.stringify({ version: CONSENT_VERSION, analytics: true, ts: 1 })
+      JSON.stringify({
+        version: CONSENT_VERSION,
+        analytics: true,
+        ts: Date.now(),
+      })
     );
     expect(readConsent()).toMatchObject({ analytics: true, ads: true });
+  });
+
+  it("retombe sur 'pending' quand le choix a plus de 13 mois", () => {
+    store.set(
+      CONSENT_STORAGE_KEY,
+      JSON.stringify({
+        version: CONSENT_VERSION,
+        analytics: true,
+        ads: true,
+        ts: Date.now() - CONSENT_MAX_AGE_MS - 1000,
+      })
+    );
+    expect(readConsentStatus()).toBe('pending');
+  });
+
+  it("retombe sur 'pending' sans horodatage (preuve de recueil absente)", () => {
+    store.set(
+      CONSENT_STORAGE_KEY,
+      JSON.stringify({ version: CONSENT_VERSION, analytics: true })
+    );
+    expect(readConsentStatus()).toBe('pending');
   });
 
   it('efface le choix', () => {

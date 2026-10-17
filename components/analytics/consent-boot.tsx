@@ -17,7 +17,11 @@
 // chaque visite en attendant que React monte la bannière. Le format lu est
 // celui de lib/consent-storage.ts : TOUTE ÉVOLUTION DOIT ÊTRE RÉPERCUTÉE ICI.
 
-import { CONSENT_STORAGE_KEY, CONSENT_VERSION } from '@/lib/consent-storage';
+import {
+  CONSENT_MAX_AGE_MS,
+  CONSENT_STORAGE_KEY,
+  CONSENT_VERSION,
+} from '@/lib/consent-storage';
 
 // `wait_for_update` laisse 500 ms aux balises pour attendre notre `update`
 // avant de partir en mode dégradé — le temps que React monte et lise le choix.
@@ -44,7 +48,8 @@ const bootScript = `
     var raw = window.localStorage.getItem('${CONSENT_STORAGE_KEY}');
     if (raw) {
       var saved = JSON.parse(raw);
-      if (saved && saved.version === ${CONSENT_VERSION} && saved.analytics === true) {
+      if (saved && saved.version === ${CONSENT_VERSION} && saved.analytics === true &&
+          typeof saved.ts === 'number' && Date.now() - saved.ts <= ${CONSENT_MAX_AGE_MS}) {
         gtag('consent', 'update', {
           ad_storage: 'granted',
           ad_user_data: 'granted',

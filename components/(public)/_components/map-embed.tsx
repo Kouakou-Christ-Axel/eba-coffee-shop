@@ -50,7 +50,7 @@ export function MapEmbed({
         <iframe
           title={title}
           src={embedUrl}
-          referrerPolicy="no-referrer-when-downgrade"
+          referrerPolicy="origin"
           className="h-full w-full border-0"
         />
       </div>

@@ -9,6 +9,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ContactSettings } from '@/lib/contact-settings';
 import { saveContactSettings } from './actions';
 
+const LEGAL_FIELDS: ReadonlyArray<
+  [keyof ContactSettings, string, 'text' | 'email']
+> = [
+  ['legalName', 'Raison sociale / exploitant', 'text'],
+  ['legalForm', 'Forme juridique', 'text'],
+  ['rccm', 'N° RCCM', 'text'],
+  ['ncc', 'N° de compte contribuable (NCC)', 'text'],
+  ['publicationDirector', 'Directeur de la publication', 'text'],
+  ['hostName', 'Hébergeur du site', 'text'],
+  ['artciReference', 'N° de déclaration / autorisation ARTCI', 'text'],
+  ['privacyEmail', 'Email pour les demandes de données personnelles', 'email'],
+];
+
 export function ContactSettingsForm({ initial }: { initial: ContactSettings }) {
   const [s, setS] = useState<ContactSettings>(initial);
   const [pending, startTransition] = useTransition();
@@ -186,6 +199,26 @@ export function ContactSettingsForm({ initial }: { initial: ContactSettings }) {
             value={s.hashtagUrl}
             onChange={(v) => set('hashtagUrl', v)}
           />
+        </div>
+
+        <div className="space-y-3 border-t pt-4">
+          <p className="text-xs text-muted-foreground">
+            Identité légale — affichée sur les pages « Mentions légales » et «
+            Confidentialité ». Laissez vide ce qui n’existe pas encore : la page
+            indiquera « à compléter ».
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {LEGAL_FIELDS.map(([key, label, type]) => (
+              <Field
+                key={key}
+                id={key}
+                label={label}
+                type={type}
+                value={s[key]}
+                onChange={(v) => set(key, v)}
+              />
+            ))}
+          </div>
         </div>
 
         {feedback && (
