@@ -1,5 +1,9 @@
 import type { Metadata } from 'next';
-import { BreadcrumbJsonLd } from '@/components/(public)/breadcrumb-json-ld';
+import {
+  LegalLink,
+  LegalPage,
+  LegalSection,
+} from '@/components/(public)/legal/legal-page';
 import ConsentResetButton from '@/components/analytics/consent-reset-button';
 
 export const metadata: Metadata = {
@@ -11,25 +15,6 @@ export const metadata: Metadata = {
   },
 };
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mt-8">
-      <h2 className="text-xl font-semibold tracking-tight text-foreground">
-        {title}
-      </h2>
-      <div className="mt-3 space-y-3 text-sm leading-relaxed text-foreground/75">
-        {children}
-      </div>
-    </section>
-  );
-}
-
 export default function CookiesPage() {
   // Le pixel Meta est optionnel (NEXT_PUBLIC_META_PIXEL_ID). Cette page doit
   // décrire ce qui tourne RÉELLEMENT sur l'installation : promettre « aucune
@@ -37,41 +22,36 @@ export default function CookiesPage() {
   const hasMetaPixel = Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 pb-20 pt-28 sm:px-6 sm:pt-32">
-      {/* « Accueil » est déjà ajouté par buildBreadcrumbJsonLd. */}
-      <BreadcrumbJsonLd
-        items={[{ name: 'Politique cookies', path: '/cookies' }]}
-      />
-
-      <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-        Politique cookies
-      </h1>
-      <p className="mt-4 text-sm leading-relaxed text-foreground/75">
-        Cette page explique ce que nous mesurons sur ce site, avec quels outils,
-        et comment reprendre la main sur votre choix.
-      </p>
-
-      <Section title="Ce que nous déposons, et quand">
+    <LegalPage
+      title="Politique cookies"
+      path="/cookies"
+      intro="Cette page explique ce que nous mesurons sur ce site, avec quels outils, et comment reprendre la main sur votre choix. Pour le détail de vos données personnelles, voyez la politique de confidentialité."
+    >
+      <LegalSection title="Ce que nous déposons, et quand">
         <p>
           <strong className="text-foreground">
             Rien n&apos;est déposé tant que vous n&apos;avez pas accepté.
           </strong>{' '}
           À votre arrivée, la mesure d&apos;audience est bloquée par défaut
           (mécanisme « Consent Mode » de Google) : aucun cookie de mesure
-          n&apos;est écrit et aucune donnée n&apos;est transmise. Le bandeau
-          vous laisse choisir ; tant que vous n&apos;avez pas répondu, le
-          blocage reste actif.
+          n&apos;est écrit. Le conteneur Google Tag Manager est toutefois
+          chargé pour pouvoir attendre votre choix : Google peut recevoir, sans
+          cookie, des signaux techniques de connexion (adresse IP, navigateur,
+          page visitée). Tant que vous n&apos;avez pas répondu, le blocage des
+          cookies reste actif.
         </p>
         <p>
           Certaines fonctions du site utilisent le stockage local de votre
           navigateur pour fonctionner, indépendamment de la mesure
           d&apos;audience : votre panier, vos commandes récentes et vos
-          coordonnées de retrait. Ces informations restent sur votre appareil et
-          ne sont jamais transmises à un tiers.
+          coordonnées de retrait (nom et téléphone, préremplis pour vos prochaines
+          commandes) et, si vous votez à un sondage, un identifiant anonyme de
+          votant. Ces informations restent sur votre appareil ; vous pouvez les
+          effacer en vidant les données du site dans votre navigateur.
         </p>
-      </Section>
+      </LegalSection>
 
-      <Section title="Si vous acceptez">
+      <LegalSection title="Si vous acceptez">
         <p>
           Nous utilisons{' '}
           <strong className="text-foreground">Google Tag Manager</strong> et{' '}
@@ -130,18 +110,28 @@ export default function CookiesPage() {
             fidélité).
           </p>
         )}
-      </Section>
+      </LegalSection>
 
-      <Section title="Si vous refusez">
+      <LegalSection title="Si vous refusez">
         <p>
           Le site fonctionne exactement de la même manière — commande, panier,
           fidélité, suivi. Aucun cookie de mesure n&apos;est déposé et aucune
           statistique de navigation n&apos;est transmise à Google
           {hasMetaPixel ? ' ni à Meta' : ''}.
         </p>
-      </Section>
+      </LegalSection>
 
-      <Section title="Revenir sur votre choix">
+      <LegalSection title="Contenus tiers chargés au clic">
+        <p>
+          La carte Google Maps et les vidéos TikTok ne se chargent
+          qu&apos;après un clic de votre part : tant que vous ne cliquez pas,
+          aucune donnée n&apos;est envoyée à ces services. Les photos du site
+          sont servies par Cloudinary, ce qui lui transmet votre adresse IP
+          comme pour tout contenu d&apos;un site web.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="Revenir sur votre choix">
         <p>
           Votre décision est enregistrée dans le stockage local de votre
           navigateur, sous la clé{' '}
@@ -150,23 +140,23 @@ export default function CookiesPage() {
           </code>
           . Vous pouvez la reprendre à tout moment ci-dessous — le bandeau
           réapparaîtra aussitôt. Vider les données du site depuis votre
-          navigateur produit le même effet.
+          navigateur produit le même effet. Un choix est valable 13&nbsp;mois,
+          puis nous vous le redemandons. Retirer votre accord efface aussi les
+          cookies de mesure déjà déposés.
         </p>
         <ConsentResetButton />
-      </Section>
+      </LegalSection>
 
-      <Section title="Une question ?">
+      <LegalSection title="Une question ?">
         <p>
           Écrivez-nous depuis la{' '}
-          <a
-            href="/contact"
-            className="underline underline-offset-2 transition-colors hover:text-primary"
-          >
-            page contact
-          </a>{' '}
-          : nous répondons.
+          <LegalLink href="/contact">page contact</LegalLink> ou consultez notre{' '}
+          <LegalLink href="/confidentialite">
+            politique de confidentialité
+          </LegalLink>
+          .
         </p>
-      </Section>
-    </div>
+      </LegalSection>
+    </LegalPage>
   );
 }

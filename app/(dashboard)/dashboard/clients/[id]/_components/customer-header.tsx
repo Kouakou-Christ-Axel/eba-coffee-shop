@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { CustomerFormSheet } from '../../customer-form';
 import { MergeCustomerSheet } from '../../merge-customer-form';
 import { dobFmt } from './helpers';
+import { PrivacyActions } from './privacy-actions';
 import type { CustomerData } from './types';
 
 export function CustomerHeader({
@@ -62,6 +63,12 @@ export function CustomerHeader({
             }
           />
         </div>
+      </div>
+      <div className="mt-3">
+        <PrivacyActions
+          customerId={customer.id}
+          anonymized={customer.anonymizedAt !== null}
+        />
       </div>
     </div>
   );

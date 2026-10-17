@@ -1,0 +1,70 @@
+// lib/customer-privacy.test.ts
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const prismaMock = vi.hoisted(() => ({
+  customer: { findUnique: vi.fn(), update: vi.fn() },
+  order: { count: vi.fn(), updateMany: vi.fn() },
+  pushSubscription: { deleteMany: vi.fn() },
+  pollVote: { updateMany: vi.fn() },
+  pollSuggestion: { updateMany: vi.fn() },
+  loyaltyReward: { deleteMany: vi.fn() },
+  loyaltyLedger: { deleteMany: vi.fn() },
+  $transaction: vi.fn(async (ops: unknown[]) => ops),
+}));
+vi.mock('@/lib/prisma', () => ({ default: prismaMock }));
+
+import {
+  CustomerHasDebtError,
+  anonymizeCustomer,
+  anonymousPhoneMarker,
+} from './customer-privacy';
+
+describe('anonymizeCustomer', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    prismaMock.customer.findUnique.mockResolvedValue({
+      id: 'c1',
+      phone: '+2250700000000',
+      anonymizedAt: null,
+    });
+    prismaMock.order.count.mockResolvedValue(0);
+  });
+
+  it('refuse un client qui a une dette ouverte', async () => {
+    prismaMock.order.count.mockResolvedValue(2);
+    await expect(anonymizeCustomer('c1')).rejects.toBeInstanceOf(
+      CustomerHasDebtError
+    );
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('efface nom, téléphone et note des commandes sans les supprimer', async () => {
+    await anonymizeCustomer('c1');
+    expect(prismaMock.order.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { customerName: null, customerPhone: null, note: null },
+      })
+    );
+    expect(prismaMock.customer.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          phone: anonymousPhoneMarker('c1'),
+          name: null,
+          dateOfBirth: null,
+        }),
+      })
+    );
+    expect(prismaMock.loyaltyLedger.deleteMany).toHaveBeenCalled();
+  });
+
+  it('est idempotent sur une fiche déjà anonymisée', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({
+      id: 'c1',
+      phone: 'anon-c1',
+      anonymizedAt: new Date(),
+    });
+    const res = await anonymizeCustomer('c1');
+    expect(res.alreadyAnonymized).toBe(true);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+});

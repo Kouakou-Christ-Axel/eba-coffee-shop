@@ -21,6 +21,14 @@ export const CONSENT_STORAGE_KEY = 'eba-cookie-consent';
  */
 export const CONSENT_VERSION = 1;
 
+/**
+ * Durée de validité d'un choix : 13 mois (recommandation CNIL, reprise comme
+ * bonne pratique pour la loi ivoirienne 2013-450 : un consentement n'est pas
+ * perpétuel). Passé ce délai — ou sans horodatage exploitable — le visiteur
+ * est re-sollicité. Dupliqué dans consent-boot.tsx (script inline).
+ */
+export const CONSENT_MAX_AGE_MS = 13 * 30 * 24 * 60 * 60 * 1000;
+
 /** `pending` = aucun choix exploitable stocké → on affiche la bannière. */
 export type ConsentStatus = 'pending' | 'granted' | 'denied';
 
@@ -51,12 +59,14 @@ export function readConsent(): ConsentRecord | null {
     const record = parsed as Partial<ConsentRecord>;
     if (record.version !== CONSENT_VERSION) return null;
     if (typeof record.analytics !== 'boolean') return null;
+    if (typeof record.ts !== 'number' || record.ts <= 0) return null;
+    if (Date.now() - record.ts > CONSENT_MAX_AGE_MS) return null;
     return {
       version: CONSENT_VERSION,
       analytics: record.analytics,
       // `ads` a pu être ajouté après coup : on retombe sur `analytics`.
       ads: typeof record.ads === 'boolean' ? record.ads : record.analytics,
-      ts: typeof record.ts === 'number' ? record.ts : 0,
+      ts: record.ts,
     };
   } catch {
     return null;

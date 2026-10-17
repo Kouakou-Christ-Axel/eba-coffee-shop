@@ -19,6 +19,7 @@ import {
 } from '@/app/(public)/sondages/actions';
 import PollResultsSection from './poll-results-section';
 import PastrySuggestionForm from './pastry-suggestion-form';
+import { PrivacyNotice } from '@/components/(public)/legal/privacy-notice';
 
 const VOTER_TOKEN_KEY = 'eba_poll_voter_token';
 
@@ -222,6 +223,7 @@ function PollVoteSection({
             >
               {hasVoted ? 'Mettre à jour mon vote' : 'Voter'}
             </Button>
+            <PrivacyNotice kind="poll" />
           </form>
         ) : status === 'DRAFT' ? (
           <p className="mt-6 text-sm text-muted-foreground">

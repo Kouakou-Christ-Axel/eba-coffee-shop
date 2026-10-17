@@ -2,6 +2,7 @@ import prisma from '@/lib/prisma';
 import { customerPhoneKey } from '@/lib/phone';
 import { upsertCustomerForOrder } from '@/lib/customer-mutations';
 import { castVoteSchema } from '@/lib/schemas/poll';
+import { hashIp } from '@/lib/hash-ip';
 
 /** Enregistre (ou modifie) le bulletin d'un votant pour un sondage OPEN. */
 export async function castVote(
@@ -88,8 +89,11 @@ export async function castVote(
         voterPhone: phoneKey,
         voterToken,
         customerId,
-        ipAddress: meta?.ipAddress ?? null,
-        userAgent: meta?.userAgent ?? null,
+        // IP pseudonymisée, navigateur non conservé (minimisation, cf.
+        // config/data-protection.ts) : la colonne `userAgent` reste en base
+        // pour les anciens votes, que la purge efface.
+        ipAddress: hashIp(meta?.ipAddress),
+        userAgent: null,
       },
     });
   });

@@ -10,6 +10,7 @@ import { revalidateMenu } from '@/lib/mcp/http/revalidate';
 import type { McpTool } from '@/lib/mcp/tools/types';
 import type { UserRole } from '@/generated/prisma/client';
 import type { ToolDefinition } from '../openrouter';
+import { maskPhonesDeep } from './mask-pii';
 
 const RESULT_MAX_CHARS = 12_000;
 const DESCRIPTION_MAX_CHARS = 400;
@@ -125,8 +126,11 @@ export async function runAssistantTool(
   try {
     const data = await tool.handler(parsed.data);
     if (!tool.readOnly && !DRAFT_TOOLS.has(name)) revalidateMenu();
+    // Données personnelles : numéros masqués avant tout envoi au modèle.
     const text =
-      data === undefined || data === null ? 'OK' : JSON.stringify(data);
+      data === undefined || data === null
+        ? 'OK'
+        : JSON.stringify(maskPhonesDeep(data));
     return {
       ok: true,
       content:

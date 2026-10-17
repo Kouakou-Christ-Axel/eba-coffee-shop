@@ -58,9 +58,48 @@ export function shouldDropEvent(event: SentryEvent): boolean {
   );
 }
 
+// Les URLs de suivi (`/commande/<id>`, `/api/commandes/<id>`) portent un jeton
+// d'accès à la commande, et `?phone=` un numéro de client : ni l'un ni l'autre
+// ne doit quitter l'application vers un sous-traitant hors Côte d'Ivoire.
+const ORDER_ID_IN_PATH = /(\/(?:api\/)?commandes?\/)[^/?#]+/gi;
+
+/** Retire query string et identifiants de commande d'une URL (best-effort). */
+export function scrubUrl(rawUrl: string): string {
+  return rawUrl.split(/[?#]/)[0].replace(ORDER_ID_IN_PATH, '$1:id');
+}
+
+/**
+ * Minimisation des données envoyées à Sentry : pas de corps de requête, de
+ * cookies, de query string, d'IP ni d'e-mail utilisateur.
+ */
+export function scrubPii(event: SentryEvent): SentryEvent {
+  if (event.request) {
+    delete event.request.data;
+    delete event.request.cookies;
+    delete event.request.query_string;
+    if (event.request.headers) {
+      delete event.request.headers['cookie'];
+      delete event.request.headers['Cookie'];
+      delete event.request.headers['authorization'];
+      delete event.request.headers['x-forwarded-for'];
+    }
+    if (event.request.url) event.request.url = scrubUrl(event.request.url);
+  }
+  if (event.user) {
+    delete event.user.ip_address;
+    delete event.user.email;
+    delete event.user.username;
+  }
+  for (const crumb of event.breadcrumbs ?? []) {
+    const url = crumb.data?.url;
+    if (typeof url === 'string' && crumb.data) crumb.data.url = scrubUrl(url);
+  }
+  return event;
+}
+
 export const sentrySharedOptions: Parameters<typeof Sentry.init>[0] = {
   tracesSampleRate: process.env.NODE_ENV === 'development' ? 1.0 : 0.1,
   beforeSend(event) {
-    return shouldDropEvent(event) ? null : event;
+    return shouldDropEvent(event) ? null : scrubPii(event);
   },
 };

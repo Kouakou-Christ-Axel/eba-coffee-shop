@@ -13,15 +13,15 @@
 //     qu'APRÈS un « Tout accepter », ce qui vaut aussi pour la performance :
 //     le visiteur qui refuse ne paie pas les ~70 Ko du pixel.
 //
-// Conséquence assumée : un retrait du consentement (page /cookies) démonte le
-// `<Script>` mais ne « décharge » pas `fbq` déjà en mémoire — plus aucun
-// événement n'est émis par nos soins, et le rechargement de page repart propre.
+// Un retrait du consentement (page /cookies) démonte le `<Script>`, révoque
+// le consentement côté Meta (`fbq('consent','revoke')`) et efface `_fbp`/`_fbc`.
 
 import Script from 'next/script';
 import { usePathname } from 'next/navigation';
 import React from 'react';
 import { useConsentStore } from '@/lib/consent-store';
 import { readConsentStatus } from '@/lib/consent-storage';
+import { clearTrackingCookies } from '@/lib/analytics';
 
 declare global {
   interface Window {
@@ -76,6 +76,14 @@ export function MetaPixel({ pixelId }: { pixelId: string }) {
     }
     window.fbq?.('track', 'PageView');
   }, [isEnabled, pathname]);
+
+  // Retrait du consentement : on révoque côté Meta ET on efface les cookies,
+  // sans quoi `fbq` resterait actif en mémoire jusqu'au rechargement.
+  React.useEffect(() => {
+    if (!mounted || status === 'granted') return;
+    window.fbq?.('consent', 'revoke');
+    clearTrackingCookies();
+  }, [mounted, status]);
 
   if (!isEnabled) return null;
 

@@ -30,6 +30,13 @@ const optionalProfileUrl = z
     'URL invalide'
   );
 
+/**
+ * Identité légale FACULTATIVE : tant que le commerce n'est pas constitué en
+ * société (ou qu'une mention n'est pas connue), la chaîne vide s'affiche
+ * « à compléter » sur les pages légales. Rien n'est inventé.
+ */
+const legalField = z.string().trim().max(200);
+
 export const contactSettingsSchema = z.object({
   address: z.string().trim().min(1).max(200),
   district: z.string().trim().min(1).max(100),
@@ -54,6 +61,24 @@ export const contactSettingsSchema = z.object({
   youtubeUrl: optionalProfileUrl,
   hashtagLabel: z.string().trim().min(1).max(50),
   hashtagUrl: z.string().trim().url('URL invalide').max(300),
+  // Identité légale (mentions légales, politique de confidentialité).
+  legalName: legalField,
+  legalForm: legalField,
+  rccm: legalField,
+  ncc: legalField,
+  publicationDirector: legalField,
+  hostName: legalField,
+  /** N° de récépissé de déclaration / décision d'autorisation de l'ARTCI. */
+  artciReference: legalField,
+  /** Adresse dédiée à l'exercice des droits ; retombe sur `email` si vide. */
+  privacyEmail: z
+    .string()
+    .trim()
+    .max(200)
+    .refine(
+      (v) => v === '' || z.string().email().safeParse(v).success,
+      'Email invalide'
+    ),
 });
 
 export type ContactSettings = z.infer<typeof contactSettingsSchema>;
@@ -85,6 +110,14 @@ export const DEFAULT_CONTACT_SETTINGS: ContactSettings = {
   youtubeUrl: '',
   hashtagLabel: '#InstantEBA',
   hashtagUrl: 'https://www.instagram.com/explore/tags/InstantEBA/',
+  legalName: '',
+  legalForm: '',
+  rccm: '',
+  ncc: '',
+  publicationDirector: '',
+  hostName: '',
+  artciReference: '',
+  privacyEmail: '',
 };
 
 /** Ligne DB partielle → config effective (défauts si champ manquant/null). */

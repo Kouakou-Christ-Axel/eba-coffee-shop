@@ -427,6 +427,11 @@ model Customer {
   trustedSince DateTime?
   trustedNote  String?
 
+  // Droit à l'effacement / fin de durée de conservation : renseigné quand la
+  // fiche a été anonymisée (lib/customer-privacy.ts). Le téléphone est alors
+  // remplacé par un marqueur `anon-<id>` pour respecter l'unicité.
+  anonymizedAt DateTime?
+
   orders    Order[]
   rewards   LoyaltyReward[]
   ledger    LoyaltyLedger[]
@@ -532,6 +537,16 @@ model ContactSettings {
   youtubeUrl               String   @default("")
   hashtagLabel             String
   hashtagUrl               String
+  // Identité légale — "" = non renseigné (affiché « à compléter »). Cf.
+  // lib/contact-settings.ts et les pages /mentions-legales, /confidentialite.
+  legalName                String   @default("")
+  legalForm                String   @default("")
+  rccm                     String   @default("")
+  ncc                      String   @default("")
+  publicationDirector      String   @default("")
+  hostName                 String   @default("")
+  artciReference           String   @default("")
+  privacyEmail             String   @default("")
   updatedAt                DateTime @updatedAt
 
   @@map("contact_settings")

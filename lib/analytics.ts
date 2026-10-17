@@ -157,8 +157,11 @@ export function trackContactClick(
  * configuré) : le no-op est alors le comportement correct.
  */
 export function updateConsent(accepted: boolean): void {
-  if (typeof window === 'undefined' || typeof window.gtag !== 'function')
-    return;
+  if (typeof window === 'undefined') return;
+  // Un retrait doit être effectif : les cookies de mesure déjà posés sont
+  // effacés, pas seulement « ignorés » (loi 2013-450 : retrait du consentement).
+  if (!accepted) clearTrackingCookies();
+  if (typeof window.gtag !== 'function') return;
   const value = accepted ? 'granted' : 'denied';
   window.gtag('consent', 'update', {
     ad_storage: value,
@@ -167,4 +170,34 @@ export function updateConsent(accepted: boolean): void {
     analytics_storage: value,
   });
   window.gtag('set', 'ads_data_redaction', !accepted);
+}
+
+/** Cookies de mesure/publicité posés après consentement (GA4, Meta). */
+const TRACKING_COOKIE = /^(_ga(_.+)?|_gid|_gat.*|_fbp|_fbc)$/;
+
+/**
+ * Efface les cookies de mesure du domaine (et de son domaine parent, où GA4
+ * les écrit). Best-effort : un cookie `HttpOnly` ou d'un autre domaine ne
+ * serait de toute façon pas lisible ici.
+ */
+export function clearTrackingCookies(): void {
+  if (typeof document === 'undefined') return;
+  try {
+    const host = window.location.hostname;
+    const parts = host.split('.');
+    const domains = new Set<string | undefined>([undefined, host]);
+    if (parts.length > 2) domains.add(parts.slice(-2).join('.'));
+    domains.add(parts.length >= 2 ? `.${parts.slice(-2).join('.')}` : host);
+    for (const cookie of document.cookie.split(';')) {
+      const name = cookie.split('=')[0]?.trim();
+      if (!name || !TRACKING_COOKIE.test(name)) continue;
+      for (const domain of domains) {
+        document.cookie = `${name}=; Max-Age=0; path=/${
+          domain ? `; domain=${domain}` : ''
+        }`;
+      }
+    }
+  } catch {
+    /* noop */
+  }
 }

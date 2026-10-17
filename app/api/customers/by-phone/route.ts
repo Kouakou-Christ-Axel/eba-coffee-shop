@@ -14,12 +14,17 @@
 import { NextResponse } from 'next/server';
 import { requireCashier } from '@/lib/auth-helpers';
 import { getCustomerByPhone } from '@/lib/customers';
+import { allowCustomerLookup } from '@/lib/enumeration-rate-limit';
 
 export async function GET(req: Request) {
+  let userId: string;
   try {
-    await requireCashier();
+    userId = (await requireCashier()).user.id;
   } catch {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+  }
+  if (!allowCustomerLookup(`by-phone:${userId}`)) {
+    return NextResponse.json({ error: 'Trop de requêtes' }, { status: 429 });
   }
 
   const phone = new URL(req.url).searchParams.get('phone')?.trim() ?? '';
