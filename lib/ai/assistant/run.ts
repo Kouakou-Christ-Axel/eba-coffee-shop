@@ -30,6 +30,27 @@ const REFUSED = "Refusé par l'utilisateur : n'exécute pas cette action.";
 const REPEATED =
   "Appel identique déjà effectué : le résultat serait le même. Change d'approche (autre outil, autres arguments) ou pose une question à l'utilisateur.";
 
+// Résultats d'outils des tours précédents : le modèle n'en a plus besoin en
+// entier, et chaque octet est refacturé à chaque étape.
+const OLD_TOOL_RESULT_MAX_CHARS = 1_000;
+
+/** Tronque (pour l'envoi seulement) les résultats d'outils antérieurs au dernier message utilisateur. */
+export function compactOldToolResults(
+  messages: StoredMessage[]
+): StoredMessage[] {
+  const lastUser = messages.findLastIndex((m) => m.role === 'user');
+  return messages.map((m, i) =>
+    m.role === 'tool' &&
+    i < lastUser &&
+    m.content.length > OLD_TOOL_RESULT_MAX_CHARS
+      ? {
+          ...m,
+          content: `${m.content.slice(0, OLD_TOOL_RESULT_MAX_CHARS)}… [résultat ancien tronqué]`,
+        }
+      : m
+  );
+}
+
 type Actor = { name: string | null; role: UserRole };
 
 function parseArgs(raw: string): unknown {
@@ -137,7 +158,7 @@ export async function runAssistant(
             role: 'system',
             content: systemPrompt({ name: actor.name, role: actor.role }),
           },
-          ...(messages as ChatMessage[]),
+          ...(compactOldToolResults(messages) as ChatMessage[]),
         ],
         tools: toolDefs,
       },
