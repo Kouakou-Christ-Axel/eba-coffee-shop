@@ -127,7 +127,7 @@ export function CheckoutPage() {
         </div>
         {loyaltyDiscount > 0 && (
           <div className="mt-3 flex justify-between border-t border-foreground/10 pt-3 text-sm">
-            <span className="text-foreground/60">Récompense fidélité 🎁</span>
+            <span className="text-foreground/60">Réduction fidélité 🎁</span>
             <span className="font-medium text-primary">
               −{priceFormatter.format(Math.min(loyaltyDiscount, totalPrice))}
               &nbsp;F

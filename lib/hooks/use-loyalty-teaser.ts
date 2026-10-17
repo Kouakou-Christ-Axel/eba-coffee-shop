@@ -8,17 +8,26 @@
 // serveur : le compteur de tampons n'est jamais exposé au client (cf.
 // app/api/loyalty-info/route.ts). `null` = rien à afficher (programme
 // désactivé, téléphone pas encore identifiable, ou erreur réseau).
+// `upcomingReward` = réduction que CETTE commande débloquera (le serveur
+// l'applique d'office à la création) : le récapitulatif la déduit d'avance.
 
 import { useEffect, useState } from 'react';
 import { ORDER_CUSTOMER_PHONE_MAX } from '@/config/constants';
 
 const DEBOUNCE_MS = 500;
 
+export type LoyaltyTeaser = {
+  message: string | null;
+  upcomingReward: { capAmount: number } | null;
+};
+
+const EMPTY: LoyaltyTeaser = { message: null, upcomingReward: null };
+
 export function useLoyaltyTeaser(
   phone: string,
   cartTotal: number
-): string | null {
-  const [message, setMessage] = useState<string | null>(null);
+): LoyaltyTeaser {
+  const [teaser, setTeaser] = useState<LoyaltyTeaser>(EMPTY);
 
   useEffect(() => {
     const trimmed = phone.trim();
@@ -30,7 +39,7 @@ export function useLoyaltyTeaser(
       () => {
         if (cancelled) return;
         if (!valid) {
-          setMessage(null);
+          setTeaser(EMPTY);
           return;
         }
         const params = new URLSearchParams({
@@ -39,11 +48,20 @@ export function useLoyaltyTeaser(
         });
         fetch(`/api/loyalty-info?${params.toString()}`)
           .then((r) => (r.ok ? r.json() : Promise.reject()))
-          .then((data: { message?: string | null }) => {
-            if (!cancelled) setMessage(data.message ?? null);
-          })
+          .then(
+            (data: {
+              message?: string | null;
+              upcomingReward?: { capAmount: number } | null;
+            }) => {
+              if (cancelled) return;
+              setTeaser({
+                message: data.message ?? null,
+                upcomingReward: data.upcomingReward ?? null,
+              });
+            }
+          )
           .catch(() => {
-            if (!cancelled) setMessage(null);
+            if (!cancelled) setTeaser(EMPTY);
           });
       },
       // Reset immédiat quand le numéro redevient invalide (champ vidé).
@@ -56,5 +74,5 @@ export function useLoyaltyTeaser(
     };
   }, [phone, cartTotal]);
 
-  return message;
+  return teaser;
 }

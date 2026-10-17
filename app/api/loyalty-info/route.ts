@@ -4,8 +4,9 @@
 // GET /api/loyalty-info?phone=07… — ajoute la récompense utilisable du client
 // résolu par téléphone (checkout en ligne, sans compte).
 // GET /api/loyalty-info?phone=07…&cartTotal=2500 — ajoute aussi `message`, le
-// texte incitatif fidélité du récapitulatif de commande (avant paiement),
-// calculé côté serveur (jamais côté client, pour éviter toute manipulation).
+// texte incitatif fidélité du récapitulatif de commande (avant paiement) et
+// `upcomingReward` ({ capAmount } | null), la réduction que cette commande
+// débloquera et que le serveur appliquera d'office ; calculés côté serveur (jamais côté client, pour éviter toute manipulation).
 //
 // N'expose que le strict nécessaire :
 //   - sans `phone` : { enabled, minOrderAmount } pour le message "plus que X
@@ -23,7 +24,12 @@ import {
   getAvailableRewardForPhone,
   getLoyaltyCardByPhone,
 } from '@/lib/loyalty';
-import { computeCheckoutLoyaltyMessage } from '@/lib/loyalty-messaging';
+import {
+  computeCheckoutLoyaltyMessage,
+  computeUpcomingRewardMessage,
+} from '@/lib/loyalty-messaging';
+import { computeUpcomingReward } from '@/lib/loyalty-compute';
+import { todayDailyDate } from '@/lib/daily-numbering';
 import { ORDER_CUSTOMER_PHONE_MAX } from '@/config/constants';
 
 export const dynamic = 'force-dynamic';
@@ -70,13 +76,24 @@ export async function GET(req: NextRequest) {
           capAmount: card.availableRewards[0].capAmount,
         }
       : null;
-    const message = computeCheckoutLoyaltyMessage({
-      cartTotal,
+    // Récompense débloquée par CETTE commande : le serveur l'applique d'office
+    // à la création, on l'annonce donc dans le récapitulatif (montant seul).
+    const upcomingReward = computeUpcomingReward({
       stampCount: card.stampCount,
+      lastStampDate: card.customer.lastStampDate,
+      today: todayDailyDate(),
+      cartTotal,
       settings,
     });
+    const message = upcomingReward
+      ? computeUpcomingRewardMessage(upcomingReward.capAmount)
+      : computeCheckoutLoyaltyMessage({
+          cartTotal,
+          stampCount: card.stampCount,
+          settings,
+        });
 
-    return NextResponse.json({ ...base, reward, message });
+    return NextResponse.json({ ...base, reward, upcomingReward, message });
   } catch {
     return NextResponse.json(
       { error: 'Impossible de charger les réglages de fidélité' },
