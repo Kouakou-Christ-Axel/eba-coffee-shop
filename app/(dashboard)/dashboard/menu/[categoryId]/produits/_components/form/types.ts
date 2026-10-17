@@ -41,7 +41,7 @@ export const EMPTY: ProductFormInitial = {
   scheduleId: null,
   advanceOrderDays: null,
   requiresDeposit: false,
-  preorderable: true,
+  preorderable: false,
   weeklySpecials: [],
 };
 

@@ -37,7 +37,7 @@ export async function createProduct(input: ProductInput) {
       scheduleId: data.scheduleId ?? null,
       advanceOrderDays: data.advanceOrderDays ?? null,
       requiresDeposit: data.requiresDeposit ?? false,
-      preorderable: data.preorderable ?? true,
+      preorderable: data.preorderable ?? false,
       supplementGroups: {
         create: data.supplementGroups.map((g, gi) => ({
           name: g.name,

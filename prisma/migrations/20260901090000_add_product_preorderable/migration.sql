@@ -1,4 +1,4 @@
 -- AlterTable
--- Précommande autorisée par produit : true (défaut) = comportement historique,
--- false = commandable uniquement pour le jour même côté public.
-ALTER TABLE "Product" ADD COLUMN "preorderable" BOOLEAN NOT NULL DEFAULT true;
+-- Précommande autorisée par produit. Défaut false : aucun produit n'est
+-- précommandable tant qu'on ne l'a pas activé (les produits existants aussi).
+ALTER TABLE "Product" ADD COLUMN "preorderable" BOOLEAN NOT NULL DEFAULT false;
