@@ -104,6 +104,7 @@ export function buildReorderPlan(
         advanceOrderDays: product.advanceOrderDays,
         availableDays: product.availableDays,
         weeklySpecialPeriods: product.weeklySpecialPeriods,
+        preorderable: product.preorderable,
       },
       quantity: Math.max(1, item.quantity),
       maxQuantity: product.remaining ?? null,

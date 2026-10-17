@@ -44,9 +44,24 @@ export function isOrderableNow(product: Product, now: Date = new Date()) {
   );
 }
 
-/** Le produit peut-il être commandé POUR UN AUTRE JOUR ? */
+/**
+ * La précommande (retrait un jour civil ultérieur) est-elle permise pour ce
+ * produit ? Un délai `advanceOrderDays` l'emporte sur le drapeau : un produit
+ * qui ne se commande qu'à l'avance ne peut pas, du même coup, être interdit
+ * de précommande.
+ */
+export function isPreorderable(item: {
+  preorderable?: boolean;
+  advanceOrderDays?: number | null;
+}): boolean {
+  return item.preorderable !== false || (item.advanceOrderDays ?? 0) > 0;
+}
+
+/** Le produit peut-il être commandé POUR UN AUTRE JOUR ? Épuisé aujourd'hui,
+ * il ne l'est que s'il accepte la précommande. */
 export function canOrderForLaterDay(product: Product, now: Date = new Date()) {
   return (
+    (product.soldOut !== true || isPreorderable(product)) &&
     !isPausedNow(product.unavailableUntil, now) &&
     isAvailableToday(product.availableDays, now) &&
     isWithinAnyPeriod(product.weeklySpecialPeriods, now)

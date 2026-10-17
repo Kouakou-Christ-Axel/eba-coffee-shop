@@ -16,7 +16,11 @@
 import prisma from '@/lib/prisma';
 import type { CartItem } from '@/lib/cart-store';
 import { intersectAvailableDays } from '@/lib/menu';
-import { isAvailableToday, isWithinAnyPeriod } from '@/lib/supplements';
+import {
+  isAvailableToday,
+  isPreorderable,
+  isWithinAnyPeriod,
+} from '@/lib/supplements';
 import { formatLocalDateOnly } from '@/lib/timezone';
 import {
   optionKey,
@@ -161,6 +165,46 @@ export function maxRequiredAdvanceOrderDays(
     (max, i) => Math.max(max, snapshot.get(i.productId) ?? 0),
     0
   );
+}
+
+// ─── Précommande interdite ─────────────────────────────────────────────────
+//
+// `Product.preorderable = false` : le produit ne se retire que le jour même.
+// Même asymétrie que ci-dessus : contrôlé pour le flux public uniquement, la
+// caisse garde la main. Un délai `advanceOrderDays` (produit ou catégorie)
+// l'emporte, voir `isPreorderable`.
+
+/**
+ * Noms des produits de `items` qui refusent la précommande, relus en base
+ * (jamais depuis le snapshot du panier). Une seule requête, pas de N+1 ; vide
+ * si tout se précommande.
+ */
+export async function findNonPreorderableNames(
+  items: CartItem[]
+): Promise<string[]> {
+  const productIds = [...new Set(items.map((i) => i.productId))];
+  if (productIds.length === 0) return [];
+
+  const rows = await prisma.product.findMany({
+    where: { id: { in: productIds }, preorderable: false },
+    select: {
+      name: true,
+      advanceOrderDays: true,
+      category: { select: { advanceOrderDays: true } },
+    },
+  });
+  return rows
+    .filter(
+      (p) =>
+        !isPreorderable({
+          preorderable: false,
+          advanceOrderDays: Math.max(
+            p.advanceOrderDays ?? 0,
+            p.category.advanceOrderDays ?? 0
+          ),
+        })
+    )
+    .map((p) => p.name);
 }
 
 // ─── Planning récurrent / « spécialité de la semaine » obligatoires ───────

@@ -80,6 +80,7 @@ export default async function EditProductPage({
     scheduleId: product.scheduleId,
     advanceOrderDays: product.advanceOrderDays,
     requiresDeposit: product.requiresDeposit,
+    preorderable: product.preorderable,
     weeklySpecials,
     supplementGroups: product.supplementGroups.map((g) => ({
       name: g.name,

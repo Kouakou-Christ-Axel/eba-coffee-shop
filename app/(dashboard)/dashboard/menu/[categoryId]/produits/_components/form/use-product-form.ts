@@ -97,6 +97,9 @@ export function useProductForm({
   const [requiresDeposit, setRequiresDeposit] = useState(
     initial?.requiresDeposit ?? EMPTY.requiresDeposit
   );
+  const [preorderable, setPreorderable] = useState(
+    initial?.preorderable ?? EMPTY.preorderable
+  );
 
   const priceNum = amountOrZero(price);
   const coutMatiereNum = amountOrZero(coutMatiere);
@@ -129,6 +132,7 @@ export function useProductForm({
     scheduleId,
     advanceOrderDays,
     requiresDeposit,
+    preorderable,
   });
   const initialSnapshotValue = useMemo(
     () => initialSnapshot(initial),
@@ -203,6 +207,7 @@ export function useProductForm({
         scheduleId,
         advanceOrderDays,
         requiresDeposit,
+        preorderable,
       };
       const result =
         isEdit && initial?.id
@@ -278,6 +283,8 @@ export function useProductForm({
     setAdvanceOrderDays,
     requiresDeposit,
     setRequiresDeposit,
+    preorderable,
+    setPreorderable,
     isPending,
     submitError,
     isDirty,

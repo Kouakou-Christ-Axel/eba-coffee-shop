@@ -36,6 +36,8 @@ export function DisponibiliteTab({
     setAdvanceOrderDays,
     requiresDeposit,
     setRequiresDeposit,
+    preorderable,
+    setPreorderable,
   } = form;
   return (
     <TabsContent value="disponibilite" className="space-y-4">
@@ -72,6 +74,22 @@ export function DisponibiliteTab({
               }
             />
           </Field>
+          <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+            <div>
+              <Label htmlFor="preorderable">Précommande autorisée</Label>
+              <p className="text-xs text-muted-foreground">
+                Désactivé : le produit ne se commande en ligne que pour le jour
+                même (pas de retrait demain ou plus tard, même s&apos;il est
+                épuisé). Sans effet si une commande à l&apos;avance est exigée
+                ci-dessus.
+              </p>
+            </div>
+            <Switch
+              id="preorderable"
+              checked={preorderable}
+              onCheckedChange={setPreorderable}
+            />
+          </div>
           <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
             <div>
               <Label htmlFor="requires-deposit">

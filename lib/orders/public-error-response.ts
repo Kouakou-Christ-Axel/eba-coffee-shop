@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server';
 import {
   AdvanceOrderRequiredError,
+  PreorderNotAllowedError,
   ScheduleUnavailableError,
   SoldOutTodayError,
 } from '@/lib/orders';
@@ -44,6 +45,12 @@ export function publicOrderErrorResponse(err: unknown, context: string) {
   if (err instanceof AdvanceOrderRequiredError) {
     return publicOrderError(400, 'ADVANCE_ORDER_REQUIRED', err.message, {
       requiredDays: err.requiredDays,
+    });
+  }
+  // Retrait un autre jour demandé pour un article qui refuse la précommande.
+  if (err instanceof PreorderNotAllowedError) {
+    return publicOrderError(400, 'PREORDER_NOT_ALLOWED', err.message, {
+      productNames: err.productNames,
     });
   }
   // Article hors planning récurrent / fenêtre « spécialité de la semaine ».

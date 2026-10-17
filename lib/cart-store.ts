@@ -62,6 +62,11 @@ export type CartItem = {
   // gâteau grand format) au moment de l'ajout au panier — voir lib/deposits.ts.
   // Absent/false = pas d'acompte exigé.
   requiresDeposit?: boolean;
+  // Snapshot de `Product.preorderable` : `false` = ligne du jour uniquement
+  // (voir `sameDayOnlyItems`, lib/cart-preorder.ts). Absent = autorisée.
+  // Confort UI comme `advanceOrderDays` : le serveur relit la base
+  // (`findNonPreorderableItems`, lib/orders/availability.ts).
+  preorderable?: boolean;
 };
 
 /** Ligne à ajouter : le store attribue lui-même `cartId` et `quantity`. */

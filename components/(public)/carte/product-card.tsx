@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { Button, Chip } from '@heroui/react';
 import { CalendarClock, Check, Plus } from 'lucide-react';
 import { priceFormatter, type Product } from '@/config/menu';
+import { isPreorderable } from '@/lib/supplements';
 import { useQuickAdd } from './_components/use-quick-add';
 import {
   formatAbidjanShortDate,
@@ -75,6 +76,9 @@ function ProductCard({ product }: ProductCardProps) {
   // tant qu'il n'est pas dans sa fenêtre — décision volontaire, distincte de
   // `paused`/`soldOut` (prix toujours affiché dans ces deux cas).
   const hidePrice = outOfSchedule || weeklyGated;
+  // Précommande refusée : épuisé = vraiment épuisé (pas de « dès demain »), et
+  // sinon un rappel que le retrait se fait le jour même.
+  const noPreorder = !isPreorderable(product);
 
   return (
     <>
@@ -148,6 +152,7 @@ function ProductCard({ product }: ProductCardProps) {
             weeklyGated ||
             outOfSchedule ||
             lowStock ||
+            noPreorder ||
             (product.advanceOrderDays ?? 0) > 0) && (
             // `min-w-0` + troncature : un Chip HeroUI est en `min-w-min`, donc
             // un libellé long (« Retour 4 août · 01h52 ») élargissait la carte
@@ -171,7 +176,12 @@ function ProductCard({ product }: ProductCardProps) {
                   `warning` et non `danger` : ce n'est pas un refus, c'est une
                   précision de délai — le produit reste commandable, pour un
                   autre jour. */}
-              {soldOut && (
+              {soldOut && noPreorder && (
+                <Chip color="default" variant="flat" size="sm">
+                  Épuisé aujourd’hui
+                </Chip>
+              )}
+              {soldOut && !noPreorder && (
                 <Chip color="warning" variant="flat" size="sm">
                   Précommande · dès demain
                 </Chip>
@@ -208,6 +218,11 @@ function ProductCard({ product }: ProductCardProps) {
               {/* Purement informatif : contrairement aux chips ci-dessus, ne
                   signale PAS une indisponibilité — le produit reste
                   commandable normalement, voir formatAdvanceOrderLabel. */}
+              {noPreorder && !soldOut && !paused && (
+                <Chip color="default" variant="flat" size="sm">
+                  Retrait le jour même
+                </Chip>
+              )}
               {(product.advanceOrderDays ?? 0) > 0 && (
                 <Chip color="default" variant="flat" size="sm">
                   {formatAdvanceOrderLabel(product.advanceOrderDays!)}

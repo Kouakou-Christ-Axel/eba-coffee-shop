@@ -90,6 +90,9 @@ export type Product = {
   // minimum au checkout (voir `MIN_DEPOSIT_PERCENT`, config/constants.ts, et
   // `lib/deposits.ts`). `undefined`/absent = pas d'acompte exigé.
   requiresDeposit?: boolean;
+  // Précommande (retrait un autre jour) refusée si `false` ; absent = autorisée.
+  // Voir `isPreorderable` (lib/supplements.ts).
+  preorderable?: boolean;
 };
 
 /**

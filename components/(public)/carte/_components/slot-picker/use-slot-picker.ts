@@ -5,6 +5,7 @@ import { minAllowedPickupDateString } from '@/lib/supplements';
 import { pickDefaultSlot } from '@/lib/pickup-slots';
 import { DEFERRED_PICKUP_DEFAULT_TIME } from '@/config/constants';
 import { precommandeDay } from '@/lib/cart-precommande';
+import { sameDayOnlyItems } from '@/lib/cart-preorder';
 import { dayLabel, isCartAvailableOn, isOpenNow, slotDayKey } from './helpers';
 import type { SlotPickerProps } from './types';
 
@@ -49,7 +50,14 @@ export function useSlotPicker({
       ),
     [allDays, items]
   );
+  // Un article qui refuse la précommande ferme tous les autres jours.
+  const sameDayOnly = useMemo(
+    () => sameDayOnlyItems(items).length > 0,
+    [items]
+  );
   const days = useMemo(() => {
+    if (sameDayOnly)
+      return scheduleFilteredDays.filter((d) => d.date === today);
     // Précommande pure : un seul jour possible, TOUJOURS demain.
     if (precommandePure) {
       const day = precommandeDay();
@@ -58,7 +66,13 @@ export function useSlotPicker({
     return minAllowedDate
       ? scheduleFilteredDays.filter((d) => d.date >= minAllowedDate)
       : scheduleFilteredDays;
-  }, [scheduleFilteredDays, minAllowedDate, precommandePure]);
+  }, [
+    scheduleFilteredDays,
+    minAllowedDate,
+    precommandePure,
+    sameDayOnly,
+    today,
+  ]);
   const scheduleRestricted = scheduleFilteredDays.length < allDays.length;
   const todayRanges = allDays.find((d) => d.date === today)?.ranges ?? [];
   const cartAvailableNow = isCartAvailableOn(items);
@@ -99,6 +113,7 @@ export function useSlotPicker({
     minAllowedDate,
     days,
     scheduleRestricted,
+    sameDayOnly,
     cartAvailableNow,
     openNow,
     selectedDay,

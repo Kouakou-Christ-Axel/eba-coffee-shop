@@ -44,6 +44,7 @@ export function mapCheckoutError(
       };
     case 'ADVANCE_ORDER_REQUIRED':
     case 'SCHEDULE_UNAVAILABLE':
+    case 'PREORDER_NOT_ALLOWED':
       return {
         ok: false,
         code: data.code,

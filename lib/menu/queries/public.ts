@@ -98,6 +98,8 @@ export async function getMenu(): Promise<MenuCategory[]> {
             categoryAdvanceOrderDays
           ) ?? undefined,
         requiresDeposit: p.requiresDeposit || undefined,
+        // Émis seulement quand la précommande est refusée (absent = autorisée).
+        preorderable: p.preorderable ? undefined : false,
         weeklySpecialPeriods: p.weeklySpecials.map((w) => ({
           startDate: formatLocalDateOnly(w.startDate),
           endDate: formatLocalDateOnly(w.endDate),

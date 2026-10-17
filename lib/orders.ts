@@ -2,6 +2,7 @@
 
 export {
   AdvanceOrderRequiredError,
+  PreorderNotAllowedError,
   ScheduleUnavailableError,
   SoldOutTodayError,
 } from './orders/core/errors';

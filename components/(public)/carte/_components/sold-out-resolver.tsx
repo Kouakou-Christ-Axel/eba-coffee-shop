@@ -31,6 +31,7 @@ import { CalendarClock, Check } from 'lucide-react';
 import type { CartItem } from '@/lib/cart-store';
 import type { SoldOutLine } from '@/lib/schemas/order';
 import type { MenuCategory } from '@/config/menu';
+import { isPreorderable } from '@/lib/supplements';
 import { ResolveRow } from './sold-out/resolve-row';
 import type { ReplaceHandler } from './sold-out/types';
 import { useMenuWhenOpen } from './sold-out/use-menu-when-open';
@@ -85,6 +86,12 @@ export default function SoldOutResolver({
     return item && !item.soldOutToday && !reduced.has(l.cartId);
   });
   const resolved = pending.length === 0;
+  // « Retrait demain » est impossible dès qu'un article refuse la précommande :
+  // il ne reste alors que remplacer, réduire ou retirer.
+  const canDeferAll = pending.every((l) => {
+    const item = byCartId.get(l.cartId);
+    return !item || isPreorderable(item);
+  });
   const productIdsInCart = items.map((i) => i.productId);
 
   return (
@@ -152,7 +159,7 @@ export default function SoldOutResolver({
             >
               Valider ma commande
             </Button>
-          ) : (
+          ) : canDeferAll ? (
             <Button
               variant="bordered"
               size="lg"
@@ -164,6 +171,11 @@ export default function SoldOutResolver({
             >
               Tout garder, retrait à partir de demain
             </Button>
+          ) : (
+            <p className="text-center text-xs text-foreground/60">
+              Un de ces articles ne peut pas être précommandé : remplace-le ou
+              retire-le pour commander aujourd’hui.
+            </p>
           )}
         </ModalFooter>
       </ModalContent>

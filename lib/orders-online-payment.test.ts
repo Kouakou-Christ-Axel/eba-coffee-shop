@@ -48,6 +48,7 @@ vi.mock('@/lib/orders/availability', () => ({
   maxRequiredAdvanceOrderDays: vi.fn().mockReturnValue(0),
   fetchScheduleSnapshot: vi.fn().mockResolvedValue({}),
   findScheduleBlockedItem: vi.fn().mockReturnValue(null),
+  findNonPreorderableNames: vi.fn().mockResolvedValue([]),
 }));
 // Retrait différé : le contrôle de stock du jour est sans objet ici.
 vi.mock('@/lib/orders/scheduling', () => ({

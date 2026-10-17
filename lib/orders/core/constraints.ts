@@ -6,12 +6,14 @@ import {
   maxRequiredAdvanceOrderDays,
   fetchScheduleSnapshot,
   findScheduleBlockedItem,
+  findNonPreorderableNames,
 } from '@/lib/orders/availability';
 import { isDeferredPickup } from '@/lib/orders/scheduling';
 import { isPickupDateAllowed } from '@/lib/supplements';
 import type { CartItem } from '@/lib/cart-store';
 import {
   AdvanceOrderRequiredError,
+  PreorderNotAllowedError,
   ScheduleUnavailableError,
   SoldOutTodayError,
 } from './errors';
@@ -30,6 +32,12 @@ export async function assertPublicOrderConstraints(
     !isPickupDateAllowed(requiredAdvanceDays, pickupTime)
   ) {
     throw new AdvanceOrderRequiredError(requiredAdvanceDays);
+  }
+
+  // Retrait un autre jour : tous les articles doivent accepter la précommande.
+  if (isDeferredPickup(pickupTime)) {
+    const refused = await findNonPreorderableNames(items);
+    if (refused.length > 0) throw new PreorderNotAllowedError(refused);
   }
 
   const scheduleSnapshot = await fetchScheduleSnapshot(items);
