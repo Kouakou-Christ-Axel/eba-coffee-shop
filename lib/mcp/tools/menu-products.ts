@@ -26,23 +26,14 @@ export const menuProductsTools: McpTool[] = [
     toolset: 'menu',
     title: 'Créer un produit',
     description:
-      'Crée un produit dans une catégorie (via `categoryId`). Les prix et coûts ' +
-      '(`coutMatiere`, `coutEmballage`) sont en francs CFA entiers. ' +
-      '`supplementGroups` peut être un tableau vide. Chaque groupe a un `type` ' +
-      '∈ single (un choix) / multiple (cases à cocher) / quantity (répartition ' +
-      'd’une quantité entre options, ex. 3 parts sur 3 goûts), et peut poser ' +
-      '`minSelect`/`maxSelect` (bornes sur le nombre d’options cochées ou la ' +
-      'quantité totale répartie ; égaux = quantité exacte). Chaque groupe et ' +
-      'chaque option (« goût ») accepte un drapeau `available` (défaut true) : ' +
-      'passé à false, l’élément reste configuré mais n’est plus proposé côté ' +
-      'client. ' +
-      '`imageUrl` accepte un ' +
-      'chemin local (`/uploads/products/...`, obtenu via `set_product_image`) ou ' +
-      'une URL http(s) ; pour téléverser un fichier, utilise plutôt ' +
-      '`set_product_image`. `scheduleId` (optionnel) assigne un planning ' +
-      'récurrent (voir `list_product_schedules`) : le produit n’est alors ' +
-      'commandable que les jours du planning (combiné par intersection avec ' +
-      'celui de sa catégorie s’il en a un) — absent = tous les jours.',
+      'Crée un produit dans la catégorie `categoryId`. Prix et coûts en FCFA ' +
+      'entiers. `supplementGroups` peut être `[]`. Groupe : `type` single ' +
+      '(un choix) / multiple (cases) / quantity (répartition d’une quantité ' +
+      'entre options), bornes `minSelect`/`maxSelect` (égaux = quantité ' +
+      'exacte) ; `available:false` sur un groupe ou une option le retire de la ' +
+      'carte sans le supprimer. `imageUrl` : chemin `/uploads/...` ou URL ' +
+      'http(s) (pour un fichier : `set_product_image`). `scheduleId` : ' +
+      'planning récurrent (`list_product_schedules`), absent = tous les jours.',
     inputSchema: productInputSchema,
     readOnly: false,
     handler: (args) =>
