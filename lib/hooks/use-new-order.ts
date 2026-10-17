@@ -12,6 +12,7 @@ import {
   type CartItemSupplement,
 } from '@/lib/cart-store';
 import type { OrderType } from '@/generated/prisma/client';
+import { upcomingRewardDiscount } from '@/lib/loyalty-compute';
 import { isDeferredPickup } from '@/lib/orders/scheduling';
 import type { ShortageLine } from '@/lib/orders/shortage';
 import type { OrderDraftSnapshot } from '@/lib/parked-orders-store';
@@ -96,7 +97,12 @@ export function useNewOrder(opts?: UseNewOrderOptions) {
   const loyaltyDiscount = selectedReward
     ? Math.min(selectedReward.capAmount, totalPrice)
     : 0;
-  const totalDue = totalPrice - loyaltyDiscount;
+  // Récompense débloquée par CETTE commande : le serveur l'applique d'office,
+  // sauf si une récompense acquise est déjà utilisée.
+  const upcomingDiscount = selectedReward
+    ? 0
+    : upcomingRewardDiscount(loyaltyCard, totalPrice);
+  const totalDue = totalPrice - loyaltyDiscount - upcomingDiscount;
 
   function addToCart(product: Product, supplements: CartItemSupplement[]) {
     setItems((prev) => addItem(prev, product, supplements));

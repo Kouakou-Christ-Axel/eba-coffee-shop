@@ -95,3 +95,20 @@ export function computeUpcomingReward(params: {
   const reward = computeStampAward(stampCount, settings).rewards[0];
   return reward ? { capAmount: reward.capAmount } : null;
 }
+
+/**
+ * Réduction à venir pour un total donné, à partir de ce que la caisse a déjà
+ * en main (`nextStampReward` : récompense que le prochain tampon débloquera,
+ * déjà filtrée par la règle 1 tampon/jour). `netTotal` = total après une
+ * récompense déjà acquise, comme testé par `awardLoyaltyForOrder`.
+ */
+export function upcomingRewardDiscount(
+  card: {
+    nextStampReward: { capAmount: number } | null;
+    minOrderAmount: number;
+  } | null,
+  netTotal: number
+): number {
+  if (!card?.nextStampReward || netTotal < card.minOrderAmount) return 0;
+  return Math.min(card.nextStampReward.capAmount, netTotal);
+}

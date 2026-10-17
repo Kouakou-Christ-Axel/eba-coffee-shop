@@ -4,7 +4,10 @@
 // ce que `awardLoyaltyForOrder` appliquera d'office à la création.
 
 import { describe, expect, it } from 'vitest';
-import { computeUpcomingReward } from './loyalty-compute';
+import {
+  computeUpcomingReward,
+  upcomingRewardDiscount,
+} from './loyalty-compute';
 
 const TODAY = new Date('2026-10-17T00:00:00.000Z');
 const settings = {
@@ -60,5 +63,22 @@ describe('computeUpcomingReward', () => {
         settings: { ...settings, enabled: false },
       })
     ).toBeNull();
+  });
+});
+
+describe('upcomingRewardDiscount', () => {
+  const card = { nextStampReward: { capAmount: 2000 }, minOrderAmount: 2000 };
+
+  it('déduit la réduction, plafonnée au total', () => {
+    expect(upcomingRewardDiscount(card, 3500)).toBe(2000);
+    expect(upcomingRewardDiscount(card, 2000)).toBe(2000);
+  });
+
+  it('ne déduit rien sous le minimum, sans récompense ou sans carte', () => {
+    expect(upcomingRewardDiscount(card, 1500)).toBe(0);
+    expect(
+      upcomingRewardDiscount({ ...card, nextStampReward: null }, 3500)
+    ).toBe(0);
+    expect(upcomingRewardDiscount(null, 3500)).toBe(0);
   });
 });

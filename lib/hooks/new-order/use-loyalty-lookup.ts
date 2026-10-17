@@ -6,6 +6,9 @@ export type LoyaltyReward = { id: string; tier: number; capAmount: number };
 export type LoyaltyCard = {
   stampCount: number;
   stampsPerCard: number;
+  minOrderAmount: number;
+  /** Récompense débloquée par le prochain tampon (appliquée d'office). */
+  nextStampReward: { capAmount: number } | null;
   availableRewards: LoyaltyReward[];
 };
 
