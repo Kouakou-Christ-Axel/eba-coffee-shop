@@ -4,6 +4,7 @@
 
 import { maskPhone } from '@/lib/ai/assistant/mask-pii';
 import type { RefundListItem } from '@/lib/refunds/queries';
+import { userLabel } from '@/lib/refunds/labels';
 import { getRefundDetail } from '@/lib/refunds/queries';
 import type {
   RefundDetailData,
@@ -24,7 +25,7 @@ export function toRow(r: RefundListItem): RefundRowData {
     channel: r.channel,
     customerName: r.customerName,
     createdAt: r.createdAt.toISOString(),
-    requestedBy: r.requestedBy?.name ?? null,
+    requestedBy: userLabel(r.requestedBy),
     requestedById: r.requestedBy?.id ?? null,
   };
 }
@@ -50,7 +51,7 @@ export function toDetail(
     channel: d.channel,
     customerName: d.customerName,
     createdAt: d.createdAt.toISOString(),
-    requestedBy: d.requestedBy?.name ?? null,
+    requestedBy: userLabel(d.requestedBy),
     requestedById: d.requestedById,
     note: d.note,
     phone: d.destinationPhone
@@ -64,7 +65,7 @@ export function toDetail(
     stockRestoredAt: iso(d.stockRestoredAt),
     feeFcfa: d.feeFcfa,
     attempt: d.attempt,
-    approvedBy: d.approvedBy?.name ?? null,
+    approvedBy: userLabel(d.approvedBy),
     approvedAt: iso(d.approvedAt),
     paidAt: iso(d.paidAt),
     payoutDate: iso(d.payoutDate),
@@ -79,7 +80,7 @@ export function toDetail(
       id: e.id,
       from: e.fromStatus,
       to: e.toStatus,
-      actor: e.actor?.name ?? null,
+      actor: userLabel(e.actor),
       note: e.note,
       at: e.createdAt.toISOString(),
     })),

@@ -16,7 +16,11 @@ import { getRefundStats } from './stats';
 
 const from = new Date(Date.UTC(2026, 9, 1));
 const to = new Date(Date.UTC(2026, 9, 31));
-const user = (id: string, name: string) => ({ id, name });
+const user = (id: string, name: string | null) => ({
+  id,
+  name,
+  email: `${id}@eba.test`,
+});
 const counted = { isPaid: true, status: 'COMPLETED' };
 
 describe('getRefundStats', () => {
@@ -60,7 +64,7 @@ describe('getRefundStats', () => {
           feeFcfa: 0,
           // Commande annulée depuis : n'est plus dans le CA, ne compte pas dans le taux.
           order: { isPaid: true, status: 'CANCELLED' },
-          requestedBy: null,
+          requestedBy: user('u2', null),
           approvedBy: user('u9', 'Chef'),
         },
       ] as never)
@@ -92,6 +96,11 @@ describe('getRefundStats', () => {
       name: 'Awa',
       count: 2,
       amount: 4000,
+    });
+    expect(stats.byRequester).toContainEqual({
+      name: 'u2@eba.test',
+      count: 1,
+      amount: 500,
     });
     expect(stats.byApprover[0]).toEqual({
       name: 'Chef',

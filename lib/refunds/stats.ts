@@ -9,6 +9,7 @@ import type { PaymentMode, RefundReason } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { getRangeStats } from '@/lib/stats';
 import { emptyModeRecord } from '@/lib/payment-modes';
+import { userLabel } from './labels';
 import { countRefundQueues } from './queries';
 
 export type RefundStats = {
@@ -54,8 +55,8 @@ export async function getRefundStats(
           channel: true,
           feeFcfa: true,
           order: { select: { isPaid: true, status: true } },
-          requestedBy: { select: { id: true, name: true } },
-          approvedBy: { select: { id: true, name: true } },
+          requestedBy: { select: { id: true, name: true, email: true } },
+          approvedBy: { select: { id: true, name: true, email: true } },
         },
       }),
       prisma.refundLine.findMany({
@@ -101,12 +102,12 @@ export async function getRefundStats(
 
   const bump = (
     map: Map<string, { name: string | null; count: number; amount: number }>,
-    user: { id: string; name: string | null } | null,
+    user: { id: string; name: string | null; email: string } | null,
     value: number
   ) => {
     const key = user?.id ?? '—';
     const cur = map.get(key) ?? {
-      name: user?.name ?? null,
+      name: userLabel(user),
       count: 0,
       amount: 0,
     };
