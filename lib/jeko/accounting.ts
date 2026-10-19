@@ -87,3 +87,14 @@ export function jekoBalance(
 ): number {
   return withdrawals.reduce((s, w) => s - w.amount - w.fee, netReceived);
 }
+
+/** Ajoute les remboursements de l'application (montant + frais de transfert). */
+export function withAppRefunds<
+  T extends { refunded: number; netReceived: number },
+>(summary: T, refundsTotal: number): T {
+  return {
+    ...summary,
+    refunded: summary.refunded + refundsTotal,
+    netReceived: summary.netReceived - refundsTotal,
+  };
+}

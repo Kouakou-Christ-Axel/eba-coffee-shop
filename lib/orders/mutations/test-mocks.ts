@@ -20,6 +20,10 @@ export function prismaModuleMock() {
       createMany: vi.fn(),
       deleteMany: vi.fn(),
     },
+    // Garde du dépaiement : aucun remboursement par défaut.
+    refund: {
+      count: vi.fn().mockResolvedValue(0),
+    },
     product: {
       updateMany: vi.fn(),
       update: vi.fn(),

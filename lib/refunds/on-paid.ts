@@ -1,0 +1,118 @@
+// lib/refunds/on-paid.ts
+//
+// Passage à PAID : l'argent est parti (ou a été remis). C'est CET instant qui
+// compte en comptabilité (`payoutDate`, jour civil Abidjan), pas la demande.
+// Une seule transaction : statut + date + tampon + stock. Idempotent (garde sur le
+// statut) : le sondage Jèko et un clic de l'admin peuvent arriver en même temps.
+
+import prisma from '@/lib/prisma';
+import type { Prisma, RefundStatus } from '@/generated/prisma/client';
+import { priceFormatter } from '@/config/menu';
+import { todayDailyDate } from '@/lib/daily-numbering';
+import { revokeLoyaltyForOrder } from '@/lib/loyalty-mutations';
+import { notifyOrderCustomer } from '@/lib/push-notify';
+import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
+import { getRefundCap } from './cap';
+import { transitionRefund } from './events';
+import { restoreStockForRefundLines } from './lines';
+
+export type SettlePaidArgs = {
+  id: string;
+  /** Statuts depuis lesquels le passage à PAID est légitime. */
+  from: RefundStatus[];
+  actorId: string | null;
+  note?: string | null;
+  jekoTransferId?: string | null;
+  feeFcfa?: number;
+};
+
+/** Vrai quand les remboursements PAID couvrent tout ce qui a été encaissé. */
+async function isFullyRefunded(
+  tx: Prisma.TransactionClient,
+  orderId: string
+): Promise<boolean> {
+  const { paid } = await getRefundCap(tx, orderId);
+  const done = await tx.refund.aggregate({
+    where: { orderId, status: 'PAID' },
+    _sum: { amount: true },
+  });
+  return paid > 0 && (done._sum.amount ?? 0) >= paid;
+}
+
+/** Renvoie true si CET appel a fait passer le remboursement à PAID. */
+export async function settleRefundPaid(args: SettlePaidArgs): Promise<boolean> {
+  const result = await prisma.$transaction(async (tx) => {
+    const moved = await transitionRefund(tx, {
+      id: args.id,
+      from: args.from,
+      to: 'PAID',
+      actorId: args.actorId,
+      note: args.note,
+      data: {
+        paidAt: new Date(),
+        payoutDate: todayDailyDate(),
+        failureCode: null,
+        failureMessage: null,
+        ...(args.jekoTransferId ? { jekoTransferId: args.jekoTransferId } : {}),
+        ...(args.feeFcfa !== undefined ? { feeFcfa: args.feeFcfa } : {}),
+      },
+    });
+    if (!moved) return null;
+
+    const refund = await tx.refund.findUniqueOrThrow({
+      where: { id: args.id },
+      include: {
+        lines: true,
+        order: {
+          select: {
+            customerId: true,
+            loyaltyRewardId: true,
+            stockReservedAt: true,
+          },
+        },
+      },
+    });
+
+    // Un remboursement automatique de paiement tardif concerne une commande jamais
+    // servie : tampon déjà retiré à l'expiration, stock jamais pris.
+    if (refund.source === 'STAFF') {
+      if (
+        refund.order.customerId &&
+        (await isFullyRefunded(tx, refund.orderId))
+      ) {
+        await revokeLoyaltyForOrder(tx, {
+          orderId: refund.orderId,
+          customerId: refund.order.customerId,
+          usedRewardId: refund.order.loyaltyRewardId,
+          note: 'Remboursement total',
+          actorId: args.actorId,
+          keepUsedReward: true,
+        });
+      }
+      // `stockReservedAt` nul : rien n'a jamais été décompté, rien à rendre.
+      if (
+        refund.restockItems &&
+        !refund.stockRestoredAt &&
+        refund.order.stockReservedAt
+      ) {
+        await restoreStockForRefundLines(tx, refund.lines);
+        await tx.refund.update({
+          where: { id: refund.id },
+          data: { stockRestoredAt: new Date() },
+        });
+      }
+    }
+    return refund;
+  });
+
+  if (!result) return false;
+  if (result.restockItems) revalidatePublicMenu();
+  notifyOrderCustomer(
+    result.orderId,
+    'REFUNDED',
+    `Ton remboursement de ${priceFormatter.format(result.amount)} F est parti${
+      result.delivery === 'JEKO_TRANSFER' ? ' sur ton numéro' : ''
+    }.`
+  );
+  return true;
+}

@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/prisma', () => ({
   default: { order: { update: vi.fn() } },
 }));
+vi.mock('@/lib/refunds/record-auto', () => ({
+  recordAutoLateRefund: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('@/lib/push-notify', () => ({
   sendPushToRoles: vi.fn().mockResolvedValue(undefined),
   notifyOrderCustomer: vi.fn(),
@@ -24,11 +27,13 @@ import { jekoConfig } from './config';
 import { buildRefundReference, refundLatePayment } from './refund';
 import { createJekoContact, createJekoTransfer } from './transfers';
 import { tx } from './settle.test-utils';
+import { recordAutoLateRefund } from '@/lib/refunds/record-auto';
 
 const update = vi.mocked(prisma.order.update);
 const contact = vi.mocked(createJekoContact);
 const transfer = vi.mocked(createJekoTransfer);
 const push = vi.mocked(sendPushToRoles);
+const record = vi.mocked(recordAutoLateRefund);
 
 const order = {
   id: 'o1',
@@ -43,6 +48,7 @@ describe('refundLatePayment', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     push.mockResolvedValue(undefined as never);
+    record.mockResolvedValue(undefined);
     vi.mocked(jekoConfig).mockReturnValue({
       apiKey: 'k',
       apiKeyId: 'i',
@@ -78,6 +84,26 @@ describe('refundLatePayment', () => {
         refundedAt: expect.any(Date),
       }),
     });
+    // Transfert encore `pending` : le client est prévenu à son aboutissement.
+    expect(notifyOrderCustomer).not.toHaveBeenCalled();
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: 'o1',
+        channel: 'WAVE',
+        amount: 3450,
+        result: {
+          kind: 'sent',
+          status: 'pending',
+          transferId: 'wth_1',
+          fee: 12,
+        },
+      })
+    );
+  });
+
+  it('transfert déjà abouti : prévient le client tout de suite', async () => {
+    transfer.mockResolvedValue({ id: 'wth_1', status: 'success', feeFcfa: 12 });
+    await refundLatePayment(order, tx, 'stock insuffisant');
     expect(notifyOrderCustomer).toHaveBeenCalledWith('o1', 'REFUNDED');
   });
 

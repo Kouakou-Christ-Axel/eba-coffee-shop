@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { expirePendingOrders } from '@/lib/jeko/expiry';
+import { refreshPendingRefunds } from '@/lib/refunds/refresh';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { BarChart3, ChefHat, ShoppingBag } from 'lucide-react';
@@ -29,6 +30,7 @@ export default async function DashboardPage() {
   // Expiration opportuniste des commandes en attente de paiement Jèko (pas de
   // cron : même principe que le rappel d'inventaire — idempotent, fire-and-forget).
   void expirePendingOrders().catch(() => {});
+  void refreshPendingRefunds().catch(() => {});
 
   const todayLabel = new Intl.DateTimeFormat('fr-FR', {
     weekday: 'long',

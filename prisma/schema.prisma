@@ -51,6 +51,9 @@ model User {
   moderatedPollSuggestions  PollSuggestion[]        @relation("PollSuggestionModeratedBy")
   purchaseDrafts            PurchaseDraft[]         @relation("PurchaseDraftCreatedBy")
   orderPaymentsCreated      OrderPayment[]          @relation("OrderPaymentCreatedBy")
+  refundsRequested          Refund[]                @relation("RefundRequestedBy")
+  refundsApproved           Refund[]                @relation("RefundApprovedBy")
+  refundEvents              RefundEvent[]           @relation("RefundEventActor")
 
   @@map("user")
 }
@@ -328,19 +331,19 @@ model Order {
   //   paymentExpiresAt  fin du délai de paiement de la tentative en cours.
   //                     « En attente de paiement » = source ONLINE ∧ isPaid false
   //                     ∧ paymentExpiresAt non nul (pas d'enum de statut)
-  onlineFee        Int?
-  gatewayFee       Int?
-  paymentRequestId String?
-  paymentExpiresAt DateTime?
+  onlineFee            Int?
+  gatewayFee           Int?
+  paymentRequestId     String?
+  paymentExpiresAt     DateTime?
   // Nombre de tentatives de paiement lancées (incrémenté de façon atomique à
   // chaque demande Jèko) : numérote la référence `<commande>-<n>`, unique par
   // tentative puisque Jèko refuse une référence déjà utilisée (409).
-  paymentAttempts Int @default(0)
+  paymentAttempts      Int       @default(0)
   // Montant (FCFA) demandé à Jèko = total + onlineFee, FIGÉ à la tentative. `total`
   // peut changer ensuite (l'annulation par le client le remet au prix brut) alors
   // que le paiement déjà demandé, lui, ne change plus : le règlement compare à
   // CETTE valeur, pas à `total + onlineFee` recalculé.
-  paymentAmountDue Int?
+  paymentAmountDue     Int?
   // Transaction Jèko qui a réglé la commande. Un second webhook portant une autre
   // transaction sur une commande déjà payée est un DOUBLE paiement (deux demandes
   // payées après une relance) : le staff est alerté pour rembourser.
@@ -351,10 +354,10 @@ model Order {
   // `refundFee` = frais du transfert. `refundedAt` posé = déjà remboursé ou en
   // cours : plus aucun règlement ni remboursement automatique. Null + commande
   // annulée avec `paymentTransactionId` = remboursement manuel à faire.
-  refundTransferId String?
-  refundedAt       DateTime?
-  refundAmount     Int?
-  refundFee        Int?
+  refundTransferId     String?
+  refundedAt           DateTime?
+  refundAmount         Int?
+  refundFee            Int?
 
   createdById String?
   createdBy   User?   @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -371,6 +374,7 @@ model Order {
   // renseigné pour le cas courant (1 seule ligne) ; null pour un paiement
   // fractionné (2+ modes distincts) — cf. lib/order-mutations.ts::setOrderPayment.
   payments OrderPayment[]
+  refunds  Refund[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -443,6 +447,7 @@ model Customer {
   anonymizedAt DateTime?
 
   orders    Order[]
+  refunds   Refund[]
   rewards   LoyaltyReward[]
   ledger    LoyaltyLedger[]
   pollVotes PollVote[]
@@ -1236,6 +1241,139 @@ model CashClosing {
 
   @@index([date(sort: Desc)])
   @@map("cash_closing")
+}
+
+// ─── Remboursements ───────────────────────────────────────────────────────────
+// Un remboursement est une ligne NÉGATIVE datée du jour où l'argent part
+// (`payoutDate`) : la commande et ses `OrderPayment` ne sont jamais modifiés.
+// Demandé par la caisse, validé par un admin, puis envoyé (transfert Jèko) ou
+// remis à la main. Les frais en ligne (`Order.onlineFee`) ne sont jamais rendus.
+// Actifs (comptent dans le plafond) : tous les statuts sauf REJECTED/CANCELLED.
+enum RefundStatus {
+  REQUESTED // demandé, attend la validation d'un admin
+  APPROVED // validé, prêt à partir
+  PROCESSING // transfert Jèko créé, résultat final pas encore connu
+  UNCERTAIN // timeout / référence déjà vue : on ignore si Jèko a envoyé
+  FAILED // échec constaté : à corriger (numéro, mode, solde…) puis revalider
+  PAID // argent parti (ou remis) : effet comptable à `payoutDate`
+  REJECTED
+  CANCELLED
+}
+
+enum RefundDelivery {
+  JEKO_TRANSFER
+  MANUAL
+}
+
+enum RefundReason {
+  PRODUCT_UNAVAILABLE
+  QUALITY
+  PRICE_ERROR
+  DOUBLE_PAYMENT
+  CUSTOMER_CHANGED_MIND
+  LATE_PAYMENT
+  COMMERCIAL_GESTURE
+  OTHER
+}
+
+enum RefundSource {
+  STAFF
+  AUTO_LATE
+}
+
+enum RefundLineKind {
+  PRODUCT
+  SUPPLEMENT
+}
+
+model Refund {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  amount Int // FCFA, produits seuls
+  reason RefundReason
+  note   String?
+  source RefundSource @default(STAFF)
+  status RefundStatus @default(REQUESTED)
+
+  delivery         RefundDelivery
+  // Canal par lequel l'argent sort (par défaut le mode utilisé par le client).
+  channel          PaymentMode
+  destinationPhone String? // E.164, pour un transfert Jèko
+
+  // Instantanés : survivent à la suppression du client ; effacés à l'anonymisation.
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName String?
+
+  requestedById String?
+  requestedBy   User?     @relation("RefundRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  approvedById  String?
+  approvedBy    User?     @relation("RefundApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt    DateTime?
+
+  paidAt     DateTime?
+  // Jour civil (Abidjan) où l'argent est parti : date d'effet comptable.
+  payoutDate DateTime? @db.Date
+
+  // Transfert Jèko. `attempt` numérote la référence `REMB-<id>-<attempt>` : Jèko
+  // refuse une référence déjà utilisée (409), un nouvel essai en prend une neuve.
+  attempt        Int     @default(0)
+  jekoTransferId String?
+  feeFcfa        Int     @default(0)
+  failureCode    String?
+  failureMessage String?
+
+  // Remise en stock des lignes remboursées (choix du staff, non par défaut).
+  restockItems    Boolean   @default(false)
+  stockRestoredAt DateTime?
+
+  lines  RefundLine[]
+  events RefundEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+  @@index([payoutDate])
+  @@map("refund")
+}
+
+// Lignes remboursées (optionnel) : instantanés, car `Order.items` (JSON) n'a pas
+// d'identifiant de ligne stable et peut être réédité.
+model RefundLine {
+  id         String         @id @default(cuid())
+  refundId   String
+  refund     Refund         @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  cartId     String
+  productId  String
+  name       String
+  kind       RefundLineKind
+  groupName  String?
+  optionName String?
+  quantity   Int
+  amount     Int // FCFA
+
+  @@index([refundId])
+  @@map("refund_line")
+}
+
+// Journal : qui a fait passer quel remboursement de quel statut à quel autre.
+model RefundEvent {
+  id         String        @id @default(cuid())
+  refundId   String
+  refund     Refund        @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  actorId    String?
+  actor      User?         @relation("RefundEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  fromStatus RefundStatus?
+  toStatus   RefundStatus
+  note       String?
+  createdAt  DateTime      @default(now())
+
+  @@index([refundId])
+  @@map("refund_event")
 }
 
 // ─── Investissements (apports / financements) ──────────────────────────────────

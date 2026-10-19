@@ -2,7 +2,9 @@
 // réel (Jèko n'a pas de sandbox). Imite le contrat de Jèko Checkout :
 //   POST /partner_api/payment_requests      → crée une demande, renvoie redirectUrl
 //   GET  /partner_api/payment_requests/:id  → statut (+ transaction et frais)
-//   POST /partner_api/contacts, /partner_api/transfers  → remboursement (Pay-out)
+//   POST /partner_api/contacts, /partner_api/transfers, GET …/transfers/:id
+//                                           → remboursement (Pay-out)
+//   POST /transfers/:id/{succeed,fail}  → l'opérateur tranche un transfert pending
 //   GET  /pay/:id                           → page de paiement factice
 //   POST /pay/:id/{pay,pay-silent,fail,abandon}  → les gestes du « client »
 // et envoie un webhook `TRANSACTION_COMPLETED` signé à l'application. Pas un
@@ -18,6 +20,8 @@ import {
   createContact,
   createMockTransfers,
   createTransfer,
+  getTransfer,
+  settleTransfer,
 } from './lib/transfers';
 import type { JekoMockOptions, PaymentRequest } from './lib/types';
 import { paymentRequestView } from './lib/view';
@@ -80,6 +84,19 @@ export async function createJekoMock(options: JekoMockOptions): Promise<{
         return found
           ? sendJson(res, 200, paymentRequestView(found, baseUrl))
           : apiError(res, 404, 'not_found', 'Demande introuvable');
+      }
+      if (
+        parts[0] === 'partner_api' &&
+        parts[1] === 'transfers' &&
+        parts[2] &&
+        req.method === 'GET'
+      ) {
+        if (!authorized(req))
+          return apiError(res, 401, 'unauthorized', 'Clé API invalide');
+        return getTransfer(res, payout, parts[2]);
+      }
+      if (parts[0] === 'transfers' && parts[1] && parts[2]) {
+        return settleTransfer(res, payout, parts[1], parts[2]);
       }
       if (parts[0] === 'pay' && parts[1]) {
         const found = requests.get(parts[1]);

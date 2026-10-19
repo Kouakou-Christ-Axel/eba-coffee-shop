@@ -14,6 +14,8 @@ import { normalizeIvorianPhone } from '@/lib/phone';
 import { notifyOrderCustomer } from '@/lib/push-notify';
 import { JekoApiError } from './client';
 import { jekoConfig } from './config';
+import { jekoMethodToPaymentMode } from './payment-mode';
+import { recordAutoLateRefund } from '@/lib/refunds/record-auto';
 import { alertStaff } from './settle-alerts';
 import {
   createJekoContact,
@@ -42,7 +44,11 @@ export function buildRefundReference(
   return `REMB-${orderReference}-${transactionId.slice(-12)}`.slice(0, 100);
 }
 
-type Sent = { transferId: string | null; fee: number };
+type Sent = {
+  transferId: string | null;
+  fee: number;
+  status: 'success' | 'pending' | 'exists';
+};
 
 async function sendTransfer(
   order: RefundableOrder,
@@ -80,12 +86,16 @@ async function sendTransfer(
     if (transfer.status === 'error') {
       return { manual: 'transfert refusé par l’opérateur' };
     }
-    return { transferId: transfer.id, fee: Math.round(transfer.feeFcfa) };
+    return {
+      transferId: transfer.id,
+      fee: Math.round(transfer.feeFcfa),
+      status: transfer.status,
+    };
   } catch (err) {
     // 409 : ce transfert existe déjà (livraison rejouée) — il est parti, on n'en
     // recrée pas un second.
     if (err instanceof JekoApiError && err.status === 409) {
-      return { transferId: null, fee: 0 };
+      return { transferId: null, fee: 0, status: 'exists' };
     }
     console.error(`[jeko] remboursement de ${order.reference} échoué :`, err);
     return {
@@ -127,6 +137,27 @@ export async function refundLatePayment(
     },
   });
 
+  await recordAutoLateRefund({
+    orderId: order.id,
+    customerName: order.customerName,
+    customerPhone: order.customerPhone,
+    channel: jekoMethodToPaymentMode(tx.paymentMethod),
+    amount,
+    result:
+      'manual' in sent
+        ? { kind: 'failed', reason: sent.manual }
+        : sent.status === 'exists' || !sent.transferId
+          ? { kind: 'exists' }
+          : {
+              kind: 'sent',
+              status: sent.status,
+              transferId: sent.transferId,
+              fee: sent.fee,
+            },
+  }).catch((err) => {
+    console.error('[jeko] trace du remboursement échouée :', err);
+  });
+
   if ('manual' in sent) {
     alertStaff(
       order.id,
@@ -141,6 +172,8 @@ export async function refundLatePayment(
     order.dailyNumber,
     `Payée en retard (${tx.amountFcfa} F), ${why} : ${amount} F remboursés automatiquement.`
   );
-  notifyOrderCustomer(order.id, 'REFUNDED');
+  // Transfert encore en cours : le client est prévenu quand il aboutit
+  // (lib/refunds/on-paid.ts).
+  if (sent.status === 'success') notifyOrderCustomer(order.id, 'REFUNDED');
   return 'refunded';
 }

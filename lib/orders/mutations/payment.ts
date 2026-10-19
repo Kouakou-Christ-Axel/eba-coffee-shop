@@ -46,6 +46,21 @@ export async function setOrderPayment(
       throw new OrderMutationError('État de paiement déjà à jour', 409);
     }
 
+    // Le dépaiement efface les `OrderPayment`, base du plafond remboursable : tant
+    // qu'un remboursement est parti (ou peut l'être), on ne les supprime pas.
+    const refunded = await prisma.refund.count({
+      where: {
+        orderId: id,
+        status: { in: ['PAID', 'PROCESSING', 'UNCERTAIN'] },
+      },
+    });
+    if (refunded > 0) {
+      throw new OrderMutationError(
+        'Des remboursements existent sur cette commande : impossible de la remettre à encaisser',
+        409
+      );
+    }
+
     const [result] = await prisma.$transaction([
       prisma.order.updateMany({
         where: { id, isPaid: true },
