@@ -235,6 +235,10 @@ réduite, voire vide, ce n'est pas une erreur.
 | `create_revenue_adjustment`      | finance    | écriture | Ajuster le CA sans commande (montant signé)                                                  |
 | `update_revenue_adjustment`      | finance    | écriture | Modifier une régularisation (partiel)                                                        |
 | `delete_revenue_adjustment`      | finance    | écriture | Supprimer une régularisation                                                                 |
+| `list_refunds`                   | finance    | lecture  | Lister les remboursements (statut, canal, commande, plage de demande)                        |
+| `get_refund`                     | finance    | lecture  | Détail d'un remboursement (lignes, journal, commande)                                        |
+| `get_refund_summary`             | finance    | lecture  | Stats : montant, taux du CA, motifs, canaux, échecs Jèko, délai de validation                |
+| `create_refund`                  | finance    | écriture | DEMANDER un remboursement (à valider par un admin dans l'application, rien ne part avant)    |
 | `get_cash_position`              | finance    | lecture  | Chiffres espèces d’un jour + clôture éventuelle                                              |
 | `get_cash_closing`               | finance    | lecture  | Lire la clôture d’un jour                                                                    |
 | `list_cash_closings`             | finance    | lecture  | Historique des clôtures sur une plage                                                        |
@@ -465,6 +469,14 @@ entiers, `date` au format `YYYY-MM-DD`, `sourceId` provient de
 d'entrée des fonds). Pour un apport remboursable, `reimbursable: true` avec
 éventuellement `amountRepaid` (≤ `amount`) et `dueDate` ; le restant dû est
 calculé. Le justificatif se joint via `set_investment_document` (base64 ou URL).
+
+Les outils **remboursements** ne font que lire et **demander** : la validation,
+le refus, le renvoi d'un transfert et le règlement « fait à la main » exigent un
+admin identifié et se font dans l'application (`/dashboard/remboursements`) — un
+outil MCP n'a pas d'utilisateur nommé, et l'argent ne doit jamais partir sans
+validation. `get_daily_stats` / `get_range_stats` / `get_daily_series` renvoient
+désormais un `revenue` **net** (régularisations ajoutées, remboursements déduits),
+avec `grossRevenue` et `refunds` à côté.
 
 Les outils **régularisation de recette** permettent d'ajuster le CA **sans créer
 de commande** (ventes non saisies en temps réel, anciennes commandes perdues…).

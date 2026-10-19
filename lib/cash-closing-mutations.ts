@@ -1,7 +1,7 @@
 // lib/cash-closing-mutations.ts
 //
 // Écriture de la clôture de caisse. Une clôture par jour civil (upsert sur la
-// date). Les chiffres calculés (ventes/dépenses espèces, théorique, écart) sont
+// date). Les chiffres calculés (ventes/dépenses/remboursements espèces, théorique, écart) sont
 // figés au moment de l'enregistrement.
 
 import prisma from '@/lib/prisma';
@@ -19,6 +19,7 @@ export async function saveCashClosing(input: unknown, closedById?: string) {
     openingFloat: data.openingFloat,
     cashSales: figures.cashSales,
     cashExpenses: figures.cashExpenses,
+    cashRefunds: figures.cashRefunds,
     countedCash: data.countedCash,
   });
 
@@ -27,6 +28,7 @@ export async function saveCashClosing(input: unknown, closedById?: string) {
     countedCash: data.countedCash,
     cashSales: figures.cashSales,
     cashExpenses: figures.cashExpenses,
+    cashRefunds: figures.cashRefunds,
     expectedCash,
     difference,
     note: data.note ?? null,

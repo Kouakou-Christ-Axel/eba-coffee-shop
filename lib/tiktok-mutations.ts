@@ -43,7 +43,11 @@ async function enrichFromOEmbed(url: string): Promise<OEmbedFields> {
     }
   }
 
-  return { oembedTitle: oembed.title, authorName: oembed.authorName, thumbnailUrl };
+  return {
+    oembedTitle: oembed.title,
+    authorName: oembed.authorName,
+    thumbnailUrl,
+  };
 }
 
 export async function createTiktokVideo(input: unknown, createdById?: string) {
@@ -92,7 +96,11 @@ export async function updateTiktokVideo(id: string, input: unknown) {
   return prisma.tiktokVideo.update({
     where: { id },
     data: {
-      ...(data.url !== undefined && { url: data.url, videoId, ...oembedFields }),
+      ...(data.url !== undefined && {
+        url: data.url,
+        videoId,
+        ...oembedFields,
+      }),
       ...(data.caption !== undefined && { caption: data.caption }),
       ...(data.isActive !== undefined && { isActive: data.isActive }),
     },

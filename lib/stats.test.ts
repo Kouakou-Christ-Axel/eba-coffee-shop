@@ -18,6 +18,7 @@ vi.mock('@/lib/prisma', () => ({
     order: { findMany: vi.fn() },
     orderPayment: { groupBy: vi.fn() },
     revenueAdjustment: { groupBy: vi.fn(), findMany: vi.fn() },
+    refund: { groupBy: vi.fn(), findMany: vi.fn() },
   },
 }));
 
@@ -34,12 +35,19 @@ const mockAdjGroupBy = prisma.revenueAdjustment
 const mockAdjFindMany = prisma.revenueAdjustment
   .findMany as unknown as MockedFunction<() => Promise<unknown>>;
 
+// Aucun remboursement par défaut (les cas dédiés les posent eux-mêmes).
+function mockNoRefunds() {
+  vi.mocked(prisma.refund.groupBy).mockResolvedValue([] as never);
+  vi.mocked(prisma.refund.findMany).mockResolvedValue([] as never);
+}
+
 const from = new Date(Date.UTC(2026, 4, 1)); // 2026-05-01
 const to = new Date(Date.UTC(2026, 4, 1));
 
 describe('getRangeStats avec régularisations de recette', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockNoRefunds();
   });
 
   it('ajoute les régularisations au CA et par mode, sans toucher paidOrders/avgBasket', async () => {
@@ -144,6 +152,7 @@ describe('getRangeStats avec régularisations de recette', () => {
 describe('exclusion des commandes annulées du CA', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockNoRefunds();
   });
 
   it("getDailyStats n'ajoute pas au CA une commande annulée restée isPaid", async () => {
@@ -215,6 +224,7 @@ describe('exclusion des commandes annulées du CA', () => {
 describe('getDailySeries avec régularisations', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockNoRefunds();
   });
 
   it('ajoute la régularisation au CA du jour sans incrémenter les commandes', async () => {
@@ -235,6 +245,7 @@ describe('getDailySeries avec régularisations', () => {
 describe('modes de paiement mobiles (MTN, Moov, Djamo)', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockNoRefunds();
   });
 
   it('comptent et cumulent leur CA, et le détail par mode somme au CA total', async () => {
@@ -275,5 +286,97 @@ describe('modes de paiement mobiles (MTN, Moov, Djamo)', () => {
       0
     );
     expect(sumByMode).toBe(stats.revenue);
+  });
+});
+
+describe('remboursements : CA net', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockNoRefunds();
+    mockAdjGroupBy.mockResolvedValue([]);
+    mockAdjFindMany.mockResolvedValue([]);
+    mockOrderFindMany.mockResolvedValue([
+      {
+        id: 'o1',
+        status: 'COMPLETED',
+        orderType: 'TAKEAWAY',
+        isPaid: true,
+        paymentMode: 'CASH',
+        total: 10000,
+      },
+    ]);
+    mockOrderPaymentGroupBy.mockResolvedValue([
+      { mode: 'CASH', _sum: { amount: 10000 } },
+    ]);
+  });
+
+  it('le CA et le canal de sortie baissent, le brut reste exposé, le panier moyen ne bouge pas', async () => {
+    vi.mocked(prisma.refund.groupBy).mockResolvedValue([
+      { channel: 'WAVE', _sum: { amount: 1500 } },
+    ] as never);
+
+    const stats = await getRangeStats(from, to);
+
+    expect(stats.grossRevenue).toBe(10000);
+    expect(stats.refunds).toBe(1500);
+    expect(stats.revenue).toBe(8500);
+    // Remboursé en Wave une vente payée en espèces : chaque canal suit l'argent.
+    expect(stats.revenueByPaymentMode.CASH).toBe(10000);
+    expect(stats.revenueByPaymentMode.WAVE).toBe(-1500);
+    expect(stats.grossRevenueByPaymentMode.WAVE).toBe(0);
+    expect(stats.refundsByPaymentMode.WAVE).toBe(1500);
+    expect(stats.avgBasket).toBe(10000);
+    expect(stats.paidOrders).toBe(1);
+  });
+
+  it('ne lit que les remboursements PAYÉS dont la commande est encore comptée', async () => {
+    await getRangeStats(from, to);
+    expect(prisma.refund.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        by: ['channel'],
+        where: {
+          status: 'PAID',
+          payoutDate: { gte: from, lte: to },
+          order: { isPaid: true, status: { not: 'CANCELLED' } },
+        },
+      })
+    );
+  });
+
+  it('getDailyStats : même règle sur un jour', async () => {
+    vi.mocked(prisma.refund.groupBy).mockResolvedValue([
+      { channel: 'CASH', _sum: { amount: 2000 } },
+    ] as never);
+
+    const stats = await getDailyStats(from);
+
+    expect(stats.revenue).toBe(8000);
+    expect(stats.grossRevenue).toBe(10000);
+    expect(stats.revenueByPaymentMode.CASH).toBe(8000);
+    expect(stats.grossRevenueByPaymentMode.CASH).toBe(10000);
+    expect(prisma.refund.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ payoutDate: from }),
+      })
+    );
+  });
+
+  it('getDailySeries : le remboursement se déduit du jour où il est parti', async () => {
+    mockOrderFindMany.mockResolvedValue([
+      { dailyDate: from, total: 10000, isPaid: true, status: 'COMPLETED' },
+    ]);
+    vi.mocked(prisma.refund.findMany).mockResolvedValue([
+      { payoutDate: from, amount: 700 },
+      { payoutDate: from, amount: 300 },
+    ] as never);
+
+    const series = await getDailySeries(from, to);
+
+    expect(series[0]).toMatchObject({
+      revenue: 9000,
+      grossRevenue: 10000,
+      refunds: 1000,
+      orders: 1,
+    });
   });
 });

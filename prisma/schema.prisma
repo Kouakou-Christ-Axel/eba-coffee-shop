@@ -1228,7 +1228,8 @@ model CashClosing {
   // évoluer ensuite — on fige ce que le système indiquait).
   cashSales    Int @default(0) // ventes encaissées en espèces ce jour
   cashExpenses Int @default(0) // dépenses payées en espèces ce jour
-  expectedCash Int @default(0) // openingFloat + cashSales - cashExpenses
+  cashRefunds  Int @default(0) // remboursements rendus en espèces ce jour
+  expectedCash Int @default(0) // openingFloat + cashSales - cashExpenses - cashRefunds
   difference   Int @default(0) // countedCash - expectedCash
 
   note String?

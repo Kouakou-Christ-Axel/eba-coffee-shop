@@ -8,6 +8,7 @@ describe('computeClosing', () => {
       openingFloat: 10000,
       cashSales: 50000,
       cashExpenses: 8000,
+      cashRefunds: 0,
       countedCash: 52000,
     });
     expect(r.expectedCash).toBe(52000);
@@ -19,6 +20,7 @@ describe('computeClosing', () => {
       openingFloat: 0,
       cashSales: 30000,
       cashExpenses: 0,
+      cashRefunds: 0,
       countedCash: 31000,
     });
     expect(r.expectedCash).toBe(30000);
@@ -30,9 +32,22 @@ describe('computeClosing', () => {
       openingFloat: 5000,
       cashSales: 20000,
       cashExpenses: 3000,
+      cashRefunds: 0,
       countedCash: 21000,
     });
     expect(r.expectedCash).toBe(22000);
     expect(r.difference).toBe(-1000);
+  });
+
+  it('les remboursements rendus en espèces sortent du tiroir', () => {
+    const r = computeClosing({
+      openingFloat: 10000,
+      cashSales: 50000,
+      cashExpenses: 8000,
+      cashRefunds: 2500,
+      countedCash: 49500,
+    });
+    expect(r.expectedCash).toBe(49500);
+    expect(r.difference).toBe(0);
   });
 });

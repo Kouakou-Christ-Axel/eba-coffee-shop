@@ -5,6 +5,7 @@ const prismaMock = vi.hoisted(() => ({
   customer: { findUnique: vi.fn(), update: vi.fn() },
   order: { count: vi.fn(), updateMany: vi.fn() },
   pushSubscription: { deleteMany: vi.fn() },
+  refund: { updateMany: vi.fn() },
   pollVote: { updateMany: vi.fn() },
   pollSuggestion: { updateMany: vi.fn() },
   loyaltyReward: { deleteMany: vi.fn() },
@@ -55,6 +56,18 @@ describe('anonymizeCustomer', () => {
       })
     );
     expect(prismaMock.loyaltyLedger.deleteMany).toHaveBeenCalled();
+  });
+
+  it('efface nom et numéro des remboursements, garde montants, motifs et dates', async () => {
+    await anonymizeCustomer('c1');
+    const arg = prismaMock.refund.updateMany.mock.calls[0][0];
+    expect(arg.data).toEqual({ customerName: null, destinationPhone: null });
+    expect(arg.where.OR).toEqual(
+      expect.arrayContaining([
+        { customerId: 'c1' },
+        { destinationPhone: '+2250700000000' },
+      ])
+    );
   });
 
   it('est idempotent sur une fiche déjà anonymisée', async () => {

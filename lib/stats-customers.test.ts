@@ -18,6 +18,7 @@ vi.mock('@/lib/prisma', () => ({
     customer: { count: vi.fn(), findMany: vi.fn() },
     order: { groupBy: vi.fn(), count: vi.fn() },
     loyaltyLedger: { groupBy: vi.fn() },
+    refund: { groupBy: vi.fn() },
   },
 }));
 
@@ -49,6 +50,7 @@ describe('getCustomerRangeStats', () => {
     mockOrderGroupBy.mockResolvedValue([]);
     mockOrderCount.mockResolvedValue(0);
     mockLedgerGroupBy.mockResolvedValue([]);
+    vi.mocked(prisma.refund.groupBy).mockResolvedValue([] as never);
   });
 
   it('actifs, récurrents (≥ 2 commandes) et top clients triés par CA', async () => {
@@ -118,5 +120,36 @@ describe('getCustomerRangeStats', () => {
         },
       })
     );
+  });
+
+  it('déduit les remboursements du CA client et reclasse le top en net', async () => {
+    mockOrderGroupBy.mockResolvedValue([
+      { customerId: 'c1', _count: 1, _sum: { total: 9000 } },
+      { customerId: 'c2', _count: 1, _sum: { total: 6000 } },
+    ]);
+    // c1 s'est fait rembourser 5 000 F : il passe derrière c2.
+    vi.mocked(prisma.refund.groupBy).mockResolvedValue([
+      { customerId: 'c1', _sum: { amount: 5000 } },
+    ] as never);
+
+    const stats = await getCustomerRangeStats(from, to);
+
+    expect(stats.topCustomers.map((c) => [c.customerId, c.revenue])).toEqual([
+      ['c2', 6000],
+      ['c1', 4000],
+    ]);
+    // Seuls les remboursements payés des commandes non annulées de la plage.
+    expect(prisma.refund.groupBy).toHaveBeenCalledWith({
+      by: ['customerId'],
+      where: {
+        status: 'PAID',
+        customerId: { not: null },
+        order: {
+          dailyDate: { gte: from, lte: to },
+          status: { not: 'CANCELLED' },
+        },
+      },
+      _sum: { amount: true },
+    });
   });
 });

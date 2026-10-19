@@ -9,10 +9,10 @@ Base du dossier de déclaration ou d'autorisation à l'ARTCI (loi n°2013-450 du
 
 - **Finalité** : Préparer, remettre et encaisser une commande ; vous prévenir de son avancement.
 - **Base** : Exécution de votre commande (contrat).
-- **Données** : Prénom ou nom, téléphone, contenu de la commande, créneau de retrait, note libre, mode et statut de paiement.
+- **Données** : Prénom ou nom, téléphone, contenu de la commande, créneau de retrait, note libre, mode et statut de paiement, remboursement éventuel (montant, motif, numéro de remboursement).
 - **Personnes concernées** : Clients (site public et caisse).
 - **Destinataires** : Personnel autorisé ; Jèko (paiement en ligne) ; Resend (e-mail de notification au commerce).
-- **Durée de conservation** : 3 ans, puis anonymisation du nom, du téléphone et de la note (montants et dates conservés pour la comptabilité).
+- **Durée de conservation** : 3 ans, puis anonymisation du nom, du téléphone, du numéro de remboursement et de la note (montants et dates conservés pour la comptabilité).
 
 ## Carte de fidélité et fiche client
 

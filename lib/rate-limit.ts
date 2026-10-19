@@ -19,10 +19,7 @@ type Bucket = { count: number; windowStart: number };
  * est la durée de la fenêtre glissante, `maxHitsPerWindow` le nombre d'appels
  * autorisés par clé sur cette fenêtre.
  */
-export function createRateLimiter(
-  windowMs: number,
-  maxHitsPerWindow: number
-) {
+export function createRateLimiter(windowMs: number, maxHitsPerWindow: number) {
   const buckets = new Map<string, Bucket>();
 
   /** Nettoyage périodique pour éviter une fuite mémoire sur un process long-lived. */

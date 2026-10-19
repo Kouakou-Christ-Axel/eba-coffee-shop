@@ -23,12 +23,14 @@ export function ClosingForm({
   date,
   cashSales,
   cashExpenses,
+  cashRefunds,
   showFigures = true,
   existing,
 }: {
   date: string;
   cashSales: number;
   cashExpenses: number;
+  cashRefunds: number;
   showFigures?: boolean;
   existing: ExistingClosing;
 }) {
@@ -49,6 +51,7 @@ export function ClosingForm({
     openingFloat: floatN,
     cashSales,
     cashExpenses,
+    cashRefunds,
     countedCash: countedN,
   });
 
@@ -73,12 +76,15 @@ export function ClosingForm({
       <div
         className={cn(
           'grid grid-cols-2 gap-3',
-          showFigures ? 'sm:grid-cols-4' : 'sm:grid-cols-2'
+          showFigures ? 'sm:grid-cols-5' : 'sm:grid-cols-2'
         )}
       >
         {showFigures && <Figure label="Ventes espèces" value={cashSales} />}
         {showFigures && (
           <Figure label="Dépenses espèces" value={cashExpenses} negative />
+        )}
+        {showFigures && (
+          <Figure label="Remboursements espèces" value={cashRefunds} negative />
         )}
         <div className="space-y-1.5">
           <Label htmlFor="float">Fond de caisse</Label>

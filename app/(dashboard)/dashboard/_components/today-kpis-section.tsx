@@ -51,7 +51,11 @@ export async function TodayKpisSection() {
           value={`${priceFormatter.format(stats.revenue)} F`}
           Icon={Banknote}
           delta={{ pct: comparison.vsYesterday.revenue.pct, label: 'vs hier' }}
-          hint={lastWeekHint(comparison.vsLastWeek.revenue)}
+          hint={
+            stats.refunds > 0
+              ? `dont −${priceFormatter.format(stats.refunds)} F remboursés`
+              : lastWeekHint(comparison.vsLastWeek.revenue)
+          }
         />
         <KpiCard
           label="Actives"

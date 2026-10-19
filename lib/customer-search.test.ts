@@ -1,6 +1,9 @@
 // lib/customer-search.test.ts
 import { describe, it, expect } from 'vitest';
-import { searchCustomers, type CustomerSearchable } from '@/lib/customer-search';
+import {
+  searchCustomers,
+  type CustomerSearchable,
+} from '@/lib/customer-search';
 
 function customer(
   id: string,

@@ -63,11 +63,11 @@ export const PROCESSING_ACTIVITIES: ProcessingActivity[] = [
     purpose:
       'Préparer, remettre et encaisser une commande ; vous prévenir de son avancement.',
     basis: 'Exécution de votre commande (contrat).',
-    data: 'Prénom ou nom, téléphone, contenu de la commande, créneau de retrait, note libre, mode et statut de paiement.',
+    data: 'Prénom ou nom, téléphone, contenu de la commande, créneau de retrait, note libre, mode et statut de paiement, remboursement éventuel (montant, motif, numéro de remboursement).',
     people: 'Clients (site public et caisse).',
     recipients:
       'Personnel autorisé ; Jèko (paiement en ligne) ; Resend (e-mail de notification au commerce).',
-    duration: `${RETENTION.orderYears} ans, puis anonymisation du nom, du téléphone et de la note (montants et dates conservés pour la comptabilité).`,
+    duration: `${RETENTION.orderYears} ans, puis anonymisation du nom, du téléphone, du numéro de remboursement et de la note (montants et dates conservés pour la comptabilité).`,
   },
   {
     id: 'fidelite',
