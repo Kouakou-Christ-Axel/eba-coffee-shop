@@ -16,7 +16,7 @@ const detail = {
   customerName: 'Awa',
   destinationPhone: '+2250707070707',
   createdAt: new Date('2026-10-19T10:00:00Z'),
-  requestedBy: { id: 'u1', name: 'Caisse 1' },
+  requestedBy: { id: 'u1', name: 'Caisse 1', email: 'caisse1@eba.test' },
   requestedById: 'u1',
   approvedBy: null,
   approvedAt: null,
@@ -53,7 +53,7 @@ const detail = {
       id: 'e1',
       fromStatus: null,
       toStatus: 'REQUESTED',
-      actor: { name: 'Caisse 1' },
+      actor: { name: 'Caisse 1', email: 'caisse1@eba.test' },
       note: null,
       createdAt: new Date('2026-10-19T10:00:00Z'),
     },
@@ -75,6 +75,34 @@ describe('toDetail', () => {
     expect(d.lines.map((l) => l.name)).toEqual(['Café', 'Avoine']);
     expect(d.createdAt).toBe('2026-10-19T10:00:00.000Z');
     expect(d.events[0]).toMatchObject({ to: 'REQUESTED', actor: 'Caisse 1' });
+  });
+});
+
+describe('identité du demandeur', () => {
+  const withUser = (u: { name: string | null; email: string } | null) =>
+    toDetail(
+      {
+        ...detail,
+        requestedBy: u && { id: 'u1', ...u },
+        approvedBy: u && { id: 'u2', ...u },
+        events: [{ ...detail.events[0], actor: u }],
+      } as never,
+      { seePhone: true }
+    );
+
+  it("retombe sur l'e-mail quand le nom est absent ou vide", () => {
+    for (const name of [null, '  ']) {
+      const d = withUser({ name, email: 'awa@eba.test' });
+      expect(d.requestedBy).toBe('awa@eba.test');
+      expect(d.approvedBy).toBe('awa@eba.test');
+      expect(d.events[0].actor).toBe('awa@eba.test');
+    }
+  });
+
+  it('reste vide sans compte (supprimé)', () => {
+    const d = withUser(null);
+    expect(d.requestedBy).toBeNull();
+    expect(d.events[0].actor).toBeNull();
   });
 });
 

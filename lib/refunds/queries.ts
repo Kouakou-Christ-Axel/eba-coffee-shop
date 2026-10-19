@@ -47,8 +47,8 @@ const LIST_SELECT = {
   createdAt: true,
   approvedAt: true,
   order: { select: { reference: true, dailyNumber: true, total: true } },
-  requestedBy: { select: { id: true, name: true } },
-  approvedBy: { select: { id: true, name: true } },
+  requestedBy: { select: { id: true, name: true, email: true } },
+  approvedBy: { select: { id: true, name: true, email: true } },
 } satisfies Prisma.RefundSelect;
 
 function buildWhere(f: RefundFilters): Prisma.RefundWhereInput {
@@ -103,7 +103,7 @@ export async function getRefundDetail(id: string) {
       lines: true,
       events: {
         orderBy: { createdAt: 'asc' },
-        include: { actor: { select: { name: true } } },
+        include: { actor: { select: { name: true, email: true } } },
       },
       order: {
         select: {
@@ -114,8 +114,8 @@ export async function getRefundDetail(id: string) {
           isPaid: true,
         },
       },
-      requestedBy: { select: { name: true } },
-      approvedBy: { select: { name: true } },
+      requestedBy: { select: { name: true, email: true } },
+      approvedBy: { select: { name: true, email: true } },
     },
   });
 }

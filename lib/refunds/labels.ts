@@ -50,3 +50,14 @@ export const REFUND_STATUS_HINTS: Record<RefundStatus, string> = {
   REJECTED: 'Refusé par un administrateur.',
   CANCELLED: 'Annulé avant que l’argent ne parte.',
 };
+
+/**
+ * Nom à afficher pour un membre de l'équipe : `User.name` est facultatif (comptes
+ * créés par invitation), l'e-mail sert alors d'identité.
+ */
+export function userLabel(
+  user: { name: string | null; email: string } | null | undefined
+): string | null {
+  if (!user) return null;
+  return user.name?.trim() || user.email;
+}
