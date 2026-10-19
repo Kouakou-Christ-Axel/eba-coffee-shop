@@ -21,6 +21,16 @@ import { PaymentPicker } from './payment-picker';
 import { Panel, SUCCESS_BOX, SUCCESS_TEXT } from './panel';
 import type { PaymentSectionState } from './use-payment-section';
 
+function expiredText(refund: PublicOrderView['payment']['refund']): string {
+  if (!refund) {
+    return 'Le délai de paiement est dépassé : cette commande a expiré. Rien n’a été débité.';
+  }
+  if (refund.status === 'done') {
+    return `Ton paiement est arrivé après le délai et un article n’est plus disponible : ${refund.amount === null ? 'ton paiement a été remboursé' : `${priceFormatter.format(refund.amount)} F remboursés`} sur ton numéro.`;
+  }
+  return 'Ton paiement est arrivé après le délai et un article n’est plus disponible : nous te remboursons rapidement.';
+}
+
 export function PaymentPanels({
   order,
   paymentReturn,
@@ -125,8 +135,7 @@ export function PaymentPanels({
         <Panel id="expired" className="mt-4 flex flex-col gap-3">
           <p className="flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-3 text-sm font-medium text-danger">
             <XCircle className="h-4 w-4 shrink-0" />
-            Le délai de paiement est dépassé : cette commande a expiré. Rien n’a
-            été débité.
+            {expiredText(order.payment.refund)}
           </p>
           <Button as={Link} href="/carte" color="primary" size="lg">
             Commander à nouveau

@@ -145,7 +145,8 @@ export type CustomerNotificationKind =
   | 'CANCELLED'
   | 'PAYMENT'
   | 'PAYMENT_PREPARING'
-  | 'ITEM_UNAVAILABLE';
+  | 'ITEM_UNAVAILABLE'
+  | 'REFUNDED';
 
 const CUSTOMER_MESSAGES: Record<
   CustomerNotificationKind,
@@ -178,6 +179,10 @@ const CUSTOMER_MESSAGES: Record<
   ITEM_UNAVAILABLE: {
     title: 'Article épuisé',
     body: 'Un article de ta commande n’est plus disponible. Choisis-en un autre 🙏',
+  },
+  REFUNDED: {
+    title: 'Paiement remboursé',
+    body: 'Ton paiement est arrivé après le délai et un article n’est plus disponible : tu as été remboursé sur ton numéro.',
   },
 };
 

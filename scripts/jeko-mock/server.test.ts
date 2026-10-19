@@ -13,6 +13,7 @@ import {
   createJekoPaymentRequest,
   getJekoPaymentRequest,
 } from '@/lib/jeko/client';
+import { createJekoContact, createJekoTransfer } from '@/lib/jeko/transfers';
 import { verifyJekoSignature } from '@/lib/jeko/signature';
 import { parseJekoTransaction } from '@/lib/jeko/webhook-payload';
 import { createJekoMock } from './server';
@@ -242,5 +243,26 @@ describe('serveur Jèko factice', () => {
     await expect(
       getJekoPaymentRequest(config, 'inconnue')
     ).rejects.toBeInstanceOf(JekoApiError);
+  });
+
+  it('rembourse via contact + transfert, et refuse une référence déjà utilisée (409)', async () => {
+    const contact = await createJekoContact(config, {
+      name: 'Awa',
+      method: 'orange',
+      phoneE164: '+2250707070707',
+    });
+    const transfer = {
+      contactId: contact.id,
+      amountFcfa: 3450,
+      reference: 'REMB-EBA-20261003-AB12-1',
+      description: 'Remboursement',
+    };
+    await expect(createJekoTransfer(config, transfer)).resolves.toMatchObject({
+      status: 'pending',
+      feeFcfa: 34.5,
+    });
+    await expect(createJekoTransfer(config, transfer)).rejects.toSatisfy(
+      (e) => e instanceof JekoApiError && e.status === 409
+    );
   });
 });

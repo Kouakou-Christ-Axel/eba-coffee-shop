@@ -8,6 +8,7 @@ vi.mock('@/lib/prisma', () => ({
 }));
 vi.mock('@/lib/push-notify', () => ({ sendPushToRoles: vi.fn() }));
 vi.mock('./notify-paid', () => ({ announcePaidOrder: vi.fn() }));
+vi.mock('./refund', () => ({ refundLatePayment: vi.fn() }));
 vi.mock('@/lib/auth-helpers', () => ({
   ROLE_GROUPS: { CASHIER_PLUS: ['CASHIER', 'MANAGER', 'ADMIN'] },
 }));
@@ -98,7 +99,7 @@ describe('settleJekoTransaction', () => {
     expect(push).toHaveBeenCalledTimes(1);
   });
 
-  it('encaisse une commande déjà annulée ou expirée et alerte le staff', async () => {
+  it('encaisse une commande annulée par une personne (staff, client) et alerte le staff', async () => {
     findOrder.mockResolvedValue({ ...order, status: 'CANCELLED' } as never);
 
     await expect(settleJekoTransaction(tx)).resolves.toBe('late_payment');

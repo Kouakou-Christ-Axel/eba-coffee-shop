@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import prisma from '@/lib/prisma';
-import { setOrderPayment } from '@/lib/order-mutations';
+import { getOrderShortage, setOrderPayment } from '@/lib/order-mutations';
 import { sendPushToRoles } from '@/lib/push-notify';
 import { announcePaidOrder } from './notify-paid';
 import type { JekoTransaction } from './webhook-payload';
@@ -8,6 +8,7 @@ import type { JekoTransaction } from './webhook-payload';
 export const findOrder = vi.mocked(prisma.order.findUnique);
 export const updateOrder = vi.mocked(prisma.order.updateMany);
 export const pay = vi.mocked(setOrderPayment);
+export const shortage = vi.mocked(getOrderShortage);
 export const push = vi.mocked(sendPushToRoles);
 export const announce = vi.mocked(announcePaidOrder);
 
@@ -46,4 +47,5 @@ export function setupSettleMocks() {
   findOrder.mockResolvedValue(order as never);
   updateOrder.mockResolvedValue({ count: 1 } as never);
   pay.mockResolvedValue({ startedPreparation: true });
+  shortage.mockResolvedValue([]);
 }

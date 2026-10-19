@@ -18,6 +18,7 @@ export class StockShortageError extends OrderMutationError {
 
 export const orderMutationsModuleMock = () => ({
   setOrderPayment: vi.fn(),
+  getOrderShortage: vi.fn(),
   OrderMutationError,
   StockShortageError,
 });

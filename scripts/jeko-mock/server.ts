@@ -2,6 +2,7 @@
 // réel (Jèko n'a pas de sandbox). Imite le contrat de Jèko Checkout :
 //   POST /partner_api/payment_requests      → crée une demande, renvoie redirectUrl
 //   GET  /partner_api/payment_requests/:id  → statut (+ transaction et frais)
+//   POST /partner_api/contacts, /partner_api/transfers  → remboursement (Pay-out)
 //   GET  /pay/:id                           → page de paiement factice
 //   POST /pay/:id/{pay,pay-silent,fail,abandon}  → les gestes du « client »
 // et envoie un webhook `TRANSACTION_COMPLETED` signé à l'application. Pas un
@@ -13,6 +14,11 @@ import { createPaymentRequest } from './lib/create-request';
 import { gesture } from './lib/gesture';
 import { apiError, sendJson } from './lib/http';
 import { paymentPage } from './lib/payment-page';
+import {
+  createContact,
+  createMockTransfers,
+  createTransfer,
+} from './lib/transfers';
 import type { JekoMockOptions, PaymentRequest } from './lib/types';
 import { paymentRequestView } from './lib/view';
 
@@ -24,6 +30,7 @@ export async function createJekoMock(options: JekoMockOptions): Promise<{
 }> {
   const requests = new Map<string, PaymentRequest>();
   const references = new Set<string>();
+  const payout = createMockTransfers();
   const host = options.host ?? '127.0.0.1';
   let baseUrl = '';
 
@@ -48,6 +55,18 @@ export async function createJekoMock(options: JekoMockOptions): Promise<{
           references,
           baseUrl,
         });
+      }
+      if (
+        req.method === 'POST' &&
+        (url.pathname === '/partner_api/contacts' ||
+          url.pathname === '/partner_api/transfers')
+      ) {
+        if (!authorized(req)) {
+          return apiError(res, 401, 'unauthorized', 'Clé API invalide');
+        }
+        return url.pathname.endsWith('/contacts')
+          ? await createContact(req, res, payout)
+          : await createTransfer(req, res, payout);
       }
       if (
         req.method === 'GET' &&
