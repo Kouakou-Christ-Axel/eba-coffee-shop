@@ -16,6 +16,16 @@ export const REFUND_REQUEST_ROLES: UserRole[] = [
   'CASHIER',
 ];
 
+/** Qui consulte les remboursements (liste, détail, statistiques). Lecture seule hors REFUND_REQUEST_ROLES. */
+export const REFUND_VIEW_ROLES: UserRole[] = [
+  'ADMIN',
+  'MANAGER',
+  'ASSISTANT_MANAGER',
+  'CASHIER',
+  'COMPTABLE',
+  'ANALYSTE',
+];
+
 export const REFUND_NOTE_MAX = 500;
 
 export const REFUND_AMOUNT_MAX = 100_000_000;

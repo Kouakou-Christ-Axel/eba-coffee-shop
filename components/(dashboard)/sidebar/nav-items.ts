@@ -7,6 +7,7 @@ import {
   ClipboardList,
   Contact,
   Landmark,
+  RotateCcw,
   LayoutDashboard,
   NotebookPen,
   PiggyBank,
@@ -19,7 +20,7 @@ import {
   Vote,
   Wallet,
 } from 'lucide-react';
-import { ORDERS_VIEW_ROLES } from '@/config/constants';
+import { ORDERS_VIEW_ROLES, REFUND_VIEW_ROLES } from '@/config/constants';
 import type { UserRole } from '@/generated/prisma/client';
 
 export type NavItem = {
@@ -66,6 +67,12 @@ export const navItems: NavItem[] = [
     href: '/dashboard/jeko',
     icon: Landmark,
     roles: ['ADMIN', 'MANAGER', 'COMPTABLE', 'ANALYSTE'],
+  },
+  {
+    label: 'Remboursements',
+    href: '/dashboard/remboursements',
+    icon: RotateCcw,
+    roles: REFUND_VIEW_ROLES,
   },
   {
     label: 'Régularisations',

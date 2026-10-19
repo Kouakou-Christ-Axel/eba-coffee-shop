@@ -2,7 +2,11 @@ import { cache } from 'react';
 import { headers } from 'next/headers';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
-import { DASHBOARD_ROLES, ORDERS_VIEW_ROLES } from '@/config/constants';
+import {
+  DASHBOARD_ROLES,
+  ORDERS_VIEW_ROLES,
+  REFUND_VIEW_ROLES,
+} from '@/config/constants';
 import type { UserRole } from '@/generated/prisma/client';
 
 type SessionUser = {
@@ -248,6 +252,15 @@ export async function requireDashboardAccess(): Promise<AuthorizedSession> {
  */
 export async function requireOrdersView(): Promise<AuthorizedSession> {
   return requireRole(ORDERS_VIEW_ROLES);
+}
+
+/**
+ * Consultation des remboursements (`/dashboard/remboursements`). Les écritures
+ * sont gardées par `lib/refunds` (demandeurs : REFUND_REQUEST_ROLES ; validation :
+ * REFUND_APPROVER_ROLES), jamais par ce seul garde de page.
+ */
+export async function requireRefundsView(): Promise<AuthorizedSession> {
+  return requireRole(REFUND_VIEW_ROLES);
 }
 
 export const ROLE_GROUPS = {
