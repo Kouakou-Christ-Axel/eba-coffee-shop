@@ -65,6 +65,7 @@ describe('summarizeOnlinePayments', () => {
       customerFees: 16, // 1 % facturé aux clients
       gatewayFees: 25, // prélevé par Jèko
       absorbedFees: 9, // à la charge d'EBA (≈ 0,5 %)
+      refunded: 0,
       netReceived: 1591, // arrivé sur Jèko
       feeUnknownCount: 0,
     });
@@ -84,6 +85,23 @@ describe('summarizeOnlinePayments', () => {
     expect(summary.feeUnknownCount).toBe(1);
     expect(summary.gatewayFees).toBe(0);
     expect(summary.netReceived).toBe(1010);
+  });
+
+  it('déduit du solde les remboursements de paiements tardifs (produits + frais du transfert)', () => {
+    const summary = summarizeOnlinePayments([
+      {
+        total: 1000,
+        onlineFee: 10,
+        gatewayFee: 15,
+        paymentAmountDue: 1010,
+        refundAmount: 1000,
+        refundFee: 12,
+      },
+    ]);
+    expect(summary.collected).toBe(1010);
+    expect(summary.refunded).toBe(1012);
+    // 1 010 encaissés − 15 de frais Jèko − 1 012 remboursés
+    expect(summary.netReceived).toBe(-17);
   });
 
   it('renvoie des zéros sans paiement', () => {

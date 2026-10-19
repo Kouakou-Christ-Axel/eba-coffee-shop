@@ -14,11 +14,11 @@ import {
   StockShortageError,
   setOrderPayment,
 } from '@/lib/order-mutations';
-import { ROLE_GROUPS } from '@/lib/auth-helpers';
-import { sendPushToRoles } from '@/lib/push-notify';
 import { announcePaidOrder } from './notify-paid';
 import { jekoMethodToPaymentMode } from './payment-mode';
 import { parseJekoReference } from './reference';
+import { alertStaff, settledElsewhere } from './settle-alerts';
+import { isExpiredCancellation, settleLatePayment } from './settle-late';
 import type { JekoTransaction } from './webhook-payload';
 
 export type SettleOutcome =
@@ -26,6 +26,9 @@ export type SettleOutcome =
   | 'already_paid'
   | 'duplicate_payment'
   | 'late_payment'
+  | 'late_validated'
+  | 'late_refunded'
+  | 'late_refund_failed'
   | 'amount_mismatch'
   | 'shortage'
   | 'ignored';
@@ -39,43 +42,13 @@ const ORDER_SELECT = {
   dailyNumber: true,
   paymentAmountDue: true,
   paymentTransactionId: true,
+  paymentExpiresAt: true,
+  reference: true,
+  customerName: true,
+  customerPhone: true,
+  loyaltyRewardId: true,
+  pickupTime: true,
 } as const;
-
-function alertStaff(orderId: string, dailyNumber: number, message: string) {
-  sendPushToRoles(ROLE_GROUPS.CASHIER_PLUS, {
-    title: `Paiement Jèko — commande #${dailyNumber}`,
-    body: message,
-    url: `/dashboard/commandes/${orderId}`,
-    tag: `jeko-${orderId}`,
-  }).catch((err) => {
-    console.error('[jeko] alerte staff échouée :', err);
-  });
-}
-
-/**
- * La commande est déjà payée. Même transaction : livraison rejouée. Sinon
- * (`paymentTransactionId` nul = encaissée en caisse ou par le MCP, ou autre
- * transaction = relance payée deux fois), l'argent est parti deux fois : le staff
- * rembourse depuis le Dashboard Jèko.
- */
-function settledElsewhere(
-  order: {
-    id: string;
-    dailyNumber: number;
-    paymentTransactionId: string | null;
-  },
-  tx: JekoTransaction
-): SettleOutcome {
-  if (order.paymentTransactionId === tx.transactionId) return 'already_paid';
-  alertStaff(
-    order.id,
-    order.dailyNumber,
-    order.paymentTransactionId === null
-      ? `Commande déjà encaissée, mais le client a aussi payé en ligne (${tx.amountFcfa} F) : rembourser depuis le Dashboard Jèko.`
-      : `Double paiement en ligne (${tx.amountFcfa} F de plus) : rembourser le client depuis le Dashboard Jèko.`
-  );
-  return 'duplicate_payment';
-}
 
 export async function settleJekoTransaction(
   tx: JekoTransaction
@@ -143,9 +116,13 @@ export async function settleJekoTransaction(
     paymentRequestId: fees.paymentRequestId,
     paymentTransactionId: fees.paymentTransactionId,
   };
+  // Délai dépassé (commande expirée) : valider si le stock suit, sinon rembourser.
+  if (isExpiredCancellation(order)) {
+    return settleLatePayment(order, tx, lines, online);
+  }
+
   let shortage = false;
-  let late = order.status === 'CANCELLED';
-  let raceRetried = false;
+  const late = order.status === 'CANCELLED';
   for (;;) {
     try {
       try {
@@ -175,21 +152,19 @@ export async function settleJekoTransaction(
       });
       // Deux livraisons simultanées, ou un encaissement du staff entre-temps.
       if (fresh?.isPaid) return settledElsewhere(fresh, tx);
-      // L'expiration a annulé la commande entre notre lecture et l'écriture : on
-      // rejoue une fois, par le chemin « paiement tardif » (aucune garde de statut).
-      if (fresh?.status === 'CANCELLED' && !raceRetried) {
-        raceRetried = true;
-        late = true;
-        continue;
+      // L'expiration a annulé la commande entre notre lecture et l'écriture :
+      // même traitement qu'un paiement tardif (valider ou rembourser).
+      if (fresh && isExpiredCancellation(fresh)) {
+        return settleLatePayment(fresh, tx, lines, online);
       }
       throw err;
     }
   }
 
-  // Le paiement est enregistré. Commande annulée ou expirée avant l'arrivée du
-  // paiement : encaissé, mais pas remis en cuisine. Le staff la reprend par le
-  // flux existant (qui restitue le tampon) ou la rembourse — on ne reconsomme pas
-  // une récompense à l'aveugle.
+  // Le paiement est enregistré. Commande annulée par une personne (staff ou
+  // client) avant l'arrivée du paiement : encaissé, mais pas remis en cuisine. Le
+  // staff la reprend par le flux existant (qui restitue le tampon) ou la rembourse
+  // — on ne reconsomme pas une récompense à l'aveugle.
   if (shortage) {
     alertStaff(
       order.id,
@@ -200,7 +175,7 @@ export async function settleJekoTransaction(
     alertStaff(
       order.id,
       order.dailyNumber,
-      `Payée en ligne (${tx.amountFcfa} F) après annulation ou expiration : rétablir ou rembourser.`
+      `Payée en ligne (${tx.amountFcfa} F) après annulation : rétablir ou rembourser.`
     );
   } else {
     // Commande normale, désormais payée : c'est maintenant que le staff l'apprend

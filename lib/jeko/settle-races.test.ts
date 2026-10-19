@@ -8,6 +8,7 @@ vi.mock('@/lib/prisma', () => ({
 }));
 vi.mock('@/lib/push-notify', () => ({ sendPushToRoles: vi.fn() }));
 vi.mock('./notify-paid', () => ({ announcePaidOrder: vi.fn() }));
+vi.mock('./refund', () => ({ refundLatePayment: vi.fn() }));
 vi.mock('@/lib/auth-helpers', () => ({
   ROLE_GROUPS: { CASHIER_PLUS: ['CASHIER', 'MANAGER', 'ADMIN'] },
 }));
@@ -145,25 +146,35 @@ describe('settleJekoTransaction — courses et rejeux', () => {
         new OrderMutationError('État modifié entre temps, recharger', 409)
       )
       .mockResolvedValueOnce({ startedPreparation: false });
-    findOrder
-      .mockResolvedValueOnce(order as never)
-      .mockResolvedValueOnce({ ...order, status: 'CANCELLED' } as never);
+    findOrder.mockResolvedValueOnce(order as never).mockResolvedValueOnce({
+      ...order,
+      status: 'CANCELLED',
+      paymentExpiresAt: new Date('2026-10-03T10:00:00Z'),
+    } as never);
 
-    await expect(settleJekoTransaction(tx)).resolves.toBe('late_payment');
+    // Stock suffisant : la commande expirée est rétablie puis validée.
+    await expect(settleJekoTransaction(tx)).resolves.toBe('late_validated');
 
     expect(pay).toHaveBeenCalledTimes(2);
-    expect(push).toHaveBeenCalledTimes(1);
-    expect(announce).not.toHaveBeenCalled();
+    expect(announce).toHaveBeenCalledWith('o1');
   });
 
-  it('ne rejoue qu’une seule fois : un second 409 remonte pour que Jèko réessaie', async () => {
+  it('un 409 inexpliqué pendant la validation tardive remonte pour que Jèko réessaie, et la commande redevient annulée', async () => {
     pay.mockRejectedValue(
       new OrderMutationError('État modifié entre temps, recharger', 409)
     );
-    findOrder.mockResolvedValue({ ...order, status: 'CANCELLED' } as never);
+    findOrder.mockResolvedValue({
+      ...order,
+      status: 'CANCELLED',
+      paymentExpiresAt: new Date('2026-10-03T10:00:00Z'),
+    } as never);
 
     await expect(settleJekoTransaction(tx)).rejects.toThrow('État modifié');
-    expect(pay).toHaveBeenCalledTimes(2);
+    expect(pay).toHaveBeenCalledTimes(1);
+    expect(updateOrder).toHaveBeenLastCalledWith({
+      where: { id: 'o1', isPaid: false, status: 'NEW' },
+      data: { status: 'CANCELLED' },
+    });
   });
 
   it('relance toute autre erreur pour que Jèko réessaie la livraison', async () => {

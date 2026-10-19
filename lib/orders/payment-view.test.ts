@@ -76,4 +76,23 @@ describe('getPaymentView', () => {
       ).state
     ).toBe('paid');
   });
+
+  it('expirée mais payée quand même : indique le remboursement fait ou à venir', () => {
+    const paid = {
+      ...base,
+      status: 'CANCELLED' as const,
+      paymentTransactionId: 'txn_1',
+    };
+    expect(getPaymentView(paid, now).refund).toEqual({
+      status: 'pending',
+      amount: null,
+    });
+    expect(
+      getPaymentView({ ...paid, refundedAt: now, refundAmount: 3450 }, now)
+        .refund
+    ).toEqual({ status: 'done', amount: 3450 });
+    expect(
+      getPaymentView({ ...base, status: 'CANCELLED' }, now)
+    ).not.toHaveProperty('refund');
+  });
 });

@@ -47,14 +47,19 @@ export type OnlinePaymentRow = {
   onlineFee: number | null;
   gatewayFee: number | null;
   paymentAmountDue: number | null;
+  /** Remboursement d'un paiement tardif : produits rendus + frais du transfert. */
+  refundAmount?: number | null;
+  refundFee?: number | null;
 };
 
 export function summarizeOnlinePayments(rows: OnlinePaymentRow[]) {
   let collected = 0;
   let customerFees = 0;
   let gatewayFees = 0;
+  let refunded = 0;
   let feeUnknownCount = 0;
   for (const r of rows) {
+    refunded += (r.refundAmount ?? 0) + (r.refundFee ?? 0);
     const fee = r.onlineFee ?? 0;
     // Montant réellement demandé à Jèko ; `total` seul serait faux après une
     // annulation client (qui remet `total` au prix brut).
@@ -69,7 +74,8 @@ export function summarizeOnlinePayments(rows: OnlinePaymentRow[]) {
     customerFees,
     gatewayFees,
     absorbedFees: gatewayFees - customerFees,
-    netReceived: collected - gatewayFees,
+    refunded,
+    netReceived: collected - gatewayFees - refunded,
     feeUnknownCount,
   };
 }

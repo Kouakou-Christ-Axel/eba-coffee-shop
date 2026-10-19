@@ -16,6 +16,12 @@ export type PaymentView = {
   amountDue: number;
   /** Échéance du paiement (ISO) tant qu'il est attendu ou vient d'expirer. */
   expiresAt: string | null;
+  /**
+   * Seulement sur une commande expirée que le client a payée quand même (cf.
+   * lib/jeko/settle-late.ts) : `done` = remboursé de `amount` F, `pending` = pas
+   * encore, le staff s'en charge. Absent = rien n'a été débité.
+   */
+  refund?: { status: 'done' | 'pending'; amount: number | null };
 };
 
 export function getPaymentView(
@@ -25,6 +31,9 @@ export function getPaymentView(
     total: number;
     onlineFee: number | null;
     paymentExpiresAt: Date | null;
+    paymentTransactionId?: string | null;
+    refundedAt?: Date | null;
+    refundAmount?: number | null;
   },
   now: Date = new Date()
 ): PaymentView {
@@ -48,5 +57,12 @@ export function getPaymentView(
     onlineFee,
     amountDue: order.total + (onlineFee ?? 0),
     expiresAt: order.paymentExpiresAt.toISOString(),
+    ...(expired && order.paymentTransactionId
+      ? {
+          refund: order.refundedAt
+            ? { status: 'done' as const, amount: order.refundAmount ?? null }
+            : { status: 'pending' as const, amount: null },
+        }
+      : {}),
   };
 }

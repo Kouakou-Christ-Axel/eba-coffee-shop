@@ -345,6 +345,16 @@ model Order {
   // transaction sur une commande déjà payée est un DOUBLE paiement (deux demandes
   // payées après une relance) : le staff est alerté pour rembourser.
   paymentTransactionId String?
+  // Remboursement d'un paiement tardif (commande expirée ET stock insuffisant, ou
+  // récompense fidélité déjà restituée) : transfert Jèko vers le numéro de la
+  // commande. `refundAmount` = produits seuls (les frais en ligne restent acquis),
+  // `refundFee` = frais du transfert. `refundedAt` posé = déjà remboursé ou en
+  // cours : plus aucun règlement ni remboursement automatique. Null + commande
+  // annulée avec `paymentTransactionId` = remboursement manuel à faire.
+  refundTransferId String?
+  refundedAt       DateTime?
+  refundAmount     Int?
+  refundFee        Int?
 
   createdById String?
   createdBy   User?   @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)

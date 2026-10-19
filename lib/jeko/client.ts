@@ -24,7 +24,7 @@ export type JekoConfig = {
   baseUrl?: string;
 };
 
-function baseUrl(config: JekoConfig): string {
+export function baseUrl(config: JekoConfig): string {
   return (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
 }
 
@@ -40,7 +40,7 @@ export type CreatePaymentRequestInput = {
   errorUrl: string;
 };
 
-type FetchFn = typeof fetch;
+export type FetchFn = typeof fetch;
 
 export class JekoApiError extends Error {
   constructor(
@@ -75,7 +75,7 @@ function isAllowedReturnUrl(raw: string): boolean {
   }
 }
 
-function authHeaders(config: JekoConfig): Record<string, string> {
+export function authHeaders(config: JekoConfig): Record<string, string> {
   return { 'X-API-KEY': config.apiKey, 'X-API-KEY-ID': config.apiKeyId };
 }
 
@@ -84,7 +84,7 @@ function authHeaders(config: JekoConfig): Record<string, string> {
  * injoignable) devient une `JekoApiError` identifiable : sans cela il remonterait
  * comme une erreur brute et serait pris pour une panne de NOTRE serveur.
  */
-async function call(
+export async function call(
   fetchFn: FetchFn,
   url: string,
   init: RequestInit
@@ -118,7 +118,9 @@ function validationDetail(body: Record<string, unknown>): string {
     .join('; ');
 }
 
-async function parseOrThrow(res: Response): Promise<Record<string, unknown>> {
+export async function parseOrThrow(
+  res: Response
+): Promise<Record<string, unknown>> {
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
     throw new JekoApiError(

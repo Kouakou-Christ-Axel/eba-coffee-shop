@@ -40,6 +40,8 @@ export async function getJekoLedger() {
         onlineFee: true,
         gatewayFee: true,
         paymentAmountDue: true,
+        refundAmount: true,
+        refundFee: true,
       },
     }),
     prisma.jekoWithdrawal.findMany({ orderBy: { createdAt: 'desc' } }),
