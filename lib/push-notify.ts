@@ -182,7 +182,7 @@ const CUSTOMER_MESSAGES: Record<
   },
   REFUNDED: {
     title: 'Paiement remboursé',
-    body: 'Ton paiement est arrivé après le délai et un article n’est plus disponible : tu as été remboursé sur ton numéro.',
+    body: 'Ton remboursement a bien été effectué.',
   },
 };
 

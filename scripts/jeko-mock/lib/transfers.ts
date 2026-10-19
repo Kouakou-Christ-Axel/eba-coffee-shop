@@ -114,3 +114,32 @@ export async function createTransfer(
   state.transfers.set(transfer.id, transfer);
   sendJson(res, 200, transfer);
 }
+
+export function getTransfer(
+  res: ServerResponse,
+  state: MockTransfers,
+  id: string
+) {
+  const transfer = state.transfers.get(id);
+  return transfer
+    ? sendJson(res, 200, transfer)
+    : apiError(res, 404, 'not_found', 'Transfert introuvable');
+}
+
+/** Gestes du « opérateur » : un transfert créé `pending` finit success ou error. */
+export function settleTransfer(
+  res: ServerResponse,
+  state: MockTransfers,
+  id: string,
+  outcome: string
+) {
+  const transfer = state.transfers.get(id);
+  if (!transfer)
+    return apiError(res, 404, 'not_found', 'Transfert introuvable');
+  if (outcome === 'succeed') transfer.status = 'success';
+  else if (outcome === 'fail') {
+    transfer.status = 'error';
+    transfer.error = { id: 'transfer_failed' };
+  } else return apiError(res, 404, 'not_found', 'Geste inconnu');
+  sendJson(res, 200, transfer);
+}

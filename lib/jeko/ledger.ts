@@ -7,6 +7,7 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import {
   jekoBalance,
+  withAppRefunds,
   maxWithdrawable,
   summarizeOnlinePayments,
   withdrawalFee,
@@ -31,7 +32,7 @@ export async function deleteJekoWithdrawal(id: string) {
 export async function getJekoLedger() {
   // `paymentTransactionId` non nul = Jèko a réellement encaissé (même si la
   // commande a été annulée ensuite : l'argent est bien arrivé).
-  const [orders, withdrawals] = await Promise.all([
+  const [orders, appRefunds, withdrawals] = await Promise.all([
     // staff-visibility: exempt — comptabilité de l'argent reçu, pas une file staff
     prisma.order.findMany({
       where: { paymentTransactionId: { not: null } },
@@ -42,12 +43,31 @@ export async function getJekoLedger() {
         paymentAmountDue: true,
         refundAmount: true,
         refundFee: true,
+        _count: { select: { refunds: true } },
       },
+    }),
+    // Remboursements de l'application envoyés par transfert Jèko (montant + frais).
+    prisma.refund.aggregate({
+      where: {
+        delivery: 'JEKO_TRANSFER',
+        status: { in: ['PAID', 'PROCESSING', 'UNCERTAIN'] },
+      },
+      _sum: { amount: true, feeFcfa: true },
     }),
     prisma.jekoWithdrawal.findMany({ orderBy: { createdAt: 'desc' } }),
   ]);
 
-  const summary = summarizeOnlinePayments(orders);
+  // Une commande qui porte des lignes `Refund` est comptée par celles-ci : on
+  // ignore ses anciennes colonnes `refund*` (sinon le remboursement serait déduit
+  // deux fois). Les commandes antérieures, sans ligne, restent comptées comme avant.
+  const summary = withAppRefunds(
+    summarizeOnlinePayments(
+      orders.map(({ _count, ...o }) =>
+        _count.refunds > 0 ? { ...o, refundAmount: null, refundFee: null } : o
+      )
+    ),
+    (appRefunds._sum.amount ?? 0) + (appRefunds._sum.feeFcfa ?? 0)
+  );
   const balance = jekoBalance(summary.netReceived, withdrawals);
   return {
     ...summary,

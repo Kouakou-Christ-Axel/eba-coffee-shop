@@ -100,3 +100,38 @@ export async function createJekoTransfer(
     feeFcfa: (fees?.amount ?? 0) / CENTS_PER_FCFA,
   };
 }
+
+/**
+ * Relit un transfert (`GET /partner_api/transfers/{id}`) : un transfert créé
+ * `pending` finit `success` ou `error`, et personne ne nous le dit (le webhook de
+ * transfert n'est pas exploité). `errorCode` : meilleure lecture possible de la
+ * raison d'échec (la page « Gérer les échecs » donne `error.id`).
+ */
+export async function getJekoTransfer(
+  config: JekoConfig,
+  id: string,
+  fetchFn: FetchFn = fetch
+): Promise<{
+  id: string;
+  status: JekoTransferStatus;
+  feeFcfa: number;
+  errorCode: string | null;
+}> {
+  const res = await call(
+    fetchFn,
+    `${baseUrl(config)}/partner_api/transfers/${encodeURIComponent(id)}`,
+    { headers: authHeaders(config) }
+  );
+  const body = await parseOrThrow(res);
+  const fees = body.fees as { amount?: number } | null | undefined;
+  const error = body.error as { id?: string } | string | null | undefined;
+  return {
+    id: body.id as string,
+    status: body.status as JekoTransferStatus,
+    feeFcfa: (fees?.amount ?? 0) / CENTS_PER_FCFA,
+    errorCode:
+      (typeof error === 'string' ? error : error?.id) ??
+      (body.errorReason as string | null | undefined) ??
+      null,
+  };
+}

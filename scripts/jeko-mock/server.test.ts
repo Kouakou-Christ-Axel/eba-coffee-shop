@@ -13,7 +13,11 @@ import {
   createJekoPaymentRequest,
   getJekoPaymentRequest,
 } from '@/lib/jeko/client';
-import { createJekoContact, createJekoTransfer } from '@/lib/jeko/transfers';
+import {
+  createJekoContact,
+  createJekoTransfer,
+  getJekoTransfer,
+} from '@/lib/jeko/transfers';
 import { verifyJekoSignature } from '@/lib/jeko/signature';
 import { parseJekoTransaction } from '@/lib/jeko/webhook-payload';
 import { createJekoMock } from './server';
@@ -264,5 +268,38 @@ describe('serveur Jèko factice', () => {
     await expect(createJekoTransfer(config, transfer)).rejects.toSatisfy(
       (e) => e instanceof JekoApiError && e.status === 409
     );
+  });
+
+  it('un transfert pending se relit, puis finit success ou error', async () => {
+    const contact = await createJekoContact(config, {
+      name: 'Awa',
+      method: 'wave',
+      phoneE164: '+2250707070707',
+    });
+    const make = (reference: string) =>
+      createJekoTransfer(config, {
+        contactId: contact.id,
+        amountFcfa: 1000,
+        reference,
+        description: 'Remboursement',
+      });
+    const ok = await make('REMB-A-0001');
+    const ko = await make('REMB-B-0001');
+    await expect(getJekoTransfer(config, ok.id)).resolves.toMatchObject({
+      status: 'pending',
+    });
+
+    await fetch(`${mock.baseUrl}/transfers/${ok.id}/succeed`, {
+      method: 'POST',
+    });
+    await fetch(`${mock.baseUrl}/transfers/${ko.id}/fail`, { method: 'POST' });
+
+    await expect(getJekoTransfer(config, ok.id)).resolves.toMatchObject({
+      status: 'success',
+    });
+    await expect(getJekoTransfer(config, ko.id)).resolves.toMatchObject({
+      status: 'error',
+      errorCode: 'transfer_failed',
+    });
   });
 });
