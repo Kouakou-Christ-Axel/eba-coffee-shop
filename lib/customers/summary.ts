@@ -1,12 +1,13 @@
 import { withStaffVisible } from '@/lib/orders/visibility';
 import prisma from '@/lib/prisma';
+import { refundedByCustomer } from '@/lib/refunds/customer';
 import type { CustomerListSummary } from './types';
 
 export async function getCustomerListSummary(): Promise<CustomerListSummary> {
   const now = Date.now();
   const DAY_MS = 24 * 60 * 60 * 1000;
 
-  const [totalClients, newLast7Days, newLast30Days, agg, grouped] =
+  const [totalClients, newLast7Days, newLast30Days, agg, grouped, refunded] =
     await Promise.all([
       prisma.customer.count(),
       prisma.customer.count({
@@ -31,6 +32,7 @@ export async function getCustomerListSummary(): Promise<CustomerListSummary> {
         }),
         _max: { createdAt: true },
       }),
+      refundedByCustomer({ not: null }),
     ]);
 
   // Tranches disjointes (pas cumulatives) : chaque client compte dans une
@@ -50,7 +52,10 @@ export async function getCustomerListSummary(): Promise<CustomerListSummary> {
   }
 
   const ordersCount = agg._count;
-  const revenueTotal = agg._sum.total ?? 0;
+  // Net des remboursements déjà partis.
+  const revenueTotal =
+    (agg._sum.total ?? 0) -
+    [...refunded.values()].reduce((sum, n) => sum + n, 0);
 
   return {
     totalClients,

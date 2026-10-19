@@ -15,8 +15,8 @@ export default async function TiktokPage() {
       <div>
         <h1 className="text-2xl font-bold">Vidéos TikTok</h1>
         <p className="text-sm text-muted-foreground">
-          Gère les vidéos TikTok embarquées dans la section « Suivez
-          l’aventure » de l’accueil.
+          Gère les vidéos TikTok embarquées dans la section « Suivez l’aventure
+          » de l’accueil.
         </p>
       </div>
 

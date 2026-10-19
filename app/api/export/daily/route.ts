@@ -41,8 +41,20 @@ export async function GET(req: NextRequest) {
     parseDateOnlyToUTC(toStr)!
   );
 
-  const headers = ['Date', 'Commandes', 'CA encaissé (FCFA)'];
-  const rows = series.map((p) => [p.date, p.orders, p.revenue]);
+  const headers = [
+    'Date',
+    'Commandes',
+    'CA brut (FCFA)',
+    'Remboursements (FCFA)',
+    'CA net (FCFA)',
+  ];
+  const rows = series.map((p) => [
+    p.date,
+    p.orders,
+    p.grossRevenue,
+    p.refunds,
+    p.revenue,
+  ]);
 
   const csv = toCsv(headers, rows);
   return csvResponse(`recap_journalier_${fromStr}_${toStr}.csv`, csv);

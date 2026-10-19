@@ -4,6 +4,7 @@
 // client (calcul en direct) et la mutation serveur (valeurs figées).
 //
 //   caisse théorique = fond de caisse + ventes espèces − dépenses espèces
+//                      − remboursements rendus en espèces
 //   écart            = espèces comptées − caisse théorique
 
 export type ClosingResult = {
@@ -15,10 +16,14 @@ export function computeClosing(params: {
   openingFloat: number;
   cashSales: number;
   cashExpenses: number;
+  cashRefunds: number;
   countedCash: number;
 }): ClosingResult {
   const expectedCash =
-    params.openingFloat + params.cashSales - params.cashExpenses;
+    params.openingFloat +
+    params.cashSales -
+    params.cashExpenses -
+    params.cashRefunds;
   return {
     expectedCash,
     difference: params.countedCash - expectedCash,

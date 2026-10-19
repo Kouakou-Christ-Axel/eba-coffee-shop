@@ -137,12 +137,16 @@ export default async function CloturePage({
                 Orange Money : {fmt.format(figures.orangeMoneySales)} F
               </span>
               <span>Autre : {fmt.format(figures.otherSales)} F</span>
+              {figures.refunds > 0 && (
+                <span>Remboursements : {fmt.format(figures.refunds)} F</span>
+              )}
             </div>
           )}
           <ClosingForm
             date={dayStr}
             cashSales={figures?.cashSales ?? 0}
             cashExpenses={figures?.cashExpenses ?? 0}
+            cashRefunds={figures?.cashRefunds ?? 0}
             showFigures={canSeeFigures}
             existing={existingProp}
           />
@@ -176,6 +180,7 @@ export default async function CloturePage({
                   <TableHead>Fond</TableHead>
                   <TableHead>Ventes esp.</TableHead>
                   <TableHead>Dépenses esp.</TableHead>
+                  <TableHead>Rembours. esp.</TableHead>
                   <TableHead>Théorique</TableHead>
                   <TableHead>Compté</TableHead>
                   <TableHead>Écart</TableHead>
@@ -196,6 +201,9 @@ export default async function CloturePage({
                     </TableCell>
                     <TableCell className="tabular-nums">
                       {fmt.format(c.cashExpenses)}
+                    </TableCell>
+                    <TableCell className="tabular-nums">
+                      {fmt.format(c.cashRefunds)}
                     </TableCell>
                     <TableCell className="tabular-nums">
                       {fmt.format(c.expectedCash)}
@@ -223,7 +231,7 @@ export default async function CloturePage({
                 {history.length === 0 && (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       className="py-8 text-center text-sm text-muted-foreground"
                     >
                       Aucune clôture sur cette période.

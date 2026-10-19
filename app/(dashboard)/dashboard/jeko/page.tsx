@@ -16,6 +16,7 @@ export default async function JekoPage() {
     ['Payé par les clients', f(l.collected), `${l.count} paiement(s)`],
     ['dont frais clients (1 %)', f(l.customerFees)],
     ['Frais prélevés par Jèko', f(-l.gatewayFees)],
+    ['Remboursements envoyés (frais compris)', f(-l.refunded)],
     ['Net arrivé sur Jèko', f(l.netReceived)],
     ['Retraits', f(-l.withdrawnTotal)],
     ['Frais de retrait', f(-l.withdrawalFeesTotal)],

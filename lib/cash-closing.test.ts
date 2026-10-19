@@ -11,22 +11,34 @@ vi.mock('@/lib/prisma', () => ({
   default: { expense: { aggregate: vi.fn() } },
 }));
 vi.mock('@/lib/stats', () => ({ getDailyStats: vi.fn() }));
+vi.mock('@/lib/refunds/aggregate', () => ({
+  sumCashRefundsForDay: vi.fn().mockResolvedValue(0),
+}));
 
 import prisma from '@/lib/prisma';
 import { getDailyStats } from '@/lib/stats';
+import { sumCashRefundsForDay } from '@/lib/refunds/aggregate';
 import { getCashFigures } from './cash-closing';
 
 const date = new Date(Date.UTC(2026, 9, 3));
 
-function stubDay(revenueByMode: Partial<Record<string, number>>) {
+function stubDay(
+  revenueByMode: Partial<Record<string, number>>,
+  { refunds = 0, cashRefunds = 0 } = {}
+) {
   const byMode = { ...emptyModeRecord(), ...revenueByMode } as Record<
     string,
     number
   >;
+  const gross = Object.values(byMode).reduce((a, b) => a + b, 0);
   vi.mocked(getDailyStats).mockResolvedValue({
-    revenue: Object.values(byMode).reduce((a, b) => a + b, 0),
+    revenue: gross - refunds,
+    grossRevenue: gross,
+    refunds,
     revenueByPaymentMode: byMode,
+    grossRevenueByPaymentMode: byMode,
   } as never);
+  vi.mocked(sumCashRefundsForDay).mockResolvedValue(cashRefunds);
   vi.mocked(prisma.expense.aggregate).mockResolvedValue({
     _sum: { amount: 0 },
   } as never);
@@ -65,5 +77,27 @@ describe('getCashFigures', () => {
     expect(f.waveSales).toBe(5000);
     expect(f.orangeMoneySales).toBe(3000);
     expect(f.otherSales).toBe(0);
+  });
+
+  it('ventes BRUTES et remboursements espèces à part : le tiroir ne déduit pas deux fois', async () => {
+    // Remboursement de 2 000 en espèces sur une vente de 10 000 en espèces.
+    stubDay({ CASH: 10000, WAVE: 5000 }, { refunds: 2000, cashRefunds: 2000 });
+
+    const f = await getCashFigures(date);
+
+    expect(f.cashSales).toBe(10000);
+    expect(f.cashRefunds).toBe(2000);
+    expect(f.totalRevenue).toBe(15000);
+    expect(f.refunds).toBe(2000);
+  });
+
+  it('compte les espèces rendues même si elles ne touchent pas le CA (commande annulée)', async () => {
+    // Aucun remboursement dans le CA, mais 1 500 F sont sortis du tiroir.
+    stubDay({ CASH: 10000 }, { refunds: 0, cashRefunds: 1500 });
+
+    const f = await getCashFigures(date);
+
+    expect(f.refunds).toBe(0);
+    expect(f.cashRefunds).toBe(1500);
   });
 });

@@ -40,9 +40,7 @@ describe('isPrecommandeCart', () => {
   });
 
   it('ignore une ligne dont `soldOutToday` est explicitement faux', () => {
-    expect(isPrecommandeCart([line('a', { soldOutToday: false })])).toBe(
-      false
-    );
+    expect(isPrecommandeCart([line('a', { soldOutToday: false })])).toBe(false);
   });
 });
 

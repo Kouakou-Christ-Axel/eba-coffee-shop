@@ -1,6 +1,7 @@
 import { withStaffVisible } from '@/lib/orders/visibility';
 import prisma from '@/lib/prisma';
 import { customerPhoneKey } from '@/lib/phone';
+import { refundedByCustomer } from '@/lib/refunds/customer';
 import type { OrderItemLike, CustomerDetailStats } from './types';
 
 /** Détail d'un client + ses commandes récentes. */
@@ -8,7 +9,7 @@ export async function getCustomer(id: string) {
   const customer = await prisma.customer.findUnique({ where: { id } });
   if (!customer) return null;
 
-  const [orders, agg, cancelledCount, itemsRows] = await Promise.all([
+  const [orders, agg, cancelledCount, refunded, itemsRows] = await Promise.all([
     prisma.order.findMany({
       where: withStaffVisible({ customerId: id }),
       orderBy: { createdAt: 'desc' },
@@ -24,6 +25,7 @@ export async function getCustomer(id: string) {
     prisma.order.count({
       where: withStaffVisible({ customerId: id, status: 'CANCELLED' }),
     }),
+    refundedByCustomer(id),
     // Requête à part (juste `items`) pour le produit favori : évite de
     // recharger les commandes complètes déjà limitées à 50 lignes ci-dessus.
     prisma.order.findMany({
@@ -56,7 +58,8 @@ export async function getCustomer(id: string) {
   const totalOrdersEver = agg._count + cancelledCount;
   const stats: CustomerDetailStats = {
     ordersCount: agg._count,
-    totalSpent: agg._sum.total ?? 0,
+    // Net des remboursements déjà partis.
+    totalSpent: (agg._sum.total ?? 0) - (refunded.get(id) ?? 0),
     lastOrderAt: agg._max.createdAt ?? null,
     firstOrderAt: agg._min.createdAt ?? null,
     cancelledCount,

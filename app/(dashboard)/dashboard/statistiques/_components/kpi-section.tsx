@@ -26,7 +26,7 @@ export async function KpiSection({ from, to }: { from: Date; to: Date }) {
   const { deltas } = comparison;
   // La marge nette d'exploitation reste CA − dépenses : les investissements
   // (apports/financements) sont du capital, suivis dans un bloc séparé. Le CA
-  // (stats.revenue) inclut déjà les régularisations de recette.
+  // (stats.revenue) est NET : régularisations incluses, remboursements déduits.
   const netMargin = stats.revenue - comparison.expenses.current.total;
   const netMarginPct = stats.revenue > 0 ? netMargin / stats.revenue : null;
   const rangeDays =
@@ -44,9 +44,16 @@ export async function KpiSection({ from, to }: { from: Date; to: Date }) {
         Icon={Banknote}
         delta={{ pct: deltas.revenue.pct, label: vsLabel }}
         hint={
-          adjustmentSummary.total !== 0
-            ? `dont régularisations : ${adjustmentSummary.total < 0 ? '−' : '+'}${priceFormatter.format(Math.abs(adjustmentSummary.total))} F`
-            : undefined
+          [
+            stats.refunds > 0
+              ? `brut ${priceFormatter.format(stats.grossRevenue)} F · remboursements −${priceFormatter.format(stats.refunds)} F`
+              : null,
+            adjustmentSummary.total !== 0
+              ? `dont régularisations : ${adjustmentSummary.total < 0 ? '−' : '+'}${priceFormatter.format(Math.abs(adjustmentSummary.total))} F`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(' · ') || undefined
         }
       />
       <KpiCard

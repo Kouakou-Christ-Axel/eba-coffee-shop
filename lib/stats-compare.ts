@@ -63,8 +63,8 @@ export type RangeComparison = {
 
 /**
  * KPIs de la plage `[from, to]` comparés à la période précédente de même
- * durée. Le CA des deux périodes inclut les régularisations de recette (via
- * `getRangeStats`) ; la marge nette = CA − dépenses (investissements exclus,
+ * durée. Le CA des deux périodes est NET : régularisations de recette ajoutées,
+ * remboursements déduits (via `getRangeStats`) ; la marge nette = CA − dépenses (investissements exclus,
  * même convention que la page Statistiques).
  */
 export async function compareRanges(

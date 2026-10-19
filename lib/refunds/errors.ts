@@ -15,3 +15,9 @@ export type RefundActor = {
   id: string;
   role: import('@/generated/prisma/client').UserRole;
 };
+
+/** Qui demande : `id` nul pour une demande venue du MCP / de l'assistant (sans session nommée). */
+export type RefundRequester = {
+  id: string | null;
+  role: import('@/generated/prisma/client').UserRole;
+};

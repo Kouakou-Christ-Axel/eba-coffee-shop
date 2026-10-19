@@ -52,8 +52,10 @@ function buildSummarySheet(input: BankReportInput): XLSX.WorkSheet {
       'Période',
       input.isAll ? 'Depuis le début' : `Du ${input.fromStr} au ${input.toStr}`,
     ],
-    ['CA encaissé (FCFA)', range.revenue],
-    ['dont régularisations de recette (FCFA)', revenueAdjustments.total],
+    ['CA brut encaissé (FCFA)', range.grossRevenue],
+    ['  dont régularisations de recette (FCFA)', revenueAdjustments.total],
+    ['Remboursements (FCFA)', range.refunds],
+    ['CA net (FCFA)', range.revenue],
     ['Dépenses (FCFA)', input.expenseSummary.total],
     ['  dont fixes (FCFA)', input.expenseSummary.fixed],
     ['  dont variables (FCFA)', input.expenseSummary.variable],
@@ -68,7 +70,7 @@ function buildSummarySheet(input: BankReportInput): XLSX.WorkSheet {
     rows.push(
       [''],
       ['Période précédente (comparaison)', ''],
-      ['CA encaissé période précédente (FCFA)', previousRange.revenue],
+      ['CA net période précédente (FCFA)', previousRange.revenue],
       ['Commandes période précédente', previousRange.totalOrders]
     );
   }
@@ -79,11 +81,23 @@ function buildSummarySheet(input: BankReportInput): XLSX.WorkSheet {
 // ─── Onglet CA quotidien ────────────────────────────────────────────────────
 
 function buildDailySeriesSheet(dailySeries: DailyPoint[]): XLSX.WorkSheet {
-  const rows = dailySeries.map((p) => [p.date, p.orders, p.revenue]);
+  const rows = dailySeries.map((p) => [
+    p.date,
+    p.orders,
+    p.grossRevenue,
+    p.refunds,
+    p.revenue,
+  ]);
   return sheetFromRows(
-    ['Date', 'Commandes', 'CA encaissé (FCFA)'],
+    [
+      'Date',
+      'Commandes',
+      'CA brut (FCFA)',
+      'Remboursements (FCFA)',
+      'CA net (FCFA)',
+    ],
     rows,
-    [14, 12, 18]
+    [14, 12, 16, 22, 16]
   );
 }
 

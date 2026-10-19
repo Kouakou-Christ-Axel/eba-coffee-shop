@@ -6,6 +6,7 @@
 // d'instants équivalent [from 00:00, to+1j 00:00[ (Abidjan = UTC+0).
 
 import prisma from '@/lib/prisma';
+import { refundedByCustomer } from '@/lib/refunds/customer';
 import { withStaffVisible } from '@/lib/orders/visibility';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -60,28 +61,33 @@ export async function getCustomerRangeStats(
     status: { not: 'CANCELLED' as const },
   };
 
-  const [newCustomers, grouped, totalOrders, ledger] = await Promise.all([
-    prisma.customer.count({
-      where: { createdAt: { gte: from, lt: toExclusive } },
-    }),
-    prisma.order.groupBy({
-      by: ['customerId'],
-      where: withStaffVisible({ ...orderWhere, customerId: { not: null } }),
-      _count: true,
-      _sum: { total: true },
-    }),
-    prisma.order.count({ where: withStaffVisible(orderWhere) }),
-    prisma.loyaltyLedger.groupBy({
-      by: ['type'],
-      where: { createdAt: { gte: from, lt: toExclusive } },
-      _count: true,
-      _sum: { stamps: true },
-    }),
-  ]);
+  const [newCustomers, grouped, totalOrders, ledger, refunded] =
+    await Promise.all([
+      prisma.customer.count({
+        where: { createdAt: { gte: from, lt: toExclusive } },
+      }),
+      prisma.order.groupBy({
+        by: ['customerId'],
+        where: withStaffVisible({ ...orderWhere, customerId: { not: null } }),
+        _count: true,
+        _sum: { total: true },
+      }),
+      prisma.order.count({ where: withStaffVisible(orderWhere) }),
+      prisma.loyaltyLedger.groupBy({
+        by: ['type'],
+        where: { createdAt: { gte: from, lt: toExclusive } },
+        _count: true,
+        _sum: { stamps: true },
+      }),
+      // Remboursements des commandes de la plage (même convention que le CA client).
+      refundedByCustomer({ not: null }, { dailyDate: { gte: from, lte: to } }),
+    ]);
 
   const identifiedOrders = grouped.reduce((s, g) => s + g._count, 0);
+  const netOf = (g: (typeof grouped)[number]) =>
+    (g._sum.total ?? 0) - (refunded.get(g.customerId as string) ?? 0);
   const top = [...grouped]
-    .sort((a, b) => (b._sum.total ?? 0) - (a._sum.total ?? 0))
+    .sort((a, b) => netOf(b) - netOf(a))
     .slice(0, topLimit);
 
   const names = await prisma.customer.findMany({
@@ -107,7 +113,7 @@ export async function getCustomerRangeStats(
         name: c?.name ?? null,
         phone: c?.phone ?? '—',
         orders: g._count,
-        revenue: g._sum.total ?? 0,
+        revenue: netOf(g),
       };
     }),
     loyalty: {

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const count = (n: number) => vi.fn().mockResolvedValue({ count: n });
 const prismaMock = vi.hoisted(() => ({
   order: { updateMany: vi.fn() },
+  refund: { updateMany: vi.fn() },
   customer: { findMany: vi.fn() },
   pollVote: { updateMany: vi.fn() },
   pollSuggestion: { updateMany: vi.fn() },
@@ -23,6 +24,7 @@ describe('purgeExpiredPersonalData', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prismaMock.order.updateMany = count(3);
+    prismaMock.refund.updateMany = count(8);
     prismaMock.customer.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
     prismaMock.pollVote.updateMany = count(4);
     prismaMock.pollSuggestion.updateMany = count(1);
@@ -36,11 +38,18 @@ describe('purgeExpiredPersonalData', () => {
     const report = await purgeExpiredPersonalData();
     expect(report).toMatchObject({
       ordersAnonymized: 3,
+      refundIdentitiesCleared: 8,
       customersAnonymized: 2,
       pollVoteMetaCleared: 4,
       assistantConversationsDeleted: 2,
       sessionsDeleted: 6,
     });
+  });
+
+  it('anonymise les remboursements terminés, jamais ceux encore en cours', async () => {
+    await purgeExpiredPersonalData();
+    const where = prismaMock.refund.updateMany.mock.calls[0][0].where;
+    expect(where.status).toEqual({ in: ['PAID', 'REJECTED', 'CANCELLED'] });
   });
 
   it('ne touche jamais une commande impayée (dette ouverte)', async () => {

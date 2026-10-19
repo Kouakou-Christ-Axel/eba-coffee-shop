@@ -7,6 +7,7 @@ import type {
 } from '@/generated/prisma/client';
 import { PAYMENT_MODES, emptyModeRecord } from '@/lib/payment-modes';
 import { sumAdjustmentsByMode } from '@/lib/revenue-adjustments';
+import { sumRefundsByMode, totalOfModes } from '@/lib/refunds/aggregate';
 
 export const ORDER_STATUSES: OrderStatus[] = [
   'NEW',
@@ -21,19 +22,23 @@ export type RangeStats = {
   to: Date;
   totalOrders: number;
   paidOrders: number;
-  revenue: number; // CA encaissé (isPaid), hors commandes annulées
+  revenue: number; // NET : CA brut − remboursements
+  grossRevenue: number; // CA encaissé (isPaid), hors annulées, + régularisations
+  refunds: number; // remboursements partis sur la plage (commandes encore comptées)
   cancelledOrders: number;
   avgBasket: number; // revenue / paidOrders (0 si aucune)
   cancellationRate: number; // 0..1
   countByStatus: Record<OrderStatus, number>;
   countByOrderType: Record<OrderType, number>;
   countByPaymentMode: Record<PaymentMode, number>;
-  revenueByPaymentMode: Record<PaymentMode, number>;
+  revenueByPaymentMode: Record<PaymentMode, number>; // NET par canal
+  grossRevenueByPaymentMode: Record<PaymentMode, number>;
+  refundsByPaymentMode: Record<PaymentMode, number>;
 };
 
 /** Agrège les KPIs sur une plage de jours civils (inclusive). */
 export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
-  const [orders, adjustments] = await Promise.all([
+  const [orders, adjustments, refundsByMode] = await Promise.all([
     prisma.order.findMany({
       where: withStaffVisible({ dailyDate: { gte: from, lte: to } }),
       select: {
@@ -46,6 +51,7 @@ export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
       },
     }),
     sumAdjustmentsByMode(from, to),
+    sumRefundsByMode(from, to),
   ]);
 
   const stats: RangeStats = {
@@ -54,6 +60,8 @@ export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
     totalOrders: orders.length,
     paidOrders: 0,
     revenue: 0,
+    grossRevenue: 0,
+    refunds: 0,
     cancelledOrders: 0,
     avgBasket: 0,
     cancellationRate: 0,
@@ -67,6 +75,8 @@ export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
     countByOrderType: { DELIVERY: 0, DINE_IN: 0, TAKEAWAY: 0 },
     countByPaymentMode: emptyModeRecord(),
     revenueByPaymentMode: emptyModeRecord(),
+    grossRevenueByPaymentMode: emptyModeRecord(),
+    refundsByPaymentMode: refundsByMode,
   };
 
   const paidOrderIds: string[] = [];
@@ -78,7 +88,7 @@ export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
 
     if (o.isPaid && o.status !== 'CANCELLED') {
       stats.paidOrders++;
-      stats.revenue += o.total;
+      stats.grossRevenue += o.total;
       paidOrderIds.push(o.id);
       if (o.paymentMode) {
         stats.countByPaymentMode[o.paymentMode]++;
@@ -95,21 +105,31 @@ export async function getRangeStats(from: Date, to: Date): Promise<RangeStats> {
       _sum: { amount: true },
     });
     for (const row of paymentSums) {
-      stats.revenueByPaymentMode[row.mode] += row._sum.amount ?? 0;
+      stats.grossRevenueByPaymentMode[row.mode] += row._sum.amount ?? 0;
     }
   }
 
-  // Panier moyen : calculé sur le CA DES COMMANDES (avant régularisations), car
-  // une régularisation n'est pas une commande.
+  // Panier moyen : calculé sur le CA DES COMMANDES (avant régularisations et
+  // remboursements), car ni l'un ni l'autre n'est une commande.
   stats.avgBasket =
-    stats.paidOrders > 0 ? Math.round(stats.revenue / stats.paidOrders) : 0;
+    stats.paidOrders > 0
+      ? Math.round(stats.grossRevenue / stats.paidOrders)
+      : 0;
   stats.cancellationRate =
     stats.totalOrders > 0 ? stats.cancelledOrders / stats.totalOrders : 0;
 
   // Régularisations de recette : ajoutées au CA total et par mode de paiement.
   for (const mode of PAYMENT_MODES) {
-    stats.revenue += adjustments[mode];
-    stats.revenueByPaymentMode[mode] += adjustments[mode];
+    stats.grossRevenue += adjustments[mode];
+    stats.grossRevenueByPaymentMode[mode] += adjustments[mode];
+  }
+
+  // Remboursements : déduits du CA et du canal de sortie (cf. getDailyStats).
+  stats.refunds = totalOfModes(refundsByMode);
+  stats.revenue = stats.grossRevenue - stats.refunds;
+  for (const mode of PAYMENT_MODES) {
+    stats.revenueByPaymentMode[mode] =
+      stats.grossRevenueByPaymentMode[mode] - refundsByMode[mode];
   }
 
   return stats;

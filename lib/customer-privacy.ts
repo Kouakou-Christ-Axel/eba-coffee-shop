@@ -47,6 +47,19 @@ export async function exportCustomerData(id: string) {
       },
       rewards: true,
       ledger: true,
+      // Remboursements : montants, motif, statut et date (pas le détail du journal).
+      refunds: {
+        select: {
+          amount: true,
+          reason: true,
+          status: true,
+          channel: true,
+          destinationPhone: true,
+          payoutDate: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      },
       pollVotes: {
         select: { pollId: true, optionId: true, createdAt: true },
       },
@@ -89,6 +102,17 @@ export async function anonymizeCustomer(id: string, now = new Date()) {
     prisma.order.updateMany({
       where: orderOwner,
       data: { customerName: null, customerPhone: null, note: null },
+    }),
+    // Remboursements : montants, motif et dates restent (comptabilité), l'identité part.
+    prisma.refund.updateMany({
+      where: {
+        OR: [
+          { customerId: id },
+          { destinationPhone: customer.phone },
+          { order: orderOwner },
+        ],
+      },
+      data: { customerName: null, destinationPhone: null },
     }),
     prisma.pollVote.updateMany({
       where: { OR: [{ customerId: id }, { voterPhone: customer.phone }] },

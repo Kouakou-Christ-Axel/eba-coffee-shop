@@ -19,6 +19,7 @@ vi.mock('@/lib/prisma', () => ({
     order: { findMany: vi.fn() },
     orderPayment: { groupBy: vi.fn().mockResolvedValue([]) },
     revenueAdjustment: { groupBy: vi.fn(), findMany: vi.fn() },
+    refund: { groupBy: vi.fn(), findMany: vi.fn() },
   },
 }));
 
@@ -47,6 +48,12 @@ const mockAdjGroupBy = prisma.revenueAdjustment
 const mockExpenseSummary = getExpenseSummary as unknown as MockedFunction<
   (from: Date, to: Date) => Promise<{ total: number; byCategory: [] }>
 >;
+
+// Aucun remboursement par défaut.
+function mockNoRefunds() {
+  vi.mocked(prisma.refund.groupBy).mockResolvedValue([] as never);
+  vi.mocked(prisma.refund.findMany).mockResolvedValue([] as never);
+}
 
 const utc = (y: number, m: number, d: number) =>
   new Date(Date.UTC(y, m - 1, d));
@@ -101,6 +108,7 @@ describe('previousRange', () => {
 describe('compareRanges', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockNoRefunds();
     mockOrderPaymentGroupBy.mockResolvedValue([]);
   });
 
@@ -197,6 +205,7 @@ describe('compareRanges', () => {
 describe('compareDays', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockNoRefunds();
     mockOrderPaymentGroupBy.mockResolvedValue([]);
   });
 

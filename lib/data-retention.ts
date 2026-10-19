@@ -49,6 +49,24 @@ export async function purgeExpiredPersonalData(
         ).count,
     ],
     [
+      'refundIdentitiesCleared',
+      async () =>
+        (
+          await prisma.refund.updateMany({
+            where: {
+              createdAt: { lt: orderCutoff },
+              // Jamais un remboursement encore en cours : on garde de quoi le terminer.
+              status: { in: ['PAID', 'REJECTED', 'CANCELLED'] },
+              OR: [
+                { customerName: { not: null } },
+                { destinationPhone: { not: null } },
+              ],
+            },
+            data: { customerName: null, destinationPhone: null },
+          })
+        ).count,
+    ],
+    [
       'paymentProofsCleared',
       async () =>
         (

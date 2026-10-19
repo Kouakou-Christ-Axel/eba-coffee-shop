@@ -16,7 +16,7 @@ import { priceFormatter } from '@/config/menu';
 import { createRefundSchema } from '@/lib/schemas/refund';
 import { getRefundCap } from './cap';
 import { canTransferVia, resolveDestination } from './destination';
-import { RefundError, type RefundActor } from './errors';
+import { RefundError, type RefundRequester } from './errors';
 import { logRefundEvent } from './events';
 import { validateRefundLines } from './lines';
 
@@ -32,7 +32,7 @@ function defaultChannel(
 
 export async function createRefund(
   rawInput: unknown,
-  actor: RefundActor
+  actor: RefundRequester
 ): Promise<Refund> {
   if (!REFUND_REQUEST_ROLES.includes(actor.role)) {
     throw new RefundError('Non autorisé à demander un remboursement', 403);
