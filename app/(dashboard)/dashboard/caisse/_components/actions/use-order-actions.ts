@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import type { OrderStatus } from '@/generated/prisma/client';
-import { priceFormatter } from '@/config/menu';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import { useUndoToast } from '@/lib/hooks/use-undo-toast';
 import { formatPickup } from '@/lib/orders/scheduling';
@@ -229,24 +228,16 @@ export function useOrderActions(order: CashierOrder, view: OrderView) {
     });
   }
 
-  // Annule une commande non payée ; rembourse (= annule) une commande payée.
+  // Annule une commande non payée. Une commande payée se rembourse depuis sa fiche
+  // (cf. edit-section.tsx) : l'annuler ne rend aucun argent et ne laisse aucune trace.
   async function handleCancelOrRefund() {
-    const confirmed = await confirm(
-      order.isPaid
-        ? {
-            title: 'Rembourser et annuler ?',
-            message: `Le montant de ${priceFormatter.format(order.total)} F sera rendu au client pour la commande ${orderRef}.`,
-            confirmLabel: 'Rembourser et annuler',
-            destructive: true,
-          }
-        : {
-            title: 'Annuler la commande ?',
-            message: `La commande ${orderRef} sera annulée.`,
-            confirmLabel: 'Annuler la commande',
-            cancelLabel: 'Revenir',
-            destructive: true,
-          }
-    );
+    const confirmed = await confirm({
+      title: 'Annuler la commande ?',
+      message: `La commande ${orderRef} sera annulée.`,
+      confirmLabel: 'Annuler la commande',
+      cancelLabel: 'Revenir',
+      destructive: true,
+    });
     if (!confirmed) return;
     handleStatusChange('CANCELLED');
   }

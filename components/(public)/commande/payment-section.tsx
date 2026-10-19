@@ -20,6 +20,7 @@ import { Wallet } from 'lucide-react';
 import type { PublicOrderView } from '@/lib/orders';
 import type { PaymentReturn } from '@/lib/orders/payment-panel';
 import { PaymentPanels } from './payment/payment-panels';
+import { RefundNotice } from './payment/refund-notice';
 import { StatusChip } from './payment/status-chip';
 import { usePaymentSection } from './payment/use-payment-section';
 
@@ -58,6 +59,8 @@ export function PaymentSection({
         paymentReturn={paymentReturn}
         payment={payment}
       />
+
+      <RefundNotice refunds={order.refunds} />
     </div>
   );
 }

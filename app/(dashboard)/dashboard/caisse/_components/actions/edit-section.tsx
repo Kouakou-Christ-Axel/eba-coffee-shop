@@ -8,6 +8,7 @@ import {
   UserCog,
   Gift,
 } from 'lucide-react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import { CopyRecapButton } from '../../../_components/copy-recap-button';
@@ -104,29 +105,34 @@ export function EditSection({
         </Button>
       )}
 
-      {/* Annuler / Rembourser : rembourser si déjà payée, sinon annuler */}
-      {order.status !== 'CANCELLED' && (
-        <Button
-          type="button"
-          variant="outline"
-          size="lg"
-          className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          disabled={isPending}
-          onClick={handleCancelOrRefund}
-        >
-          {order.isPaid ? (
-            <>
+      {/* Annuler (non payée) ou Rembourser (payée) : un remboursement se demande
+          depuis la fiche de la commande (articles, montant, motif, validation admin). */}
+      {order.status !== 'CANCELLED' &&
+        (order.isPaid ? (
+          <Button
+            asChild
+            variant="outline"
+            size="lg"
+            className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Link href={`/dashboard/commandes/${order.id}?rembourser=1`}>
               <RotateCcw className="mr-1.5 h-4 w-4" />
-              Rembourser
-            </>
-          ) : (
-            <>
-              <Ban className="mr-1.5 h-4 w-4" />
-              Annuler
-            </>
-          )}
-        </Button>
-      )}
+              Rembourser…
+            </Link>
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="w-full border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            disabled={isPending}
+            onClick={handleCancelOrRefund}
+          >
+            <Ban className="mr-1.5 h-4 w-4" />
+            Annuler
+          </Button>
+        ))}
 
       {actionError && <p className="text-xs text-destructive">{actionError}</p>}
     </>

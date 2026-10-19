@@ -22,6 +22,7 @@ import { BreakdownsSection } from './_components/breakdowns-section';
 import { KitchenSection } from './_components/kitchen-section';
 import { CustomersSection } from './_components/customers-section';
 import { InvestmentsSection } from './_components/investments-section';
+import { RefundsSection } from './_components/refunds-section';
 
 export const dynamic = 'force-dynamic';
 
@@ -167,6 +168,17 @@ export default async function StatistiquesPage({
         }
       >
         <CustomersSection from={from} to={to} />
+      </Suspense>
+
+      <Suspense
+        fallback={
+          <div className="space-y-3">
+            <KpiGridSkeleton count={4} cols={4} />
+            <ChartCardSkeleton height={200} />
+          </div>
+        }
+      >
+        <RefundsSection from={from} to={to} />
       </Suspense>
 
       <Suspense

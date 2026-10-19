@@ -60,6 +60,8 @@ export type PublicOrderView = {
   driverPhone: string | null;
   createdAt: string;
   loyalty: PublicOrderLoyaltyView | null;
+  /** Remboursements : déjà rendu / en cours de traitement (FCFA). */
+  refunds: { paid: number; pending: number };
 };
 
 export async function getPublicOrder(
@@ -93,7 +95,10 @@ export async function getPublicOrder(
     fulfillable = availability.fulfillable;
   }
 
-  const loyalty = await getPublicOrderLoyalty(order);
+  const [loyalty, refunds] = await Promise.all([
+    getPublicOrderLoyalty(order),
+    getPublicOrderRefunds(order.id),
+  ]);
   const payment = getPaymentView(order);
 
   return {
@@ -117,7 +122,31 @@ export async function getPublicOrder(
     driverPhone: order.driverPhone,
     createdAt: order.createdAt.toISOString(),
     loyalty,
+    refunds,
   };
+}
+
+/** Montants remboursés / en cours pour la page de suivi (jamais le détail interne). */
+async function getPublicOrderRefunds(
+  orderId: string
+): Promise<{ paid: number; pending: number }> {
+  const grouped = await prisma.refund.groupBy({
+    by: ['status'],
+    where: {
+      orderId,
+      status: {
+        in: ['PAID', 'APPROVED', 'PROCESSING', 'UNCERTAIN', 'FAILED'],
+      },
+    },
+    _sum: { amount: true },
+  });
+  let paid = 0;
+  let pending = 0;
+  for (const g of grouped) {
+    if (g.status === 'PAID') paid += g._sum.amount ?? 0;
+    else pending += g._sum.amount ?? 0;
+  }
+  return { paid, pending };
 }
 
 export async function getPublicOrderLoyalty(order: {
