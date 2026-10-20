@@ -3,6 +3,7 @@ import { withStaffVisible } from '@/lib/orders/visibility';
 import type { CartItem } from '@/lib/cart-store';
 import { fetchStockSnapshot } from '@/lib/orders/availability';
 import { endOfLocalDay, startOfLocalDay } from '@/lib/timezone';
+import { fullyRefundedOrderIds } from '@/lib/refunds/fully-refunded';
 import { coalesceAsyncByKey } from '@/lib/async-coalesce';
 import { getOrdersGeneration } from '@/lib/postgres-notify';
 import { describeShortage, needsAvailability } from './availability';
@@ -14,7 +15,7 @@ async function findQueueOrders(now: Date) {
   const dayStart = startOfLocalDay(now);
   const dayEnd = endOfLocalDay(now);
 
-  return prisma.order.findMany({
+  const orders = await prisma.order.findMany({
     where: withStaffVisible({
       // Une commande annulée (ou remboursée) quitte la file caisse.
       status: { not: 'CANCELLED' },
@@ -39,6 +40,12 @@ async function findQueueOrders(now: Date) {
     // FIFO strict : la commande la plus ancienne en haut.
     orderBy: { createdAt: 'asc' },
   });
+
+  // Remboursée en totalité et non récupérée : plus rien à encaisser ni à servir.
+  const gone = await fullyRefundedOrderIds(
+    orders.filter((o) => o.isPaid || o.depositPaid).map((o) => o.id)
+  );
+  return gone.size ? orders.filter((o) => !gone.has(o.id)) : orders;
 }
 
 export async function fetchCashierQueue(): Promise<CashierOrder[]> {

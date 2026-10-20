@@ -7,6 +7,7 @@ export function refundPrismaMock() {
   const client = {
     $queryRaw: vi.fn().mockResolvedValue([]),
     $transaction: vi.fn(),
+    $executeRaw: vi.fn(),
     order: { findUnique: vi.fn() },
     orderPayment: { aggregate: vi.fn() },
     refund: {

@@ -113,6 +113,18 @@ describe('settleRefundPaid', () => {
     expect(revoke).not.toHaveBeenCalled();
   });
 
+  it('remboursement TOTAL : réveille les écrans caisse/cuisine (la commande sort des files)', async () => {
+    given();
+    await settleRefundPaid(args);
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('remboursement PARTIEL : aucun réveil, la commande reste en file', async () => {
+    given({}, 1200, 1000);
+    await settleRefundPaid(args);
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
   it('commande sans client identifié : pas de tampon à retirer', async () => {
     given({ order: { ...full.order, customerId: null } });
     await settleRefundPaid(args);
