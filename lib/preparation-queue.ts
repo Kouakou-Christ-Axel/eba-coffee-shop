@@ -13,6 +13,7 @@ import { withStaffVisible } from '@/lib/orders/visibility';
 import { compareKitchenFifo } from '@/lib/orders/queue-order';
 import { endOfLocalDay, startOfLocalDay } from '@/lib/timezone';
 import { PRODUCTION_PLAN_DAYS } from '@/config/constants';
+import { fullyRefundedOrderIds } from '@/lib/refunds/fully-refunded';
 import { coalesceAsyncByKey } from '@/lib/async-coalesce';
 import { getOrdersGeneration } from '@/lib/postgres-notify';
 import type { CartItem } from '@/lib/cart-store';
@@ -134,30 +135,37 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     orderBy: { createdAt: 'asc' },
   });
 
-  const mapped = orders.map((o) => ({
-    id: o.id,
-    reference: o.reference,
-    dailyNumber: o.dailyNumber,
-    customerName: o.customerName,
-    customerPhone: o.customerPhone,
-    customerId: o.customerId,
-    pickupTime: o.pickupTime,
-    orderType: o.orderType,
-    items: o.items as CartItem[],
-    note: o.note,
-    total: o.total,
-    source: o.source,
-    status: o.status as 'NEW' | 'PREPARING' | 'READY',
-    isPaid: o.isPaid,
-    depositPaid: o.depositPaid ?? 0,
-    driverRequested: o.driverRequested,
-    driverName: o.driverName,
-    driverPhone: o.driverPhone,
-    createdAt: o.createdAt,
-    preparingStartedAt: o.preparingStartedAt,
-    readyAt: o.readyAt,
-    stockReservedAt: o.stockReservedAt,
-  }));
+  // Remboursée en totalité et non récupérée : rien à produire, rien à emballer.
+  const gone = await fullyRefundedOrderIds(
+    orders.filter((o) => o.isPaid || o.depositPaid).map((o) => o.id)
+  );
+
+  const mapped = orders
+    .filter((o) => !gone.has(o.id))
+    .map((o) => ({
+      id: o.id,
+      reference: o.reference,
+      dailyNumber: o.dailyNumber,
+      customerName: o.customerName,
+      customerPhone: o.customerPhone,
+      customerId: o.customerId,
+      pickupTime: o.pickupTime,
+      orderType: o.orderType,
+      items: o.items as CartItem[],
+      note: o.note,
+      total: o.total,
+      source: o.source,
+      status: o.status as 'NEW' | 'PREPARING' | 'READY',
+      isPaid: o.isPaid,
+      depositPaid: o.depositPaid ?? 0,
+      driverRequested: o.driverRequested,
+      driverName: o.driverName,
+      driverPhone: o.driverPhone,
+      createdAt: o.createdAt,
+      preparingStartedAt: o.preparingStartedAt,
+      readyAt: o.readyAt,
+      stockReservedAt: o.stockReservedAt,
+    }));
 
   return mapped.sort(compareKitchenFifo);
 }

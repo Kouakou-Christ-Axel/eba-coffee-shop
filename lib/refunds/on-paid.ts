@@ -13,6 +13,7 @@ import { revokeLoyaltyForOrder } from '@/lib/loyalty-mutations';
 import { notifyOrderCustomer } from '@/lib/push-notify';
 import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 import { getRefundCap } from './cap';
+import { isFullyCovered } from './fully-refunded';
 import { transitionRefund } from './events';
 import { restoreStockForRefundLines } from './lines';
 
@@ -36,7 +37,7 @@ async function isFullyRefunded(
     where: { orderId, status: 'PAID' },
     _sum: { amount: true },
   });
-  return paid > 0 && (done._sum.amount ?? 0) >= paid;
+  return isFullyCovered(paid, done._sum.amount ?? 0);
 }
 
 /** Renvoie true si CET appel a fait passer le remboursement à PAID. */
@@ -75,11 +76,15 @@ export async function settleRefundPaid(args: SettlePaidArgs): Promise<boolean> {
 
     // Un remboursement automatique de paiement tardif concerne une commande jamais
     // servie : tampon déjà retiré à l'expiration, stock jamais pris.
+    const fullyRefunded = await isFullyRefunded(tx, refund.orderId);
+    // Le remboursement ne modifie pas la commande, donc le trigger Postgres ne
+    // sonne pas : on réveille les écrans caisse/cuisine, car une commande
+    // remboursée en totalité sort de leurs files.
+    if (fullyRefunded)
+      await tx.$executeRaw`SELECT pg_notify('orders_changed', '')`;
+
     if (refund.source === 'STAFF') {
-      if (
-        refund.order.customerId &&
-        (await isFullyRefunded(tx, refund.orderId))
-      ) {
+      if (refund.order.customerId && fullyRefunded) {
         await revokeLoyaltyForOrder(tx, {
           orderId: refund.orderId,
           customerId: refund.order.customerId,
