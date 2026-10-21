@@ -60,6 +60,8 @@ export async function setOrderCredit(
     current: number;
     wanted: number;
     actorId?: string | null;
+    /** Rejoue un paiement déjà accepté (reprise d'une annulée) : règle non revérifiée. */
+    skipRule?: boolean;
   }
 ): Promise<void> {
   const { orderId, customerId, total, current, wanted, actorId } = args;
@@ -72,7 +74,9 @@ export async function setOrderCredit(
     );
   }
   if (wanted > current) {
-    const allowed = await allowedCredit(tx, customerId, total, current);
+    const allowed = args.skipRule
+      ? wanted
+      : await allowedCredit(tx, customerId, total, current);
     if (wanted > allowed) {
       throw new CreditError(
         `L’avoir ne peut pas dépasser ${allowed} F sur cette commande`,

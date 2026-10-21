@@ -247,13 +247,22 @@ export async function mergeCustomers(
       where: { customerId: sourceId },
       data: { customerId: targetId },
     });
-    const creditBalance = target.creditBalance + source.creditBalance;
-    if (source.creditBalance > 0) {
+    // Soldes relus sous verrou (comme `moveCredit`) : un encaissement simultané
+    // ne doit pas être écrasé par la valeur absolue écrite ici.
+    const locked = await tx.$queryRaw<{ id: string; creditBalance: number }[]>`
+      SELECT "id", "creditBalance" FROM "customer"
+      WHERE "id" IN (${sourceId}, ${targetId}) ORDER BY "id" FOR UPDATE`;
+    const lockedBalance = (id: string, fallback: number) =>
+      locked.find((r) => r.id === id)?.creditBalance ?? fallback;
+    const sourceCredit = lockedBalance(sourceId, source.creditBalance);
+    const creditBalance =
+      lockedBalance(targetId, target.creditBalance) + sourceCredit;
+    if (sourceCredit > 0) {
       await tx.customerCreditEntry.create({
         data: {
           customerId: targetId,
           kind: 'ADJUSTED',
-          delta: source.creditBalance,
+          delta: sourceCredit,
           balanceAfter: creditBalance,
           actorId: actorId ?? null,
           note: `Fusion du compte ${source.phone}`,

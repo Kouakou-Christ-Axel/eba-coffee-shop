@@ -31,7 +31,12 @@ export async function fullyRefundedOrderIds(
 
   const paid = await prisma.orderPayment.groupBy({
     by: ['orderId'],
-    where: { orderId: { in: refunded.map((r) => r.orderId) } },
+    // Même base que `getRefundCap` : la part payée par avoir n'est pas de l'argent
+    // encaissé (elle ne se rembourse pas), sinon la file ne sort jamais la commande.
+    where: {
+      orderId: { in: refunded.map((r) => r.orderId) },
+      mode: { not: 'AVOIR' },
+    },
     _sum: { amount: true },
   });
   const paidByOrder = new Map(paid.map((p) => [p.orderId, p._sum.amount ?? 0]));

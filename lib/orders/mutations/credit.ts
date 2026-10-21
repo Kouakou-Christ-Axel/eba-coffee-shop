@@ -33,7 +33,8 @@ export function applyPaymentCredit(
     creditApplied: number;
   },
   lines: { mode: string; amount: number }[],
-  actorId?: string | null
+  actorId?: string | null,
+  skipRule = false
 ): Promise<void> {
   return asOrderError(() =>
     setOrderCredit(tx, {
@@ -43,6 +44,7 @@ export function applyPaymentCredit(
       current: order.creditApplied,
       wanted: creditAmountOf(lines),
       actorId,
+      skipRule,
     })
   );
 }
@@ -79,5 +81,5 @@ export async function reapplyOrderCredit(
     },
   });
   if (!order || order.creditApplied > 0 || order.payments.length === 0) return;
-  await applyPaymentCredit(tx, order, order.payments, actorId);
+  await applyPaymentCredit(tx, order, order.payments, actorId, true);
 }

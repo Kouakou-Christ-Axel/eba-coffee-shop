@@ -133,7 +133,8 @@ export const refundsTools: McpTool[] = [
   {
     name: 'update_credit_settings',
     toolset: 'finance',
-    scope: 'finance',
+    // Pas de `scope: 'finance'` : comme `saveCreditSettings` (ADMIN seul dans
+    // Paramètres), un COMPTABLE ne modifie pas les règles d'usage de l'avoir.
     title: 'Modifier les règles des avoirs',
     description:
       'Met à jour les règles d’usage des avoirs (tous les champs sont requis : ' +

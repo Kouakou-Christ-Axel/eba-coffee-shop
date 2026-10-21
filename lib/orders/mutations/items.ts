@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { computeItemsTotal, getMaxItemDiscount } from '@/lib/orders/totals';
 import type { CartItem } from '@/lib/cart-store';
 import { OrderMutationError } from './errors';
+import { releaseOrderCredit } from './credit';
 import { resyncStockForItemChange } from './stock-resync';
 
 /** Remplace les articles d'une commande et recalcule son total (net après remises). */
@@ -38,6 +39,8 @@ export async function updateOrderItems(
         loyaltyDiscount: true,
         items: true,
         stockReservedAt: true,
+        isPaid: true,
+        creditApplied: true,
       },
     });
     if (!order) {
@@ -64,6 +67,13 @@ export async function updateOrderItems(
       0,
       computeItemsTotal(items) - (order.loyaltyDiscount ?? 0)
     );
+
+    // Avoir retenu pour un paiement en ligne : le total change, la part retenue
+    // n'a plus de sens (montant Jèko négatif). Rendu ; le client le réapplique au
+    // prochain paiement.
+    if (!order.isPaid && order.creditApplied > 0) {
+      await releaseOrderCredit(tx, id);
+    }
 
     await tx.order.update({
       where: { id },
