@@ -43,7 +43,10 @@ const ORDER_TYPE_OPTIONS: { key: OrderType; label: string }[] = [
 ];
 
 const PAYMENT_MODE_OPTIONS: { key: PaymentMode; label: string }[] =
-  SELECTABLE_PAYMENT_MODES.map((m) => ({ key: m, label: PAYMENT_MODE_LABELS[m] }));
+  SELECTABLE_PAYMENT_MODES.map((m) => ({
+    key: m,
+    label: PAYMENT_MODE_LABELS[m],
+  }));
 
 // Valeur « aucun mode » dans le Select (commande non payée uniquement).
 const NO_PAYMENT_KEY = 'NONE';

@@ -9,9 +9,14 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 vi.mock('@/lib/push-notify', () => ({ notifyOrderCustomer: vi.fn() }));
+vi.mock('./credit', () => ({
+  applyPaymentCredit: vi.fn(),
+  releaseOrderCredit: vi.fn(),
+}));
 
 import prisma from '@/lib/prisma';
 import { setOrderPayment } from './payment';
+import { releaseOrderCredit } from './credit';
 
 const count = vi.mocked(prisma.refund.count);
 
@@ -21,7 +26,14 @@ describe('dépaiement et remboursements', () => {
     vi.mocked(prisma.order.findUnique).mockResolvedValue({
       isPaid: true,
     } as never);
-    vi.mocked(prisma.$transaction).mockResolvedValue([{ count: 1 }] as never);
+    // Transaction interactive : rejoue le callback sur un client factice.
+    const tx = {
+      order: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      orderPayment: { deleteMany: vi.fn() },
+    };
+    vi.mocked(prisma.$transaction).mockImplementation((async (
+      fn: (t: unknown) => unknown
+    ) => fn(tx)) as never);
   });
 
   it('refuse de remettre à encaisser une commande déjà (en cours de) remboursée', async () => {
@@ -43,5 +55,15 @@ describe('dépaiement et remboursements', () => {
     await expect(setOrderPayment('o1', false)).resolves.toEqual({
       startedPreparation: false,
     });
+  });
+
+  it('le dépaiement rend à son client l’avoir dépensé sur la commande', async () => {
+    count.mockResolvedValue(0);
+    await setOrderPayment('o1', false, undefined, 'u1');
+    expect(releaseOrderCredit).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      'u1'
+    );
   });
 });

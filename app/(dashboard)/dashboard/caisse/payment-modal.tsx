@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Modal,
   ModalContent,
@@ -15,6 +16,7 @@ import { SingleModeGrid } from './_components/payment/single-mode-grid';
 import { SplitLines } from './_components/payment/split-lines';
 import type { PaymentLine } from './_components/payment/types';
 import { usePaymentForm } from './_components/payment/use-payment-form';
+import { useCreditOffer } from './_components/payment/use-credit-offer';
 
 export type { PaymentLine } from './_components/payment/types';
 
@@ -26,6 +28,8 @@ type Props = {
   isSubmitting: boolean;
   onConfirm: (payments: PaymentLine[]) => void;
   error?: string | null;
+  /** Commande à encaisser : permet de proposer l'avoir de son client. */
+  orderId?: string;
 };
 
 /**
@@ -44,8 +48,29 @@ export function PaymentModal({
   isSubmitting,
   onConfirm,
   error,
+  orderId,
 }: Props) {
-  const form = usePaymentForm({ amount, isSubmitting, onClose, onConfirm });
+  const offer = useCreditOffer(orderId, isOpen);
+  const [useCredit, setUseCredit] = useState(false);
+  // Une coche ne survit pas à la fermeture : la prochaine ouverture repart décochée.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (wasOpen !== isOpen) {
+    setWasOpen(isOpen);
+    if (!isOpen) setUseCredit(false);
+  }
+  const credit = useCredit && offer ? offer.applicable : 0;
+  const toPay = amount - credit;
+  // Avoir qui couvre tout (réglages à 0 F de reste minimum) : plus rien à encaisser.
+  const creditOnly = credit > 0 && toPay === 0;
+  const form = usePaymentForm({
+    amount: toPay,
+    isSubmitting,
+    onClose,
+    onConfirm: (payments) =>
+      onConfirm(
+        credit > 0 ? [...payments, { mode: 'AVOIR', amount: credit }] : payments
+      ),
+  });
   const {
     isSplit,
     canConfirm,
@@ -55,6 +80,7 @@ export function PaymentModal({
     handleConfirm,
     startSplit,
   } = form;
+  const confirmDisabled = creditOnly ? false : !canConfirm;
 
   return (
     <Modal
@@ -71,34 +97,59 @@ export function PaymentModal({
           <span className="text-sm font-normal text-muted-foreground">
             Commande {orderRef} ·{' '}
             <span className="font-medium tabular-nums">
-              {priceFormatter.format(amount)} F
+              {priceFormatter.format(toPay)} F
             </span>
           </span>
         </ModalHeader>
         <ModalBody>
-          {showSingleGrid && (
+          {offer && (
+            <label className="flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4"
+                checked={useCredit}
+                disabled={isSubmitting}
+                onChange={(e) => setUseCredit(e.target.checked)}
+              />
+              <span>
+                Utiliser l’avoir du client :{' '}
+                <span className="font-semibold tabular-nums">
+                  −{priceFormatter.format(offer.applicable)} F
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  Solde {priceFormatter.format(offer.balance)} F · reste à
+                  encaisser {priceFormatter.format(amount - offer.applicable)} F
+                </span>
+              </span>
+            </label>
+          )}
+          {!creditOnly && showSingleGrid && (
             <SingleModeGrid form={form} isSubmitting={isSubmitting} />
           )}
 
-          {showCashTender && (
+          {!creditOnly && showCashTender && (
             <CashTenderPanel
               form={form}
-              amount={amount}
+              amount={toPay}
               isSubmitting={isSubmitting}
             />
           )}
 
-          {isSplit && <SplitLines form={form} isSubmitting={isSubmitting} />}
+          {!creditOnly && isSplit && (
+            <SplitLines form={form} isSubmitting={isSubmitting} />
+          )}
 
-          <button
-            type="button"
-            onClick={startSplit}
-            disabled={isSubmitting}
-            className="mt-2 flex items-center gap-1 self-start text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Ajouter un moyen de paiement
-          </button>
+          {!creditOnly && (
+            <button
+              type="button"
+              onClick={startSplit}
+              disabled={isSubmitting}
+              className="mt-2 flex items-center gap-1 self-start text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Ajouter un moyen de paiement
+            </button>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
         </ModalBody>
@@ -113,8 +164,12 @@ export function PaymentModal({
           </Button>
           <Button
             color="primary"
-            onPress={handleConfirm}
-            isDisabled={!canConfirm || isSubmitting}
+            onPress={
+              creditOnly
+                ? () => onConfirm([{ mode: 'AVOIR', amount: credit }])
+                : handleConfirm
+            }
+            isDisabled={confirmDisabled || isSubmitting}
             isLoading={isSubmitting}
           >
             Marquer payée

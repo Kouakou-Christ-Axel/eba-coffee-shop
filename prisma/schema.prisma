@@ -322,6 +322,12 @@ model Order {
   loyaltyRewardId String?
   loyaltyDiscount Int?
 
+  // Avoir (lib/credits) actuellement débité du solde du client pour CETTE commande
+  // (retenu pendant la fenêtre de paiement en ligne, ou dépensé à l'encaissement).
+  // Revient à 0 quand l'avoir est rendu (expiration, annulation, dépaiement). Le
+  // total de la commande n'est PAS réduit : l'avoir est un paiement `AVOIR`.
+  creditApplied Int @default(0)
+
   // Paiement en ligne Jèko (Checkout) — tous nullables : une commande caisse ou
   // MCP n'en porte aucun. Montants en FCFA entiers (cf. lib/online-fee.ts).
   //   onlineFee         frais facturés au client, EN PLUS de `total` (jamais du CA)

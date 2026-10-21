@@ -75,6 +75,7 @@ export function ActionModals({
           setIsPaymentOpen(false);
           setPaymentError(null);
         }}
+        orderId={order.id}
         orderRef={orderRef}
         amount={order.total - (order.depositPaid ?? 0)}
         isSubmitting={isPending}

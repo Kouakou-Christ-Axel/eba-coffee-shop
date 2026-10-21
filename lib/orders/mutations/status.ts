@@ -15,6 +15,7 @@ import { notifyOrderCustomer } from '@/lib/push-notify';
 import { notifyPush } from './notify';
 import { OrderMutationError } from './errors';
 import { sendOrderToKitchen } from './kitchen';
+import { reapplyOrderCredit, releaseOrderCredit } from './credit';
 
 /** Fait transitionner une commande vers `newStatus`. */
 export async function setOrderStatus(
@@ -47,6 +48,11 @@ export async function setOrderStatus(
   }
 
   if (newStatus === 'PREPARING') {
+    // Reprise d'une commande annulée : l'avoir rendu à l'annulation est redébité
+    // AVANT l'envoi en cuisine (solde insuffisant → rien ne part).
+    if (order.status === 'CANCELLED') {
+      await prisma.$transaction((tx) => reapplyOrderCredit(tx, id));
+    }
     await sendOrderToKitchen(id, role, {
       coverShortage: opts?.coverShortage,
     });
@@ -116,6 +122,10 @@ export async function setOrderStatus(
           orderTotal: order.total,
         });
       }
+    }
+    if (updated.count > 0) {
+      if (newStatus === 'CANCELLED') await releaseOrderCredit(tx, id);
+      else if (order.status === 'CANCELLED') await reapplyOrderCredit(tx, id);
     }
     return updated;
   });
