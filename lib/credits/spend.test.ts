@@ -1,12 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { restoreOrderCredit, setOrderCredit } from './spend';
+import {
+  holdCreditForOrder,
+  restoreOrderCredit,
+  setOrderCredit,
+} from './spend';
 
 const tx = {
   $queryRaw: vi.fn(),
   customer: { update: vi.fn() },
-  customerCreditEntry: { create: vi.fn() },
+  customerCreditEntry: { create: vi.fn(), findMany: vi.fn() },
   creditSettings: { findUnique: vi.fn() },
-  order: { update: vi.fn(), findUnique: vi.fn() },
+  order: { update: vi.fn(), findUnique: vi.fn(), findMany: vi.fn() },
+};
+const txWithEntries = tx as typeof tx & {
+  customerCreditEntry: { create: unknown; findMany: ReturnType<typeof vi.fn> };
 };
 const base = {
   orderId: 'o1',
@@ -101,5 +108,37 @@ describe('restoreOrderCredit', () => {
     });
     await expect(restoreOrderCredit(tx as never, 'o1')).resolves.toBe(0);
     expect(tx.customer.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('holdCreditForOrder (paiement en ligne)', () => {
+  const args = { orderId: 'o1', customerId: 'cu1', total: 5000 };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tx.$queryRaw.mockResolvedValue([{ creditBalance: 4000 }]);
+    txWithEntries.customerCreditEntry.findMany.mockResolvedValue([]);
+  });
+
+  it('usage en ligne coupé (défaut) : rien n’est retenu, le solde n’est pas touché', async () => {
+    tx.creditSettings.findUnique.mockResolvedValue(null);
+    await expect(holdCreditForOrder(tx as never, args)).resolves.toBe(0);
+    expect(tx.customer.update).not.toHaveBeenCalled();
+  });
+
+  it('activé : retient la part autorisée', async () => {
+    tx.creditSettings.findUnique.mockResolvedValue({
+      onlineEnabled: true,
+      onlineDailyCap: 5000,
+    });
+    await expect(holdCreditForOrder(tx as never, args)).resolves.toBe(3500);
+  });
+
+  it('activé : le plafond journalier borne la retenue', async () => {
+    tx.creditSettings.findUnique.mockResolvedValue({
+      onlineEnabled: true,
+      onlineDailyCap: 2000,
+    });
+    await expect(holdCreditForOrder(tx as never, args)).resolves.toBe(2000);
   });
 });

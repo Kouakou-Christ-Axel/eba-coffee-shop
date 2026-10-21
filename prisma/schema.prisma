@@ -561,6 +561,10 @@ model CreditSettings {
   enabled      Boolean  @default(true)
   minRemaining Int      @default(1500)
   maxPercent   Int      @default(70)
+  // Usage en ligne : désactivé par défaut (numéro seul = aucune preuve), avec un
+  // plafond journalier par client quand il est activé.
+  onlineEnabled  Boolean @default(false)
+  onlineDailyCap Int     @default(5000)
   updatedAt    DateTime @updatedAt
 
   @@map("credit_settings")

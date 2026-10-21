@@ -93,6 +93,44 @@ export function CreditSettingsForm({ initial }: { initial: CreditSettings }) {
           </div>
         </div>
 
+        <div className="space-y-2 rounded-lg border p-3">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="credit-online"
+              checked={s.onlineEnabled}
+              onCheckedChange={(v) => setS((p) => ({ ...p, onlineEnabled: v }))}
+            />
+            <Label htmlFor="credit-online">
+              Autoriser l’avoir sur la commande en ligne
+            </Label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Désactivé par défaut : sans code envoyé au client, le numéro seul ne
+            prouve pas qu’il en est le titulaire, et n’importe qui pourrait
+            dépenser l’avoir d’un autre. En caisse, le personnel voit le client.
+          </p>
+          {s.onlineEnabled && (
+            <div className="space-y-1.5">
+              <Label htmlFor="onlineDailyCap">
+                Plafond en ligne par client et par jour (FCFA)
+              </Label>
+              <Input
+                id="onlineDailyCap"
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={s.onlineDailyCap}
+                onChange={(e) =>
+                  setS((p) => ({
+                    ...p,
+                    onlineDailyCap: Number(e.target.value) || 0,
+                  }))
+                }
+              />
+            </div>
+          )}
+        </div>
+
         <p className="text-sm text-muted-foreground">
           Le client paie toujours au moins {fmt.format(s.minRemaining)} F et
           l’avoir ne couvre jamais plus de {s.maxPercent} % de la commande.

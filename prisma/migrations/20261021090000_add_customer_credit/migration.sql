@@ -43,6 +43,8 @@ CREATE TABLE "credit_settings" (
     "enabled" BOOLEAN NOT NULL DEFAULT true,
     "minRemaining" INTEGER NOT NULL DEFAULT 1500,
     "maxPercent" INTEGER NOT NULL DEFAULT 70,
+    "onlineEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "onlineDailyCap" INTEGER NOT NULL DEFAULT 5000,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "credit_settings_pkey" PRIMARY KEY ("id")

@@ -9,6 +9,7 @@ import type { Prisma } from '@/generated/prisma/client';
 import { computeCreditApplication } from './apply';
 import { CreditError } from './errors';
 import { moveCredit } from './ledger';
+import { remainingOnlineCap } from './online-cap';
 import { creditSettingsFromRow } from '@/lib/credit-settings';
 
 export type PaymentLine = { mode: string; amount: number };
@@ -139,7 +140,16 @@ export async function holdCreditForOrder(
   tx: Prisma.TransactionClient,
   args: { orderId: string; customerId: string; total: number }
 ): Promise<number> {
-  const amount = await allowedCredit(tx, args.customerId, args.total, 0);
+  const settings = creditSettingsFromRow(
+    await tx.creditSettings.findUnique({ where: { id: 'singleton' } })
+  );
+  // Usage en ligne coupé : aucune retenue, la commande se paie sans avoir.
+  if (!settings.onlineEnabled) return 0;
+  const [allowed, capLeft] = await Promise.all([
+    allowedCredit(tx, args.customerId, args.total, 0),
+    remainingOnlineCap(tx, args.customerId, settings.onlineDailyCap),
+  ]);
+  const amount = Math.min(allowed, capLeft);
   if (amount <= 0) return 0;
   await setOrderCredit(tx, { ...args, current: 0, wanted: amount });
   return amount;
