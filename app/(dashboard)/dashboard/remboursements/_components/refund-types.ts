@@ -15,7 +15,7 @@ export type RefundRowData = {
   reason: RefundReason;
   source: 'STAFF' | 'AUTO_LATE';
   status: RefundStatus;
-  delivery: 'JEKO_TRANSFER' | 'MANUAL';
+  delivery: 'JEKO_TRANSFER' | 'MANUAL' | 'STORE_CREDIT';
   channel: PaymentMode;
   customerName: string | null;
   createdAt: string;

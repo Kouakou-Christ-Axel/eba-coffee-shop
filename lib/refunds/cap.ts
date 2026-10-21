@@ -14,8 +14,10 @@ export async function getRefundCap(
   opts: { excludeRefundId?: string } = {}
 ): Promise<{ paid: number; used: number; remaining: number }> {
   const [paidAgg, usedAgg] = await Promise.all([
+    // Une part payée par avoir n'est pas de l'argent encaissé : elle se rend en
+    // avoir, jamais en espèces/Jèko.
     tx.orderPayment.aggregate({
-      where: { orderId },
+      where: { orderId, mode: { not: 'AVOIR' } },
       _sum: { amount: true },
     }),
     tx.refund.aggregate({

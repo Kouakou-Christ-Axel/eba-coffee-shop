@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import { REFUND_STATUSES } from '@/lib/schemas/refund';
-import { PAYMENT_MODES } from '@/lib/payment-modes';
+import { SELECTABLE_PAYMENT_MODES } from '@/lib/payment-modes';
 import { createRefundSchema } from '@/lib/schemas/refund';
 import { createRefund } from '@/lib/refunds/create';
 import { getRefundDetail, listRefunds } from '@/lib/refunds/queries';
@@ -20,7 +20,7 @@ const listSchema = z.object({
   from: dateOnly.optional().describe('Demandés à partir de (YYYY-MM-DD).'),
   to: dateOnly.optional().describe('Demandés jusqu’à (YYYY-MM-DD, inclus).'),
   status: z.array(z.enum(REFUND_STATUSES)).optional(),
-  channel: z.enum(PAYMENT_MODES).optional(),
+  channel: z.enum(SELECTABLE_PAYMENT_MODES).optional(),
   orderId: z.string().optional(),
   page: z.number().int().positive().optional(),
   pageSize: z.number().int().positive().max(100).optional(),

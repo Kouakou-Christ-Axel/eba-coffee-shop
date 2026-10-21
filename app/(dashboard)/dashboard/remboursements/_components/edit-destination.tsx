@@ -7,7 +7,10 @@ import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
+import {
+  SELECTABLE_PAYMENT_MODES,
+  PAYMENT_MODE_LABELS,
+} from '@/lib/payment-modes';
 import { REFUND_DELIVERY_LABELS } from '@/lib/refunds/labels';
 import {
   updateRefundDestinationAction,
@@ -80,7 +83,7 @@ export function EditDestination({
             value={channel}
             onChange={(e) => setChannel(e.target.value)}
           >
-            {PAYMENT_MODES.map((m) => (
+            {SELECTABLE_PAYMENT_MODES.map((m) => (
               <option key={m} value={m}>
                 {PAYMENT_MODE_LABELS[m]}
               </option>

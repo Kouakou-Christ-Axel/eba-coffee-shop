@@ -34,6 +34,7 @@ const COLORS: Record<PaymentMode, string> = {
   MOOV_MONEY: 'var(--chart-5)',
   DJAMO: 'oklch(0.6 0.1 200)',
   OTHER: 'oklch(0.7 0.02 280)',
+  AVOIR: 'oklch(0.65 0.12 320)',
 };
 
 const config = Object.fromEntries(

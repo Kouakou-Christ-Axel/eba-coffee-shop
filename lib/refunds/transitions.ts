@@ -19,7 +19,7 @@ import {
   resolveUncertainSchema,
   updateRefundDestinationSchema,
 } from '@/lib/schemas/refund';
-import { resolveDestination } from './destination';
+import { resolveChannel, resolveDestination } from './destination';
 import { RefundError, type RefundActor } from './errors';
 import { transitionRefund } from './events';
 import { settleRefundPaid } from './on-paid';
@@ -67,6 +67,16 @@ export async function approveRefund(
     })
   );
   if (!moved) return stateConflict();
+  // Un avoir n'a rien à envoyer : la validation l'inscrit aussitôt au solde.
+  if (refund.delivery === 'STORE_CREDIT') {
+    await settleRefundPaid({
+      id: refund.id,
+      from: ['APPROVED'],
+      actorId: actor.id,
+      note: 'Avoir crédité',
+    });
+    return { refund: await get(refund.id), sent: null };
+  }
   const sent =
     refund.delivery === 'JEKO_TRANSFER'
       ? await sendRefundViaJeko(refund.id)
@@ -163,8 +173,11 @@ export async function updateRefundDestination(
   const input = updateRefundDestinationSchema.parse(rawInput);
   const refund = await get(input.id);
 
-  const channel = input.channel ?? refund.channel;
   const delivery = input.delivery ?? refund.delivery;
+  const channel = resolveChannel(
+    delivery,
+    input.channel ?? (refund.channel === 'AVOIR' ? 'CASH' : refund.channel)
+  );
   const destinationPhone = resolveDestination({
     delivery,
     channel,

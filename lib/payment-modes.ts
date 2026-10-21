@@ -15,7 +15,17 @@ export const PAYMENT_MODES = [
   'MOOV_MONEY',
   'DJAMO',
   'OTHER',
+  'AVOIR',
 ] as const satisfies readonly PaymentMode[];
+
+/**
+ * Modes qu'un humain choisit pour de l'argent réel (caisse, régularisation,
+ * canal de remboursement). `AVOIR` en est exclu : il s'applique via le solde du
+ * client (lib/credits), jamais comme un moyen de paiement à sélectionner.
+ */
+export const SELECTABLE_PAYMENT_MODES = PAYMENT_MODES.filter(
+  (m) => m !== 'AVOIR'
+) as Exclude<PaymentMode, 'AVOIR'>[];
 
 export const PAYMENT_MODE_LABELS: Record<PaymentMode, string> = {
   CASH: 'Espèces',
@@ -25,6 +35,7 @@ export const PAYMENT_MODE_LABELS: Record<PaymentMode, string> = {
   MOOV_MONEY: 'Moov Money',
   DJAMO: 'Djamo',
   OTHER: 'Autre',
+  AVOIR: 'Avoir',
 };
 
 /**

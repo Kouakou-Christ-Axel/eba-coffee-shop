@@ -31,6 +31,7 @@ export const REFUND_STATUS_TONES: Record<RefundStatus, RefundTone> = {
 export const REFUND_DELIVERY_LABELS = {
   JEKO_TRANSFER: 'Transfert Jèko',
   MANUAL: 'Remise à la main',
+  STORE_CREDIT: 'Avoir',
 } as const;
 
 export const REFUND_SOURCE_LABELS = {

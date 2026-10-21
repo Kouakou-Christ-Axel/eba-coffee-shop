@@ -196,6 +196,8 @@ enum PaymentMode {
   MOOV_MONEY
   DJAMO
   OTHER
+  // Avoir client (lib/credits) : aucun argent n'entre, le solde du client baisse.
+  AVOIR
 }
 
 // Origine de création d'une commande — distingue le panier public (client),
@@ -433,6 +435,11 @@ model Customer {
   stampCount    Int       @default(0)
   lastStampDate DateTime? @db.Date
 
+  // Avoir (solde en FCFA, ≥ 0) : alimenté par un remboursement « avoir »,
+  // consommé à l'encaissement (mode AVOIR). Historique : `CustomerCreditEntry`.
+  creditBalance Int                   @default(0)
+  creditEntries CustomerCreditEntry[]
+
   // Client de confiance : ses commandes saisies en caisse partent en cuisine
   // sans encaissement préalable (ardoise, cf. `Order.isOnAccount`).
   // `trustedSince` = date d'octroi du statut, `trustedNote` = motif/plafond
@@ -505,6 +512,48 @@ model LoyaltyLedger {
 
   @@index([customerId])
   @@map("loyalty_ledger")
+}
+
+// Journal du solde d'avoir d'un client : une ligne par mouvement (`delta` signé),
+// `balanceAfter` fige le solde obtenu. Source de vérité pour auditer `creditBalance`.
+enum CreditEntryKind {
+  ISSUED // avoir émis par un remboursement
+  SPENT // consommé sur une commande
+  RESTORED // rendu (commande annulée, dépayée ou expirée)
+  CONVERTED // converti en remboursement d'argent
+  ADJUSTED // correction manuelle
+}
+
+model CustomerCreditEntry {
+  id           String          @id @default(cuid())
+  customerId   String
+  customer     Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  kind         CreditEntryKind
+  delta        Int // FCFA, signé
+  balanceAfter Int
+  orderId      String?
+  refundId     String?
+  note         String?
+  actorId      String?
+  createdAt    DateTime        @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([orderId])
+  @@index([refundId])
+  @@map("customer_credit_entry")
+}
+
+// Règles d'usage de l'avoir (singleton, éditable dans Paramètres) : le client
+// garde toujours au moins `minRemaining` F à payer et l'avoir ne couvre jamais
+// plus de `maxPercent` % de la commande.
+model CreditSettings {
+  id           String   @id @default("singleton")
+  enabled      Boolean  @default(true)
+  minRemaining Int      @default(1500)
+  maxPercent   Int      @default(70)
+  updatedAt    DateTime @updatedAt
+
+  @@map("credit_settings")
 }
 
 model LoyaltySettings {
@@ -1264,6 +1313,8 @@ enum RefundStatus {
 enum RefundDelivery {
   JEKO_TRANSFER
   MANUAL
+  // Aucun argent ne sort : la somme est créditée au solde du client (lib/credits).
+  STORE_CREDIT
 }
 
 enum RefundReason {

@@ -21,6 +21,8 @@ export function refundPrismaMock() {
       aggregate: vi.fn(),
     },
     refundEvent: { create: vi.fn() },
+    customer: { update: vi.fn() },
+    customerCreditEntry: { create: vi.fn() },
     product: { update: vi.fn() },
     supplementOption: { update: vi.fn() },
   };
