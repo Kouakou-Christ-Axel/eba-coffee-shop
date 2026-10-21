@@ -266,6 +266,7 @@ réduite, voire vide, ce n'est pas une erreur.
 | `move_category`                  | menu       | écriture | Réordonner une catégorie (`up` / `down`)                                                     |
 | `create_product`                 | menu       | écriture | Créer un produit                                                                             |
 | `update_product`                 | menu       | écriture | Modifier un produit (mise à jour **partielle**)                                              |
+| `bulk_update_products`           | menu       | écriture | Modifier jusqu'à 100 produits en une requête atomique (`dryRun` possible)                    |
 | `set_product_image`              | menu       | écriture | Téléverser (base64) ou rattacher une image                                                   |
 | `move_product`                   | menu       | écriture | Réordonner un produit (`up` / `down`)                                                        |
 | `delete_product`                 | menu       | écriture | Supprimer un produit (soft delete)                                                           |
@@ -273,6 +274,7 @@ réduite, voire vide, ce n'est pas une erreur.
 | `set_product_availability`       | menu       | écriture | Masquer (`available: false`) / afficher un produit — idempotent                              |
 | `toggle_product_featured`        | menu       | écriture | Mettre en avant / retirer un produit                                                         |
 | `set_product_stock`              | menu       | écriture | Définir (absolu) le stock d’un produit                                                       |
+| `bulk_set_product_stock`         | menu       | écriture | Définir (absolu) le stock de jusqu'à 100 produits en une requête atomique                    |
 | `set_option_stock`               | menu       | écriture | Définir (absolu) le stock d’une option                                                       |
 | `restock_product`                | menu       | écriture | Ajouter une fournée (delta) au stock d’un produit                                            |
 | `restock_option`                 | menu       | écriture | Ajouter une fournée (delta) au stock d’une option                                            |
@@ -668,6 +670,30 @@ sur la carte publique avec un tag « Indisponible — retour {heure} » ; la
 reprise est **automatique** (calculée à la lecture, sans cron). `resume_product`
 lève la pause manuellement avant son terme. Différent de
 `toggle_product_availability`, qui masque complètement le produit.
+
+### Modifications en lot (`bulk_*`)
+
+`bulk_update_products` et `bulk_set_product_stock` évitent N appels unitaires
+(`lib/menu/mutations/bulk.ts`, plafond `BULK_PRODUCTS_MAX` = 100).
+
+- **Atomique** : tout est validé avant d'écrire (produits, catégorie et
+  planning cibles). Un id inconnu ou supprimé → erreur qui les liste, **rien
+  n'est modifié**.
+- **`dryRun: true`** : renvoie l'avant/après (`results[].changes`) sans écrire.
+  À faire avant un lot important.
+- **Valeurs absolues uniquement** (rejouable). Pas de bascule, pas de delta :
+  `restock_*` et `toggle_*` restent unitaires. Les produits déjà conformes sont
+  ignorés (`changed` ≤ `matched`).
+- `bulk_update_products` : soit `target` (`ids` **ou** `categoryId` = toute la
+  catégorie) + `patch` commun, soit `items: [{ id, ...champs }]` pour des
+  valeurs différentes par produit. Champs : `available`, `preorderable`,
+  `featured`, `price`, `categoryId` (le produit passe en fin de catégorie),
+  `scheduleId` / `advanceOrderDays` / `unavailableUntil` (`null` = retirer),
+  `requiresDeposit`. Les suppléments ne sont pas modifiables en lot
+  (`update_product`). `warnings` signale « précommande refusée » + délai posé
+  (le délai l'emporte).
+- `bulk_set_product_stock` : `items: [{ id, quantity }]`, `quantity` entier ≥ 0
+  ou `null` (illimité), comme `set_product_stock`.
 
 ### Plannings récurrents (« à la cal.com »)
 

@@ -32,6 +32,16 @@ export {
   toggleProductFeatured,
 } from './menu/mutations/products';
 export {
+  bulkUpdateProducts,
+  bulkSetProductStock,
+  bulkUpdateProductsSchema,
+  bulkSetProductStockSchema,
+} from './menu/mutations/bulk';
+export type {
+  BulkUpdateProductsInput,
+  BulkSetProductStockInput,
+} from './menu/mutations/bulk';
+export {
   setProductStock,
   setOptionStock,
   restockProduct,
