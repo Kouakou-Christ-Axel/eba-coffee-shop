@@ -13,7 +13,9 @@ import {
 import { SELECTABLE_PAYMENT_MODES } from '@/lib/payment-modes';
 
 // Réutilise l'enum métier PaymentMode (cohérent avec les commandes / stats).
-export const revenueAdjustmentPaymentModeSchema = z.enum(SELECTABLE_PAYMENT_MODES);
+export const revenueAdjustmentPaymentModeSchema = z.enum(
+  SELECTABLE_PAYMENT_MODES
+);
 
 export type RevenueAdjustmentPaymentModeInput = z.infer<
   typeof revenueAdjustmentPaymentModeSchema
