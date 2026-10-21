@@ -9,6 +9,7 @@ import { useCheckoutForm } from '@/lib/hooks/use-checkout-form';
 import { usePickupInfo } from '@/lib/hooks/use-pickup-info';
 import { useLoyaltyReward } from '@/lib/hooks/use-loyalty-reward';
 import { useLoyaltyTeaser } from '@/lib/hooks/use-loyalty-teaser';
+import { useCreditOffer } from '@/lib/hooks/use-credit-offer';
 import { withOnlineFee } from '@/lib/online-fee';
 import { usePrecommandeMode } from '../use-precommande-mode';
 import type { CheckoutFormProps } from './types';
@@ -18,12 +19,15 @@ export function useCheckoutFlow({
   total,
   onSuccess,
   onLoyaltyDiscountChange,
+  onCreditChange,
   onlinePayment,
   availability,
 }: CheckoutFormProps) {
   // Récompense appliquée par défaut (frictionless) ; le client peut la garder
   // pour une prochaine commande via le Switch du bandeau.
   const [rewardApplied, setRewardApplied] = useState(true);
+  // Avoir : même principe, appliqué par défaut tant que le client ne le garde pas.
+  const [creditApplied, setCreditApplied] = useState(true);
 
   const {
     values,
@@ -89,17 +93,25 @@ export function useCheckoutFlow({
       : 0;
   const discount = rewardDiscount + upcomingDiscount;
   const netTotal = Math.max(0, total - discount);
-  // Paiement en ligne : montant réellement débité = total net + frais.
+  // Paiement en ligne : montant réellement débité = total net − avoir + frais.
   const payOnline = onlinePayment.status === 'ready' && onlinePayment.enabled;
+  // L'avoir n'existe que pour un paiement en ligne (il réduit ce que Jèko encaisse).
+  const creditOffer = useCreditOffer(values.customerPhone, netTotal, payOnline);
+  const useCredit = creditOffer.status === 'ready' && creditApplied;
+  const creditDiscount =
+    creditOffer.status === 'ready' && useCredit ? creditOffer.applicable : 0;
   const { amountDue } = withOnlineFee(
-    netTotal,
+    netTotal - creditDiscount,
     onlinePayment.status === 'ready' ? onlinePayment.feePercent : 0
   );
 
-  // Remonte la remise au récapitulatif de la page (au-dessus du formulaire).
+  // Remonte les remises au récapitulatif de la page (au-dessus du formulaire).
   useEffect(() => {
     onLoyaltyDiscountChange?.(discount);
   }, [discount, onLoyaltyDiscountChange]);
+  useEffect(() => {
+    onCreditChange?.(creditDiscount);
+  }, [creditDiscount, onCreditChange]);
 
   // Le message générique de bas de formulaire (menu changé, erreur serveur…)
   // ne doit jamais rester hors écran : sans ça, le client qui n'a pas
@@ -160,7 +172,7 @@ export function useCheckoutFlow({
       showSoldOutLines(preSoldOutLines);
       return;
     }
-    const outcome = await submit(activeReward);
+    const outcome = await submit(activeReward, useCredit);
     if (outcome.ok)
       onSuccess(outcome.orderId, outcome.paymentUrl, outcome.paymentError);
     // Récompense consommée entre-temps : on la retire pour que le prochain
@@ -218,6 +230,9 @@ export function useCheckoutFlow({
     reward,
     rewardApplied,
     setRewardApplied,
+    creditOffer,
+    creditApplied,
+    setCreditApplied,
     loyaltyMessage,
     payOnline,
     amountDue,

@@ -6,8 +6,9 @@
 // trancher :
 //   - le stock suit  → on rétablit la commande et on la valide (cuisine) ;
 //   - sinon          → remboursement immédiat (lib/jeko/refund.ts).
-// La fidélité a déjà été restituée à l'expiration : ressusciter une commande qui
-// avait consommé une récompense la reconsommerait à l'aveugle, on rembourse aussi.
+// La fidélité et l'avoir ont déjà été restitués à l'expiration : ressusciter une
+// commande qui avait consommé une récompense (ou un avoir) la reconsommerait à
+// l'aveugle, on rembourse aussi.
 
 import prisma from '@/lib/prisma';
 import {
@@ -30,6 +31,7 @@ export type LateOrder = RefundableOrder & {
   paymentTransactionId: string | null;
   loyaltyRewardId: string | null;
   pickupTime: Date | null;
+  paymentCreditPart: number;
 };
 
 /** Annulée par l'expiration du délai de paiement (et non par une personne). */
@@ -42,6 +44,9 @@ export function isExpiredCancellation(order: {
 
 async function refundReason(order: LateOrder): Promise<string | null> {
   if (order.loyaltyRewardId) return 'récompense fidélité déjà restituée';
+  // Avoir retenu pour cette commande (part figée avec le montant dû), rendu
+  // à l'expiration : le ressusciter le redébiterait à l'aveugle.
+  if (order.paymentCreditPart > 0) return 'avoir déjà restitué';
   // Une commande différée ne touche pas au stock du jour.
   if (isDeferredPickup(order.pickupTime, new Date())) return null;
   return (await getOrderShortage(order.id)).length > 0

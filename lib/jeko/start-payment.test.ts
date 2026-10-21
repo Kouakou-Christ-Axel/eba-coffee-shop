@@ -51,6 +51,7 @@ const pending = {
   status: 'NEW',
   total: 3450,
   onlineFee: 35,
+  creditApplied: 0,
   paymentExpiresAt: new Date('2026-10-03T12:10:00.000Z'),
   pickupTime: new Date('2026-10-03T12:30:00.000Z'),
 };
@@ -122,6 +123,7 @@ describe('startJekoPayment', () => {
         paymentExpiresAt: new Date('2026-10-03T12:03:00.000Z'),
         // Montant demandé à Jèko, figé : `total` peut changer ensuite.
         paymentAmountDue: 3485,
+        paymentCreditPart: 0,
       },
     });
     expect(result.expiresAt).toEqual(new Date('2026-10-03T12:03:00.000Z'));
@@ -207,5 +209,29 @@ describe('startJekoPayment', () => {
 
   it('est une erreur identifiable', () => {
     expect(new PaymentNotPendingError('expired')).toBeInstanceOf(Error);
+  });
+
+  it('avoir retenu : Jèko ne facture que la part restante (+ frais), figée avec le montant', async () => {
+    findOrder.mockReset();
+    findOrder
+      .mockResolvedValueOnce({
+        ...pending,
+        creditApplied: 1000,
+        onlineFee: 25,
+      } as never)
+      .mockResolvedValueOnce({ paymentAttempts: 1 } as never);
+    await startJekoPayment(args);
+    expect(claim).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymentAmountDue: 2475,
+          paymentCreditPart: 1000,
+        }),
+      })
+    );
+    expect(createRequest).toHaveBeenCalledWith(
+      config,
+      expect.objectContaining({ amountFcfa: 2475 })
+    );
   });
 });

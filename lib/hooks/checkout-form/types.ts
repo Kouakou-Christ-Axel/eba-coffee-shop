@@ -62,7 +62,8 @@ export type UseCheckoutFormResult = {
     value: CheckoutFormValues[K]
   ) => void;
   submit: (
-    loyaltyReward?: CheckoutLoyaltyReward | null
+    loyaltyReward?: CheckoutLoyaltyReward | null,
+    useCredit?: boolean
   ) => Promise<CheckoutSubmitOutcome>;
   /** Lignes refusées par la dernière soumission (rupture du jour) — vide sinon. */
   soldOutLines: SoldOutLine[];

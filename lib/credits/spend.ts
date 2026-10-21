@@ -25,6 +25,27 @@ export function moneyLines<T extends PaymentLine>(lines: T[]): T[] {
   return lines.filter((l) => l.mode !== 'AVOIR');
 }
 
+/** Part d'avoir que la règle autorise sur `total`, `current` déjà retenu inclus. */
+async function allowedCredit(
+  tx: Prisma.TransactionClient,
+  customerId: string,
+  total: number,
+  current: number
+): Promise<number> {
+  const settings = creditSettingsFromRow(
+    await tx.creditSettings.findUnique({ where: { id: 'singleton' } })
+  );
+  const rows = await tx.$queryRaw<{ creditBalance: number }[]>`
+    SELECT "creditBalance" FROM "customer" WHERE "id" = ${customerId} FOR UPDATE`;
+  const balance = rows[0]?.creditBalance ?? 0;
+  // Le solde disponible pour la règle compte ce que la commande retient déjà.
+  return computeCreditApplication({
+    balance: balance + current,
+    total,
+    settings,
+  });
+}
+
 /**
  * Aligne l'avoir retenu pour la commande sur `wanted` : débite la différence
  * (règle d'usage imposée côté serveur, jamais crue du navigateur) ou rend le
@@ -51,18 +72,7 @@ export async function setOrderCredit(
     );
   }
   if (wanted > current) {
-    const settings = creditSettingsFromRow(
-      await tx.creditSettings.findUnique({ where: { id: 'singleton' } })
-    );
-    const rows = await tx.$queryRaw<{ creditBalance: number }[]>`
-      SELECT "creditBalance" FROM "customer" WHERE "id" = ${customerId} FOR UPDATE`;
-    const balance = rows[0]?.creditBalance ?? 0;
-    // Le solde disponible pour la règle compte ce que la commande retient déjà.
-    const allowed = computeCreditApplication({
-      balance: balance + current,
-      total,
-      settings,
-    });
+    const allowed = await allowedCredit(tx, customerId, total, current);
     if (wanted > allowed) {
       throw new CreditError(
         `L’avoir ne peut pas dépasser ${allowed} F sur cette commande`,
@@ -113,5 +123,20 @@ export async function restoreOrderCredit(
     wanted: 0,
     actorId,
   });
+  return amount;
+}
+
+/**
+ * Paiement en ligne : retient d'emblée l'avoir autorisé par la règle (le montant
+ * Jèko en dépend). Rendu si le paiement n'arrive jamais (`restoreOrderCredit`).
+ * Renvoie le montant retenu (0 = rien).
+ */
+export async function holdCreditForOrder(
+  tx: Prisma.TransactionClient,
+  args: { orderId: string; customerId: string; total: number }
+): Promise<number> {
+  const amount = await allowedCredit(tx, args.customerId, args.total, 0);
+  if (amount <= 0) return 0;
+  await setOrderCredit(tx, { ...args, current: 0, wanted: amount });
   return amount;
 }

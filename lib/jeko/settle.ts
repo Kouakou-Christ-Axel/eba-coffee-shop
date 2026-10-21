@@ -41,6 +41,7 @@ const ORDER_SELECT = {
   onlineFee: true,
   dailyNumber: true,
   paymentAmountDue: true,
+  paymentCreditPart: true,
   paymentTransactionId: true,
   paymentExpiresAt: true,
   reference: true,
@@ -82,7 +83,9 @@ export async function settleJekoTransaction(
   // Montant FIGÉ à la tentative : `total` peut avoir changé depuis (l'annulation
   // par le client le remet au prix brut) alors que la demande déjà envoyée à Jèko,
   // elle, ne change pas.
-  const due = order.paymentAmountDue ?? order.total + order.onlineFee;
+  const due =
+    order.paymentAmountDue ??
+    order.total - order.paymentCreditPart + order.onlineFee;
   if (tx.amountFcfa !== due) {
     console.error(
       `[jeko] montant reçu ${tx.amountFcfa} F ≠ dû ${due} F (commande ${parsed.orderReference})`
@@ -106,8 +109,14 @@ export async function settleJekoTransaction(
     return 'amount_mismatch';
   }
 
+  // Part payée par avoir (retenue à la création) : `due` = total − avoir + frais.
+  const creditUsed = order.paymentCreditPart;
   const lines = [
-    { mode: jekoMethodToPaymentMode(tx.paymentMethod), amount: order.total },
+    {
+      mode: jekoMethodToPaymentMode(tx.paymentMethod),
+      amount: order.total - creditUsed,
+    },
+    ...(creditUsed > 0 ? [{ mode: 'AVOIR' as const, amount: creditUsed }] : []),
   ];
   // Identifiant de transaction et frais partent AVEC `isPaid` (une seule
   // écriture) : une commande payée sans `paymentTransactionId` l'a été hors Jèko.

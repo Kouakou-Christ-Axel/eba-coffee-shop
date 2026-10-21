@@ -8,6 +8,7 @@ export type SubmitArgs = {
   items: CartItem[];
   total: number;
   loyaltyRewardId?: string | null;
+  useCredit?: boolean;
 };
 
 export async function submitCheckout({
@@ -15,6 +16,7 @@ export async function submitCheckout({
   items,
   total,
   loyaltyRewardId,
+  useCredit,
 }: SubmitArgs): Promise<CheckoutSubmitOutcome> {
   let response: Response;
   try {
@@ -35,6 +37,9 @@ export async function submitCheckout({
         // Le serveur revalide la récompense (appartenance au client résolu du
         // téléphone, statut AVAILABLE) et déduit lui-même la remise du total.
         ...(loyaltyRewardId ? { loyaltyRewardId } : {}),
+        // Avoir du client : le serveur recalcule le montant (règle d'usage) et
+        // l'impose, comme pour la récompense.
+        ...(useCredit ? { useCredit: true } : {}),
         // Paiement en ligne : moyen choisi par le client. Le montant n'est PAS
         // envoyé — le serveur le recalcule (panier, remise, frais) et l'impose.
         ...(values.paymentMethod

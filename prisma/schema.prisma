@@ -352,6 +352,10 @@ model Order {
   // que le paiement déjà demandé, lui, ne change plus : le règlement compare à
   // CETTE valeur, pas à `total + onlineFee` recalculé.
   paymentAmountDue     Int?
+  // Part d'avoir (FCFA) comprise dans `paymentAmountDue`, figée avec lui : Jèko
+  // encaisse `total − avoir + frais`. Reste renseignée si l'avoir est rendu à
+  // l'expiration, pour reconnaître un paiement tardif d'une commande à avoir.
+  paymentCreditPart    Int                @default(0)
   // Transaction Jèko qui a réglé la commande. Un second webhook portant une autre
   // transaction sur une commande déjà payée est un DOUBLE paiement (deux demandes
   // payées après une relance) : le staff est alerté pour rembourser.

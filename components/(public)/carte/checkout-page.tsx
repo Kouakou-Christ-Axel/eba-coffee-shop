@@ -32,12 +32,19 @@ export function CheckoutPage() {
     (discount: number) => setLoyaltyDiscount(discount),
     []
   );
+  // Avoir du client remonté par le formulaire : payé hors Jèko, il réduit la
+  // somme à régler en ligne (et les frais) sans baisser le total de la commande.
+  const [creditDiscount, setCreditDiscount] = useState(0);
+  const handleCreditChange = useCallback(
+    (credit: number) => setCreditDiscount(credit),
+    []
+  );
   const netTotal = Math.max(0, totalPrice - loyaltyDiscount);
   // Paiement en ligne (Jèko) : frais ajoutés au total NET, montrés AVANT le clic.
   const onlinePayment = useOnlinePayment();
   const payOnline = onlinePayment.status === 'ready' && onlinePayment.enabled;
   const { fee } = withOnlineFee(
-    netTotal,
+    netTotal - creditDiscount,
     onlinePayment.status === 'ready' ? onlinePayment.feePercent : 0
   );
 
@@ -137,6 +144,7 @@ export function CheckoutPage() {
         {payOnline ? (
           <PaymentBreakdown
             netTotal={netTotal}
+            creditDiscount={creditDiscount}
             fee={fee}
             feePercent={
               onlinePayment.status === 'ready' ? onlinePayment.feePercent : 0
@@ -159,6 +167,7 @@ export function CheckoutPage() {
           onBack={() => router.push('/carte')}
           onSuccess={handleSuccess}
           onLoyaltyDiscountChange={handleLoyaltyDiscountChange}
+          onCreditChange={handleCreditChange}
           onlinePayment={onlinePayment}
           menu={menu}
           availability={availability}

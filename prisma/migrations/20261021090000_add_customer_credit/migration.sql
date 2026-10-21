@@ -12,7 +12,8 @@ CREATE TYPE "CreditEntryKind" AS ENUM ('ISSUED', 'SPENT', 'RESTORED', 'CONVERTED
 ALTER TABLE "customer" ADD COLUMN     "creditBalance" INTEGER NOT NULL DEFAULT 0;
 
 -- AlterTable
-ALTER TABLE "order" ADD COLUMN     "creditApplied" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "order" ADD COLUMN     "creditApplied" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "paymentCreditPart" INTEGER NOT NULL DEFAULT 0;
 
 -- CreateTable
 CREATE TABLE "customer_credit_entry" (

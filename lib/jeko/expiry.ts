@@ -19,6 +19,7 @@
 import prisma from '@/lib/prisma';
 import { revokeLoyaltyForOrder } from '@/lib/loyalty-mutations';
 import { releaseUnpaidStockHold } from '@/lib/order-mutations';
+import { restoreOrderCredit } from '@/lib/credits/spend';
 import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 import type { CartItem } from '@/lib/cart-store';
 import { JekoApiError, getJekoPaymentRequest } from './client';
@@ -93,6 +94,8 @@ async function expireOrder(order: Overdue): Promise<boolean> {
         note: 'Paiement en ligne expiré',
       });
     }
+    // L'avoir retenu pour ce paiement jamais arrivé retourne au client.
+    await restoreOrderCredit(tx, order.id);
     return true;
   });
 }
