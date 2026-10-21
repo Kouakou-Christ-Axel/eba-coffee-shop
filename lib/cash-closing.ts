@@ -24,7 +24,7 @@ export type CashFigures = {
   cashRefunds: number; // remboursements rendus en espèces (toute commande)
   waveSales: number;
   orangeMoneySales: number;
-  otherSales: number; // MTN, Moov, Djamo et Autre
+  otherSales: number; // MTN, Moov, Djamo, Autre et avoirs dépensés (aucun argent)
   totalRevenue: number; // CA encaissé tous modes, BRUT (somme du détail ci-dessus)
   refunds: number; // remboursements du jour déduits du CA (info)
 };

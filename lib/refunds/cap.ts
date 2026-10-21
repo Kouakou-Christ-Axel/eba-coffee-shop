@@ -24,6 +24,8 @@ export async function getRefundCap(
       where: {
         orderId,
         status: { in: ACTIVE_REFUND_STATUSES },
+        // Une conversion d'avoir n'entame pas le plafond : l'avoir l'a déjà fait.
+        creditSourceId: null,
         ...(opts.excludeRefundId ? { id: { not: opts.excludeRefundId } } : {}),
       },
       _sum: { amount: true },

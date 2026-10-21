@@ -1387,6 +1387,11 @@ model Refund {
   failureCode    String?
   failureMessage String?
 
+  // Conversion d'avoir en argent : id du remboursement `STORE_CREDIT` converti.
+  // Une conversion sort de l'argent (trésorerie, solde Jèko) mais ne retire pas de
+  // CA une 2e fois (l'avoir l'a déjà fait) ni ne consomme le plafond de la commande.
+  creditSourceId String?
+
   // Remise en stock des lignes remboursées (choix du staff, non par défaut).
   restockItems    Boolean   @default(false)
   stockRestoredAt DateTime?
@@ -1400,6 +1405,7 @@ model Refund {
   @@index([orderId])
   @@index([status])
   @@index([payoutDate])
+  @@index([creditSourceId])
   @@map("refund")
 }
 

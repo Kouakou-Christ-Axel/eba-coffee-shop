@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireRefundsView } from '@/lib/auth-helpers';
+import { convertCreditToRefund } from '@/lib/refunds/convert-credit';
 import { createRefund } from '@/lib/refunds/create';
 import {
   approveRefund,
@@ -139,5 +140,15 @@ export async function resolveUncertainRefundAction(
 ): Promise<RefundActionResult> {
   return run(async (actor) => {
     await resolveUncertainRefund({ id, outcome, note }, actor);
+  });
+}
+
+/** Convertit (une part d')un avoir en argent : nouvelle demande, validée par un admin. */
+export async function convertCreditAction(
+  input: unknown
+): Promise<RefundActionResult> {
+  return run(async (actor) => {
+    await convertCreditToRefund(input, actor);
+    return 'Demande envoyée : un administrateur doit la valider.';
   });
 }

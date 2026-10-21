@@ -35,7 +35,12 @@ export async function sumRefundsByModeForDay(
 ): Promise<Record<PaymentMode, number>> {
   const grouped = await prisma.refund.groupBy({
     by: ['channel'],
-    where: { status: 'PAID', payoutDate: date, order: COUNTED_ORDER },
+    where: {
+      status: 'PAID',
+      payoutDate: date,
+      creditSourceId: null,
+      order: COUNTED_ORDER,
+    },
     _sum: { amount: true },
   });
   return toModeRecord(grouped);
@@ -51,6 +56,7 @@ export async function sumRefundsByMode(
     where: {
       status: 'PAID',
       payoutDate: { gte: from, lte: to },
+      creditSourceId: null,
       order: COUNTED_ORDER,
     },
     _sum: { amount: true },
@@ -67,6 +73,7 @@ export async function sumRefundsByDay(
     where: {
       status: 'PAID',
       payoutDate: { gte: from, lte: to },
+      creditSourceId: null,
       order: COUNTED_ORDER,
     },
     select: { payoutDate: true, amount: true },

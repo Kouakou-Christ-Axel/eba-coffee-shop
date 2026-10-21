@@ -15,6 +15,12 @@ ALTER TABLE "customer" ADD COLUMN     "creditBalance" INTEGER NOT NULL DEFAULT 0
 ALTER TABLE "order" ADD COLUMN     "creditApplied" INTEGER NOT NULL DEFAULT 0,
 ADD COLUMN     "paymentCreditPart" INTEGER NOT NULL DEFAULT 0;
 
+-- AlterTable
+ALTER TABLE "refund" ADD COLUMN     "creditSourceId" TEXT;
+
+-- CreateIndex
+CREATE INDEX "refund_creditSourceId_idx" ON "refund"("creditSourceId");
+
 -- CreateTable
 CREATE TABLE "customer_credit_entry" (
     "id" TEXT NOT NULL,

@@ -114,6 +114,17 @@ export type UpdateRefundDestinationInput = z.infer<
   typeof updateRefundDestinationSchema
 >;
 
+/** Conversion d'un avoir (remboursement `STORE_CREDIT` payé) en argent rendu. */
+export const convertCreditSchema = z.object({
+  sourceRefundId: z.string().min(1),
+  amount: z.number().int().positive().max(REFUND_AMOUNT_MAX),
+  channel: z.enum(SELECTABLE_PAYMENT_MODES),
+  delivery: z.enum(['JEKO_TRANSFER', 'MANUAL']),
+  destinationPhone: z.string().trim().max(32).optional(),
+  note: noteSchema.optional(),
+});
+export type ConvertCreditInput = z.infer<typeof convertCreditSchema>;
+
 export const refundNoteSchema = z.object({
   id: z.string().min(1),
   note: noteSchema.optional(),

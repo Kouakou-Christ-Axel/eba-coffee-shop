@@ -134,6 +134,7 @@ async function getPublicOrderRefunds(
     by: ['status'],
     where: {
       orderId,
+      creditSourceId: null,
       status: {
         in: ['PAID', 'APPROVED', 'PROCESSING', 'UNCERTAIN', 'FAILED'],
       },

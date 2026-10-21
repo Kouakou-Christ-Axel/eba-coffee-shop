@@ -10,6 +10,11 @@ import { REFUND_STATUSES } from '@/lib/schemas/refund';
 import { SELECTABLE_PAYMENT_MODES } from '@/lib/payment-modes';
 import { createRefundSchema } from '@/lib/schemas/refund';
 import { createRefund } from '@/lib/refunds/create';
+import { creditSettingsSchema } from '@/lib/credit-settings';
+import {
+  getCreditSettings,
+  updateCreditSettings,
+} from '@/lib/credit-settings-db';
 import { getRefundDetail, listRefunds } from '@/lib/refunds/queries';
 import { getRefundStats } from '@/lib/refunds/stats';
 import { parseDateOnlyToUTC } from '@/lib/timezone';
@@ -101,11 +106,44 @@ export const refundsTools: McpTool[] = [
       'commande, frais en ligne exclus) + `reason`. Par défaut: canal = mode ' +
       'utilisé par le client, transfert Jèko si la commande a été payée via Jèko, ' +
       'sinon remise à la main, numéro = celui de la commande. `lines` rattache ' +
-      'des produits/suppléments ; `restockItems` (défaut false) les remet en stock.',
+      'des produits/suppléments ; `restockItems` (défaut false) les remet en stock. ' +
+      '`delivery: "STORE_CREDIT"` crédite la somme en AVOIR au solde du client ' +
+      '(aucun argent ne sort ; la commande doit avoir un client) au lieu de rendre ' +
+      'l’argent.',
     inputSchema: createRefundSchema,
     readOnly: false,
     // Demandeur anonyme de rôle « manager » : la demande est tracée sans nom et
     // l'admin est prévenu (un demandeur admin ne le serait pas).
     handler: (args) => createRefund(args, { id: null, role: 'MANAGER' }),
+  },
+  {
+    name: 'get_credit_settings',
+    toolset: 'finance',
+    scope: 'finance',
+    title: 'Règles d’usage des avoirs',
+    description:
+      'Renvoie les règles d’usage de l’avoir client : `enabled`, ' +
+      '`minRemaining` (reste minimum à payer, FCFA) et `maxPercent` (part max. de ' +
+      'la commande couverte par l’avoir). Le solde d’un client est le champ ' +
+      '`creditBalance` de `get_customer`.',
+    inputSchema: z.object({}),
+    readOnly: true,
+    handler: () => getCreditSettings(),
+  },
+  {
+    name: 'update_credit_settings',
+    toolset: 'finance',
+    scope: 'finance',
+    title: 'Modifier les règles des avoirs',
+    description:
+      'Met à jour les règles d’usage des avoirs (tous les champs sont requis : ' +
+      'lis d’abord `get_credit_settings`). S’applique aux prochains encaissements.',
+    inputSchema: creditSettingsSchema,
+    readOnly: false,
+    handler: async (args) => {
+      const settings = creditSettingsSchema.parse(args);
+      await updateCreditSettings(settings);
+      return settings;
+    },
   },
 ];

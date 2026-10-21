@@ -337,6 +337,7 @@ describe('remboursements : CA net', () => {
         where: {
           status: 'PAID',
           payoutDate: { gte: from, lte: to },
+          creditSourceId: null,
           order: { isPaid: true, status: { not: 'CANCELLED' } },
         },
       })

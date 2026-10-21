@@ -36,7 +36,7 @@ async function isFullyRefunded(
 ): Promise<boolean> {
   const { paid } = await getRefundCap(tx, orderId);
   const done = await tx.refund.aggregate({
-    where: { orderId, status: 'PAID' },
+    where: { orderId, status: 'PAID', creditSourceId: null },
     _sum: { amount: true },
   });
   return isFullyCovered(paid, done._sum.amount ?? 0);
@@ -102,7 +102,7 @@ export async function settleRefundPaid(args: SettlePaidArgs): Promise<boolean> {
     if (fullyRefunded)
       await tx.$executeRaw`SELECT pg_notify('orders_changed', '')`;
 
-    if (refund.source === 'STAFF') {
+    if (refund.source === 'STAFF' && !refund.creditSourceId) {
       if (refund.order.customerId && fullyRefunded) {
         await revokeLoyaltyForOrder(tx, {
           orderId: refund.orderId,

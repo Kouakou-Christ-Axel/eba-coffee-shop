@@ -19,6 +19,7 @@ import {
   resolveUncertainSchema,
   updateRefundDestinationSchema,
 } from '@/lib/schemas/refund';
+import { releaseConvertedCredit } from './convert-credit';
 import { resolveChannel, resolveDestination } from './destination';
 import { RefundError, type RefundActor } from './errors';
 import { transitionRefund } from './events';
@@ -120,15 +121,18 @@ export async function rejectRefund(
 ): Promise<Refund> {
   requireApprover(actor);
   const { id, note } = refundNoteSchema.parse(rawInput);
-  const moved = await prisma.$transaction((tx) =>
-    transitionRefund(tx, {
+  const refund = await get(id);
+  const moved = await prisma.$transaction(async (tx) => {
+    const ok = await transitionRefund(tx, {
       id,
       from: ['REQUESTED', 'APPROVED', 'FAILED'],
       to: 'REJECTED',
       actorId: actor.id,
       note,
-    })
-  );
+    });
+    if (ok) await releaseConvertedCredit(tx, refund, actor.id);
+    return ok;
+  });
   if (!moved) return stateConflict();
   return get(id);
 }
@@ -147,15 +151,17 @@ export async function cancelRefund(
   ) {
     throw new RefundError('Seul le demandeur ou un admin peut annuler', 403);
   }
-  const moved = await prisma.$transaction((tx) =>
-    transitionRefund(tx, {
+  const moved = await prisma.$transaction(async (tx) => {
+    const ok = await transitionRefund(tx, {
       id,
       from: ['REQUESTED', 'APPROVED', 'FAILED'],
       to: 'CANCELLED',
       actorId: actor.id,
       note,
-    })
-  );
+    });
+    if (ok) await releaseConvertedCredit(tx, refund, actor.id);
+    return ok;
+  });
   if (!moved) return stateConflict();
   return get(id);
 }
@@ -174,6 +180,16 @@ export async function updateRefundDestination(
   const refund = await get(input.id);
 
   const delivery = input.delivery ?? refund.delivery;
+  if (
+    delivery === 'STORE_CREDIT' &&
+    (refund.creditSourceId || !refund.customerId)
+  ) {
+    throw new RefundError(
+      refund.creditSourceId
+        ? 'Une conversion d’avoir se règle en argent'
+        : 'Un avoir se rattache à un client : cette commande n’en a pas'
+    );
+  }
   const channel = resolveChannel(
     delivery,
     input.channel ?? (refund.channel === 'AVOIR' ? 'CASH' : refund.channel)

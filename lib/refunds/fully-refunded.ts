@@ -24,7 +24,7 @@ export async function fullyRefundedOrderIds(
 
   const refunded = await prisma.refund.groupBy({
     by: ['orderId'],
-    where: { orderId: { in: orderIds }, status: 'PAID' },
+    where: { orderId: { in: orderIds }, status: 'PAID', creditSourceId: null },
     _sum: { amount: true },
   });
   if (refunded.length === 0) return new Set();

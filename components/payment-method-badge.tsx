@@ -6,7 +6,7 @@
 // d'affichage (caisse, détail commande, filtres, stats) passent par ici.
 
 import Image from 'next/image';
-import { Banknote, MoreHorizontal } from 'lucide-react';
+import { Banknote, MoreHorizontal, Wallet } from 'lucide-react';
 import type { PaymentMode } from '@/generated/prisma/client';
 import { PAYMENT_MODE_LABELS, PAYMENT_MODE_LOGOS } from '@/lib/payment-modes';
 import { cn } from '@/lib/utils';
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 const FALLBACK_ICONS: Partial<Record<PaymentMode, typeof Banknote>> = {
   CASH: Banknote,
   OTHER: MoreHorizontal,
+  AVOIR: Wallet,
 };
 
 type PaymentMethodIconProps = {

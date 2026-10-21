@@ -236,9 +236,39 @@ export async function mergeCustomers(
           : source.lastStampDate
         : (target.lastStampDate ?? source.lastStampDate);
 
+    // Avoirs et remboursements suivent le client : sans ça la suppression de la
+    // source ferait disparaître son solde (l'historique cascade, les remboursements
+    // perdent leur client).
+    await tx.customerCreditEntry.updateMany({
+      where: { customerId: sourceId },
+      data: { customerId: targetId },
+    });
+    await tx.refund.updateMany({
+      where: { customerId: sourceId },
+      data: { customerId: targetId },
+    });
+    const creditBalance = target.creditBalance + source.creditBalance;
+    if (source.creditBalance > 0) {
+      await tx.customerCreditEntry.create({
+        data: {
+          customerId: targetId,
+          kind: 'ADJUSTED',
+          delta: source.creditBalance,
+          balanceAfter: creditBalance,
+          actorId: actorId ?? null,
+          note: `Fusion du compte ${source.phone}`,
+        },
+      });
+    }
+
     const merged = await tx.customer.update({
       where: { id: targetId },
-      data: { stampCount, lastStampDate, name: target.name ?? source.name },
+      data: {
+        stampCount,
+        lastStampDate,
+        creditBalance,
+        name: target.name ?? source.name,
+      },
     });
 
     await tx.customer.delete({ where: { id: sourceId } });

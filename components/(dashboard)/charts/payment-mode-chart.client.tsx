@@ -76,8 +76,16 @@ export function PaymentModeChart({
     },
     { key: 'DJAMO', value: revenueByMode.DJAMO, fill: 'var(--color-DJAMO)' },
     { key: 'OTHER', value: revenueByMode.OTHER, fill: 'var(--color-OTHER)' },
+    // L'avoir émis retire du CA avant d'être dépensé : tant qu'il dort, ce canal
+    // est négatif. Pas de part négative dans un anneau — mais le total au centre
+    // reste le CA net (somme réelle de tous les canaux).
+    {
+      key: 'AVOIR',
+      value: Math.max(0, revenueByMode.AVOIR),
+      fill: 'var(--color-AVOIR)',
+    },
   ];
-  const total = data.reduce((s, d) => s + d.value, 0);
+  const total = Object.values(revenueByMode).reduce((s, v) => s + v, 0);
 
   return (
     <DonutChart data={data} config={config} total={total} totalLabel="F" />

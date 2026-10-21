@@ -20,6 +20,14 @@ export class CustomerHasDebtError extends Error {
   }
 }
 
+export class CustomerHasCreditError extends Error {
+  constructor() {
+    super(
+      'Ce client a un avoir : faites-le utiliser ou convertissez-le en argent avant de l’anonymiser.'
+    );
+  }
+}
+
 export const anonymousPhoneMarker = (id: string) => `anon-${id}`;
 
 export function isAnonymizedPhone(phone: string): boolean {
@@ -47,6 +55,17 @@ export async function exportCustomerData(id: string) {
       },
       rewards: true,
       ledger: true,
+      // Avoirs : solde (champ `creditBalance`) et mouvements.
+      creditEntries: {
+        select: {
+          kind: true,
+          delta: true,
+          balanceAfter: true,
+          note: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      },
       // Remboursements : montants, motif, statut et date (pas le détail du journal).
       refunds: {
         select: {
@@ -77,7 +96,7 @@ export async function exportCustomerData(id: string) {
 export async function anonymizeCustomer(id: string, now = new Date()) {
   const customer = await prisma.customer.findUnique({
     where: { id },
-    select: { id: true, phone: true, anonymizedAt: true },
+    select: { id: true, phone: true, anonymizedAt: true, creditBalance: true },
   });
   if (!customer) throw new Error('Client introuvable.');
   if (customer.anonymizedAt) return { alreadyAnonymized: true as const };
@@ -92,6 +111,8 @@ export async function anonymizeCustomer(id: string, now = new Date()) {
     }),
   });
   if (debt > 0) throw new CustomerHasDebtError();
+  // Effacer le client ferait perdre son avoir : ce serait une dette qu'on annule en silence.
+  if (customer.creditBalance > 0) throw new CustomerHasCreditError();
 
   const orderOwner = {
     OR: [{ customerId: id }, { customerPhone: customer.phone }],
