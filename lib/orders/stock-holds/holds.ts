@@ -12,6 +12,35 @@ export const ACTIVE_REFUND_STATUSES = [
   'PAID',
 ] as const;
 
+/** Stock courant des ressources désignées (`null` = illimité ; clé absente = disparue). */
+export async function readStockByKeys(
+  tx: Prisma.TransactionClient,
+  keys: string[]
+): Promise<Map<string, number | null>> {
+  const productIds: string[] = [];
+  const optionIds: string[] = [];
+  for (const key of keys) {
+    const { kind, id } = parseHoldKey(key);
+    (kind === 'PRODUCT' ? productIds : optionIds).push(id);
+  }
+  const stock = new Map<string, number | null>();
+  if (productIds.length > 0) {
+    const rows = await tx.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, stockQuantity: true },
+    });
+    for (const r of rows) stock.set(`PRODUCT:${r.id}`, r.stockQuantity);
+  }
+  if (optionIds.length > 0) {
+    const rows = await tx.supplementOption.findMany({
+      where: { id: { in: optionIds } },
+      select: { id: true, stockQuantity: true },
+    });
+    for (const r of rows) stock.set(`OPTION:${r.id}`, r.stockQuantity);
+  }
+  return stock;
+}
+
 /** Parts déjà réservées pour une commande, par clé de ressource. */
 export async function loadHolds(
   tx: Prisma.TransactionClient,

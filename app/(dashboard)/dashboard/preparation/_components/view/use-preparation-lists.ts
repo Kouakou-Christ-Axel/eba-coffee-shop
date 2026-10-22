@@ -9,6 +9,7 @@ import {
 } from '@/lib/orders/scheduling';
 import { buildCustomerGroups } from '@/lib/orders/customer-groups';
 import { buildProductionPlan } from '@/lib/orders/production-plan';
+import { selectToLaunchToday } from '@/lib/orders/to-launch';
 import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
 import { elapsedMinutes } from '../elapsed';
 
@@ -60,6 +61,15 @@ export function usePreparationLists(
       toLaunchUrgent: states.includes('now'),
     };
   }, [scheduled, now]);
+  // Programmées PAYÉES du jour à lancer : prêtes (stock entièrement réservé) ou en attente de stock.
+  const toLaunchToday = useMemo(
+    () =>
+      selectToLaunchToday(
+        visible.filter((o) => isAwaitingKitchenLaunch(o)),
+        now
+      ),
+    [visible, now]
+  );
   const ready = useMemo(
     () => visible.filter((o) => o.status === 'READY'),
     [visible]
@@ -95,6 +105,7 @@ export function usePreparationLists(
     productionPlan,
     toLaunchCount,
     toLaunchUrgent,
+    toLaunchToday,
     ready,
     toPay,
     groups,

@@ -32,7 +32,9 @@ export function RowActions({
             className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2.5 text-base font-bold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 active:bg-primary/80 disabled:opacity-50"
           >
             <ChefHat className="h-4 w-4" strokeWidth={2.5} />
-            Lancer la préparation
+            {order.stockHold && order.stockHold.state !== 'full'
+              ? 'Lancer (stock incomplet)'
+              : 'Lancer la préparation'}
           </button>
         </div>
       )}

@@ -7,6 +7,7 @@ import { OrderCard } from '../order-card';
 import { OrderCardActions } from '../order-card-actions';
 import { formatPickup, getUrgencyLevel } from '../urgency';
 import { kitchenLaunchState } from '@/lib/orders/scheduling';
+import { selectToLaunchToday } from '@/lib/orders/to-launch';
 import type { CashierOrder } from '@/lib/cashier-queue';
 import type { MenuCategory } from '@/config/menu';
 import type { CaisseContactSettings } from './actions/types';
@@ -45,6 +46,8 @@ export function ScheduledSection({
   const toLaunch = states.filter((st) => st === 'today' || st === 'now').length;
   const urgent = states.includes('now');
   const dueToday = toLaunch > 0 && !urgent;
+  // Payées dont tout le stock est réservé : il ne reste qu'à les lancer.
+  const readyToLaunch = selectToLaunchToday(orders, now).ready.length;
   // Un choix explicite du caissier prime toujours sur l'ouverture automatique.
   const open = manuallyToggled ?? toLaunch > 0;
 
@@ -89,6 +92,12 @@ export function ScheduledSection({
           >
             {orders.length}
           </span>
+          {readyToLaunch > 0 && (
+            <span className="font-semibold text-green-700 dark:text-green-300">
+              · {readyToLaunch} prête{readyToLaunch > 1 ? 's' : ''} à lancer
+              (stock réservé)
+            </span>
+          )}
           {urgent ? (
             <span className="font-semibold text-red-700 dark:text-red-300">
               · {toLaunch} à lancer maintenant

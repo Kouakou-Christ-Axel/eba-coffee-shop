@@ -14,40 +14,17 @@ import prisma from '@/lib/prisma';
 import { endOfLocalDay, startOfLocalDay } from '@/lib/timezone';
 import type { CartItem } from '@/lib/cart-store';
 import { aggregateStockNeeds } from '@/lib/orders/mutations/stock-needs';
-import { ACTIVE_REFUND_STATUSES, loadHolds, releaseStaleHolds } from './holds';
+import {
+  ACTIVE_REFUND_STATUSES,
+  loadHolds,
+  readStockByKeys,
+  releaseStaleHolds,
+} from './holds';
 import { computeHolds, needsToMap, parseHoldKey, type HoldMap } from './keys';
 
 const BATCH_SIZE = 50;
 
 export type ReserveResult = { orders: number; units: number };
-
-async function readStock(
-  tx: Prisma.TransactionClient,
-  keys: string[]
-): Promise<Map<string, number | null>> {
-  const productIds: string[] = [];
-  const optionIds: string[] = [];
-  for (const key of keys) {
-    const { kind, id } = parseHoldKey(key);
-    (kind === 'PRODUCT' ? productIds : optionIds).push(id);
-  }
-  const stock = new Map<string, number | null>();
-  if (productIds.length > 0) {
-    const rows = await tx.product.findMany({
-      where: { id: { in: productIds } },
-      select: { id: true, stockQuantity: true },
-    });
-    for (const r of rows) stock.set(`PRODUCT:${r.id}`, r.stockQuantity);
-  }
-  if (optionIds.length > 0) {
-    const rows = await tx.supplementOption.findMany({
-      where: { id: { in: optionIds } },
-      select: { id: true, stockQuantity: true },
-    });
-    for (const r of rows) stock.set(`OPTION:${r.id}`, r.stockQuantity);
-  }
-  return stock;
-}
 
 async function takeFromStock(
   tx: Prisma.TransactionClient,
@@ -92,7 +69,7 @@ async function reserveOne(
     await aggregateStockNeeds(tx, order.items as unknown as CartItem[])
   );
   const held = await loadHolds(tx, orderId);
-  const stock = await readStock(tx, [...needs.keys()]);
+  const stock = await readStockByKeys(tx, [...needs.keys()]);
   const toHold: HoldMap = computeHolds(needs, held, stock);
 
   let units = 0;

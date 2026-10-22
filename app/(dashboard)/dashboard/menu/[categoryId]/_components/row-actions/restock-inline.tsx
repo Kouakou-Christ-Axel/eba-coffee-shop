@@ -10,6 +10,8 @@ export function RestockInline({ actions }: { actions: RowActionsState }) {
     isPending,
     restockDelta,
     setRestockDelta,
+    reserveForScheduled,
+    setReserveForScheduled,
     closeRestock,
     handleRestockConfirm,
   } = actions;
@@ -30,6 +32,18 @@ export function RestockInline({ actions }: { actions: RowActionsState }) {
         className="h-9 w-16 px-2 text-sm"
         aria-label="Quantité à ajouter"
       />
+      <label
+        className="flex min-h-9 cursor-pointer items-center gap-1 text-xs text-muted-foreground"
+        title="Les programmées payées du jour prennent leur part de ce stock, par heure de retrait. Décochez pour le garder au comptoir."
+      >
+        <input
+          type="checkbox"
+          checked={reserveForScheduled}
+          onChange={(e) => setReserveForScheduled(e.target.checked)}
+          className="size-4"
+        />
+        Programmées
+      </label>
       <Button
         variant="ghost"
         size="icon-sm"

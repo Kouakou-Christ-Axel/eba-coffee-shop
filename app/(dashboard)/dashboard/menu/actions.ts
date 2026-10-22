@@ -195,13 +195,16 @@ export async function reorderProductsAction(
 
 export async function restockProductAction(
   id: string,
-  delta: number
+  delta: number,
+  opts?: { reserveForScheduled?: boolean }
 ): Promise<ActionResult> {
   return run(() => {
     if (!Number.isInteger(delta) || delta === 0) {
       throw new Error('Quantité invalide');
     }
-    return menu.restockProduct(id, delta);
+    return opts
+      ? menu.restockProduct(id, delta, opts)
+      : menu.restockProduct(id, delta);
   });
 }
 
@@ -227,13 +230,16 @@ export async function resumeProductAction(id: string): Promise<ActionResult> {
 
 export async function setOptionStockAction(
   id: string,
-  quantity: number | null
+  quantity: number | null,
+  opts?: { reserveForScheduled?: boolean }
 ): Promise<ActionResult> {
   return run(() => {
     if (quantity !== null && (!Number.isInteger(quantity) || quantity < 0)) {
       throw new Error('Quantité invalide');
     }
-    return menu.setOptionStock(id, quantity);
+    return opts
+      ? menu.setOptionStock(id, quantity, opts)
+      : menu.setOptionStock(id, quantity);
   });
 }
 

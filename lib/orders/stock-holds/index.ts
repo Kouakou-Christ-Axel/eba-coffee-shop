@@ -11,6 +11,7 @@ export {
 } from './keys';
 export {
   loadHolds,
+  readStockByKeys,
   loadHoldsForOrders,
   releaseHolds,
   releaseStaleHolds,
@@ -21,3 +22,10 @@ export {
   type ReserveResult,
 } from './reserve';
 export { decrementResidualNeeds } from './consume';
+export {
+  isHoldCandidate,
+  summarizeStockHolds,
+  toSummary,
+  type StockHoldDetail,
+  type StockHoldSummary,
+} from './state';
