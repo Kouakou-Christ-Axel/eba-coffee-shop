@@ -15,6 +15,7 @@ import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 import { getRefundCap } from './cap';
 import { isFullyCovered } from './fully-refunded';
 import { transitionRefund } from './events';
+import { releaseHolds } from '@/lib/orders/stock-holds/holds';
 import { restoreStockForRefundLines } from './lines';
 
 export type SettlePaidArgs = {
@@ -80,8 +81,11 @@ export async function settleRefundPaid(args: SettlePaidArgs): Promise<boolean> {
     // Le remboursement ne modifie pas la commande, donc le trigger Postgres ne
     // sonne pas : on réveille les écrans caisse/cuisine, car une commande
     // remboursée en totalité sort de leurs files.
-    if (fullyRefunded)
+    if (fullyRefunded) {
+      // Pas encore lancée : ses parts réservées retournent au stock.
+      await releaseHolds(tx, refund.orderId);
       await tx.$executeRaw`SELECT pg_notify('orders_changed', '')`;
+    }
 
     if (refund.source === 'STAFF') {
       if (refund.order.customerId && fullyRefunded) {

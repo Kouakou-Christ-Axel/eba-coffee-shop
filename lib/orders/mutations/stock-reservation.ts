@@ -6,6 +6,8 @@ import { fetchStockSnapshot, optionKey } from '@/lib/orders/availability';
 import { isDeferredPickup } from '@/lib/orders/scheduling';
 import type { CartItem } from '@/lib/cart-store';
 import { notifyOrderCustomer } from '@/lib/push-notify';
+import { decrementResidualNeeds } from '@/lib/orders/stock-holds/consume';
+import { loadHolds } from '@/lib/orders/stock-holds/holds';
 import { decrementStockForOrderItems } from './stock-needs';
 import { resyncStockForItemChange } from './stock-resync';
 import { coverShortageForOrderItems } from './shortage';
@@ -33,11 +35,19 @@ export async function reserveStockOnce(
 
   // AVANT le décrément, et seulement sur demande explicite : le staff a
   // confirmé avoir produit la quantité manquante.
+  // Parts déjà réservées avant le lancement (programmée du jour, cf.
+  // lib/orders/stock-holds) : seul le RESTE est décompté.
+  const held = await loadHolds(tx, orderId);
+
   if (opts?.coverShortage) {
-    await coverShortageForOrderItems(tx, items);
+    await coverShortageForOrderItems(tx, items, held);
   }
 
-  await decrementStockForOrderItems(tx, items);
+  if (held.size > 0) {
+    await decrementResidualNeeds(tx, orderId, items, held);
+  } else {
+    await decrementStockForOrderItems(tx, items);
+  }
   return true;
 }
 

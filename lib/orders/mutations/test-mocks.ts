@@ -24,6 +24,14 @@ export function prismaModuleMock() {
     refund: {
       count: vi.fn().mockResolvedValue(0),
     },
+    // Réservations de stock par ressource (lib/orders/stock-holds) : aucune par défaut.
+    orderStockHold: {
+      findMany: vi.fn().mockResolvedValue([]),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      upsert: vi.fn(),
+    },
+    $executeRaw: vi.fn().mockResolvedValue(1),
+    $queryRaw: vi.fn().mockResolvedValue([]),
     product: {
       updateMany: vi.fn(),
       update: vi.fn(),

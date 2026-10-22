@@ -4,6 +4,7 @@ import { Prisma } from '@/generated/prisma/client';
 import { optionKey } from '@/lib/orders/availability';
 import type { ShortageLine } from '@/lib/orders/shortage';
 import type { CartItem } from '@/lib/cart-store';
+import { holdKey, type HoldMap } from '@/lib/orders/stock-holds/keys';
 import { StockShortageError } from './errors';
 
 export async function resolveOptionId(
@@ -168,10 +169,14 @@ export async function aggregateStockNeeds(
   return { products, options, unresolved };
 }
 
-/** Ce qui manque pour honorer `items` face au stock COURANT. */
+/**
+ * Ce qui manque pour honorer `items` face au stock COURANT. `held` : parts déjà
+ * réservées pour la commande (déjà retirées du stock), à déduire du besoin.
+ */
 export async function computeShortage(
   tx: Prisma.TransactionClient,
-  items: CartItem[]
+  items: CartItem[],
+  held?: HoldMap
 ): Promise<ShortageLine[]> {
   const { products, options } = await aggregateStockNeeds(tx, items);
   const lines: ShortageLine[] = [];
@@ -184,7 +189,10 @@ export async function computeShortage(
     for (const row of rows) {
       const need = products.get(row.id);
       if (!need || row.stockQuantity === null) continue;
-      const missing = need.needed - row.stockQuantity;
+      const missing =
+        need.needed -
+        (held?.get(holdKey('PRODUCT', row.id)) ?? 0) -
+        row.stockQuantity;
       if (missing > 0) {
         lines.push({
           target: 'product',
@@ -204,7 +212,10 @@ export async function computeShortage(
     for (const row of rows) {
       const need = options.get(row.id);
       if (!need || row.stockQuantity === null) continue;
-      const missing = need.needed - row.stockQuantity;
+      const missing =
+        need.needed -
+        (held?.get(holdKey('OPTION', row.id)) ?? 0) -
+        row.stockQuantity;
       if (missing > 0) {
         lines.push({
           target: 'option',
