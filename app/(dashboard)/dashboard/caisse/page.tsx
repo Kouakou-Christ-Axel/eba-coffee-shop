@@ -1,5 +1,6 @@
 import { requireCashier } from '@/lib/auth-helpers';
 import { expirePendingOrders } from '@/lib/jeko/expiry';
+import { launchDueScheduledOrders } from '@/lib/orders/auto-launch';
 import { fetchCashierQueue } from '@/lib/cashier-queue';
 import { getMenu } from '@/lib/menu';
 import { getContactSettings } from '@/lib/contact-settings-db';
@@ -12,6 +13,7 @@ export default async function CaissePage() {
   // Expiration opportuniste des commandes en attente de paiement Jèko (pas de
   // cron : même principe que le rappel d'inventaire — idempotent, fire-and-forget).
   void expirePendingOrders().catch(() => {});
+  void launchDueScheduledOrders().catch(() => {});
   const [initialQueue, menu, contactSettings] = await Promise.all([
     fetchCashierQueue(),
     getMenu(),

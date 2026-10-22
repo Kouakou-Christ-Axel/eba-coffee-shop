@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { expirePendingOrders } from '@/lib/jeko/expiry';
+import { launchDueScheduledOrders } from '@/lib/orders/auto-launch';
 import { refreshPendingRefunds } from '@/lib/refunds/refresh';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -31,6 +32,7 @@ export default async function DashboardPage() {
   // cron : même principe que le rappel d'inventaire — idempotent, fire-and-forget).
   void expirePendingOrders().catch(() => {});
   void refreshPendingRefunds().catch(() => {});
+  void launchDueScheduledOrders().catch(() => {});
 
   const todayLabel = new Intl.DateTimeFormat('fr-FR', {
     weekday: 'long',
