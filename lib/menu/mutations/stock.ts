@@ -8,9 +8,16 @@ import { launchDueScheduledOrders } from '@/lib/orders/auto-launch';
  * une fournée de midi est vendue en entier et la programmée oubliée exige une
  * fournée de plus. Fire-and-forget : ne bloque ni n'échoue le réappro.
  */
-function afterStockChange() {
+function afterStockChange(increased: boolean) {
   triggerRestockAlerts();
+  if (!increased) return;
   void launchDueScheduledOrders(new Date(), { force: true }).catch(() => {});
+}
+
+/** Hausse réelle : de illimité (`null`) à une quantité, ou quantité plus grande. */
+function isIncrease(before: number | null, after: number | null): boolean {
+  if (after === null) return false;
+  return before === null || after > before;
 }
 
 export async function setProductStock(id: string, quantity: number | null) {
@@ -20,7 +27,7 @@ export async function setProductStock(id: string, quantity: number | null) {
     where: { id },
     data: { stockQuantity: quantity },
   });
-  afterStockChange();
+  afterStockChange(isIncrease(p.stockQuantity, quantity));
   return updated;
 }
 
@@ -31,7 +38,7 @@ export async function setOptionStock(id: string, quantity: number | null) {
     where: { id },
     data: { stockQuantity: quantity },
   });
-  afterStockChange();
+  afterStockChange(isIncrease(o.stockQuantity, quantity));
   return updated;
 }
 
@@ -50,7 +57,7 @@ export async function restockProduct(id: string, delta: number) {
     where: { id },
     data: { stockQuantity: { increment: delta } },
   });
-  afterStockChange();
+  afterStockChange(delta > 0);
   return updated;
 }
 
@@ -67,7 +74,7 @@ export async function restockOption(id: string, delta: number) {
     where: { id },
     data: { stockQuantity: { increment: delta } },
   });
-  afterStockChange();
+  afterStockChange(delta > 0);
   return updated;
 }
 
@@ -88,7 +95,7 @@ export async function setOptionStockByRef(input: {
       },
     },
     orderBy: { id: 'asc' },
-    select: { id: true },
+    select: { id: true, stockQuantity: true },
   });
   if (!option) throw new Error('Option introuvable');
 
@@ -97,7 +104,7 @@ export async function setOptionStockByRef(input: {
     data: { stockQuantity: input.stock },
     select: { stockQuantity: true },
   });
-  afterStockChange();
+  afterStockChange(isIncrease(option.stockQuantity, input.stock));
   return { stockQuantity: updated.stockQuantity };
 }
 
@@ -107,7 +114,7 @@ export async function setProductStockById(input: {
 }): Promise<{ stockQuantity: number | null }> {
   const product = await prisma.product.findUnique({
     where: { id: input.productId },
-    select: { id: true },
+    select: { id: true, stockQuantity: true },
   });
   if (!product) throw new Error('Produit introuvable');
 
@@ -116,6 +123,6 @@ export async function setProductStockById(input: {
     data: { stockQuantity: input.stock },
     select: { stockQuantity: true },
   });
-  afterStockChange();
+  afterStockChange(isIncrease(product.stockQuantity, input.stock));
   return { stockQuantity: updated.stockQuantity };
 }

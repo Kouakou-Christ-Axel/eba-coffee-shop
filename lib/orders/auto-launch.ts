@@ -15,48 +15,45 @@
 //   - pénurie → on ne crédite PAS le manquant (c'est une confirmation humaine),
 //     la commande reste dans « Programmées » avec son bouton « Lancer la
 //     préparation » manuel, qui sert de repli ;
-//   - acompte manquant → même repli.
+//   - acompte manquant → même repli ;
+//   - remboursement en cours ou versé → même repli : la commande a quitté les
+//     files (cf. `fullyRefundedOrderIds`), la lancer réserverait du stock pour
+//     rien.
+//
+// Tous les retraits du JOUR sont lancés, même tardifs (18 h lancé à 12 h) : le
+// but est de réserver la fournée avant que le comptoir ne la vende. Ils restent
+// dans « Programmées » tant que le retrait est lointain (`isScheduledAhead`).
+//
+// État en mémoire de processus (throttle, refus) : sans danger en multi-instance,
+// `Order.stockReservedAt` et la garde de statut de `sendOrderToKitchen`
+// empêchent tout double décompte ; au pire un 409 parasite, ignoré ici.
 
 import prisma from '@/lib/prisma';
-import { startOfLocalDay } from '@/lib/timezone';
+import { endOfLocalDay, startOfLocalDay } from '@/lib/timezone';
 import { sendOrderToKitchen } from './mutations/kitchen';
+import { OrderMutationError } from './mutations/errors';
 
-// Un passage par minute et par processus (pm2 tourne en une seule instance).
+// Un passage par minute et par processus.
 const THROTTLE_MS = 60_000;
 const BATCH_SIZE = 20;
 // Une commande refusée (pénurie, acompte) n'est pas retentée à chaque passage.
 const RETRY_AFTER_MS = 10 * 60_000;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 let lastRunAt = 0;
 const retryAfter = new Map<string, number>();
+// Un seul passage à la fois : un réappro pendant un passage en demande UN
+// nouveau derrière (coalescé), au lieu de lancer les mêmes commandes en parallèle.
+let inFlight: Promise<AutoLaunchResult> | null = null;
+let rerunRequested = false;
 
 export type AutoLaunchResult = { launched: number; skipped: number };
 
-/**
- * `force` : passage déclenché par un RÉAPPROVISIONNEMENT — le stock vient
- * d'arriver (fournée de midi), les programmées du jour doivent le réserver
- * AVANT que le comptoir ne le vende. Ni throttle ni mémoire des refus : une
- * commande refusée ce matin pour pénurie peut passer maintenant.
- */
-export async function launchDueScheduledOrders(
-  now: Date = new Date(),
-  opts?: { force?: boolean }
-): Promise<AutoLaunchResult> {
+async function runOnce(now: Date): Promise<AutoLaunchResult> {
   const result: AutoLaunchResult = { launched: 0, skipped: 0 };
-  if (opts?.force) {
-    retryAfter.clear();
-  } else if (now.getTime() - lastRunAt < THROTTLE_MS) {
-    return result;
-  }
-  lastRunAt = now.getTime();
 
   for (const [id, until] of retryAfter) {
     if (until <= now.getTime()) retryAfter.delete(id);
   }
-
-  const dayStart = startOfLocalDay(now);
-  const dayEnd = new Date(dayStart.getTime() + DAY_MS);
 
   // staff-visibility: exempt — c'est précisément ce module qui lance les commandes programmées
   const due = await prisma.order.findMany({
@@ -67,7 +64,14 @@ export async function launchDueScheduledOrders(
       stockReservedAt: null,
       // Aujourd'hui seulement : une payée restée NEW d'un jour passé est
       // oubliée, pas à relancer en décomptant le stock d'aujourd'hui.
-      pickupTime: { gte: dayStart, lt: dayEnd },
+      pickupTime: { gte: startOfLocalDay(now), lte: endOfLocalDay(now) },
+      refunds: {
+        none: {
+          status: {
+            in: ['REQUESTED', 'APPROVED', 'PROCESSING', 'UNCERTAIN', 'PAID'],
+          },
+        },
+      },
     },
     select: { id: true },
     orderBy: { pickupTime: 'asc' },
@@ -79,11 +83,57 @@ export async function launchDueScheduledOrders(
       await sendOrderToKitchen(id, 'ADMIN', { notifyShortage: false });
       result.launched++;
     } catch (err) {
-      // Pénurie, acompte manquant ou état déjà modifié : repli manuel.
       retryAfter.set(id, now.getTime() + RETRY_AFTER_MS);
       result.skipped++;
-      console.warn('[auto-launch] commande non lancée :', id, err);
+      // 409 = pénurie, acompte manquant ou commande déjà prise par un autre
+      // passage : repli manuel attendu. Tout le reste est anormal.
+      if (err instanceof OrderMutationError && err.httpStatus === 409) {
+        console.warn('[auto-launch] commande non lancée :', id, err.message);
+      } else {
+        console.error('[auto-launch] échec inattendu :', id, err);
+      }
     }
   }
   return result;
+}
+
+/**
+ * `force` : passage déclenché par un RÉAPPROVISIONNEMENT — le stock vient
+ * d'arriver (fournée de midi), les programmées du jour doivent le réserver
+ * AVANT que le comptoir ne le vende. Ni throttle ni mémoire des refus : une
+ * commande refusée ce matin pour pénurie peut passer maintenant.
+ */
+export async function launchDueScheduledOrders(
+  now: Date = new Date(),
+  opts?: { force?: boolean }
+): Promise<AutoLaunchResult> {
+  if (inFlight) {
+    if (opts?.force) rerunRequested = true;
+    return { launched: 0, skipped: 0 };
+  }
+  if (opts?.force) {
+    retryAfter.clear();
+  } else if (now.getTime() - lastRunAt < THROTTLE_MS) {
+    return { launched: 0, skipped: 0 };
+  }
+
+  const previousRunAt = lastRunAt;
+  lastRunAt = now.getTime();
+  inFlight = runOnce(now);
+  try {
+    return await inFlight;
+  } catch (err) {
+    // Panne de lecture : ne pas geler les passages normaux pendant une minute.
+    lastRunAt = previousRunAt;
+    console.error('[auto-launch] lecture des commandes échouée :', err);
+    throw err;
+  } finally {
+    inFlight = null;
+    if (rerunRequested) {
+      rerunRequested = false;
+      void launchDueScheduledOrders(new Date(), { force: true }).catch(
+        () => {}
+      );
+    }
+  }
 }
