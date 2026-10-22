@@ -11,6 +11,8 @@ import {
   restockOption,
   pauseProduct,
   resumeProduct,
+  bulkSetProductStock,
+  bulkSetProductStockSchema,
 } from '@/lib/menu-mutations';
 import { idSchema, dateOnly } from './helpers';
 import type { McpTool } from './types';
@@ -200,5 +202,21 @@ export const menuStockTools: McpTool[] = [
     inputSchema: z.object({ id: idSchema }),
     readOnly: false,
     handler: (args) => resumeProduct((args as { id: string }).id),
+  },
+  {
+    name: 'bulk_set_product_stock',
+    toolset: 'menu',
+    title: 'Définir le stock de plusieurs produits (absolu)',
+    description:
+      'Pose le stock de jusqu’à 100 produits en UNE requête atomique (« geste ' +
+      'du matin »). `items: [{ id, quantity }]` : `quantity` entier ≥ 0 ' +
+      '(0 = épuisé) ou `null` = illimité, comme `set_product_stock`. Valeurs ' +
+      'ABSOLUES (rejouable) ; pour ajouter une fournée, `restock_product` ' +
+      '(unitaire, non rejouable). Un id inconnu = rien n’est écrit. ' +
+      '`dryRun: true` = aperçu sans écriture.',
+    inputSchema: bulkSetProductStockSchema,
+    readOnly: false,
+    handler: (args) =>
+      bulkSetProductStock(args as z.infer<typeof bulkSetProductStockSchema>),
   },
 ];

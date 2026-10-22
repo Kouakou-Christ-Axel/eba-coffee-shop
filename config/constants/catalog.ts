@@ -40,4 +40,7 @@ export const PORTION_COMBO_MAX = 3;
 /** Commande à l'avance : délai max (jours) qu'un produit ou une catégorie peut exiger avant retrait. */
 export const ADVANCE_ORDER_DAYS_MAX = 30;
 
+/** Outils MCP « en lot » : nombre max de produits modifiés en une requête (une seule transaction). */
+export const BULK_PRODUCTS_MAX = 100;
+
 export const PICKUP_MIN_VISIBLE_DAYS = 7;
