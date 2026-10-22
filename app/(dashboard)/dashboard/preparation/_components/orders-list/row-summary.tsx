@@ -135,6 +135,20 @@ export function RowSummary({
           {!order.isPaid && ' · non encaissée'}
         </p>
       )}
+      {awaitingLaunch && order.stockHold && (
+        <p
+          className={cn(
+            'text-sm font-semibold',
+            order.stockHold.state === 'full'
+              ? 'text-green-700 dark:text-green-300'
+              : 'text-muted-foreground'
+          )}
+        >
+          {order.stockHold.state === 'full'
+            ? 'Stock réservé — prête à lancer'
+            : `Stock réservé ${order.stockHold.reserved}/${order.stockHold.total} — en attente : ${order.stockHold.waiting.join(', ')}`}
+        </p>
+      )}
     </button>
   );
 }

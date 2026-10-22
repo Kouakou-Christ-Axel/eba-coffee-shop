@@ -106,6 +106,39 @@ export function usePreparationActions(orders: PreparationOrder[]) {
     [setPending, confirmShortage]
   );
 
+  // Lance plusieurs commandes l'une après l'autre : une pénurie ouvre la confirmation
+  // de CETTE commande avant de passer à la suivante ; un échec n'arrête pas les autres.
+  const handleStartMany = useCallback(
+    (ids: string[]) => {
+      ids.forEach((id) => setPending(id, true));
+      startTransition(async () => {
+        let firstError: string | null = null;
+        try {
+          for (const id of ids) {
+            try {
+              let result = await startPreparation(id);
+              if (
+                result?.shortage?.length &&
+                (await confirmShortage(result.shortage))
+              ) {
+                result = await startPreparation(id, { coverShortage: true });
+              }
+              firstError ??= result?.error ?? null;
+            } catch (err) {
+              firstError ??=
+                err instanceof Error ? err.message : 'Erreur inattendue';
+            } finally {
+              setPending(id, false);
+            }
+          }
+        } finally {
+          setLaunchError(firstError);
+        }
+      });
+    },
+    [setPending, confirmShortage]
+  );
+
   const handleRequestDriver = useCallback(
     (id: string) => {
       setPending(id, true);
@@ -199,6 +232,7 @@ export function usePreparationActions(orders: PreparationOrder[]) {
     handleReady,
     handleRetrieved,
     handleStartPreparation,
+    handleStartMany,
     handleRequestDriver,
     handleReadyMany,
     handleRequestDriverMany,

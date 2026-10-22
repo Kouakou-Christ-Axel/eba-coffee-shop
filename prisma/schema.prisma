@@ -375,6 +375,9 @@ model Order {
   // fractionné (2+ modes distincts) — cf. lib/order-mutations.ts::setOrderPayment.
   payments OrderPayment[]
   refunds  Refund[]
+  // Parts de stock déjà réservées pour cette commande avant son lancement en cuisine
+  // (cf. lib/orders/stock-holds). Vide pour toute commande ordinaire.
+  stockHolds OrderStockHold[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1285,6 +1288,33 @@ enum RefundSource {
 enum RefundLineKind {
   PRODUCT
   SUPPLEMENT
+}
+
+// Réservation de stock PAR RESSOURCE d'une commande programmée du jour, payée et pas
+// encore lancée (`status NEW`, `stockReservedAt` nul) : le stock est décrémenté dès
+// qu'il arrive, mais la commande n'entre pas en cuisine. Au lancement,
+// `reserveStockOnce` ne décompte que `besoin − réservé` puis supprime les lignes ;
+// toute sortie du dispositif (annulation, dépaiement, remboursement, édition,
+// report) les restitue (`releaseHolds`). Cf. lib/orders/stock-holds.
+model OrderStockHold {
+  id         String        @id @default(cuid())
+  orderId    String
+  order      Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  kind       StockHoldKind
+  // `Product.id` ou `SupplementOption.id` selon `kind` (pas de relation : la cible peut disparaître).
+  resourceId String
+  quantity   Int
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([orderId, kind, resourceId])
+  @@index([resourceId])
+  @@map("order_stock_hold")
+}
+
+enum StockHoldKind {
+  PRODUCT
+  OPTION
 }
 
 model Refund {

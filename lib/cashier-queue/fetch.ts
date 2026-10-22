@@ -6,7 +6,16 @@ import { endOfLocalDay, startOfLocalDay } from '@/lib/timezone';
 import { fullyRefundedOrderIds } from '@/lib/refunds/fully-refunded';
 import { coalesceAsyncByKey } from '@/lib/async-coalesce';
 import { getOrdersGeneration } from '@/lib/postgres-notify';
-import { describeShortage, needsAvailability } from './availability';
+import {
+  isHoldCandidate,
+  summarizeStockHolds,
+  toSummary,
+} from '@/lib/orders/stock-holds';
+import {
+  describeAvailability,
+  describeShortage,
+  needsAvailability,
+} from './availability';
 import { loadQueueLoyalty } from './loyalty';
 import type { CashierOrder } from './types';
 
@@ -65,12 +74,23 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
     totalStampEntriesByCustomerId,
   } = await loadQueueLoyalty(orders);
 
+  // Programmées payées du jour : le stock déjà réservé pour elles est sorti du stock
+  // courant, il faut le recompter sinon elles s'afficheraient « indisponibles ».
+  const holdDetails = await summarizeStockHolds(
+    orders
+      .filter((o) => isHoldCandidate(o, now))
+      .map((o) => ({ id: o.id, items: o.items as CartItem[] }))
+  );
+
   return orders.map((o) => {
     const items = o.items as CartItem[];
 
-    const { stockShortage, unavailableItemNames } = needsAvailability(o, now)
-      ? describeShortage(items, stock)
-      : { stockShortage: false, unavailableItemNames: [] };
+    const hold = holdDetails.get(o.id);
+    const { stockShortage, unavailableItemNames } = hold
+      ? describeAvailability(items, hold.availability)
+      : needsAvailability(o, now)
+        ? describeShortage(items, stock)
+        : { stockShortage: false, unavailableItemNames: [] };
 
     const loyaltyStampCount = o.customerId
       ? (stampCountByCustomerId.get(o.customerId) ?? null)
@@ -121,6 +141,7 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       stockReservedAt: o.stockReservedAt,
       stockShortage,
       unavailableItemNames,
+      ...(hold ? { stockHold: toSummary(hold) } : {}),
       loyaltySettings,
       loyaltyStampCount,
       loyaltyPickupOutcome,
