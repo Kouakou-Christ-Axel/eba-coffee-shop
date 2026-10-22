@@ -16,7 +16,12 @@ import {
 export async function sendOrderToKitchen(
   id: string,
   role: UserRole,
-  opts?: { onAccount?: boolean; coverShortage?: boolean }
+  opts?: {
+    onAccount?: boolean;
+    coverShortage?: boolean;
+    /** `false` : pas de push « indisponible » en cas de pénurie (lancement automatique, rejoué à chaque réappro). */
+    notifyShortage?: boolean;
+  }
 ): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id },
@@ -80,7 +85,7 @@ export async function sendOrderToKitchen(
       return claimed;
     });
   } catch (err) {
-    if (err instanceof StockShortageError) {
+    if (err instanceof StockShortageError && opts?.notifyShortage !== false) {
       notifyOrderCustomer(id, 'ITEM_UNAVAILABLE');
     }
     throw err;

@@ -1,5 +1,17 @@
 import prisma from '@/lib/prisma';
 import { triggerRestockAlerts } from '@/lib/restock-alerts';
+import { launchDueScheduledOrders } from '@/lib/orders/auto-launch';
+
+/**
+ * Le stock vient de changer : les programmées du jour le réservent d'abord
+ * (par heure de retrait), puis seulement le comptoir vend le reste. Sans ça,
+ * une fournée de midi est vendue en entier et la programmée oubliée exige une
+ * fournée de plus. Fire-and-forget : ne bloque ni n'échoue le réappro.
+ */
+function afterStockChange() {
+  triggerRestockAlerts();
+  void launchDueScheduledOrders(new Date(), { force: true }).catch(() => {});
+}
 
 export async function setProductStock(id: string, quantity: number | null) {
   const p = await prisma.product.findUnique({ where: { id } });
@@ -8,7 +20,7 @@ export async function setProductStock(id: string, quantity: number | null) {
     where: { id },
     data: { stockQuantity: quantity },
   });
-  triggerRestockAlerts();
+  afterStockChange();
   return updated;
 }
 
@@ -19,7 +31,7 @@ export async function setOptionStock(id: string, quantity: number | null) {
     where: { id },
     data: { stockQuantity: quantity },
   });
-  triggerRestockAlerts();
+  afterStockChange();
   return updated;
 }
 
@@ -38,7 +50,7 @@ export async function restockProduct(id: string, delta: number) {
     where: { id },
     data: { stockQuantity: { increment: delta } },
   });
-  triggerRestockAlerts();
+  afterStockChange();
   return updated;
 }
 
@@ -55,7 +67,7 @@ export async function restockOption(id: string, delta: number) {
     where: { id },
     data: { stockQuantity: { increment: delta } },
   });
-  triggerRestockAlerts();
+  afterStockChange();
   return updated;
 }
 
@@ -85,7 +97,7 @@ export async function setOptionStockByRef(input: {
     data: { stockQuantity: input.stock },
     select: { stockQuantity: true },
   });
-  triggerRestockAlerts();
+  afterStockChange();
   return { stockQuantity: updated.stockQuantity };
 }
 
@@ -104,6 +116,6 @@ export async function setProductStockById(input: {
     data: { stockQuantity: input.stock },
     select: { stockQuantity: true },
   });
-  triggerRestockAlerts();
+  afterStockChange();
   return { stockQuantity: updated.stockQuantity };
 }

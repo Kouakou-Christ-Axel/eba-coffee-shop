@@ -44,8 +44,8 @@ describe('launchDueScheduledOrders', () => {
     const res = await launchDueScheduledOrders(nextNow());
 
     expect(res).toEqual({ launched: 2, skipped: 0 });
-    expect(send).toHaveBeenCalledWith('a', 'ADMIN');
-    expect(send).toHaveBeenCalledWith('b', 'ADMIN');
+    expect(send).toHaveBeenCalledWith('a', 'ADMIN', { notifyShortage: false });
+    expect(send).toHaveBeenCalledWith('b', 'ADMIN', { notifyShortage: false });
   });
 
   it('une pénurie laisse la commande au lancement manuel, sans bloquer les autres', async () => {
@@ -72,5 +72,21 @@ describe('launchDueScheduledOrders', () => {
         where: expect.objectContaining({ id: { notIn: ['x'] } }),
       })
     );
+  });
+
+  it('force (réappro) : repasse sans attendre ni la minute de throttle ni le délai de retry', async () => {
+    findMany.mockResolvedValue([{ id: 'x' }]);
+    send.mockRejectedValue(new Error('pénurie'));
+    const now = nextNow();
+    await launchDueScheduledOrders(now);
+
+    // Stock arrivé 1 s plus tard : la commande refusée est retentée.
+    findMany.mockResolvedValue([{ id: 'x' }]);
+    send.mockResolvedValue(undefined);
+    const res = await launchDueScheduledOrders(new Date(now.getTime() + 1000), {
+      force: true,
+    });
+
+    expect(res).toEqual({ launched: 1, skipped: 0 });
   });
 });

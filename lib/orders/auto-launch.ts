@@ -3,7 +3,10 @@
 // Lancement AUTOMATIQUE en cuisine des commandes programmées PAYÉES, le jour du
 // retrait. Même principe que `expirePendingOrders` (lib/jeko/expiry.ts) : pas de
 // cron, l'appelant lance `void launchDueScheduledOrders().catch(() => {})` au
-// chargement d'un écran dashboard, sans bloquer son rendu.
+// chargement d'un écran dashboard, sans bloquer son rendu. Il est AUSSI rejoué
+// à chaque changement de stock (`lib/menu/mutations/stock.ts`) : le stock est
+// souvent à 0 le matin, la cuisine produit vers midi, et la programmée doit
+// prendre sa part de cette fournée avant que le comptoir ne la vende.
 //
 // Le stock du jour est décompté par le chemin habituel (`sendOrderToKitchen` →
 // `reserveStockOnce`), donc la commande compte naturellement dans le stock du
@@ -30,11 +33,22 @@ const retryAfter = new Map<string, number>();
 
 export type AutoLaunchResult = { launched: number; skipped: number };
 
+/**
+ * `force` : passage déclenché par un RÉAPPROVISIONNEMENT — le stock vient
+ * d'arriver (fournée de midi), les programmées du jour doivent le réserver
+ * AVANT que le comptoir ne le vende. Ni throttle ni mémoire des refus : une
+ * commande refusée ce matin pour pénurie peut passer maintenant.
+ */
 export async function launchDueScheduledOrders(
-  now: Date = new Date()
+  now: Date = new Date(),
+  opts?: { force?: boolean }
 ): Promise<AutoLaunchResult> {
   const result: AutoLaunchResult = { launched: 0, skipped: 0 };
-  if (now.getTime() - lastRunAt < THROTTLE_MS) return result;
+  if (opts?.force) {
+    retryAfter.clear();
+  } else if (now.getTime() - lastRunAt < THROTTLE_MS) {
+    return result;
+  }
   lastRunAt = now.getTime();
 
   for (const [id, until] of retryAfter) {
@@ -62,7 +76,7 @@ export async function launchDueScheduledOrders(
 
   for (const { id } of due) {
     try {
-      await sendOrderToKitchen(id, 'ADMIN');
+      await sendOrderToKitchen(id, 'ADMIN', { notifyShortage: false });
       result.launched++;
     } catch (err) {
       // Pénurie, acompte manquant ou état déjà modifié : repli manuel.
