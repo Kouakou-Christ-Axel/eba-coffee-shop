@@ -30,6 +30,11 @@ describe('dépaiement et remboursements', () => {
     const tx = {
       order: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
       orderPayment: { deleteMany: vi.fn() },
+      // Dépaiement : les réservations de stock sont rendues (aucune ici).
+      orderStockHold: {
+        findMany: vi.fn().mockResolvedValue([]),
+        deleteMany: vi.fn(),
+      },
     };
     vi.mocked(prisma.$transaction).mockImplementation((async (
       fn: (t: unknown) => unknown

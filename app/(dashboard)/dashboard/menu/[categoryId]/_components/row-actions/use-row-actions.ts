@@ -28,6 +28,8 @@ export function useRowActions({
   const [isPending, startTransition] = useTransition();
   const [isRestockOpen, setIsRestockOpen] = useState(false);
   const [restockDelta, setRestockDelta] = useState('');
+  // Les programmées payées du jour prennent leur part de cette fournée (décocher = tout au comptoir).
+  const [reserveForScheduled, setReserveForScheduled] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Miroirs optimistes resynchronisés sur la prop (sans `useEffect`) ; en cas
@@ -90,7 +92,9 @@ export function useRowActions({
       return;
     }
     startTransition(async () => {
-      const result = await restockProductAction(id, delta);
+      const result = await restockProductAction(id, delta, {
+        reserveForScheduled,
+      });
       if (!result.ok) {
         pushToast(result.error, 'error');
         return;
@@ -124,6 +128,8 @@ export function useRowActions({
     setIsRestockOpen,
     restockDelta,
     setRestockDelta,
+    reserveForScheduled,
+    setReserveForScheduled,
     confirmDelete,
     setConfirmDelete,
     optimisticAvailable,

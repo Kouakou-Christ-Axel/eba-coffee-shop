@@ -14,6 +14,7 @@ import { ROLE_GROUPS } from '@/lib/auth-helpers';
 import { notifyOrderCustomer } from '@/lib/push-notify';
 import { notifyPush } from './notify';
 import { OrderMutationError } from './errors';
+import { releaseHolds } from '@/lib/orders/stock-holds/holds';
 import { sendOrderToKitchen } from './kitchen';
 import { reapplyOrderCredit, releaseOrderCredit } from './credit';
 
@@ -125,6 +126,10 @@ export async function setOrderStatus(
           : {}),
       },
     });
+    // Annulée avant le lancement : les parts réservées retournent au stock.
+    if (updated.count > 0 && newStatus === 'CANCELLED') {
+      await releaseHolds(tx, id);
+    }
     if (updated.count > 0 && order.customerId) {
       if (newStatus === 'CANCELLED') {
         await revokeLoyaltyForOrder(tx, {

@@ -23,8 +23,13 @@ export function refundPrismaMock() {
     refundEvent: { create: vi.fn() },
     customer: { update: vi.fn() },
     customerCreditEntry: { create: vi.fn() },
-    product: { update: vi.fn() },
-    supplementOption: { update: vi.fn() },
+    // Réservations de stock par ressource : aucune par défaut.
+    orderStockHold: {
+      findMany: vi.fn().mockResolvedValue([]),
+      deleteMany: vi.fn(),
+    },
+    product: { update: vi.fn(), updateMany: vi.fn() },
+    supplementOption: { update: vi.fn(), updateMany: vi.fn() },
   };
   client.$transaction.mockImplementation(async (arg: unknown) =>
     typeof arg === 'function' ? arg(client) : Promise.all(arg as unknown[])

@@ -11,6 +11,10 @@ import {
   reserveStockOnce,
   notifyPendingOrdersOfShortage,
 } from './stock-reservation';
+import {
+  releaseHolds,
+  reserveForScheduledOrdersSafe,
+} from '@/lib/orders/stock-holds';
 import { resolvePaymentMode } from './payment-mode';
 import { applyPaymentCredit, releaseOrderCredit } from './credit';
 
@@ -83,6 +87,9 @@ export async function setOrderPayment(
     if (result.count === 0) {
       throw new OrderMutationError('État modifié entre temps, recharger', 409);
     }
+
+    // Plus payée : elle quitte le dispositif de réservation, son stock est rendu.
+    await prisma.$transaction((tx) => releaseHolds(tx, id));
 
     return { startedPreparation: false };
   }
@@ -220,6 +227,12 @@ export async function setOrderPayment(
     notifyPendingOrdersOfShortage(id, txResult.items).catch((err) => {
       console.error('[order-mutations] fan-out stock épuisé échoué :', err);
     });
+  }
+
+  // Payée mais pas lancée (programmée du jour) : elle prend dès maintenant la part
+  // de stock disponible, sans entrer en cuisine.
+  if (!txResult.startedPreparation) {
+    await reserveForScheduledOrdersSafe({ orderId: id });
   }
 
   return { startedPreparation: txResult.startedPreparation };

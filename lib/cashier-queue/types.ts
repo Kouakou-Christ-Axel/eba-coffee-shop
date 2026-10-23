@@ -1,5 +1,6 @@
 import type { CartItem } from '@/lib/cart-store';
 import type { LoyaltySettings } from '@/lib/loyalty-settings';
+import type { StockHoldSummary } from '@/lib/orders/stock-holds';
 import type {
   OrderSource,
   OrderStatus,
@@ -54,6 +55,8 @@ export type CashierOrder = {
   /** Article indisponible au stock actuel — calculé seulement si `stockReservedAt === null`. */
   stockShortage: boolean;
   unavailableItemNames: string[];
+  /** Programmée payée du jour pas encore lancée : parts de stock déjà réservées. */
+  stockHold?: StockHoldSummary;
   /** Réglages fidélité, dupliqués par commande pour éviter le prop-drilling. */
   loyaltySettings: LoyaltySettings;
   /** Tampons du client lié ; null = commande anonyme. */

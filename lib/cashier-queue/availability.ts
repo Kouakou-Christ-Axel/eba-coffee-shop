@@ -23,7 +23,17 @@ export function describeShortage(
   items: CartItem[],
   stock: StockSnapshot
 ): { stockShortage: boolean; unavailableItemNames: string[] } {
-  const availability = computeOrderItemsAvailability(items, stock);
+  return describeAvailability(
+    items,
+    computeOrderItemsAvailability(items, stock)
+  );
+}
+
+/** Même rendu à partir d'une disponibilité déjà calculée (ex. en tenant compte des parts réservées). */
+export function describeAvailability(
+  items: CartItem[],
+  availability: ReturnType<typeof computeOrderItemsAvailability>
+): { stockShortage: boolean; unavailableItemNames: string[] } {
   if (availability.fulfillable) {
     return { stockShortage: false, unavailableItemNames: [] };
   }

@@ -11,6 +11,8 @@ import {
   setProductAvailability,
   toggleProductFeatured,
   moveProduct,
+  bulkUpdateProducts,
+  bulkUpdateProductsSchema,
   productInputSchema,
   productUpdateSchema,
 } from '@/lib/menu-mutations';
@@ -175,5 +177,25 @@ export const menuProductsTools: McpTool[] = [
     inputSchema: z.object({ id: idSchema }),
     readOnly: false,
     handler: (args) => toggleProductFeatured((args as { id: string }).id),
+  },
+  {
+    name: 'bulk_update_products',
+    toolset: 'menu',
+    title: 'Modifier plusieurs produits en une fois',
+    description:
+      'Modifie jusqu’à 100 produits en UNE requête, de façon atomique (tout ou ' +
+      'rien : un id inconnu = rien n’est écrit). Deux modes : (1) `target` ' +
+      '(`ids` OU `categoryId` = toute la catégorie) + `patch` commun ; (2) ' +
+      '`items` : `[{ id, ...champs }]` quand les valeurs diffèrent par produit. ' +
+      'Champs : `available`, `preorderable`, `featured`, `price`, `categoryId` ' +
+      '(déplace en fin de catégorie), `scheduleId`/`advanceOrderDays`/' +
+      '`unavailableUntil` (null = retirer), `requiresDeposit`. Valeurs absolues ' +
+      '(rejouable). `supplementGroups` non géré : utilise `update_product`. ' +
+      '`dryRun: true` renvoie l’aperçu avant/après sans rien écrire — à faire ' +
+      'AVANT un lot important. Ids : `search_products`/`get_menu`.',
+    inputSchema: bulkUpdateProductsSchema,
+    readOnly: false,
+    handler: (args) =>
+      bulkUpdateProducts(args as z.infer<typeof bulkUpdateProductsSchema>),
   },
 ];

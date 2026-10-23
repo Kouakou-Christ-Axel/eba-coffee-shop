@@ -7,6 +7,7 @@ import {
   computeOrderItemsAvailability,
 } from '@/lib/orders/availability';
 import { isDeferredPickup } from '@/lib/orders/scheduling';
+import { isHoldCandidate, summarizeStockHolds } from '@/lib/orders/stock-holds';
 import { getPaymentView, type PaymentView } from '@/lib/orders/payment-view';
 import type { CartItem } from '@/lib/cart-store';
 
@@ -78,8 +79,13 @@ export async function getPublicOrder(
     itemsView = items.map((item) => ({ ...item, available: true }));
     fulfillable = true;
   } else {
-    const stock = await fetchStockSnapshot([items]);
-    const availability = computeOrderItemsAvailability(items, stock);
+    // Programmée payée du jour : le stock déjà réservé pour elle compte comme disponible.
+    const hold = isHoldCandidate(order, new Date())
+      ? (await summarizeStockHolds([{ id: order.id, items }])).get(order.id)
+      : undefined;
+    const availability =
+      hold?.availability ??
+      computeOrderItemsAvailability(items, await fetchStockSnapshot([items]));
     const byCartId = new Map(availability.items.map((a) => [a.cartId, a]));
     itemsView = items.map((item) => {
       const a = byCartId.get(item.cartId);

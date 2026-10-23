@@ -19,8 +19,9 @@ export function deriveRowState(
     : (order.preparingStartedAt ?? order.createdAt);
   const mins = elapsedMinutes(since, now);
   const readyLate = isReady && mins >= READY_WAIT_ALERT_MINUTES;
-  // Encore NEW : elle attend le geste humain. C'est le seul chemin qui décompte
-  // le stock — jamais d'automatisme, pour qu'un manque se voie tout de suite.
+  // Encore NEW : elle attend le geste humain (« Lancer la préparation »). Le stock
+  // des programmées payées du jour est réservé dès qu'il arrive (cf.
+  // lib/orders/stock-holds), mais seul le lancement les met en cuisine.
   const awaitingLaunch = order.status === 'NEW';
   // `now` : retrait dans 30 min ou moins ; `today` : retrait aujourd'hui,
   // à lancer dans la journée (cf. `kitchenLaunchState`).

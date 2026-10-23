@@ -16,6 +16,12 @@ import { PRODUCTION_PLAN_DAYS } from '@/config/constants';
 import { fullyRefundedOrderIds } from '@/lib/refunds/fully-refunded';
 import { coalesceAsyncByKey } from '@/lib/async-coalesce';
 import { getOrdersGeneration } from '@/lib/postgres-notify';
+import {
+  isHoldCandidate,
+  summarizeStockHolds,
+  toSummary,
+  type StockHoldSummary,
+} from '@/lib/orders/stock-holds';
 import type { CartItem } from '@/lib/cart-store';
 import type { OrderSource, OrderType } from '@/generated/prisma/client';
 
@@ -62,6 +68,11 @@ export type PreparationOrder = {
   /** Instant de réservation du stock. `null` = reste à produire (alimente le
    * panneau « À produire », cf. lib/orders/production-plan.ts). */
   stockReservedAt: Date | null;
+  /**
+   * Programmée payée du jour pas encore lancée : ce qui est déjà réservé pour
+   * elle (cf. lib/orders/stock-holds). Absent pour toute autre commande.
+   */
+  stockHold?: StockHoldSummary;
 };
 
 /**
@@ -140,9 +151,14 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
     orders.filter((o) => o.isPaid || o.depositPaid).map((o) => o.id)
   );
 
-  const mapped = orders
-    .filter((o) => !gone.has(o.id))
-    .map((o) => ({
+  const visible = orders.filter((o) => !gone.has(o.id));
+  const holdDetails = await summarizeStockHolds(
+    visible
+      .filter((o) => isHoldCandidate(o, now))
+      .map((o) => ({ id: o.id, items: o.items as CartItem[] }))
+  );
+
+  const mapped = visible.map((o) => ({
       id: o.id,
       reference: o.reference,
       dailyNumber: o.dailyNumber,
@@ -165,6 +181,9 @@ export async function fetchPreparationQueue(): Promise<PreparationOrder[]> {
       preparingStartedAt: o.preparingStartedAt,
       readyAt: o.readyAt,
       stockReservedAt: o.stockReservedAt,
+      ...(holdDetails.has(o.id)
+        ? { stockHold: toSummary(holdDetails.get(o.id)!) }
+        : {}),
     }));
 
   return mapped.sort(compareKitchenFifo);

@@ -5,6 +5,8 @@ import prisma from '@/lib/prisma';
 import type { ShortageLine } from '@/lib/orders/shortage';
 import type { CartItem } from '@/lib/cart-store';
 import { StockShortageError } from './errors';
+import { loadHolds } from '@/lib/orders/stock-holds/holds';
+import type { HoldMap } from '@/lib/orders/stock-holds/keys';
 import { computeShortage } from './stock-needs';
 
 /** Pénurie d'une commande existante, en LECTURE SEULE. */
@@ -15,7 +17,8 @@ export async function getOrderShortage(id: string): Promise<ShortageLine[]> {
   });
   // Stock déjà réservé : plus rien à produire pour cette commande.
   if (!order || order.stockReservedAt !== null) return [];
-  return computeShortage(prisma, order.items as unknown as CartItem[]);
+  const held = await loadHolds(prisma, id);
+  return computeShortage(prisma, order.items as unknown as CartItem[], held);
 }
 
 export async function getItemsShortage(
@@ -37,9 +40,10 @@ export async function buildShortagePayload(
 
 export async function coverShortageForOrderItems(
   tx: Prisma.TransactionClient,
-  items: CartItem[]
+  items: CartItem[],
+  held?: HoldMap
 ): Promise<ShortageLine[]> {
-  const shortage = await computeShortage(tx, items);
+  const shortage = await computeShortage(tx, items, held);
   for (const line of shortage) {
     if (line.target === 'product') {
       await tx.product.update({

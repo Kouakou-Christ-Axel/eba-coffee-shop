@@ -6,6 +6,10 @@ import { computeItemsTotal, getMaxItemDiscount } from '@/lib/orders/totals';
 import type { CartItem } from '@/lib/cart-store';
 import { OrderMutationError } from './errors';
 import { releaseOrderCredit } from './credit';
+import {
+  releaseHolds,
+  reserveForScheduledOrdersSafe,
+} from '@/lib/orders/stock-holds';
 import { resyncStockForItemChange } from './stock-resync';
 
 /** Remplace les articles d'une commande et recalcule son total (net après remises). */
@@ -31,7 +35,7 @@ export async function updateOrderItems(
     }
   }
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
       where: { id },
       select: {
@@ -51,6 +55,12 @@ export async function updateOrderItems(
         'Impossible de modifier une commande terminée ou annulée',
         409
       );
+    }
+
+    // Pas encore lancée : ses parts réservées reposent sur l'ancien contenu. On les
+    // rend ; le passage ci-dessous les reprend sur le nouveau.
+    if (order.stockReservedAt === null) {
+      await releaseHolds(tx, id);
     }
 
     if (order.stockReservedAt !== null) {
@@ -82,4 +92,6 @@ export async function updateOrderItems(
 
     return { total };
   });
+  await reserveForScheduledOrdersSafe({ orderId: id });
+  return result;
 }
