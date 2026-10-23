@@ -9,6 +9,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useConfirmDialog } from '../../_components/use-confirm-dialog';
+import { parseJekoAccount } from '@/lib/jeko/accounts';
 import { describeTransferFailure } from '@/lib/jeko/transfer-errors';
 import { REFUND_DELIVERY_LABELS } from '@/lib/refunds/labels';
 import {
@@ -43,7 +44,10 @@ export function RefundActions({
   const [note, setNote] = useState('');
   const { confirm, confirmDialog } = useConfirmDialog();
   const { status, delivery } = refund;
-  const advice = describeTransferFailure(refund.failureCode);
+  const advice = describeTransferFailure(
+    refund.failureCode,
+    parseJekoAccount(refund.jekoAccount)
+  );
   const mine = viewer.canRequest && refund.requestedById === viewer.userId;
 
   function run(fn: () => Promise<RefundActionResult>) {

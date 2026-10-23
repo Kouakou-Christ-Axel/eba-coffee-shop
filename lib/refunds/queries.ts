@@ -112,6 +112,7 @@ export async function getRefundDetail(id: string) {
           total: true,
           status: true,
           isPaid: true,
+          jekoAccount: true,
         },
       },
       requestedBy: { select: { name: true, email: true } },
