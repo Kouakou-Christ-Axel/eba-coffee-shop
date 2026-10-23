@@ -136,7 +136,7 @@ export default async function CloturePage({
               <span>
                 Orange Money : {fmt.format(figures.orangeMoneySales)} F
               </span>
-              <span>Autre : {fmt.format(figures.otherSales)} F</span>
+              <span>Autre / avoir : {fmt.format(figures.otherSales)} F</span>
               {figures.refunds > 0 && (
                 <span>Remboursements : {fmt.format(figures.refunds)} F</span>
               )}

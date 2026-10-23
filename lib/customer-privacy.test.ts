@@ -15,6 +15,7 @@ const prismaMock = vi.hoisted(() => ({
 vi.mock('@/lib/prisma', () => ({ default: prismaMock }));
 
 import {
+  CustomerHasCreditError,
   CustomerHasDebtError,
   anonymizeCustomer,
   anonymousPhoneMarker,
@@ -27,6 +28,7 @@ describe('anonymizeCustomer', () => {
       id: 'c1',
       phone: '+2250700000000',
       anonymizedAt: null,
+      creditBalance: 0,
     });
     prismaMock.order.count.mockResolvedValue(0);
   });
@@ -35,6 +37,19 @@ describe('anonymizeCustomer', () => {
     prismaMock.order.count.mockResolvedValue(2);
     await expect(anonymizeCustomer('c1')).rejects.toBeInstanceOf(
       CustomerHasDebtError
+    );
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('refuse un client qui a encore un avoir (il serait perdu en silence)', async () => {
+    prismaMock.customer.findUnique.mockResolvedValue({
+      id: 'c1',
+      phone: '+2250700000000',
+      anonymizedAt: null,
+      creditBalance: 1500,
+    });
+    await expect(anonymizeCustomer('c1')).rejects.toBeInstanceOf(
+      CustomerHasCreditError
     );
     expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });

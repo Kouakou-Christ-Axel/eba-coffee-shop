@@ -8,7 +8,7 @@ import {
   REFUND_LINES_MAX,
   REFUND_NOTE_MAX,
 } from '@/config/constants';
-import { PAYMENT_MODES } from '@/lib/payment-modes';
+import { SELECTABLE_PAYMENT_MODES } from '@/lib/payment-modes';
 
 // Miroirs des enums Prisma (test de dérive : lib/schemas/refund.test.ts).
 export const REFUND_STATUSES = [
@@ -21,7 +21,11 @@ export const REFUND_STATUSES = [
   'REJECTED',
   'CANCELLED',
 ] as const;
-export const REFUND_DELIVERIES = ['JEKO_TRANSFER', 'MANUAL'] as const;
+export const REFUND_DELIVERIES = [
+  'JEKO_TRANSFER',
+  'MANUAL',
+  'STORE_CREDIT',
+] as const;
 export const REFUND_REASONS = [
   'PRODUCT_UNAVAILABLE',
   'QUALITY',
@@ -80,7 +84,7 @@ export const createRefundSchema = z.object({
   reason: z.enum(REFUND_REASONS),
   note: noteSchema.optional(),
   /** Canal de sortie ; défaut : le mode utilisé par le client. */
-  channel: z.enum(PAYMENT_MODES).optional(),
+  channel: z.enum(SELECTABLE_PAYMENT_MODES).optional(),
   delivery: z.enum(REFUND_DELIVERIES).optional(),
   /** Défaut : le numéro de la commande. */
   destinationPhone: z.string().trim().max(32).optional(),
@@ -94,7 +98,7 @@ export type RefundLineInput = z.infer<typeof refundLineSchema>;
 export const updateRefundDestinationSchema = z
   .object({
     id: z.string().min(1),
-    channel: z.enum(PAYMENT_MODES).optional(),
+    channel: z.enum(SELECTABLE_PAYMENT_MODES).optional(),
     delivery: z.enum(REFUND_DELIVERIES).optional(),
     destinationPhone: z.string().trim().max(32).optional(),
     note: noteSchema.optional(),
@@ -109,6 +113,17 @@ export const updateRefundDestinationSchema = z
 export type UpdateRefundDestinationInput = z.infer<
   typeof updateRefundDestinationSchema
 >;
+
+/** Conversion d'un avoir (remboursement `STORE_CREDIT` payé) en argent rendu. */
+export const convertCreditSchema = z.object({
+  sourceRefundId: z.string().min(1),
+  amount: z.number().int().positive().max(REFUND_AMOUNT_MAX),
+  channel: z.enum(SELECTABLE_PAYMENT_MODES),
+  delivery: z.enum(['JEKO_TRANSFER', 'MANUAL']),
+  destinationPhone: z.string().trim().max(32).optional(),
+  note: noteSchema.optional(),
+});
+export type ConvertCreditInput = z.infer<typeof convertCreditSchema>;
 
 export const refundNoteSchema = z.object({
   id: z.string().min(1),

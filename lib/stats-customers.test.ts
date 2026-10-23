@@ -143,6 +143,7 @@ describe('getCustomerRangeStats', () => {
       by: ['customerId'],
       where: {
         status: 'PAID',
+        creditSourceId: null,
         customerId: { not: null },
         order: {
           dailyDate: { gte: from, lte: to },

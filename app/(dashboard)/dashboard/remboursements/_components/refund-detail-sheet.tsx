@@ -23,6 +23,7 @@ import {
 } from '@/lib/refunds/labels';
 import { RefundStatusBadge } from './refund-badges';
 import { RefundActions } from './refund-actions';
+import { ConvertCredit } from './convert-credit';
 import type { RefundDetailData, RefundViewer } from './refund-types';
 
 const fmt = new Intl.NumberFormat('fr-FR');
@@ -78,6 +79,13 @@ export function RefundDetailSheet({
                 onDone={() => router.refresh()}
               />
 
+              {refund.convertibleCredit > 0 && viewer.canRequest && (
+                <ConvertCredit
+                  refund={refund}
+                  onDone={() => router.refresh()}
+                />
+              )}
+
               <dl className="divide-y rounded-lg border px-3">
                 <Row
                   label="Commande"
@@ -92,6 +100,25 @@ export function RefundDetailSheet({
                   }
                 />
                 <Row label="Client" value={refund.customerName ?? '—'} />
+                {refund.creditSourceId && (
+                  <Row
+                    label="Nature"
+                    value={
+                      <Link
+                        href={`/dashboard/remboursements?open=${refund.creditSourceId}`}
+                        className="underline-offset-2 hover:underline"
+                      >
+                        Conversion d’avoir en argent
+                      </Link>
+                    }
+                  />
+                )}
+                {refund.convertibleCredit > 0 && (
+                  <Row
+                    label="Avoir convertible"
+                    value={`${fmt.format(refund.convertibleCredit)} F`}
+                  />
+                )}
                 <Row
                   label="Motif"
                   value={REFUND_REASON_LABELS[refund.reason]}

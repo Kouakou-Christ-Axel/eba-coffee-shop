@@ -113,7 +113,7 @@ export async function TodayKpisSection() {
               revenue={stats.revenueByPaymentMode.ORANGE_MONEY}
             />
             {/* Moyens du paiement en ligne : affichés seulement s'ils ont servi. */}
-            {(['MTN_MONEY', 'MOOV_MONEY', 'DJAMO'] as const)
+            {(['MTN_MONEY', 'MOOV_MONEY', 'DJAMO', 'AVOIR'] as const)
               .filter(
                 (mode) =>
                   stats.countByPaymentMode[mode] > 0 ||

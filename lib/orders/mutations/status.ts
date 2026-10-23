@@ -16,6 +16,7 @@ import { notifyPush } from './notify';
 import { OrderMutationError } from './errors';
 import { releaseHolds } from '@/lib/orders/stock-holds/holds';
 import { sendOrderToKitchen } from './kitchen';
+import { reapplyOrderCredit, releaseOrderCredit } from './credit';
 
 /** Fait transitionner une commande vers `newStatus`. */
 export async function setOrderStatus(
@@ -48,9 +49,33 @@ export async function setOrderStatus(
   }
 
   if (newStatus === 'PREPARING') {
-    await sendOrderToKitchen(id, role, {
-      coverShortage: opts?.coverShortage,
-    });
+    // Reprise d'une commande annulée : l'avoir rendu à l'annulation est redébité
+    // AVANT l'envoi en cuisine (solde insuffisant → rien ne part).
+    if (order.status === 'CANCELLED') {
+      await prisma.$transaction((tx) => reapplyOrderCredit(tx, id));
+    }
+    try {
+      await sendOrderToKitchen(id, role, {
+        coverShortage: opts?.coverShortage,
+      });
+    } catch (err) {
+      // Refus (rupture, état modifié…) : la commande reste annulée, son avoir
+      // redébité à l'instant doit lui être rendu (sinon il resterait bloqué).
+      if (order.status === 'CANCELLED') {
+        await prisma
+          .$transaction(async (tx) => {
+            const cur = await tx.order.findUnique({
+              where: { id },
+              select: { status: true },
+            });
+            if (cur?.status === 'CANCELLED') await releaseOrderCredit(tx, id);
+          })
+          .catch((e) =>
+            console.error('[orders] avoir non rendu après échec cuisine :', e)
+          );
+      }
+      throw err;
+    }
     // Reprise d'une commande annulée : son tampon lui revient.
     if (order.status === 'CANCELLED' && order.customerId) {
       const customerId = order.customerId;
@@ -121,6 +146,10 @@ export async function setOrderStatus(
           orderTotal: order.total,
         });
       }
+    }
+    if (updated.count > 0) {
+      if (newStatus === 'CANCELLED') await releaseOrderCredit(tx, id);
+      else if (order.status === 'CANCELLED') await reapplyOrderCredit(tx, id);
     }
     return updated;
   });

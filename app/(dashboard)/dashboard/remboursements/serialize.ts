@@ -34,7 +34,7 @@ type Detail = NonNullable<Awaited<ReturnType<typeof getRefundDetail>>>;
 
 export function toDetail(
   d: Detail,
-  opts: { seePhone: boolean }
+  opts: { seePhone: boolean; convertibleCredit?: number }
 ): RefundDetailData {
   const iso = (v: Date | null) => (v ? v.toISOString() : null);
   return {
@@ -59,6 +59,8 @@ export function toDetail(
         ? d.destinationPhone
         : maskPhone(d.destinationPhone)
       : null,
+    convertibleCredit: opts.convertibleCredit ?? 0,
+    creditSourceId: d.creditSourceId,
     failureCode: d.failureCode,
     failureMessage: d.failureMessage,
     restockItems: d.restockItems,

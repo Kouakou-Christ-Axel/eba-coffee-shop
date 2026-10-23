@@ -15,7 +15,7 @@ export type RefundRowData = {
   reason: RefundReason;
   source: 'STAFF' | 'AUTO_LATE';
   status: RefundStatus;
-  delivery: 'JEKO_TRANSFER' | 'MANUAL';
+  delivery: 'JEKO_TRANSFER' | 'MANUAL' | 'STORE_CREDIT';
   channel: PaymentMode;
   customerName: string | null;
   createdAt: string;
@@ -37,6 +37,10 @@ export type RefundDetailData = RefundRowData & {
   paidAt: string | null;
   payoutDate: string | null;
   orderTotal: number;
+  /** Avoir payé : part pas encore convertie en argent (0 = rien à convertir). */
+  convertibleCredit: number;
+  /** Conversion d'un avoir : id du remboursement `STORE_CREDIT` d'origine. */
+  creditSourceId: string | null;
   lines: {
     id: string;
     name: string;

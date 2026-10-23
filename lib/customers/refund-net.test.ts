@@ -44,6 +44,7 @@ describe('CA client net des remboursements', () => {
       expect.objectContaining({
         where: {
           status: 'PAID',
+          creditSourceId: null,
           customerId: { in: ['c1', 'c2'] },
           order: { status: { not: 'CANCELLED' } },
         },

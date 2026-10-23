@@ -13,6 +13,12 @@ vi.mock('@/lib/loyalty-mutations', async () =>
   (await import('./test-mocks')).loyaltyMutationsModuleMock()
 );
 
+vi.mock('./credit', () => ({
+  applyPaymentCredit: vi.fn(),
+  releaseOrderCredit: vi.fn(),
+  reapplyOrderCredit: vi.fn(),
+}));
+
 import {
   setOrderCustomer,
   setOrderLoyaltyReward,

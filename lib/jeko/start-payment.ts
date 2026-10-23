@@ -8,7 +8,7 @@
 //   - réclame la commande de façon ATOMIQUE, gardée sur `isPaid:false`, statut NEW
 //     et échéance non dépassée : un double clic ou un paiement concurrent ne crée
 //     pas une seconde demande pour une commande déjà réglée.
-// Le montant facturé est toujours `total + onlineFee`, lus en base : le navigateur
+// Le montant facturé est toujours `total − avoir + onlineFee`, lus en base : le navigateur
 // n'intervient pas.
 
 import prisma from '@/lib/prisma';
@@ -58,6 +58,7 @@ export async function startJekoPayment(args: {
       status: true,
       total: true,
       onlineFee: true,
+      creditApplied: true,
       paymentExpiresAt: true,
       pickupTime: true,
     },
@@ -85,6 +86,8 @@ export async function startJekoPayment(args: {
     throw new PaymentNotPendingError('out_of_stock');
   }
 
+  // L'avoir retenu à la création est payé hors Jèko : seule la part restante est facturée.
+  const amountDue = order.total - order.creditApplied + order.onlineFee;
   const expiresAt = new Date(now.getTime() + PAYMENT_EXPIRY_MINUTES * 60_000);
   // Incrément ET relecture dans une même transaction : l'écriture verrouille la
   // ligne, donc deux démarrages simultanés lisent chacun SON numéro de tentative
@@ -102,7 +105,8 @@ export async function startJekoPayment(args: {
         paymentExpiresAt: expiresAt,
         // Figé à la tentative : `total` ne doit plus changer ensuite, alors que
         // ce montant est celui que Jèko encaissera.
-        paymentAmountDue: order.total + order.onlineFee!,
+        paymentAmountDue: amountDue,
+        paymentCreditPart: order.creditApplied,
       },
     });
     if (claimed.count === 0) throw new PaymentNotPendingError('conflict');
@@ -115,7 +119,7 @@ export async function startJekoPayment(args: {
 
   const request = await createJekoPaymentRequest(config, {
     reference: buildJekoReference(order.reference, paymentAttempts),
-    amountFcfa: order.total + order.onlineFee,
+    amountFcfa: amountDue,
     paymentMethod,
     successUrl: `${siteUrl}/commande/${order.id}?paiement=ok`,
     errorUrl: `${siteUrl}/commande/${order.id}?paiement=echec`,

@@ -8,7 +8,10 @@
 // (date + heure), note. Branche `updateOrderDetailsAction` (qui revalide la page).
 
 import { useState, useTransition } from 'react';
-import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
+import {
+  SELECTABLE_PAYMENT_MODES,
+  PAYMENT_MODE_LABELS,
+} from '@/lib/payment-modes';
 import {
   Modal,
   ModalContent,
@@ -40,7 +43,10 @@ const ORDER_TYPE_OPTIONS: { key: OrderType; label: string }[] = [
 ];
 
 const PAYMENT_MODE_OPTIONS: { key: PaymentMode; label: string }[] =
-  PAYMENT_MODES.map((m) => ({ key: m, label: PAYMENT_MODE_LABELS[m] }));
+  SELECTABLE_PAYMENT_MODES.map((m) => ({
+    key: m,
+    label: PAYMENT_MODE_LABELS[m],
+  }));
 
 // Valeur « aucun mode » dans le Select (commande non payée uniquement).
 const NO_PAYMENT_KEY = 'NONE';

@@ -126,6 +126,7 @@ export function ExpressCompleteButton({
             setIsOpen(false);
             setError(null);
           }}
+          orderId={orderId}
           orderRef={orderRef}
           amount={amount}
           isSubmitting={isPending}

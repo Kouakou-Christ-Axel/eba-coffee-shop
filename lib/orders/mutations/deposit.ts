@@ -13,6 +13,12 @@ export async function recordDeposit(
   if (!payments || payments.length === 0) {
     throw new OrderMutationError('payments requis', 400);
   }
+  if (payments.some((p) => p.mode === 'AVOIR')) {
+    throw new OrderMutationError(
+      'L’avoir ne se règle pas en acompte : utilisez-le à l’encaissement',
+      400
+    );
+  }
   const sum = payments.reduce((s, p) => s + p.amount, 0);
   if (sum <= 0) {
     throw new OrderMutationError('Montant invalide', 400);

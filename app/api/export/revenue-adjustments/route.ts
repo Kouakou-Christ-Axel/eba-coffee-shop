@@ -5,7 +5,10 @@
 // app/api/export/expenses/route.ts.
 
 import type { NextRequest } from 'next/server';
-import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
+import {
+  SELECTABLE_PAYMENT_MODES,
+  PAYMENT_MODE_LABELS,
+} from '@/lib/payment-modes';
 import type { PaymentMode } from '@/generated/prisma/client';
 import { getCurrentSession, ROLE_GROUPS } from '@/lib/auth-helpers';
 import { listRevenueAdjustments } from '@/lib/revenue-adjustments';
@@ -20,7 +23,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 const DEFAULT_RANGE_DAYS = 30;
-const MODES = PAYMENT_MODES;
+const MODES: readonly PaymentMode[] = SELECTABLE_PAYMENT_MODES;
 
 const PAYMENT_LABELS: Record<string, string> = PAYMENT_MODE_LABELS;
 

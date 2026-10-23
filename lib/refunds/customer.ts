@@ -19,6 +19,8 @@ export async function refundedByCustomer(
     by: ['customerId'],
     where: {
       status: 'PAID',
+      // Une conversion d'avoir ne diminue pas le CA : l'avoir l'a déjà retiré.
+      creditSourceId: null,
       customerId: customerWhere,
       order: { ...orderWhere, status: { not: 'CANCELLED' } },
     },

@@ -9,6 +9,8 @@ import {
   getRefundDetail,
   listRefunds,
 } from '@/lib/refunds/queries';
+import { getConvertibleCredit } from '@/lib/refunds/convert-credit';
+import prisma from '@/lib/prisma';
 import { refreshPendingRefunds } from '@/lib/refunds/refresh';
 import { RefundDetailSheet } from './_components/refund-detail-sheet';
 import { RefundsList } from './_components/refunds-list';
@@ -64,6 +66,11 @@ export default async function RemboursementsPage({
     openId ? getRefundDetail(openId) : null,
   ]);
 
+  const convertibleCredit =
+    detail?.delivery === 'STORE_CREDIT'
+      ? await getConvertibleCredit(prisma, detail.id)
+      : 0;
+
   return (
     <div className="space-y-6">
       <div>
@@ -94,7 +101,12 @@ export default async function RemboursementsPage({
 
       <RefundDetailSheet
         refund={
-          detail ? toDetail(detail, { seePhone: viewer.canRequest }) : null
+          detail
+            ? toDetail(detail, {
+                seePhone: viewer.canRequest,
+                convertibleCredit,
+              })
+            : null
         }
         viewer={viewer}
       />

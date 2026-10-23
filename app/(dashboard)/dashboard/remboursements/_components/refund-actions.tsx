@@ -63,7 +63,9 @@ export function RefundActions({
     const how =
       delivery === 'JEKO_TRANSFER'
         ? `Le transfert Jèko de ${fmt.format(refund.amount)} F part immédiatement vers ${refund.phone ?? 'le numéro indiqué'}.`
-        : `${fmt.format(refund.amount)} F seront à remettre au client.`;
+        : delivery === 'STORE_CREDIT'
+          ? `${fmt.format(refund.amount)} F sont ajoutés au solde d’avoir du client, utilisables dès maintenant.`
+          : `${fmt.format(refund.amount)} F seront à remettre au client.`;
     if (
       await confirm({
         title: 'Valider le remboursement',
@@ -109,7 +111,12 @@ export function RefundActions({
         {status === 'REQUESTED' && viewer.canApprove && (
           <Button disabled={pending} onClick={approve}>
             {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-            Valider et {delivery === 'JEKO_TRANSFER' ? 'envoyer' : 'accepter'}
+            Valider et{' '}
+            {delivery === 'JEKO_TRANSFER'
+              ? 'envoyer'
+              : delivery === 'STORE_CREDIT'
+                ? 'créditer'
+                : 'accepter'}
           </Button>
         )}
         {status === 'APPROVED' &&
@@ -232,7 +239,10 @@ export function RefundActions({
 
       {status === 'PAID' && (
         <p className="text-sm text-muted-foreground">
-          {REFUND_DELIVERY_LABELS[delivery]} · l’argent est parti.
+          {REFUND_DELIVERY_LABELS[delivery]} ·{' '}
+          {delivery === 'STORE_CREDIT'
+            ? 'crédité au solde du client.'
+            : 'l’argent est parti.'}
         </p>
       )}
       {feedback && (

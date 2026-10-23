@@ -90,6 +90,8 @@ export async function purgeExpiredPersonalData(
         const stale = await prisma.customer.findMany({
           where: {
             anonymizedAt: null,
+            // Un avoir non dépensé est une dette envers le client : jamais effacé.
+            creditBalance: 0,
             updatedAt: { lt: customerCutoff },
             orders: { none: { createdAt: { gte: customerCutoff } } },
           },

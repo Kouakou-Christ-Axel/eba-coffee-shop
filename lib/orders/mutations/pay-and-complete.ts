@@ -13,6 +13,7 @@ import {
   notifyPendingOrdersOfShortage,
 } from './stock-reservation';
 import { resolvePaymentMode } from './payment-mode';
+import { applyPaymentCredit } from './credit';
 
 export async function payAndComplete(
   id: string,
@@ -40,6 +41,8 @@ export async function payAndComplete(
           stockReservedAt: true,
           depositPaid: true,
           depositRequired: true,
+          customerId: true,
+          creditApplied: true,
         },
       });
       if (!order) {
@@ -114,6 +117,12 @@ export async function payAndComplete(
       }
 
       if (!alreadyPaid) {
+        await applyPaymentCredit(
+          tx,
+          { id, ...order },
+          payments as OrderPaymentLineInput[],
+          actorId
+        );
         await tx.orderPayment.createMany({
           data: (payments as OrderPaymentLineInput[]).map((p) => ({
             orderId: id,

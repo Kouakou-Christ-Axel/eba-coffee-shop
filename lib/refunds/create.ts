@@ -15,7 +15,11 @@ import { sendPushToRoles } from '@/lib/push-notify';
 import { priceFormatter } from '@/config/menu';
 import { createRefundSchema } from '@/lib/schemas/refund';
 import { getRefundCap } from './cap';
-import { canTransferVia, resolveDestination } from './destination';
+import {
+  canTransferVia,
+  resolveChannel,
+  resolveDestination,
+} from './destination';
 import { RefundError, type RefundRequester } from './errors';
 import { logRefundEvent } from './events';
 import { validateRefundLines } from './lines';
@@ -25,9 +29,27 @@ function defaultChannel(
   paymentMode: PaymentMode | null,
   payments: { mode: PaymentMode; amount: number }[]
 ): PaymentMode {
-  if (paymentMode) return paymentMode;
-  const biggest = [...payments].sort((a, b) => b.amount - a.amount)[0];
+  if (paymentMode && paymentMode !== 'AVOIR') return paymentMode;
+  const biggest = [...payments]
+    .filter((p) => p.mode !== 'AVOIR')
+    .sort((a, b) => b.amount - a.amount)[0];
   return biggest?.mode ?? 'CASH';
+}
+
+/** Un admin qui demande lui-même n'a pas besoin d'être prévenu. */
+export function alertApprovers(
+  refund: Pick<Refund, 'id' | 'amount'>,
+  actor: RefundRequester
+): void {
+  if (REFUND_APPROVER_ROLES.includes(actor.role)) return;
+  sendPushToRoles(REFUND_APPROVER_ROLES, {
+    title: 'Remboursement à valider',
+    body: `${priceFormatter.format(refund.amount)} F demandés`,
+    url: '/dashboard/remboursements',
+    tag: `refund-${refund.id}`,
+  }).catch((err) => {
+    console.error('[refunds] alerte admin échouée :', err);
+  });
 }
 
 export async function createRefund(
@@ -77,14 +99,20 @@ export async function createRefund(
       input.amount
     );
 
-    const channel =
+    const baseChannel =
       input.channel ?? defaultChannel(order.paymentMode, order.payments);
     // Payée via Jèko → on renvoie par Jèko ; sinon remise à la main.
     const delivery =
       input.delivery ??
-      (order.paymentTransactionId && canTransferVia(channel)
+      (order.paymentTransactionId && canTransferVia(baseChannel)
         ? 'JEKO_TRANSFER'
         : 'MANUAL');
+    if (delivery === 'STORE_CREDIT' && !order.customerId) {
+      throw new RefundError(
+        'Un avoir se rattache à un client : cette commande n’en a pas (pas de numéro de téléphone)'
+      );
+    }
+    const channel = resolveChannel(delivery, baseChannel);
     const destinationPhone = resolveDestination({
       delivery,
       channel,
@@ -130,16 +158,6 @@ export async function createRefund(
     return created;
   });
 
-  // Un admin qui demande lui-même n'a pas besoin d'être prévenu.
-  if (!REFUND_APPROVER_ROLES.includes(actor.role)) {
-    sendPushToRoles(REFUND_APPROVER_ROLES, {
-      title: 'Remboursement à valider',
-      body: `${priceFormatter.format(refund.amount)} F demandés`,
-      url: '/dashboard/remboursements',
-      tag: `refund-${refund.id}`,
-    }).catch((err) => {
-      console.error('[refunds] alerte admin échouée :', err);
-    });
-  }
+  alertApprovers(refund, actor);
   return refund;
 }

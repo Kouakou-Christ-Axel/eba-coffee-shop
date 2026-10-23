@@ -17,6 +17,11 @@ import {
 } from '@/lib/loyalty-settings';
 import { updateLoyaltySettings } from '@/lib/loyalty-settings-db';
 import {
+  creditSettingsSchema,
+  type CreditSettings,
+} from '@/lib/credit-settings';
+import { updateCreditSettings } from '@/lib/credit-settings-db';
+import {
   contactSettingsSchema,
   type ContactSettings,
 } from '@/lib/contact-settings';
@@ -72,6 +77,22 @@ export async function saveLoyaltySettings(
     };
   }
   await updateLoyaltySettings(parsed.data);
+  revalidatePath('/dashboard/parametres');
+  return { ok: true };
+}
+
+export async function saveCreditSettings(
+  input: CreditSettings
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireAdmin();
+  const parsed = creditSettingsSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Données invalides',
+    };
+  }
+  await updateCreditSettings(parsed.data);
   revalidatePath('/dashboard/parametres');
   return { ok: true };
 }

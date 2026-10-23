@@ -5,16 +5,22 @@
 // doit tous les accepter (sinon l'enregistrement échoue après la saisie).
 
 import { describe, expect, it } from 'vitest';
-import { PAYMENT_MODES } from '@/lib/payment-modes';
+import { SELECTABLE_PAYMENT_MODES } from '@/lib/payment-modes';
 import { revenueAdjustmentPaymentModeSchema } from './revenue-adjustment';
 
 describe('revenueAdjustmentPaymentModeSchema', () => {
   it('accepte chaque mode de la source unique', () => {
-    for (const mode of PAYMENT_MODES) {
+    for (const mode of SELECTABLE_PAYMENT_MODES) {
       expect(revenueAdjustmentPaymentModeSchema.safeParse(mode).success).toBe(
         true
       );
     }
+  });
+
+  it('refuse AVOIR : ce n’est pas de l’argent encaissé', () => {
+    expect(revenueAdjustmentPaymentModeSchema.safeParse('AVOIR').success).toBe(
+      false
+    );
   });
 
   it('refuse un mode inconnu', () => {

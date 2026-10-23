@@ -9,6 +9,8 @@ import prisma from '@/lib/prisma';
 import type { Prisma, RefundStatus } from '@/generated/prisma/client';
 import { priceFormatter } from '@/config/menu';
 import { todayDailyDate } from '@/lib/daily-numbering';
+import { CreditError } from '@/lib/credits/errors';
+import { moveCredit } from '@/lib/credits/ledger';
 import { revokeLoyaltyForOrder } from '@/lib/loyalty-mutations';
 import { notifyOrderCustomer } from '@/lib/push-notify';
 import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
@@ -35,7 +37,7 @@ async function isFullyRefunded(
 ): Promise<boolean> {
   const { paid } = await getRefundCap(tx, orderId);
   const done = await tx.refund.aggregate({
-    where: { orderId, status: 'PAID' },
+    where: { orderId, status: 'PAID', creditSourceId: null },
     _sum: { amount: true },
   });
   return isFullyCovered(paid, done._sum.amount ?? 0);
@@ -75,6 +77,23 @@ export async function settleRefundPaid(args: SettlePaidArgs): Promise<boolean> {
       },
     });
 
+    // Avoir : aucun argent ne sort, le montant rejoint le solde du client (même
+    // transaction que le passage à PAID : pas d'avoir sans remboursement payé).
+    if (refund.delivery === 'STORE_CREDIT') {
+      if (!refund.order.customerId) {
+        throw new CreditError('Cette commande n’a pas de client pour l’avoir');
+      }
+      await moveCredit(tx, {
+        customerId: refund.order.customerId,
+        delta: refund.amount,
+        kind: 'ISSUED',
+        orderId: refund.orderId,
+        refundId: refund.id,
+        note: 'Avoir (remboursement)',
+        actorId: args.actorId,
+      });
+    }
+
     // Un remboursement automatique de paiement tardif concerne une commande jamais
     // servie : tampon déjà retiré à l'expiration, stock jamais pris.
     const fullyRefunded = await isFullyRefunded(tx, refund.orderId);
@@ -87,7 +106,7 @@ export async function settleRefundPaid(args: SettlePaidArgs): Promise<boolean> {
       await tx.$executeRaw`SELECT pg_notify('orders_changed', '')`;
     }
 
-    if (refund.source === 'STAFF') {
+    if (refund.source === 'STAFF' && !refund.creditSourceId) {
       if (refund.order.customerId && fullyRefunded) {
         await revokeLoyaltyForOrder(tx, {
           orderId: refund.orderId,
@@ -119,9 +138,11 @@ export async function settleRefundPaid(args: SettlePaidArgs): Promise<boolean> {
   notifyOrderCustomer(
     result.orderId,
     'REFUNDED',
-    `Ton remboursement de ${priceFormatter.format(result.amount)} F est parti${
-      result.delivery === 'JEKO_TRANSFER' ? ' sur ton numéro' : ''
-    }.`
+    result.delivery === 'STORE_CREDIT'
+      ? `Ton avoir de ${priceFormatter.format(result.amount)} F est disponible : il s’appliquera à ta prochaine commande.`
+      : `Ton remboursement de ${priceFormatter.format(result.amount)} F est parti${
+          result.delivery === 'JEKO_TRANSFER' ? ' sur ton numéro' : ''
+        }.`
   );
   return true;
 }

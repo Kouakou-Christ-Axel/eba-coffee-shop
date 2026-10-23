@@ -1,7 +1,10 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
+import {
+  SELECTABLE_PAYMENT_MODES,
+  PAYMENT_MODE_LABELS,
+} from '@/lib/payment-modes';
 import { PaymentMethodIcon } from '@/components/payment-method-badge';
 import type { PaymentFormState } from './use-payment-form';
 
@@ -15,7 +18,7 @@ export function SingleModeGrid({
   const { singleSelected, selectSingleMode } = form;
   return (
     <div className="grid grid-cols-2 gap-2">
-      {PAYMENT_MODES.map((value) => {
+      {SELECTABLE_PAYMENT_MODES.map((value) => {
         const isActive = singleSelected === value;
         return (
           <button

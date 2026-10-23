@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
+import {
+  SELECTABLE_PAYMENT_MODES,
+  PAYMENT_MODE_LABELS,
+} from '@/lib/payment-modes';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +27,7 @@ export type RevenueAdjustmentFormValues = {
   note: string;
 };
 
-const PAYMENT_MODE_OPTIONS = PAYMENT_MODES.map((m) => ({
+const PAYMENT_MODE_OPTIONS = SELECTABLE_PAYMENT_MODES.map((m) => ({
   value: m,
   label: PAYMENT_MODE_LABELS[m],
 }));
