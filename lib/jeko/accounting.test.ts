@@ -118,3 +118,23 @@ describe('jekoBalance', () => {
     expect(jekoBalance(99, [])).toBe(99);
   });
 });
+
+describe('tarifs de retrait', () => {
+  it('gratuit : aucun frais, tout le solde est retirable', () => {
+    expect(withdrawalFee(5000, 'free')).toBe(0);
+    expect(withdrawalDebit(5000, 'free')).toBe(5000);
+    expect(maxWithdrawable(5000, 'free')).toBe(5000);
+  });
+
+  it('forfait : 1 000 F quel que soit le montant, retirable = solde − 1 000', () => {
+    expect(withdrawalFee(5000, 'flat')).toBe(1000);
+    expect(withdrawalDebit(5000, 'flat')).toBe(6000);
+    expect(maxWithdrawable(6000, 'flat')).toBe(5000);
+    expect(maxWithdrawable(800, 'flat')).toBe(0);
+  });
+
+  it('1,5 % reste le tarif par défaut', () => {
+    expect(withdrawalFee(1000)).toBe(withdrawalFee(1000, 'percent'));
+    expect(withdrawalFee(1000)).toBe(15);
+  });
+});

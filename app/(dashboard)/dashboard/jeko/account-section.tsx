@@ -152,7 +152,7 @@ export function AccountSection({
         <CardContent className="space-y-4">
           {canWrite && (
             <WithdrawalForm
-              maxWithdrawable={l.maxWithdrawable}
+              balance={Math.max(l.balance, 0)}
               account={account}
             />
           )}

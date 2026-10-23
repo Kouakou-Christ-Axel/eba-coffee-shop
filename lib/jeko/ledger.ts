@@ -16,20 +16,22 @@ import {
   maxWithdrawable,
   summarizeOnlinePayments,
   withdrawalFee,
+  WITHDRAWAL_FEE_MODES,
 } from './accounting';
 
 const withdrawalSchema = z.object({
   amount: z.number().int().positive().max(100_000_000),
   note: z.string().trim().max(200).optional(),
+  feeMode: z.enum(WITHDRAWAL_FEE_MODES).default('percent'),
   account: z.enum(JEKO_ACCOUNTS).default(DEFAULT_JEKO_ACCOUNT),
 });
 
 export async function recordJekoWithdrawal(input: unknown) {
-  const { amount, note, account } = withdrawalSchema.parse(input);
+  const { amount, note, account, feeMode } = withdrawalSchema.parse(input);
   return prisma.jekoWithdrawal.create({
     data: {
       amount,
-      fee: withdrawalFee(amount),
+      fee: withdrawalFee(amount, feeMode),
       note: note || null,
       jekoAccount: account,
     },

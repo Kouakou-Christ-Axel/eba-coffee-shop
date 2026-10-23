@@ -65,6 +65,7 @@ inactif). `JEKO_*` reste le compte **A**.
   au compte). Le solde attendu est comparé au **solde réel** lu chez Jèko
   (`GET /partner_api/stores/{storeId}/balance`, `lib/jeko/balance.ts`) ; si la
   réponse n'a pas la forme attendue, la page affiche le JSON brut.
+- **Frais de retrait** : choisis au moment d'enregistrer un retrait — 1,5 % (par défaut), gratuit, ou 1 000 F fixes. Le montant débité et le « retirable au maximum » suivent le tarif choisi ; la carte du bloc compte avec le tarif par défaut (1,5 %).
 - **Plafond MENSUEL** (`JEKO_MONTHLY_LIMIT_FCFA`) : c'est un flux, pas un plafond de
   solde — un retrait ne libère rien. La page compte ce que le compte a encaissé
   dans le mois civil en cours (`paidAt`) et alerte à 90 %.
