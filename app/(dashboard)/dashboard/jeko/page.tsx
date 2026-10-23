@@ -1,6 +1,7 @@
 import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
 import { getActiveJekoAccount } from '@/lib/jeko/active-account';
-import { configuredJekoAccounts } from '@/lib/jeko/config';
+import { fetchRemoteBalance } from '@/lib/jeko/balance';
+import { configuredJekoAccounts, jekoConfig } from '@/lib/jeko/config';
 import { getJekoLedger } from '@/lib/jeko/ledger';
 import { AccountSection } from './account-section';
 import { AccountSwitch } from './account-switch';
@@ -16,7 +17,10 @@ export default async function JekoPage() {
   const accounts = Array.from(
     new Set(['A', ...configuredJekoAccounts(), active])
   ).sort() as ('A' | 'B')[];
-  const ledgers = await Promise.all(accounts.map((a) => getJekoLedger(a)));
+  const [ledgers, remotes] = await Promise.all([
+    Promise.all(accounts.map((a) => getJekoLedger(a))),
+    Promise.all(accounts.map((a) => fetchRemoteBalance(jekoConfig(a)))),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -38,6 +42,7 @@ export default async function JekoPage() {
           account={account}
           active={account === active}
           ledger={ledgers[i]}
+          remote={remotes[i]}
           canWrite={canWrite}
         />
       ))}

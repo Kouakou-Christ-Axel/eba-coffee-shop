@@ -42,7 +42,8 @@ export async function deleteJekoWithdrawal(id: string) {
 
 /** Solde d'UN compte Jèko : chaque compte a son propre argent et son propre plafond. */
 export async function getJekoLedger(
-  account: JekoAccount = DEFAULT_JEKO_ACCOUNT
+  account: JekoAccount = DEFAULT_JEKO_ACCOUNT,
+  now: Date = new Date()
 ) {
   // `paymentTransactionId` non nul = Jèko a réellement encaissé (même si la
   // commande a été annulée ensuite : l'argent est bien arrivé).
@@ -55,6 +56,7 @@ export async function getJekoLedger(
         onlineFee: true,
         gatewayFee: true,
         paymentAmountDue: true,
+        paidAt: true,
         refundAmount: true,
         refundFee: true,
         _count: { select: { refunds: true } },
@@ -87,8 +89,18 @@ export async function getJekoLedger(
     (appRefunds._sum.amount ?? 0) + (appRefunds._sum.feeFcfa ?? 0)
   );
   const balance = jekoBalance(summary.netReceived, withdrawals);
+  // Mois civil en cours (Abidjan = UTC, pas d'heure d'été). `paidAt` est remis à
+  // nul si la commande est dépayée : ce cumul peut alors être légèrement sous-estimé.
+  const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+  const monthCollected = orders
+    .filter((o) => o.paidAt && o.paidAt.getTime() >= monthStart)
+    .reduce(
+      (s, o) => s + (o.paymentAmountDue ?? o.total + (o.onlineFee ?? 0)),
+      0
+    );
   return {
     ...summary,
+    monthCollected,
     withdrawals,
     withdrawnTotal: withdrawals.reduce((s, w) => s + w.amount, 0),
     withdrawalFeesTotal: withdrawals.reduce((s, w) => s + w.fee, 0),

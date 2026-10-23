@@ -1,10 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  JEKO_ACCOUNT_LIMIT_FCFA,
-  JEKO_ACCOUNT_WARN_RATIO,
+  JEKO_MONTHLY_LIMIT_FCFA,
+  JEKO_MONTHLY_WARN_RATIO,
 } from '@/config/constants';
 import type { JekoAccount } from '@/lib/jeko/accounts';
+import type { RemoteBalanceView } from '@/lib/jeko/balance';
 import type { getJekoLedger } from '@/lib/jeko/ledger';
+import { BalanceCompare } from './balance-compare';
 import { DeleteWithdrawalButton, WithdrawalForm } from './withdrawal-form';
 
 const fmt = new Intl.NumberFormat('fr-FR');
@@ -16,11 +18,13 @@ export function AccountSection({
   account,
   active,
   ledger: l,
+  remote,
   canWrite,
 }: {
   account: JekoAccount;
   active: boolean;
   ledger: Ledger;
+  remote: RemoteBalanceView;
   canWrite: boolean;
 }) {
   const lines: [string, string, string?][] = [
@@ -33,7 +37,7 @@ export function AccountSection({
     ['Frais de retrait', f(-l.withdrawalFeesTotal)],
   ];
   const nearLimit =
-    l.balance >= JEKO_ACCOUNT_LIMIT_FCFA * JEKO_ACCOUNT_WARN_RATIO;
+    l.monthCollected >= JEKO_MONTHLY_LIMIT_FCFA * JEKO_MONTHLY_WARN_RATIO;
 
   return (
     <section className="space-y-4">
@@ -48,14 +52,15 @@ export function AccountSection({
 
       {nearLimit && (
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-          Solde attendu proche du plafond Jèko de {f(JEKO_ACCOUNT_LIMIT_FCFA)}
+          {f(l.monthCollected)} encaissés ce mois sur un plafond mensuel Jèko de{' '}
+          {f(JEKO_MONTHLY_LIMIT_FCFA)}
           {active
-            ? ' : pensez à retirer des fonds ou à passer sur l’autre compte.'
+            ? ' : passez sur l’autre compte avant la limite (un retrait ne libère pas de place).'
             : '.'}
         </p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -65,7 +70,21 @@ export function AccountSection({
           <CardContent>
             <div className="text-3xl font-bold">{f(l.balance)}</div>
             <p className="text-xs text-muted-foreground">
-              plafond Jèko {f(JEKO_ACCOUNT_LIMIT_FCFA)}
+              calculé d’après les commandes et retraits
+            </p>
+          </CardContent>
+        </Card>
+        <BalanceCompare remote={remote} expected={l.balance} />
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Encaissé ce mois
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{f(l.monthCollected)}</div>
+            <p className="text-xs text-muted-foreground">
+              plafond mensuel {f(JEKO_MONTHLY_LIMIT_FCFA)}
             </p>
           </CardContent>
         </Card>

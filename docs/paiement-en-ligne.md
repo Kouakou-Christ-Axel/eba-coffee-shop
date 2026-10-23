@@ -62,7 +62,12 @@ inactif). `JEKO_*` reste le compte **A**.
   sur chacun des deux comptes. Chaque compte a son secret : la signature qui
   valide dit lequel a encaissé.
 - **Soldes** : un bloc par compte (encaissements, remboursements, retraits propres
-  au compte), avec une alerte à 90 % du plafond (`JEKO_ACCOUNT_LIMIT_FCFA`).
+  au compte). Le solde attendu est comparé au **solde réel** lu chez Jèko
+  (`GET /partner_api/stores/{storeId}/balance`, `lib/jeko/balance.ts`) ; si la
+  réponse n'a pas la forme attendue, la page affiche le JSON brut.
+- **Plafond MENSUEL** (`JEKO_MONTHLY_LIMIT_FCFA`) : c'est un flux, pas un plafond de
+  solde — un retrait ne libère rien. La page compte ce que le compte a encaissé
+  dans le mois civil en cours (`paidAt`) et alerte à 90 %.
 - **Remboursements** : le transfert part du compte qui a encaissé la commande ;
   son solde Jèko doit le couvrir et sa clé avoir le droit Pay-out.
 - Après déploiement : `pnpm db:push` (migration `20261023090000_add_jeko_accounts`,
