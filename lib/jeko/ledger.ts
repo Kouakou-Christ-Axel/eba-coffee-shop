@@ -6,6 +6,11 @@
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import {
+  DEFAULT_JEKO_ACCOUNT,
+  JEKO_ACCOUNTS,
+  type JekoAccount,
+} from './accounts';
+import {
   jekoBalance,
   withAppRefunds,
   maxWithdrawable,
@@ -16,12 +21,18 @@ import {
 const withdrawalSchema = z.object({
   amount: z.number().int().positive().max(100_000_000),
   note: z.string().trim().max(200).optional(),
+  account: z.enum(JEKO_ACCOUNTS).default(DEFAULT_JEKO_ACCOUNT),
 });
 
 export async function recordJekoWithdrawal(input: unknown) {
-  const { amount, note } = withdrawalSchema.parse(input);
+  const { amount, note, account } = withdrawalSchema.parse(input);
   return prisma.jekoWithdrawal.create({
-    data: { amount, fee: withdrawalFee(amount), note: note || null },
+    data: {
+      amount,
+      fee: withdrawalFee(amount),
+      note: note || null,
+      jekoAccount: account,
+    },
   });
 }
 
@@ -29,13 +40,16 @@ export async function deleteJekoWithdrawal(id: string) {
   await prisma.jekoWithdrawal.delete({ where: { id } });
 }
 
-export async function getJekoLedger() {
+/** Solde d'UN compte Jèko : chaque compte a son propre argent et son propre plafond. */
+export async function getJekoLedger(
+  account: JekoAccount = DEFAULT_JEKO_ACCOUNT
+) {
   // `paymentTransactionId` non nul = Jèko a réellement encaissé (même si la
   // commande a été annulée ensuite : l'argent est bien arrivé).
   const [orders, appRefunds, withdrawals] = await Promise.all([
     // staff-visibility: exempt — comptabilité de l'argent reçu, pas une file staff
     prisma.order.findMany({
-      where: { paymentTransactionId: { not: null } },
+      where: { paymentTransactionId: { not: null }, jekoAccount: account },
       select: {
         total: true,
         onlineFee: true,
@@ -50,11 +64,15 @@ export async function getJekoLedger() {
     prisma.refund.aggregate({
       where: {
         delivery: 'JEKO_TRANSFER',
+        order: { jekoAccount: account },
         status: { in: ['PAID', 'PROCESSING', 'UNCERTAIN'] },
       },
       _sum: { amount: true, feeFcfa: true },
     }),
-    prisma.jekoWithdrawal.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.jekoWithdrawal.findMany({
+      where: { jekoAccount: account },
+      orderBy: { createdAt: 'desc' },
+    }),
   ]);
 
   // Une commande qui porte des lignes `Refund` est comptée par celles-ci : on

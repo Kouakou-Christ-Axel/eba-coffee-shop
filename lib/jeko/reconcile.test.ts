@@ -44,15 +44,18 @@ describe('settleFromRemote', () => {
 
   it('règle un paiement réussi à partir de la lecture Jèko', async () => {
     await expect(settleFromRemote(success)).resolves.toBe('paid');
-    expect(settle).toHaveBeenCalledWith({
-      transactionId: 'txn_1',
-      status: 'success',
-      amountFcfa: 3485,
-      gatewayFeeFcfa: 52.28,
-      paymentMethod: 'wave',
-      reference: 'EBA-20261003-AB12-1',
-      paymentRequestId: 'pr_1',
-    });
+    expect(settle).toHaveBeenCalledWith(
+      {
+        transactionId: 'txn_1',
+        status: 'success',
+        amountFcfa: 3485,
+        gatewayFeeFcfa: 52.28,
+        paymentMethod: 'wave',
+        reference: 'EBA-20261003-AB12-1',
+        paymentRequestId: 'pr_1',
+      },
+      undefined
+    );
   });
 
   it("renvoie « unreadable » sans rien régler quand la transaction n'est pas détaillée", async () => {
@@ -65,7 +68,8 @@ describe('settleFromRemote', () => {
   it("utilise l'identifiant de la demande quand la transaction n'en a pas", async () => {
     await settleFromRemote({ ...success, transactionId: null });
     expect(settle).toHaveBeenCalledWith(
-      expect.objectContaining({ transactionId: 'pr_1' })
+      expect.objectContaining({ transactionId: 'pr_1' }),
+      undefined
     );
   });
 });
@@ -88,6 +92,11 @@ describe('reconcileOrderPayment', () => {
     });
     expect(getRequest).toHaveBeenCalledWith(config, 'pr_1');
     expect(settle).toHaveBeenCalledTimes(1);
+  });
+
+  it("transmet le compte au règlement pour qu'il soit mémorisé sur la commande", async () => {
+    await reconcileOrderPayment('o1', config, 'B');
+    expect(settle).toHaveBeenCalledWith(expect.anything(), 'B');
   });
 
   it('ne rappelle pas Jèko pour une commande déjà payée', async () => {

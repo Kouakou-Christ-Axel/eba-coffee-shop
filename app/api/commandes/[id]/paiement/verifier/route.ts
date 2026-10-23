@@ -8,6 +8,8 @@
 // Réponse : `{ status, errorReason }` ; le client recharge ensuite la commande.
 
 import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { parseJekoAccount } from '@/lib/jeko/accounts';
 import { jekoConfig } from '@/lib/jeko/config';
 import { reconcileOrderPayment } from '@/lib/jeko/reconcile';
 import {
@@ -32,7 +34,13 @@ export async function POST(req: Request, { params }: Params) {
     );
   }
 
-  const config = jekoConfig();
+  // Le compte qui porte la demande, pas le compte actif (cf. Order.jekoAccount).
+  const row = await prisma.order.findUnique({
+    where: { id },
+    select: { jekoAccount: true },
+  });
+  const account = parseJekoAccount(row?.jekoAccount);
+  const config = jekoConfig(account);
   if (!config) {
     return publicOrderError(
       503,
@@ -42,7 +50,7 @@ export async function POST(req: Request, { params }: Params) {
   }
 
   try {
-    return NextResponse.json(await reconcileOrderPayment(id, config));
+    return NextResponse.json(await reconcileOrderPayment(id, config, account));
   } catch (err) {
     return publicOrderErrorResponse(
       err,

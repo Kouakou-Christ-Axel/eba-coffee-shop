@@ -14,6 +14,7 @@ import {
   type JekoConfig,
   type JekoStatus,
 } from './client';
+import type { JekoAccount } from './accounts';
 import { settleJekoTransaction, type SettleOutcome } from './settle';
 import { PaymentNotPendingError } from './start-payment';
 
@@ -24,18 +25,22 @@ type RemoteRequest = Awaited<ReturnType<typeof getJekoPaymentRequest>>;
  * succès sans détailler la transaction — on ne peut ni régler ni conclure.
  */
 export async function settleFromRemote(
-  remote: RemoteRequest
+  remote: RemoteRequest,
+  account?: JekoAccount
 ): Promise<SettleOutcome | 'unreadable'> {
   if (!remote.reference || remote.amountFcfa === null) return 'unreadable';
-  return settleJekoTransaction({
-    transactionId: remote.transactionId ?? remote.id,
-    status: 'success',
-    amountFcfa: remote.amountFcfa,
-    gatewayFeeFcfa: remote.gatewayFeeFcfa ?? 0,
-    paymentMethod: remote.paymentMethod,
-    reference: remote.reference,
-    paymentRequestId: remote.id,
-  });
+  return settleJekoTransaction(
+    {
+      transactionId: remote.transactionId ?? remote.id,
+      status: 'success',
+      amountFcfa: remote.amountFcfa,
+      gatewayFeeFcfa: remote.gatewayFeeFcfa ?? 0,
+      paymentMethod: remote.paymentMethod,
+      reference: remote.reference,
+      paymentRequestId: remote.id,
+    },
+    account
+  );
 }
 
 /**
@@ -45,7 +50,8 @@ export async function settleFromRemote(
  */
 export async function reconcileOrderPayment(
   orderId: string,
-  config: JekoConfig
+  config: JekoConfig,
+  account?: JekoAccount
 ): Promise<{ status: JekoStatus; errorReason: string | null }> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -57,7 +63,7 @@ export async function reconcileOrderPayment(
 
   const remote = await getJekoPaymentRequest(config, order.paymentRequestId);
   if (remote.status === 'success') {
-    await settleFromRemote(remote);
+    await settleFromRemote(remote, account);
   }
   return { status: remote.status, errorReason: remote.errorReason ?? null };
 }

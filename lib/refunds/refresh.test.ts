@@ -52,7 +52,12 @@ describe('refreshPendingRefunds', () => {
 
   it('transfert abouti chez Jèko : passe à PAID avec ses frais', async () => {
     prisma.refund.findMany.mockResolvedValue([
-      { id: 'r1', jekoTransferId: 'wth_1', updatedAt: at(1) },
+      {
+        id: 'r1',
+        jekoTransferId: 'wth_1',
+        updatedAt: at(1),
+        order: { jekoAccount: 'A' },
+      },
     ]);
     transfer.mockResolvedValue({
       id: 'wth_1',
@@ -69,7 +74,12 @@ describe('refreshPendingRefunds', () => {
 
   it('transfert en erreur : FAILED avec la raison de Jèko, l’admin est prévenu', async () => {
     prisma.refund.findMany.mockResolvedValue([
-      { id: 'r1', jekoTransferId: 'wth_1', updatedAt: at(1) },
+      {
+        id: 'r1',
+        jekoTransferId: 'wth_1',
+        updatedAt: at(1),
+        order: { jekoAccount: 'A' },
+      },
     ]);
     transfer.mockResolvedValue({
       id: 'wth_1',
@@ -91,7 +101,12 @@ describe('refreshPendingRefunds', () => {
 
   it('toujours pending : ne touche à rien', async () => {
     prisma.refund.findMany.mockResolvedValue([
-      { id: 'r1', jekoTransferId: 'wth_1', updatedAt: at(1) },
+      {
+        id: 'r1',
+        jekoTransferId: 'wth_1',
+        updatedAt: at(1),
+        order: { jekoAccount: 'A' },
+      },
     ]);
     transfer.mockResolvedValue({
       id: 'wth_1',
@@ -106,8 +121,18 @@ describe('refreshPendingRefunds', () => {
 
   it('réclamé mais sans identifiant depuis trop longtemps : « à vérifier »', async () => {
     prisma.refund.findMany.mockResolvedValue([
-      { id: 'r1', jekoTransferId: null, updatedAt: at(30) },
-      { id: 'r2', jekoTransferId: null, updatedAt: at(1) },
+      {
+        id: 'r1',
+        jekoTransferId: null,
+        updatedAt: at(30),
+        order: { jekoAccount: 'A' },
+      },
+      {
+        id: 'r2',
+        jekoTransferId: null,
+        updatedAt: at(1),
+        order: { jekoAccount: 'A' },
+      },
     ]);
     await expect(run()).resolves.toMatchObject({ uncertain: 1 });
     expect(alert).toHaveBeenCalledWith('r1', 'UNCERTAIN');
@@ -117,7 +142,12 @@ describe('refreshPendingRefunds', () => {
 
   it('Jèko injoignable : on réessaiera, rien ne bouge et rien ne plante', async () => {
     prisma.refund.findMany.mockResolvedValue([
-      { id: 'r1', jekoTransferId: 'wth_1', updatedAt: at(1) },
+      {
+        id: 'r1',
+        jekoTransferId: 'wth_1',
+        updatedAt: at(1),
+        order: { jekoAccount: 'A' },
+      },
     ]);
     transfer.mockRejectedValue(
       new JekoApiError(503, 'network_error', 'Jèko injoignable')

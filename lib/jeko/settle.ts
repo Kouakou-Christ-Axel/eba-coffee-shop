@@ -17,6 +17,7 @@ import {
 import { announcePaidOrder } from './notify-paid';
 import { jekoMethodToPaymentMode } from './payment-mode';
 import { parseJekoReference } from './reference';
+import type { JekoAccount } from './accounts';
 import { alertStaff, settledElsewhere } from './settle-alerts';
 import { isExpiredCancellation, settleLatePayment } from './settle-late';
 import type { JekoTransaction } from './webhook-payload';
@@ -42,6 +43,7 @@ const ORDER_SELECT = {
   dailyNumber: true,
   paymentAmountDue: true,
   paymentTransactionId: true,
+  jekoAccount: true,
   paymentExpiresAt: true,
   reference: true,
   customerName: true,
@@ -51,7 +53,8 @@ const ORDER_SELECT = {
 } as const;
 
 export async function settleJekoTransaction(
-  tx: JekoTransaction
+  tx: JekoTransaction,
+  account?: JekoAccount
 ): Promise<SettleOutcome> {
   // Le webhook ne signale que les succès ; tout autre statut n'est pas à régler.
   if (tx.status !== 'success') return 'ignored';
@@ -78,6 +81,17 @@ export async function settleJekoTransaction(
   // conserve `paymentTransactionId`. Une livraison rejouée ou un rechargement de
   // `?paiement=ok` ne doit pas la remettre « payée ».
   if (order.paymentTransactionId === tx.transactionId) return 'ignored';
+
+  // L'argent est arrivé sur CE compte (webhook signé par lui, ou relecture avec ses
+  // clés) : une relance faite depuis sur l'autre compte ne doit pas détourner les
+  // remboursements et relectures ultérieurs.
+  if (account && order.jekoAccount !== account) {
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { jekoAccount: account },
+    });
+    order.jekoAccount = account;
+  }
 
   // Montant FIGÉ à la tentative : `total` peut avoir changé depuis (l'annulation
   // par le client le remet au prix brut) alors que la demande déjà envoyée à Jèko,

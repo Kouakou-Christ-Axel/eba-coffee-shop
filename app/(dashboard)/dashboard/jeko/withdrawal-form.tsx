@@ -5,6 +5,7 @@ import { Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { JekoAccount } from '@/lib/jeko/accounts';
 import { withdrawalDebit, withdrawalFee } from '@/lib/jeko/accounting';
 import { deleteWithdrawalAction, recordWithdrawalAction } from './actions';
 
@@ -12,8 +13,10 @@ const fmt = new Intl.NumberFormat('fr-FR');
 
 export function WithdrawalForm({
   maxWithdrawable,
+  account,
 }: {
   maxWithdrawable: number;
+  account: JekoAccount;
 }) {
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -25,7 +28,7 @@ export function WithdrawalForm({
   function submit() {
     setError(null);
     start(async () => {
-      const res = await recordWithdrawalAction({ amount: n, note });
+      const res = await recordWithdrawalAction({ amount: n, note, account });
       if (res.ok) {
         setAmount('');
         setNote('');
@@ -37,9 +40,9 @@ export function WithdrawalForm({
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-[1fr_2fr]">
         <div className="space-y-1.5">
-          <Label htmlFor="jeko-amount">Montant retiré (F)</Label>
+          <Label htmlFor={`jeko-amount-${account}`}>Montant retiré (F)</Label>
           <Input
-            id="jeko-amount"
+            id={`jeko-amount-${account}`}
             inputMode="numeric"
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))}
@@ -47,9 +50,9 @@ export function WithdrawalForm({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="jeko-note">Note (facultatif)</Label>
+          <Label htmlFor={`jeko-note-${account}`}>Note (facultatif)</Label>
           <Input
-            id="jeko-note"
+            id={`jeko-note-${account}`}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             maxLength={200}

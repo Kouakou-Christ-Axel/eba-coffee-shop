@@ -64,12 +64,32 @@ describe('getJekoLedger — remboursements', () => {
     expect(ledger.refunded).toBe(1012);
   });
 
+  it('ne lit que les commandes, remboursements et retraits du compte demandé', async () => {
+    orders.mockResolvedValue([] as never);
+    await getJekoLedger('B');
+
+    expect(orders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { paymentTransactionId: { not: null }, jekoAccount: 'B' },
+      })
+    );
+    expect(appRefunds).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ order: { jekoAccount: 'B' } }),
+      })
+    );
+    expect(prisma.jekoWithdrawal.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { jekoAccount: 'B' } })
+    );
+  });
+
   it('ne compte que les transferts Jèko réellement partis ou en cours', async () => {
     orders.mockResolvedValue([paid] as never);
     await getJekoLedger();
     expect(appRefunds).toHaveBeenCalledWith({
       where: {
         delivery: 'JEKO_TRANSFER',
+        order: { jekoAccount: 'A' },
         status: { in: ['PAID', 'PROCESSING', 'UNCERTAIN'] },
       },
       _sum: { amount: true, feeFcfa: true },

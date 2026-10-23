@@ -7,7 +7,7 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { jekoConfig } from '@/lib/jeko/config';
+import { getActiveJekoConfig } from '@/lib/jeko/active-account';
 import { JEKO_PAYMENT_METHODS } from '@/lib/jeko/payment-methods';
 import { startJekoPayment } from '@/lib/jeko/start-payment';
 import {
@@ -46,8 +46,8 @@ export async function POST(req: Request, { params }: Params) {
     return publicOrderError(400, 'VALIDATION', parsed.error.flatten());
   }
 
-  const config = jekoConfig();
-  if (!config) {
+  const active = await getActiveJekoConfig();
+  if (!active) {
     return publicOrderError(
       503,
       'PAYMENT_PROVIDER_ERROR',
@@ -59,7 +59,8 @@ export async function POST(req: Request, { params }: Params) {
     const payment = await startJekoPayment({
       orderId: id,
       paymentMethod: parsed.data.paymentMethod,
-      config,
+      config: active.config,
+      account: active.account,
       siteUrl: siteUrl(),
     });
     return NextResponse.json({

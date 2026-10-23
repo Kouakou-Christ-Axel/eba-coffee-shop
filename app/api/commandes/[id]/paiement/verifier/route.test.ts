@@ -6,7 +6,9 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/prisma', () => ({ default: {} }));
+vi.mock('@/lib/prisma', () => ({
+  default: { order: { findUnique: vi.fn() } },
+}));
 vi.mock('@/lib/jeko/config', () => ({ jekoConfig: vi.fn() }));
 vi.mock('@/lib/order-payment-rate-limit', () => ({
   allowPaymentStart: vi.fn(() => true),
@@ -15,6 +17,7 @@ vi.mock('@/lib/order-payment-rate-limit', () => ({
 }));
 vi.mock('@/lib/jeko/reconcile', () => ({ reconcileOrderPayment: vi.fn() }));
 
+import prisma from '@/lib/prisma';
 import { jekoConfig } from '@/lib/jeko/config';
 import { reconcileOrderPayment } from '@/lib/jeko/reconcile';
 import { allowPaymentVerify } from '@/lib/order-payment-rate-limit';
@@ -37,6 +40,9 @@ describe('POST /api/commandes/:id/paiement/verifier', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(allowPaymentVerify).mockReturnValue(true);
     config.mockReturnValue(jeko);
+    vi.mocked(prisma.order.findUnique).mockResolvedValue({
+      jekoAccount: 'A',
+    } as never);
     reconcile.mockResolvedValue({ status: 'success', errorReason: null });
   });
 
@@ -45,7 +51,17 @@ describe('POST /api/commandes/:id/paiement/verifier', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: 'success', errorReason: null });
-    expect(reconcile).toHaveBeenCalledWith('o1', jeko);
+    expect(reconcile).toHaveBeenCalledWith('o1', jeko, 'A');
+  });
+
+  it('lit la demande avec les clés du compte de la commande, pas du compte actif', async () => {
+    vi.mocked(prisma.order.findUnique).mockResolvedValue({
+      jekoAccount: 'B',
+    } as never);
+    await post();
+
+    expect(config).toHaveBeenCalledWith('B');
+    expect(reconcile).toHaveBeenCalledWith('o1', jeko, 'B');
   });
 
   it("transmet la raison d'un échec de paiement", async () => {

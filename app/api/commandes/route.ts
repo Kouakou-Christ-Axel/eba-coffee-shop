@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createOrder, createOrderSchema } from '@/lib/orders';
 import { sendNewOrderEmail } from '@/lib/email';
 import { PAYMENT_EXPIRY_MINUTES } from '@/config/constants';
-import { jekoConfig, onlineFeePercent } from '@/lib/jeko/config';
+import { getActiveJekoConfig } from '@/lib/jeko/active-account';
+import { onlineFeePercent } from '@/lib/jeko/config';
 import { expirePendingOrders } from '@/lib/jeko/expiry';
 import { startJekoPayment } from '@/lib/jeko/start-payment';
 import { getMenuAdmin } from '@/lib/menu';
@@ -51,7 +52,8 @@ export async function POST(req: NextRequest) {
 
   // Paiement en ligne (Jèko) : actif dès que sa config est complète ; sinon la
   // commande suit le flux historique, inchangé.
-  const jeko = jekoConfig();
+  const active = await getActiveJekoConfig();
+  const jeko = active?.config ?? null;
   const { paymentMethod } = parsed.data;
   if (jeko && !paymentMethod) {
     return publicOrderError(400, 'VALIDATION', {
@@ -85,6 +87,7 @@ export async function POST(req: NextRequest) {
           orderId: order.id,
           paymentMethod,
           config: jeko,
+          account: active!.account,
           siteUrl: siteUrl(),
         });
         return NextResponse.json(
