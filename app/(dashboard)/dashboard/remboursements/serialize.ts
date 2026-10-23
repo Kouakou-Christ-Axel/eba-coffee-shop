@@ -62,6 +62,7 @@ export function toDetail(
     convertibleCredit: opts.convertibleCredit ?? 0,
     creditSourceId: d.creditSourceId,
     failureCode: d.failureCode,
+    jekoAccount: d.order.jekoAccount,
     failureMessage: d.failureMessage,
     restockItems: d.restockItems,
     stockRestoredAt: iso(d.stockRestoredAt),

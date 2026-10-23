@@ -11,7 +11,7 @@
 //     UNCERTAIN : jamais de renvoi automatique, un admin vérifie chez Jèko.
 
 import prisma from '@/lib/prisma';
-import { parseJekoAccount } from '@/lib/jeko/accounts';
+import { parseJekoAccount, type JekoAccount } from '@/lib/jeko/accounts';
 import { jekoConfig } from '@/lib/jeko/config';
 import { JekoApiError } from '@/lib/jeko/client';
 import {
@@ -41,9 +41,10 @@ async function fail(
   id: string,
   from: 'PROCESSING',
   code: string,
-  message?: string
+  message?: string,
+  account?: JekoAccount
 ): Promise<SendOutcome> {
-  const advice = describeTransferFailure(code);
+  const advice = describeTransferFailure(code, account);
   await prisma.$transaction((tx) =>
     transitionRefund(tx, {
       id,
@@ -105,18 +106,19 @@ export async function sendRefundViaJeko(id: string): Promise<SendOutcome> {
   });
 
   // Le compte qui a encaissé la commande, pas le compte actif.
-  const config = jekoConfig(parseJekoAccount(refund.order.jekoAccount));
-  if (!config) return fail(id, 'PROCESSING', 'jeko_not_configured');
+  const account = parseJekoAccount(refund.order.jekoAccount);
+  const config = jekoConfig(account);
+  const failed = (code: string, message?: string) =>
+    fail(id, 'PROCESSING', code, message, account);
+  if (!config) return failed('jeko_not_configured');
 
   const method = jekoMethodForChannel(refund.channel);
   const phone = refund.destinationPhone
     ? normalizeIvorianPhone(refund.destinationPhone)
     : null;
-  if (!method || !phone) return fail(id, 'PROCESSING', 'invalid_destination');
+  if (!method || !phone) return failed('invalid_destination');
   if (refund.amount < minTransferFcfa(method)) {
-    return fail(
-      id,
-      'PROCESSING',
+    return failed(
       'validation_error',
       `Montant sous le minimum du transfert (${minTransferFcfa(method)} F)`
     );
@@ -132,12 +134,7 @@ export async function sendRefundViaJeko(id: string): Promise<SendOutcome> {
   } catch (err) {
     // Aucun transfert n'a été tenté : sûr de réessayer.
     const code = err instanceof JekoApiError ? err.code : 'unknown';
-    return fail(
-      id,
-      'PROCESSING',
-      code,
-      err instanceof Error ? err.message : undefined
-    );
+    return failed(code, err instanceof Error ? err.message : undefined);
   }
 
   try {
@@ -148,7 +145,7 @@ export async function sendRefundViaJeko(id: string): Promise<SendOutcome> {
       description: `Remboursement commande ${refund.order.reference}`,
     });
     if (transfer.status === 'error') {
-      return fail(id, 'PROCESSING', 'transfer_failed');
+      return failed('transfer_failed');
     }
     // L'identifiant est noté tout de suite : plus aucun doute sur l'existence du transfert.
     await prisma.refund.update({
@@ -177,11 +174,6 @@ export async function sendRefundViaJeko(id: string): Promise<SendOutcome> {
       );
     }
     const code = err instanceof JekoApiError ? err.code : 'unknown';
-    return fail(
-      id,
-      'PROCESSING',
-      code,
-      err instanceof Error ? err.message : undefined
-    );
+    return failed(code, err instanceof Error ? err.message : undefined);
   }
 }

@@ -27,6 +27,8 @@ export type RefundDetailData = RefundRowData & {
   note: string | null;
   phone: string | null; // masqué pour les rôles en lecture seule
   failureCode: string | null;
+  /** Compte Jèko qui a encaissé la commande (A ou B). */
+  jekoAccount: string;
   failureMessage: string | null;
   restockItems: boolean;
   stockRestoredAt: string | null;

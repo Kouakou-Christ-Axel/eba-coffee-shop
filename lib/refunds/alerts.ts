@@ -7,6 +7,7 @@ import prisma from '@/lib/prisma';
 import { REFUND_APPROVER_ROLES } from '@/config/constants';
 import { priceFormatter } from '@/config/menu';
 import { sendPushToRoles } from '@/lib/push-notify';
+import { parseJekoAccount } from '@/lib/jeko/accounts';
 import { describeTransferFailure } from '@/lib/jeko/transfer-errors';
 
 export async function notifyRefundProblem(
@@ -16,10 +17,17 @@ export async function notifyRefundProblem(
   try {
     const refund = await prisma.refund.findUnique({
       where: { id },
-      select: { amount: true, failureCode: true },
+      select: {
+        amount: true,
+        failureCode: true,
+        order: { select: { jekoAccount: true } },
+      },
     });
     if (!refund) return;
-    const advice = describeTransferFailure(refund.failureCode);
+    const advice = describeTransferFailure(
+      refund.failureCode,
+      parseJekoAccount(refund.order.jekoAccount)
+    );
     await sendPushToRoles(REFUND_APPROVER_ROLES, {
       title:
         kind === 'UNCERTAIN'

@@ -2,6 +2,10 @@
 //
 // Raisons d'échec d'un transfert Jèko (page « Gérer les échecs » de la doc) :
 // message pour le staff, ce qu'il peut y faire, et si l'on peut réessayer tel quel.
+// Deux comptes Jèko : les conseils de configuration nomment les variables du compte
+// en cause (JEKO_* pour A, JEKO_B_* pour B).
+
+import { DEFAULT_JEKO_ACCOUNT, type JekoAccount } from './accounts';
 
 export type TransferFailureAdvice = {
   message: string;
@@ -14,7 +18,12 @@ export type TransferFailureAdvice = {
   config: boolean;
 };
 
-const ADVICE: Record<string, TransferFailureAdvice> = {
+/** Préfixe des variables d'environnement du compte. */
+function envPrefix(account: JekoAccount): string {
+  return account === 'B' ? 'JEKO_B_' : 'JEKO_';
+}
+
+const adviceFor = (p: string): Record<string, TransferFailureAdvice> => ({
   insufficient_balance: {
     message: 'Solde Jèko insuffisant',
     action: 'Recharger le solde Jèko, puis réessayer.',
@@ -47,7 +56,7 @@ const ADVICE: Record<string, TransferFailureAdvice> = {
   },
   unauthorized: {
     message: 'Clés API Jèko refusées',
-    action: 'Vérifier les clés JEKO_API_KEY et JEKO_API_KEY_ID.',
+    action: `Vérifier les clés ${p}API_KEY et ${p}API_KEY_ID.`,
     editable: false,
     retryable: false,
     config: true,
@@ -82,14 +91,14 @@ const ADVICE: Record<string, TransferFailureAdvice> = {
   },
   store_not_found: {
     message: 'Magasin Jèko introuvable',
-    action: 'Vérifier JEKO_STORE_ID.',
+    action: `Vérifier ${p}STORE_ID.`,
     editable: false,
     retryable: false,
     config: true,
   },
   jeko_not_configured: {
     message: 'Jèko n’est pas configuré',
-    action: 'Renseigner les variables JEKO_* puis réessayer.',
+    action: `Renseigner les variables ${p}* puis réessayer.`,
     editable: false,
     retryable: true,
     config: true,
@@ -115,7 +124,7 @@ const ADVICE: Record<string, TransferFailureAdvice> = {
     retryable: true,
     config: false,
   },
-};
+});
 
 const UNKNOWN: TransferFailureAdvice = {
   message: 'Échec du transfert',
@@ -125,8 +134,18 @@ const UNKNOWN: TransferFailureAdvice = {
   config: false,
 };
 
+/**
+ * Conseil pour un code d'échec. `account` = compte Jèko de la commande : il sert
+ * aux conseils de configuration (noms de variables) et les précède du compte.
+ * Sans compte, texte historique (compte A, sans préfixe).
+ */
 export function describeTransferFailure(
-  code: string | null | undefined
+  code: string | null | undefined,
+  account?: JekoAccount
 ): TransferFailureAdvice {
-  return (code && ADVICE[code]) || UNKNOWN;
+  const advice =
+    (code && adviceFor(envPrefix(account ?? DEFAULT_JEKO_ACCOUNT))[code]) ||
+    UNKNOWN;
+  if (!account || !advice.config) return advice;
+  return { ...advice, message: `Compte ${account} : ${advice.message}` };
 }
