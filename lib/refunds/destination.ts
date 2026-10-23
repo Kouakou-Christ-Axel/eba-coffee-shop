@@ -29,10 +29,12 @@ export function canTransferVia(channel: PaymentMode): boolean {
  * pour un transfert Jèko, null pour une remise en main propre.
  */
 export function resolveDestination(args: {
-  delivery: 'JEKO_TRANSFER' | 'MANUAL';
+  delivery: 'JEKO_TRANSFER' | 'MANUAL' | 'STORE_CREDIT';
   channel: PaymentMode;
   phone: string | null | undefined;
 }): string | null {
+  // Un avoir ne va nulle part : il se rattache au client de la commande.
+  if (args.delivery === 'STORE_CREDIT') return null;
   if (args.delivery === 'MANUAL') {
     const raw = args.phone?.trim();
     return raw ? normalizeIvorianPhone(raw) : null;
@@ -47,4 +49,21 @@ export function resolveDestination(args: {
     throw new RefundError('Numéro de téléphone invalide pour le transfert');
   }
   return phone;
+}
+
+/**
+ * Canal effectif : un avoir est toujours « AVOIR » (aucun argent ne sort), et
+ * « AVOIR » n'est jamais un canal de sortie d'argent.
+ */
+export function resolveChannel(
+  delivery: 'JEKO_TRANSFER' | 'MANUAL' | 'STORE_CREDIT',
+  channel: PaymentMode
+): PaymentMode {
+  if (delivery === 'STORE_CREDIT') return 'AVOIR';
+  if (channel === 'AVOIR') {
+    throw new RefundError(
+      'Choisissez le canal par lequel l’argent repart (espèces, Wave, Orange…)'
+    );
+  }
+  return channel;
 }

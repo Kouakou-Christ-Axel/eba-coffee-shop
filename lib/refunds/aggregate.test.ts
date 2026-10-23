@@ -31,7 +31,12 @@ describe('agrégation des remboursements', () => {
 
     expect(prisma.refund.groupBy).toHaveBeenCalledWith({
       by: ['channel'],
-      where: { status: 'PAID', payoutDate: day, order: COUNTED },
+      where: {
+        status: 'PAID',
+        payoutDate: day,
+        creditSourceId: null,
+        order: COUNTED,
+      },
       _sum: { amount: true },
     });
     expect(rec.WAVE).toBe(900);
@@ -47,6 +52,7 @@ describe('agrégation des remboursements', () => {
       expect.objectContaining({
         where: {
           status: 'PAID',
+          creditSourceId: null,
           payoutDate: { gte: day, lte: to },
           order: COUNTED,
         },

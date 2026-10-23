@@ -81,7 +81,10 @@ export default async function CommandeDetailPage({
           remaining: refundCap.remaining,
           cancelled: order.status === 'CANCELLED',
           defaultChannel:
-            order.paymentMode ?? order.payments[0]?.mode ?? 'CASH',
+            [order.paymentMode, ...order.payments.map((p) => p.mode)].find(
+              (m) => m && m !== 'AVOIR'
+            ) ?? 'CASH',
+          hasCustomer: Boolean(order.customerId),
           paidViaJeko: Boolean(order.paymentTransactionId),
           customerPhone: order.customerPhone,
         }}

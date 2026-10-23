@@ -19,8 +19,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
 import { canTransferVia } from '@/lib/refunds/destination';
+import { RefundDestinationFields } from './refund-destination-fields';
 import {
   buildRefundableLines,
   selectionToLines,
@@ -47,6 +47,8 @@ export type RefundOrderInfo = {
   /** Payée via Jèko : le transfert est proposé par défaut. */
   paidViaJeko: boolean;
   customerPhone: string | null;
+  /** Un avoir se rattache à un client : commande sans numéro = pas d'avoir. */
+  hasCustomer: boolean;
 };
 
 export function RequestRefundSheet({
@@ -72,6 +74,7 @@ export function RequestRefundSheet({
       : 'MANUAL'
   );
   const [phone, setPhone] = useState(order.customerPhone ?? '');
+  const [asCredit, setAsCredit] = useState(false);
   const [restock, setRestock] = useState(false);
   const [cancelOrder, setCancelOrder] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,9 +109,13 @@ export function RequestRefundSheet({
           amount,
           reason,
           note: note.trim() || undefined,
-          channel,
-          delivery: transferable ? delivery : 'MANUAL',
-          destinationPhone: phone.trim() || undefined,
+          ...(asCredit
+            ? { delivery: 'STORE_CREDIT' as const }
+            : {
+                channel,
+                delivery: transferable ? delivery : 'MANUAL',
+                destinationPhone: phone.trim() || undefined,
+              }),
           restockItems: restock && chosen,
           lines: selectionToLines(lines, selection, amount),
         },
@@ -240,58 +247,38 @@ export function RequestRefundSheet({
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="rq-channel">Rendu par</Label>
-              <select
-                id="rq-channel"
-                className={selectClass}
-                value={channel}
-                onChange={(e) => {
-                  const next = e.target.value as PaymentMode;
-                  setChannel(next);
-                  if (!canTransferVia(next)) setDelivery('MANUAL');
-                }}
-              >
-                {PAYMENT_MODES.map((m) => (
-                  <option key={m} value={m}>
-                    {PAYMENT_MODE_LABELS[m]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="rq-delivery">Envoi</Label>
-              <select
-                id="rq-delivery"
-                className={selectClass}
-                value={transferable ? delivery : 'MANUAL'}
-                disabled={!transferable}
-                onChange={(e) =>
-                  setDelivery(e.target.value as 'JEKO_TRANSFER' | 'MANUAL')
-                }
-              >
-                <option value="JEKO_TRANSFER">Transfert Jèko</option>
-                <option value="MANUAL">Remise à la main</option>
-              </select>
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="rq-form">Forme du remboursement</Label>
+            <select
+              id="rq-form"
+              className={selectClass}
+              value={asCredit ? 'CREDIT' : 'MONEY'}
+              onChange={(e) => setAsCredit(e.target.value === 'CREDIT')}
+            >
+              <option value="MONEY">Rendre l’argent</option>
+              <option value="CREDIT" disabled={!order.hasCustomer}>
+                Avoir (crédit sur la prochaine commande)
+                {order.hasCustomer ? '' : ' — aucun client sur cette commande'}
+              </option>
+            </select>
+            {asCredit && (
+              <p className="text-xs text-muted-foreground">
+                Aucun argent ne sort : le montant s’ajoute au solde d’avoir du
+                client, utilisable en caisse et en ligne.
+              </p>
+            )}
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="rq-phone">
-              Numéro du client{' '}
-              {(transferable ? delivery : 'MANUAL') === 'JEKO_TRANSFER'
-                ? '(reçoit le transfert)'
-                : '(facultatif)'}
-            </Label>
-            <Input
-              id="rq-phone"
-              type="tel"
-              inputMode="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+          {!asCredit && (
+            <RefundDestinationFields
+              channel={channel}
+              onChannel={setChannel}
+              delivery={delivery}
+              onDelivery={setDelivery}
+              phone={phone}
+              onPhone={setPhone}
             />
-          </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="rq-note">Note (facultatif)</Label>
@@ -353,7 +340,8 @@ export function RequestRefundSheet({
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Un administrateur valide la demande avant que l’argent ne parte.
+            Un administrateur valide la demande avant que l’argent ne parte ou
+            que l’avoir ne soit crédité.
           </p>
         </div>
       </SheetContent>

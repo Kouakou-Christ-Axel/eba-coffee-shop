@@ -3,7 +3,10 @@
 import { Input } from '@heroui/react';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PAYMENT_MODES, PAYMENT_MODE_LABELS } from '@/lib/payment-modes';
+import {
+  SELECTABLE_PAYMENT_MODES,
+  PAYMENT_MODE_LABELS,
+} from '@/lib/payment-modes';
 import { PaymentMethodIcon } from '@/components/payment-method-badge';
 import { priceFormatter } from './format';
 import type { PaymentFormState } from './use-payment-form';
@@ -25,7 +28,7 @@ export function SplitLines({
           className="flex items-center gap-2 rounded-xl border-2 border-border bg-card p-2"
         >
           <div className="grid flex-1 grid-cols-4 gap-1">
-            {PAYMENT_MODES.map((value) => {
+            {SELECTABLE_PAYMENT_MODES.map((value) => {
               const isActive = line.mode === value;
               return (
                 <button

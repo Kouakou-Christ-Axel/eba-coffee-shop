@@ -62,7 +62,7 @@ export function useCheckoutForm({
   );
 
   const submit = useCallback<UseCheckoutFormResult['submit']>(
-    async (loyaltyReward) => {
+    async (loyaltyReward, useCredit) => {
       const validation = validateCheckoutForm(values, items, total, {
         paymentRequired,
       });
@@ -88,6 +88,7 @@ export function useCheckoutForm({
         items,
         total,
         loyaltyRewardId: loyaltyReward?.id ?? null,
+        useCredit,
       });
       setIsSubmitting(false);
       // Le panneau « Résoudre » reste ouvert pendant un renvoi et se referme

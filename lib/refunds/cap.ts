@@ -14,14 +14,18 @@ export async function getRefundCap(
   opts: { excludeRefundId?: string } = {}
 ): Promise<{ paid: number; used: number; remaining: number }> {
   const [paidAgg, usedAgg] = await Promise.all([
+    // Une part payée par avoir n'est pas de l'argent encaissé : elle se rend en
+    // avoir, jamais en espèces/Jèko.
     tx.orderPayment.aggregate({
-      where: { orderId },
+      where: { orderId, mode: { not: 'AVOIR' } },
       _sum: { amount: true },
     }),
     tx.refund.aggregate({
       where: {
         orderId,
         status: { in: ACTIVE_REFUND_STATUSES },
+        // Une conversion d'avoir n'entame pas le plafond : l'avoir l'a déjà fait.
+        creditSourceId: null,
         ...(opts.excludeRefundId ? { id: { not: opts.excludeRefundId } } : {}),
       },
       _sum: { amount: true },

@@ -16,6 +16,8 @@ export type CheckoutFormProps = {
   ) => void;
   /** Remonte la remise fidélité appliquée pour le récap de la page. */
   onLoyaltyDiscountChange?: (discount: number) => void;
+  /** Remonte l'avoir appliqué (retenu sur le solde du client) pour le récap. */
+  onCreditChange?: (credit: number) => void;
   /** Config du paiement en ligne (lue par la page, cf. `useOnlinePayment`). */
   onlinePayment: OnlinePaymentState;
   /** Menu frais chargé par la page (partagé avec le panneau « Résoudre »). */

@@ -221,4 +221,42 @@ describe('createRefund', () => {
     await createRefund(base, admin);
     expect(sendPushToRoles).not.toHaveBeenCalled();
   });
+
+  it('avoir : canal AVOIR forcé, aucun numéro de transfert, rattaché au client', async () => {
+    const refund = await createRefund(
+      { ...base, delivery: 'STORE_CREDIT' },
+      cashier
+    );
+    expect(refund).toMatchObject({
+      delivery: 'STORE_CREDIT',
+      channel: 'AVOIR',
+      destinationPhone: null,
+      customerId: 'cu1',
+    });
+  });
+
+  it('avoir sur une commande sans client : refusé', async () => {
+    prisma.order.findUnique.mockResolvedValue({
+      ...order,
+      customerId: null,
+    } as never);
+    await expect(
+      createRefund({ ...base, delivery: 'STORE_CREDIT' }, cashier)
+    ).rejects.toThrow(/client/);
+    expect(prisma.refund.create).not.toHaveBeenCalled();
+  });
+
+  it('le canal par défaut ignore la part payée par avoir', async () => {
+    prisma.order.findUnique.mockResolvedValue({
+      ...order,
+      paymentMode: null,
+      paymentTransactionId: null,
+      payments: [
+        { mode: 'AVOIR', amount: 2000 },
+        { mode: 'CASH', amount: 1200 },
+      ],
+    } as never);
+    const refund = await createRefund(base, cashier);
+    expect(refund.channel).toBe('CASH');
+  });
 });

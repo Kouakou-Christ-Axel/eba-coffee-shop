@@ -37,6 +37,8 @@ export const createOrderSchema = z.object({
     .nullable()
     .optional(),
   loyaltyRewardId: z.string().min(1).nullable().optional(),
+  /** Paiement en ligne : utiliser l'avoir du client (montant imposé par le serveur). */
+  useCredit: z.boolean().optional(),
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;

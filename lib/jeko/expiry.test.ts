@@ -16,6 +16,7 @@ vi.mock('@/lib/prisma', () => ({
 }));
 vi.mock('@/lib/loyalty-mutations', () => ({ revokeLoyaltyForOrder: vi.fn() }));
 vi.mock('@/lib/order-mutations', () => ({ releaseUnpaidStockHold: vi.fn() }));
+vi.mock('@/lib/credits/spend', () => ({ restoreOrderCredit: vi.fn() }));
 vi.mock('./config', () => ({ jekoConfig: vi.fn() }));
 vi.mock('./client', async (importActual) => ({
   ...(await importActual<typeof import('./client')>()),
@@ -26,6 +27,7 @@ vi.mock('./settle', () => ({ settleJekoTransaction: vi.fn() }));
 import prisma from '@/lib/prisma';
 import { revokeLoyaltyForOrder } from '@/lib/loyalty-mutations';
 import { releaseUnpaidStockHold } from '@/lib/order-mutations';
+import { restoreOrderCredit } from '@/lib/credits/spend';
 import { jekoConfig } from './config';
 import { JekoApiError, getJekoPaymentRequest } from './client';
 import { settleJekoTransaction } from './settle';
@@ -82,6 +84,11 @@ describe('expirePendingOrders', () => {
       },
       data: { status: 'CANCELLED' },
     });
+  });
+
+  it('rend à son client l’avoir retenu pour ce paiement jamais arrivé', async () => {
+    await expirePendingOrders(nextNow());
+    expect(restoreOrderCredit).toHaveBeenCalledWith(expect.anything(), 'o1');
   });
 
   it('défait la fidélité et restitue la récompense utilisée (annulation système)', async () => {

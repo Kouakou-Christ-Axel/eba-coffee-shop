@@ -181,4 +181,25 @@ describe('settleJekoTransaction — courses et rejeux', () => {
     pay.mockRejectedValue(new Error('connexion perdue'));
     await expect(settleJekoTransaction(tx)).rejects.toThrow('connexion perdue');
   });
+
+  it('avoir retenu à la création : Jèko règle la part restante, l’avoir complète le paiement', async () => {
+    findOrder.mockResolvedValue({
+      ...order,
+      paymentAmountDue: 2485, // 3 450 − 1 000 d'avoir + 35 de frais
+      paymentCreditPart: 1000,
+    } as never);
+    await expect(
+      settleJekoTransaction({ ...tx, amountFcfa: 2485 })
+    ).resolves.toBe('paid');
+    expect(pay).toHaveBeenCalledWith(
+      'o1',
+      true,
+      [
+        { mode: 'WAVE', amount: 2450 },
+        { mode: 'AVOIR', amount: 1000 },
+      ],
+      null,
+      { online }
+    );
+  });
 });

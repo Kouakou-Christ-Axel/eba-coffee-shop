@@ -236,9 +236,48 @@ export async function mergeCustomers(
           : source.lastStampDate
         : (target.lastStampDate ?? source.lastStampDate);
 
+    // Avoirs et remboursements suivent le client : sans ça la suppression de la
+    // source ferait disparaître son solde (l'historique cascade, les remboursements
+    // perdent leur client).
+    await tx.customerCreditEntry.updateMany({
+      where: { customerId: sourceId },
+      data: { customerId: targetId },
+    });
+    await tx.refund.updateMany({
+      where: { customerId: sourceId },
+      data: { customerId: targetId },
+    });
+    // Soldes relus sous verrou (comme `moveCredit`) : un encaissement simultané
+    // ne doit pas être écrasé par la valeur absolue écrite ici.
+    const locked = await tx.$queryRaw<{ id: string; creditBalance: number }[]>`
+      SELECT "id", "creditBalance" FROM "customer"
+      WHERE "id" IN (${sourceId}, ${targetId}) ORDER BY "id" FOR UPDATE`;
+    const lockedBalance = (id: string, fallback: number) =>
+      locked.find((r) => r.id === id)?.creditBalance ?? fallback;
+    const sourceCredit = lockedBalance(sourceId, source.creditBalance);
+    const creditBalance =
+      lockedBalance(targetId, target.creditBalance) + sourceCredit;
+    if (sourceCredit > 0) {
+      await tx.customerCreditEntry.create({
+        data: {
+          customerId: targetId,
+          kind: 'ADJUSTED',
+          delta: sourceCredit,
+          balanceAfter: creditBalance,
+          actorId: actorId ?? null,
+          note: `Fusion du compte ${source.phone}`,
+        },
+      });
+    }
+
     const merged = await tx.customer.update({
       where: { id: targetId },
-      data: { stampCount, lastStampDate, name: target.name ?? source.name },
+      data: {
+        stampCount,
+        lastStampDate,
+        creditBalance,
+        name: target.name ?? source.name,
+      },
     });
 
     await tx.customer.delete({ where: { id: sourceId } });

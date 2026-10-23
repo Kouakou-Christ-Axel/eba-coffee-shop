@@ -54,6 +54,7 @@ export async function getRefundStats(
           reason: true,
           channel: true,
           feeFcfa: true,
+          creditSourceId: true,
           order: { select: { isPaid: true, status: true } },
           requestedBy: { select: { id: true, name: true, email: true } },
           approvedBy: { select: { id: true, name: true, email: true } },
@@ -125,7 +126,9 @@ export async function getRefundStats(
     });
     bump(byRequester, r.requestedBy, r.amount);
     bump(byApprover, r.approvedBy, r.amount);
-    if (r.order.isPaid && r.order.status !== 'CANCELLED') counted += r.amount;
+    // Une conversion d'avoir ne retire pas de CA une 2e fois (cf. aggregate.ts).
+    if (r.order.isPaid && r.order.status !== 'CANCELLED' && !r.creditSourceId)
+      counted += r.amount;
   }
 
   const productTotals = new Map<

@@ -41,7 +41,11 @@ describe('fullyRefundedOrderIds', () => {
     expect([...ids]).toEqual(['a']);
     expect(prisma.refund.groupBy).toHaveBeenCalledWith({
       by: ['orderId'],
-      where: { orderId: { in: ['a', 'b', 'c'] }, status: 'PAID' },
+      where: {
+        orderId: { in: ['a', 'b', 'c'] },
+        status: 'PAID',
+        creditSourceId: null,
+      },
       _sum: { amount: true },
     });
   });

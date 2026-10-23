@@ -16,6 +16,7 @@ import {
   reserveForScheduledOrdersSafe,
 } from '@/lib/orders/stock-holds';
 import { resolvePaymentMode } from './payment-mode';
+import { applyPaymentCredit, releaseOrderCredit } from './credit';
 
 /** Bascule l'état de paiement d'une commande. */
 export async function setOrderPayment(
@@ -65,8 +66,8 @@ export async function setOrderPayment(
       );
     }
 
-    const [result] = await prisma.$transaction([
-      prisma.order.updateMany({
+    const result = await prisma.$transaction(async (tx) => {
+      const updated = await tx.order.updateMany({
         where: { id, isPaid: true },
         data: {
           isPaid: false,
@@ -76,9 +77,13 @@ export async function setOrderPayment(
           depositPaid: 0,
           depositPaidAt: null,
         },
-      }),
-      prisma.orderPayment.deleteMany({ where: { orderId: id } }),
-    ]);
+      });
+      if (updated.count === 0) return updated;
+      // L'avoir dépensé sur cette commande retourne au solde du client.
+      await releaseOrderCredit(tx, id, actorId);
+      await tx.orderPayment.deleteMany({ where: { orderId: id } });
+      return updated;
+    });
     if (result.count === 0) {
       throw new OrderMutationError('État modifié entre temps, recharger', 409);
     }
@@ -111,6 +116,8 @@ export async function setOrderPayment(
           pickupTime: true,
           depositPaid: true,
           depositRequired: true,
+          customerId: true,
+          creditApplied: true,
         },
       });
       if (!order) {
@@ -173,6 +180,8 @@ export async function setOrderPayment(
           409
         );
       }
+
+      await applyPaymentCredit(tx, { id, ...order }, lines, actorId);
 
       await tx.orderPayment.createMany({
         data: lines.map((p) => ({

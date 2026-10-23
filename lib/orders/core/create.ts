@@ -17,6 +17,7 @@ import type { AdminMenuCategory } from '@/lib/menu';
 import { computeOnlineFee } from '@/lib/online-fee';
 import { assertCartMatchesMenu } from '@/lib/orders/cart-verification';
 import { reserveStockOnce } from '@/lib/order-mutations';
+import { holdCreditForOrder } from '@/lib/credits/spend';
 import type { CreateOrderInput } from './schema';
 import { generateOrderReference } from './reference';
 import { assertPublicOrderConstraints } from './constraints';
@@ -137,10 +138,23 @@ export async function createOrder(
         }
 
         if (online && finalOrder.total > 0) {
+          // Avoir du client : retenu dès maintenant, car il réduit ce que Jèko
+          // encaissera (et donc les frais, calculés sur la part payée en ligne).
+          const credit =
+            input.useCredit && customerId
+              ? await holdCreditForOrder(tx, {
+                  orderId: finalOrder.id,
+                  customerId,
+                  total: finalOrder.total,
+                })
+              : 0;
           finalOrder = await tx.order.update({
             where: { id: finalOrder.id },
             data: {
-              onlineFee: computeOnlineFee(finalOrder.total, online.feePercent),
+              onlineFee: computeOnlineFee(
+                finalOrder.total - credit,
+                online.feePercent
+              ),
               paymentExpiresAt: online.expiresAt,
             },
           });

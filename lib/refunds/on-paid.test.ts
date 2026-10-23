@@ -192,4 +192,43 @@ describe('settleRefundPaid', () => {
       data: expect.objectContaining({ jekoTransferId: 'wth_9', feeFcfa: 12 }),
     });
   });
+
+  it('avoir : crédite le solde du client dans la même transaction, une ligne ISSUED', async () => {
+    given({ delivery: 'STORE_CREDIT', channel: 'AVOIR' });
+    prisma.$queryRaw.mockResolvedValue([{ creditBalance: 500 }]);
+    await settleRefundPaid(args);
+    expect(prisma.customer.update).toHaveBeenCalledWith({
+      where: { id: 'cu1' },
+      data: { creditBalance: 1500 },
+    });
+    expect(prisma.customerCreditEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        customerId: 'cu1',
+        kind: 'ISSUED',
+        delta: 1000,
+        balanceAfter: 1500,
+        refundId: 'r1',
+      }),
+    });
+    expect(notifyOrderCustomer).toHaveBeenCalledWith(
+      'o1',
+      'REFUNDED',
+      expect.stringContaining('avoir')
+    );
+  });
+
+  it('remboursement en argent : le solde d’avoir n’est pas touché', async () => {
+    given();
+    await settleRefundPaid(args);
+    expect(prisma.customer.update).not.toHaveBeenCalled();
+  });
+
+  it('avoir sans client sur la commande : la transaction échoue, rien n’est crédité', async () => {
+    given({
+      delivery: 'STORE_CREDIT',
+      order: { ...full.order, customerId: null },
+    });
+    await expect(settleRefundPaid(args)).rejects.toThrow(/client/);
+    expect(prisma.customerCreditEntry.create).not.toHaveBeenCalled();
+  });
 });

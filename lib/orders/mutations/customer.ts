@@ -19,13 +19,30 @@ export async function setOrderCustomer(
   return prisma.$transaction(async (tx) => {
     const order = await tx.order.findUnique({
       where: { id: orderId },
-      select: { id: true, customerId: true, customerName: true, total: true },
+      select: {
+        id: true,
+        customerId: true,
+        customerName: true,
+        total: true,
+        creditApplied: true,
+      },
     });
     if (!order) {
       throw new OrderMutationError('Commande introuvable', 404);
     }
 
+    // L'avoir retenu / dépensé est lié au client d'origine : le rendre plus tard
+    // à un autre (ou à personne) le ferait disparaître ou le donnerait à un tiers.
+    const changesCustomer = (nextId: string | null) =>
+      (order.creditApplied ?? 0) > 0 && nextId !== order.customerId;
+    const creditLocked = () =>
+      new OrderMutationError(
+        'Un avoir est utilisé sur cette commande : rendez-le (dépaiement ou annulation) avant de changer de client',
+        409
+      );
+
     if (input.customerId === null && !input.phone) {
+      if (changesCustomer(null)) throw creditLocked();
       const result = await tx.order.updateMany({
         where: { id: orderId, customerId: order.customerId },
         data: { customerId: null },
@@ -81,6 +98,7 @@ export async function setOrderCustomer(
       throw new OrderMutationError('customerId ou téléphone requis', 400);
     }
 
+    if (changesCustomer(customerId)) throw creditLocked();
     const wasAnonymous = order.customerId === null;
 
     const result = await tx.order.updateMany({

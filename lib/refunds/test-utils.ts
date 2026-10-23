@@ -21,6 +21,8 @@ export function refundPrismaMock() {
       aggregate: vi.fn(),
     },
     refundEvent: { create: vi.fn() },
+    customer: { update: vi.fn() },
+    customerCreditEntry: { create: vi.fn() },
     // Réservations de stock par ressource : aucune par défaut.
     orderStockHold: {
       findMany: vi.fn().mockResolvedValue([]),

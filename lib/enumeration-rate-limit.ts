@@ -14,6 +14,9 @@ export const allowCustomerLookup = createRateLimiter(MINUTE, 120);
 /** `GET /api/loyalty-info?phone=` public : sonde l'existence d'un client. */
 export const allowLoyaltyLookup = createRateLimiter(MINUTE, 20);
 
+/** `GET /api/credit-info?phone=` public : sonde l'existence d'un avoir. */
+export const allowCreditLookup = createRateLimiter(MINUTE, 20);
+
 /** `GET /api/commandes/:id` public : polling légitime ≈ 1 requête / 5 s. */
 export const allowOrderTrackingRead = createRateLimiter(MINUTE, 60);
 

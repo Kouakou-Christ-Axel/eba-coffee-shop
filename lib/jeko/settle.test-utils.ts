@@ -20,6 +20,7 @@ export const order = {
   onlineFee: 35,
   dailyNumber: 12,
   paymentAmountDue: 3485,
+  paymentCreditPart: 0,
   paymentTransactionId: null as string | null,
 };
 

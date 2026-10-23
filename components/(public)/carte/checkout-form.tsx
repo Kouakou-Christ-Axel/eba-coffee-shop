@@ -11,6 +11,7 @@ import { ArrowLeft, Sparkles } from 'lucide-react';
 import { priceFormatter } from '@/config/menu';
 import { ContactFields } from './_components/contact-fields';
 import { LoyaltyRewardBanner } from './_components/loyalty-reward-banner';
+import { CreditBanner } from './_components/credit-banner';
 import { PickupModeCards } from './_components/pickup-mode-cards';
 import { PrecommandeBanner } from './_components/precommande-banner';
 import { NoteField } from './_components/note-field';
@@ -53,6 +54,9 @@ export function CheckoutForm(props: CheckoutFormProps) {
     reward,
     rewardApplied,
     setRewardApplied,
+    creditOffer,
+    creditApplied,
+    setCreditApplied,
     loyaltyMessage,
     payOnline,
     amountDue,
@@ -122,6 +126,15 @@ export function CheckoutForm(props: CheckoutFormProps) {
           capAmount={reward.capAmount}
           applied={rewardApplied}
           onAppliedChange={setRewardApplied}
+        />
+      )}
+
+      {creditOffer.status === 'ready' && (
+        <CreditBanner
+          applicable={creditOffer.applicable}
+          balance={creditOffer.balance}
+          applied={creditApplied}
+          onAppliedChange={setCreditApplied}
         />
       )}
 
