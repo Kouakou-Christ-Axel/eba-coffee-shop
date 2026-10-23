@@ -7,13 +7,14 @@
 // Aucun secret n'est exposé : ni clé, ni identifiant de magasin.
 
 import { NextResponse } from 'next/server';
-import { jekoConfig, onlineFeePercent } from '@/lib/jeko/config';
+import { getActiveJekoConfig } from '@/lib/jeko/active-account';
+import { onlineFeePercent } from '@/lib/jeko/config';
 import { JEKO_PAYMENT_METHODS } from '@/lib/jeko/payment-methods';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const enabled = jekoConfig() !== null;
+  const enabled = (await getActiveJekoConfig()) !== null;
   return NextResponse.json(
     {
       enabled,

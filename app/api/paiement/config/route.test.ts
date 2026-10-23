@@ -12,6 +12,15 @@ vi.mock('@/lib/jeko/config', () => ({
   jekoConfig: vi.fn(),
   onlineFeePercent: vi.fn(() => 1),
 }));
+vi.mock('@/lib/jeko/active-account', async () => {
+  const { jekoConfig } = await import('@/lib/jeko/config');
+  return {
+    getActiveJekoConfig: async () => {
+      const config = jekoConfig();
+      return config ? { account: 'A', config } : null;
+    },
+  };
+});
 
 import { jekoConfig, onlineFeePercent } from '@/lib/jeko/config';
 import { GET } from './route';

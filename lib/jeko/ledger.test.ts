@@ -64,12 +64,44 @@ describe('getJekoLedger — remboursements', () => {
     expect(ledger.refunded).toBe(1012);
   });
 
+  it('cumule ce que le compte a encaissé dans le mois civil en cours seulement', async () => {
+    orders.mockResolvedValue([
+      { ...paid, paidAt: new Date('2026-10-02T09:00:00Z') },
+      { ...paid, paidAt: new Date('2026-10-20T09:00:00Z') },
+      { ...paid, paidAt: new Date('2026-09-30T23:59:00Z') },
+      { ...paid, paidAt: null },
+    ] as never);
+
+    const ledger = await getJekoLedger('A', new Date('2026-10-23T12:00:00Z'));
+    expect(ledger.monthCollected).toBe(2 * 1010);
+  });
+
+  it('ne lit que les commandes, remboursements et retraits du compte demandé', async () => {
+    orders.mockResolvedValue([] as never);
+    await getJekoLedger('B');
+
+    expect(orders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { paymentTransactionId: { not: null }, jekoAccount: 'B' },
+      })
+    );
+    expect(appRefunds).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ order: { jekoAccount: 'B' } }),
+      })
+    );
+    expect(prisma.jekoWithdrawal.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { jekoAccount: 'B' } })
+    );
+  });
+
   it('ne compte que les transferts Jèko réellement partis ou en cours', async () => {
     orders.mockResolvedValue([paid] as never);
     await getJekoLedger();
     expect(appRefunds).toHaveBeenCalledWith({
       where: {
         delivery: 'JEKO_TRANSFER',
+        order: { jekoAccount: 'A' },
         status: { in: ['PAID', 'PROCESSING', 'UNCERTAIN'] },
       },
       _sum: { amount: true, feeFcfa: true },

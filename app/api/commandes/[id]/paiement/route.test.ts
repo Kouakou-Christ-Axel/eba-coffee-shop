@@ -14,6 +14,15 @@ vi.mock('@/lib/order-payment-rate-limit', () => ({
   allowPaymentVerify: vi.fn(() => true),
   paymentRateKey: vi.fn(() => 'k'),
 }));
+vi.mock('@/lib/jeko/active-account', async () => {
+  const { jekoConfig } = await import('@/lib/jeko/config');
+  return {
+    getActiveJekoConfig: async () => {
+      const config = jekoConfig();
+      return config ? { account: 'A', config } : null;
+    },
+  };
+});
 vi.mock('@/lib/jeko/start-payment', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/jeko/start-payment')>()),
   startJekoPayment: vi.fn(),
@@ -67,6 +76,7 @@ describe('POST /api/commandes/:id/paiement', () => {
       orderId: 'o1',
       paymentMethod: 'orange',
       config: jeko,
+      account: 'A',
       siteUrl: 'https://eba-coffee.com',
     });
   });

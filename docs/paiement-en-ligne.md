@@ -43,6 +43,37 @@ au comptoir (la capture d'écran + IA n'existe plus, cf. « À savoir »).
 magasin**). Les URLs de retour ne se configurent pas : le code les envoie à chaque
 paiement.
 
+## Deux comptes Jèko (A et B)
+
+Un compte Jèko est plafonné (2 000 000 F). Le second compte se configure avec les
+mêmes variables préfixées `JEKO_B_` : `JEKO_B_API_KEY`, `JEKO_B_API_KEY_ID`,
+`JEKO_B_STORE_ID`, `JEKO_B_WEBHOOK_SECRET` (les quatre, sinon le compte est
+inactif). `JEKO_*` reste le compte **A**.
+
+- **Basculer** : `/dashboard/jeko` (admin), boutons « Compte A / Compte B ». Le
+  compte actif ne sert qu'à **créer** de nouveaux paiements ou à relancer un
+  paiement en attente.
+- **Une commande reste sur son compte** (`Order.jekoAccount`) : vérification,
+  expiration, règlement tardif et remboursements utilisent les clés du compte qui
+  a encaissé, jamais le compte actif. Sans ça, une demande du compte A relue avec
+  les clés de B répondrait 404 et la commande serait annulée alors qu'elle est
+  peut-être payée.
+- **Webhook** : la même URL `https://<ton-domaine>/api/webhooks/jeko` se saisit
+  sur chacun des deux comptes. Chaque compte a son secret : la signature qui
+  valide dit lequel a encaissé.
+- **Soldes** : un bloc par compte (encaissements, remboursements, retraits propres
+  au compte). Le solde attendu est comparé au **solde réel** lu chez Jèko
+  (`GET /partner_api/stores/{storeId}/balance`, `lib/jeko/balance.ts`) ; si la
+  réponse n'a pas la forme attendue, la page affiche le JSON brut.
+- **Frais de retrait** : choisis au moment d'enregistrer un retrait — 1,5 % (par défaut), gratuit, ou 1 000 F fixes. Le montant débité et le « retirable au maximum » suivent le tarif choisi ; la carte du bloc compte avec le tarif par défaut (1,5 %).
+- **Plafond MENSUEL** (`JEKO_MONTHLY_LIMIT_FCFA`) : c'est un flux, pas un plafond de
+  solde — un retrait ne libère rien. La page compte ce que le compte a encaissé
+  dans le mois civil en cours (`paidAt`) et alerte à 90 %.
+- **Remboursements** : le transfert part du compte qui a encaissé la commande ;
+  son solde Jèko doit le couvrir et sa clé avoir le droit Pay-out.
+- Après déploiement : `pnpm db:push` (migration `20261023090000_add_jeko_accounts`,
+  les commandes et retraits existants passent sur le compte A).
+
 ## Tester en local (sans argent réel)
 
 Jèko n'a pas de sandbox. Le projet fournit donc un **serveur Jèko factice**

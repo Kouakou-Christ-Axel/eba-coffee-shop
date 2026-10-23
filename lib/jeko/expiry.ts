@@ -23,6 +23,7 @@ import { restoreOrderCredit } from '@/lib/credits/spend';
 import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 import type { CartItem } from '@/lib/cart-store';
 import { JekoApiError, getJekoPaymentRequest } from './client';
+import { parseJekoAccount } from './accounts';
 import { jekoConfig } from './config';
 import { settleFromRemote } from './reconcile';
 
@@ -127,6 +128,7 @@ export async function expirePendingOrders(
       customerId: true,
       loyaltyRewardId: true,
       paymentRequestId: true,
+      jekoAccount: true,
       items: true,
       stockReservedAt: true,
     },
@@ -134,10 +136,12 @@ export async function expirePendingOrders(
     take: BATCH_SIZE,
   });
 
-  const config = jekoConfig();
-
   for (const order of overdue) {
     try {
+      // Les clés du compte qui porte la demande, pas celles du compte actif :
+      // un 404 d'un autre compte ferait annuler une commande peut-être payée.
+      const account = parseJekoAccount(order.jekoAccount);
+      const config = jekoConfig(account);
       // Sans configuration (variables retirées ou en rotation), on ne peut pas
       // interroger Jèko : expirer une commande qui a une demande de paiement
       // pourrait annuler une commande déjà payée. On attend le retour de la config.
@@ -157,7 +161,7 @@ export async function expirePendingOrders(
           throw err;
         });
         if (remote?.status === 'success') {
-          if ((await settleFromRemote(remote)) === 'unreadable') {
+          if ((await settleFromRemote(remote, account)) === 'unreadable') {
             // Succès sans détail de transaction : on ne peut ni régler ni
             // expirer sans risque, on laisse la main au prochain passage.
             deferredUntil.set(order.id, now.getTime() + DEFER_MS);

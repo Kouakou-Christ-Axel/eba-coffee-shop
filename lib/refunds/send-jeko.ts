@@ -11,6 +11,7 @@
 //     UNCERTAIN : jamais de renvoi automatique, un admin vérifie chez Jèko.
 
 import prisma from '@/lib/prisma';
+import { parseJekoAccount } from '@/lib/jeko/accounts';
 import { jekoConfig } from '@/lib/jeko/config';
 import { JekoApiError } from '@/lib/jeko/client';
 import {
@@ -99,11 +100,12 @@ export async function sendRefundViaJeko(id: string): Promise<SendOutcome> {
       destinationPhone: true,
       customerName: true,
       attempt: true,
-      order: { select: { reference: true } },
+      order: { select: { reference: true, jekoAccount: true } },
     },
   });
 
-  const config = jekoConfig();
+  // Le compte qui a encaissé la commande, pas le compte actif.
+  const config = jekoConfig(parseJekoAccount(refund.order.jekoAccount));
   if (!config) return fail(id, 'PROCESSING', 'jeko_not_configured');
 
   const method = jekoMethodForChannel(refund.channel);

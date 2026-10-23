@@ -360,6 +360,9 @@ model Order {
   // transaction sur une commande déjà payée est un DOUBLE paiement (deux demandes
   // payées après une relance) : le staff est alerté pour rembourser.
   paymentTransactionId String?
+  // Compte Jèko ('A' | 'B', lib/jeko/accounts.ts) qui porte la demande de paiement :
+  // toute relecture ou remboursement ultérieur utilise CE compte, jamais l'actif.
+  jekoAccount          String   @default("A")
   // Remboursement d'un paiement tardif (commande expirée ET stock insuffisant, ou
   // récompense fidélité déjà restituée) : transfert Jèko vers le numéro de la
   // commande. `refundAmount` = produits seuls (les frais en ligne restent acquis),
@@ -1568,10 +1571,22 @@ model JekoWithdrawal {
   amount    Int // FCFA retirés
   fee       Int // FCFA de frais de retrait
   note      String?
+  // Compte Jèko débité ('A' | 'B').
+  jekoAccount String @default("A")
   createdAt DateTime @default(now())
 
   @@index([createdAt(sort: Desc)])
   @@map("jeko_withdrawal")
+}
+
+// Compte Jèko qui encaisse les NOUVEAUX paiements en ligne (singleton). Les clés
+// restent dans l'environnement (JEKO_* = A, JEKO_B_* = B), jamais en base.
+model JekoSettings {
+  id            String   @id @default("singleton")
+  activeAccount String   @default("A")
+  updatedAt     DateTime @updatedAt
+
+  @@map("jeko_settings")
 }
 
 // ─── Inventaire (matières premières & consommables) ────────────────────────────

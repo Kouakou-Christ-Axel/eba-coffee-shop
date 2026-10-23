@@ -106,6 +106,15 @@ describe('expirePendingOrders', () => {
     expect(args.keepUsedReward).toBeFalsy();
   });
 
+  it('interroge Jèko avec les clés du compte de la commande, pas celles du compte actif', async () => {
+    findMany.mockResolvedValue([{ ...overdue, jekoAccount: 'B' }] as never);
+    getRequest.mockResolvedValue({ id: 'pr_1', status: 'pending' } as never);
+
+    await expirePendingOrders(nextNow());
+
+    expect(config).toHaveBeenCalledWith('B');
+  });
+
   it('expire aussi quand Jèko répond une erreur de paiement', async () => {
     getRequest.mockResolvedValue({ id: 'pr_1', status: 'error' } as never);
     await expect(expirePendingOrders(nextNow())).resolves.toMatchObject({
@@ -128,15 +137,18 @@ describe('expirePendingOrders', () => {
     const result = await expirePendingOrders(nextNow());
 
     expect(result).toEqual({ expired: 0, settled: 1, skipped: 0 });
-    expect(settle).toHaveBeenCalledWith({
-      transactionId: 'txn_1',
-      status: 'success',
-      amountFcfa: 3485,
-      gatewayFeeFcfa: 52.28,
-      paymentMethod: 'wave',
-      reference: 'EBA-20261003-AB12-1',
-      paymentRequestId: 'pr_1',
-    });
+    expect(settle).toHaveBeenCalledWith(
+      {
+        transactionId: 'txn_1',
+        status: 'success',
+        amountFcfa: 3485,
+        gatewayFeeFcfa: 52.28,
+        paymentMethod: 'wave',
+        reference: 'EBA-20261003-AB12-1',
+        paymentRequestId: 'pr_1',
+      },
+      'A'
+    );
     expect(updateMany).not.toHaveBeenCalled();
     expect(revoke).not.toHaveBeenCalled();
   });

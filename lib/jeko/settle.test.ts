@@ -4,7 +4,9 @@ vi.mock('@/lib/order-mutations', async () =>
   (await import('./settle.test-errors')).orderMutationsModuleMock()
 );
 vi.mock('@/lib/prisma', () => ({
-  default: { order: { findUnique: vi.fn(), updateMany: vi.fn() } },
+  default: {
+    order: { findUnique: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
+  },
 }));
 vi.mock('@/lib/push-notify', () => ({ sendPushToRoles: vi.fn() }));
 vi.mock('./notify-paid', () => ({ announcePaidOrder: vi.fn() }));
@@ -13,6 +15,7 @@ vi.mock('@/lib/auth-helpers', () => ({
   ROLE_GROUPS: { CASHIER_PLUS: ['CASHIER', 'MANAGER', 'ADMIN'] },
 }));
 
+import prisma from '@/lib/prisma';
 import { settleJekoTransaction } from './settle';
 import {
   findOrder,
@@ -55,6 +58,25 @@ describe('settleJekoTransaction', () => {
       null,
       { online }
     );
+  });
+
+  it('mémorise le compte qui a encaissé quand il diffère de celui de la commande', async () => {
+    findOrder.mockResolvedValue({ ...order, jekoAccount: 'A' } as never);
+
+    await settleJekoTransaction(tx, 'B');
+
+    expect(prisma.order.update).toHaveBeenCalledWith({
+      where: { id: 'o1' },
+      data: { jekoAccount: 'B' },
+    });
+  });
+
+  it('ne réécrit pas le compte quand il est déjà le bon', async () => {
+    findOrder.mockResolvedValue({ ...order, jekoAccount: 'B' } as never);
+
+    await settleJekoTransaction(tx, 'B');
+
+    expect(prisma.order.update).not.toHaveBeenCalled();
   });
 
   it('ne fait rien si la commande est déjà payée (webhook livré deux fois)', async () => {

@@ -85,8 +85,34 @@ describe('POST /api/webhooks/jeko', () => {
         reference: 'EBA-20261003-AB12-1',
         amountFcfa: 3485,
         paymentMethod: 'wave',
-      })
+      }),
+      'A'
     );
+  });
+
+  it('identifie le compte par sa signature : un webhook du compte B règle avec B', async () => {
+    secret.mockImplementation((account) =>
+      account === 'B' ? 'whsec_b' : SECRET
+    );
+    const raw = JSON.stringify(payment);
+    const signatureB = createHmac('sha256', 'whsec_b')
+      .update(raw)
+      .digest('hex');
+
+    const res = await call(raw, signatureB);
+
+    expect(res.status).toBe(200);
+    expect(settle).toHaveBeenCalledWith(expect.anything(), 'B');
+  });
+
+  it('refuse une signature qui ne correspond à aucun compte', async () => {
+    secret.mockImplementation((account) =>
+      account === 'B' ? 'whsec_b' : SECRET
+    );
+    const raw = JSON.stringify(payment);
+
+    expect((await call(raw, sign('autre'))).status).toBe(401);
+    expect(settle).not.toHaveBeenCalled();
   });
 
   it('acquitte (200) un reversement ou une transaction sans référence, sans la régler', async () => {

@@ -20,6 +20,15 @@ vi.mock('@/lib/jeko/config', () => ({
   jekoConfig: vi.fn(),
   onlineFeePercent: vi.fn(() => 1),
 }));
+vi.mock('@/lib/jeko/active-account', async () => {
+  const { jekoConfig } = await import('@/lib/jeko/config');
+  return {
+    getActiveJekoConfig: async () => {
+      const config = jekoConfig();
+      return config ? { account: 'A', config } : null;
+    },
+  };
+});
 vi.mock('@/lib/menu', () => ({ getMenuAdmin: vi.fn() }));
 vi.mock('@/lib/site-url', () => ({ siteUrl: () => 'https://eba-coffee.com' }));
 vi.mock('@/lib/jeko/expiry', () => ({ expirePendingOrders: vi.fn() }));
@@ -123,6 +132,7 @@ describe('POST /api/commandes — paiement en ligne', () => {
       orderId: 'o1',
       paymentMethod: 'wave',
       config: jeko,
+      account: 'A',
       siteUrl: 'https://eba-coffee.com',
     });
   });

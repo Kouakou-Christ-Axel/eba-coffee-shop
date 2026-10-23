@@ -11,6 +11,7 @@
 // - Une erreur de traitement répond 500 : Jèko réessaie (3 livraisons au plus).
 
 import { NextResponse } from 'next/server';
+import { JEKO_ACCOUNTS } from '@/lib/jeko/accounts';
 import { jekoWebhookSecret } from '@/lib/jeko/config';
 import { expirePendingOrders } from '@/lib/jeko/expiry';
 import { settleJekoTransaction } from '@/lib/jeko/settle';
@@ -21,13 +22,22 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
-  const secret = jekoWebhookSecret();
-  if (!secret) {
+  // Un secret par compte Jèko, une seule URL : la signature qui valide dit quel
+  // compte a encaissé.
+  const secrets = JEKO_ACCOUNTS.map((account) => ({
+    account,
+    secret: jekoWebhookSecret(account),
+  })).filter((s) => s.secret);
+  if (secrets.length === 0) {
     return new Response('Non configuré', { status: 404 });
   }
 
   const raw = await req.text();
-  if (!verifyJekoSignature(raw, req.headers.get('Jeko-Signature'), secret)) {
+  const signature = req.headers.get('Jeko-Signature');
+  const account = secrets.find((s) =>
+    verifyJekoSignature(raw, signature, s.secret)
+  )?.account;
+  if (!account) {
     return new Response('Signature invalide', { status: 401 });
   }
 
@@ -44,7 +54,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const outcome = await settleJekoTransaction(tx);
+    const outcome = await settleJekoTransaction(tx, account);
     // Nettoyage opportuniste des commandes expirées (pas de cron) : jamais
     // bloquant, la réponse à Jèko n'en dépend pas.
     void expirePendingOrders().catch(() => {});

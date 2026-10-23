@@ -47,6 +47,15 @@ export const MIN_DEPOSIT_PERCENT = 50;
 /** Paiement en ligne (Jèko) : durée pendant laquelle une commande attend son paiement, comptée à partir de CHAQUE tentative. */
 export const PAYMENT_EXPIRY_MINUTES = 3;
 
+/**
+ * Plafond MENSUEL d'un compte Jèko (FCFA), règle de Jèko : on le SIGNALE, on ne
+ * l'applique pas. Comparé à ce que le compte a encaissé dans le mois civil en cours
+ * (un retrait ne libère rien : c'est un flux mensuel, pas un plafond de solde).
+ */
+export const JEKO_MONTHLY_LIMIT_FCFA = 2_000_000;
+/** Part du plafond à partir de laquelle on prévient (0-1). */
+export const JEKO_MONTHLY_WARN_RATIO = 0.9;
+
 /** Frais de paiement en ligne facturés au client, en % du total (Jèko Checkout prélève 1,5 % : EBA absorbe l'écart). */
 export const ONLINE_FEE_PERCENT_DEFAULT = 1;
 

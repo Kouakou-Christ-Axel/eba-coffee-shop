@@ -7,6 +7,7 @@
 
 import prisma from '@/lib/prisma';
 import { REFUND_PROCESSING_STALE_MINUTES } from '@/config/constants';
+import { parseJekoAccount } from '@/lib/jeko/accounts';
 import { jekoConfig } from '@/lib/jeko/config';
 import { getJekoTransfer } from '@/lib/jeko/transfers';
 import { notifyRefundProblem } from './alerts';
@@ -28,11 +29,15 @@ export async function refreshPendingRefunds(
 
   const pending = await prisma.refund.findMany({
     where: { status: 'PROCESSING' },
-    select: { id: true, jekoTransferId: true, updatedAt: true },
+    select: {
+      id: true,
+      jekoTransferId: true,
+      updatedAt: true,
+      order: { select: { jekoAccount: true } },
+    },
     orderBy: { updatedAt: 'asc' },
     take: BATCH_SIZE,
   });
-  const config = jekoConfig();
   const staleBefore = now.getTime() - REFUND_PROCESSING_STALE_MINUTES * 60_000;
 
   for (const refund of pending) {
@@ -57,6 +62,7 @@ export async function refreshPendingRefunds(
         }
         continue;
       }
+      const config = jekoConfig(parseJekoAccount(refund.order.jekoAccount));
       if (!config) continue;
       const transfer = await getJekoTransfer(config, refund.jekoTransferId);
       if (transfer.status === 'success') {

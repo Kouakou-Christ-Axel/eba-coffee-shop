@@ -13,6 +13,7 @@ import prisma from '@/lib/prisma';
 import { normalizeIvorianPhone } from '@/lib/phone';
 import { notifyOrderCustomer } from '@/lib/push-notify';
 import { JekoApiError } from './client';
+import { parseJekoAccount } from './accounts';
 import { jekoConfig } from './config';
 import { jekoMethodToPaymentMode } from './payment-mode';
 import { recordAutoLateRefund } from '@/lib/refunds/record-auto';
@@ -32,6 +33,8 @@ export type RefundableOrder = {
   customerName: string | null;
   customerPhone: string | null;
   onlineFee: number | null;
+  /** Compte Jèko qui a encaissé : le transfert en repart. */
+  jekoAccount: string;
 };
 
 export type RefundOutcome = 'refunded' | 'manual';
@@ -55,7 +58,7 @@ async function sendTransfer(
   tx: JekoTransaction,
   amount: number
 ): Promise<Sent | { manual: string }> {
-  const config = jekoConfig();
+  const config = jekoConfig(parseJekoAccount(order.jekoAccount));
   if (!config) return { manual: 'Jèko non configuré' };
   const method = toTransferMethod(tx.paymentMethod);
   if (!method) {

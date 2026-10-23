@@ -23,6 +23,15 @@ vi.mock('@/lib/jeko/config', () => ({
   jekoConfig: vi.fn(() => null),
   onlineFeePercent: vi.fn(() => 1),
 }));
+vi.mock('@/lib/jeko/active-account', async () => {
+  const { jekoConfig } = await import('@/lib/jeko/config');
+  return {
+    getActiveJekoConfig: async () => {
+      const config = jekoConfig();
+      return config ? { account: 'A', config } : null;
+    },
+  };
+});
 
 // Rate-limiting testé séparément (route.rate-limit.test.ts) : ici, plusieurs
 // requêtes partent de la même IP absente (clé `unknown`) et ne doivent pas

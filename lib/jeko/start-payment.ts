@@ -20,6 +20,7 @@ import {
   type JekoConfig,
   type JekoPaymentMethod,
 } from './client';
+import type { JekoAccount } from './accounts';
 import { buildJekoReference } from './reference';
 
 export type PaymentNotPendingReason =
@@ -42,11 +43,13 @@ export async function startJekoPayment(args: {
   orderId: string;
   paymentMethod: JekoPaymentMethod;
   config: JekoConfig;
+  /** Compte Jèko de `config` : mémorisé sur la commande pour la suite. */
+  account: JekoAccount;
   /** Racine publique du site, sans slash final (cf. `siteUrl()`). */
   siteUrl: string;
   now?: Date;
 }): Promise<{ redirectUrl: string; expiresAt: Date }> {
-  const { orderId, paymentMethod, config, siteUrl } = args;
+  const { orderId, paymentMethod, config, account, siteUrl } = args;
   const now = args.now ?? new Date();
 
   const order = await prisma.order.findUnique({
@@ -107,6 +110,7 @@ export async function startJekoPayment(args: {
         // ce montant est celui que Jèko encaissera.
         paymentAmountDue: amountDue,
         paymentCreditPart: order.creditApplied,
+        jekoAccount: account,
       },
     });
     if (claimed.count === 0) throw new PaymentNotPendingError('conflict');

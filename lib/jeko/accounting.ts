@@ -17,8 +17,29 @@ function assertAmount(amount: number) {
   }
 }
 
-export function withdrawalFee(amount: number): number {
+/** Forfait du mode « 1 000 F » (FCFA). */
+export const WITHDRAWAL_FLAT_FEE = 1000;
+
+/**
+ * Tarif d'un retrait chez Jèko : 1,5 % par défaut, ou gratuit, ou 1 000 F de frais
+ * fixes selon le retrait. Le mode est choisi à l'enregistrement du retrait.
+ */
+export const WITHDRAWAL_FEE_MODES = ['percent', 'free', 'flat'] as const;
+export type WithdrawalFeeMode = (typeof WITHDRAWAL_FEE_MODES)[number];
+
+export const WITHDRAWAL_FEE_MODE_LABELS: Record<WithdrawalFeeMode, string> = {
+  percent: '1,5 % (par défaut)',
+  free: 'Gratuit',
+  flat: '1 000 F',
+};
+
+export function withdrawalFee(
+  amount: number,
+  mode: WithdrawalFeeMode = 'percent'
+): number {
   assertAmount(amount);
+  if (mode === 'free') return 0;
+  if (mode === 'flat') return WITHDRAWAL_FLAT_FEE;
   // Points de base entiers : évite 1000 × 1,5 / 100 = 15,000000000000002 → 16.
   return Math.ceil(
     (amount * Math.round(WITHDRAWAL_FEE_PERCENT * 100)) / 10_000
@@ -26,13 +47,21 @@ export function withdrawalFee(amount: number): number {
 }
 
 /** Ce qui est débité du compte pour retirer `amount`. */
-export function withdrawalDebit(amount: number): number {
-  return amount + withdrawalFee(amount);
+export function withdrawalDebit(
+  amount: number,
+  mode: WithdrawalFeeMode = 'percent'
+): number {
+  return amount + withdrawalFee(amount, mode);
 }
 
 /** Plus gros montant retirable avec un solde donné, frais compris. */
-export function maxWithdrawable(balance: number): number {
+export function maxWithdrawable(
+  balance: number,
+  mode: WithdrawalFeeMode = 'percent'
+): number {
   assertAmount(balance);
+  if (mode === 'free') return balance;
+  if (mode === 'flat') return Math.max(balance - WITHDRAWAL_FLAT_FEE, 0);
   // Estimation puis ajustement : l'arrondi au supérieur peut décaler d'1 F.
   let w = Math.floor(
     (balance * 10_000) / (10_000 + Math.round(WITHDRAWAL_FEE_PERCENT * 100))
