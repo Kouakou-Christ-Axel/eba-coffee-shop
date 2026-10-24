@@ -7,7 +7,7 @@
 // détecter qu'un numéro saisi correspond déjà à un client, et rattacher la
 // commande à ce client plutôt que d'écraser son nom.
 //
-// Différent de `/api/customers/search` (recherche floue, plusieurs
+// Différent de `/api/customers/search` (recherche par mots, plusieurs
 // résultats possibles) : ici on veut UN client, identifié par la clé
 // canonique du téléphone (`getCustomerByPhone`).
 
