@@ -47,8 +47,6 @@ jobs:
             pnpm db:merge-duplicate-emails
             pnpm db:push
             pnpm db:trigger
-            # Index partiel que Prisma ne sait pas décrire (idempotent).
-            pnpm db:indexes
 
             # Rebuild Next.js uniquement si un fichier qui alimente réellement
             # le build a changé. Allowlist plutôt que denylist : la liste des

@@ -1,52 +1,52 @@
-import type { Customer } from '@/generated/prisma/client';
-import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { ORDERS_PAGE_SIZE } from '@/config/constants';
-import { customerFilter, type CustomerQuery } from './filter';
-import { STATS_COLUMNS, STATS_LATERAL } from './stats';
-import type { CustomerStats } from './types';
-
-type StatsColumns = CustomerStats;
+import type { CustomerSortKey, SortDir } from './types';
+import { queryCustomerPage, STATS_SORT_KEYS } from './page-query';
+import { statsByCustomer, ZERO_STATS } from './stats';
 
 /**
- * Clients de la page décrite par `query` + total. Recherche, tri et pagination
- * sont faits par la base (cf. `filter.ts`) : une requête pour les lignes, une
- * pour le total.
+ * Liste paginée des clients. Recherche, tri et pagination sont faits par la base
+ * (cf. `page-query.ts`) ; seuls les ≤ `ORDERS_PAGE_SIZE` clients de la page sont
+ * ensuite lus en entier.
  *
- * `withStats` ajoute à chaque client ses chiffres (`stats` : commandes, total net
- * des remboursements, dernière commande) dans LA MÊME requête : la page est
- * d'abord sélectionnée (filtre + tri + `LIMIT`), puis les chiffres ne sont
- * calculés que pour ces ≤ 20 clients (`STATS_LATERAL`). Sans lui `stats` vaut
- * `null` (la recherche de la caisse reste légère).
+ * Les stats (agrégats sur les commandes) ne sont chargées que si `withStats` est
+ * demandé ou si le tri porte sur une stat. Sinon `stats` vaut `null` et la page
+ * les charge à part via `GET /api/customers/stats`.
  */
-export async function listCustomers(
-  query: CustomerQuery,
-  { withStats = false }: { withStats?: boolean } = {}
-) {
-  const { where, from, orderBy, limit } = customerFilter(query);
-  const pageRows = Prisma.sql`SELECT c.* ${from} ${orderBy} ${limit}`;
-  // La jointure ne garantit pas l'ordre de la sous-requête : on le rejoue
-  // (20 lignes, mêmes expressions, alias `c` conservé).
-  const rowsQuery = withStats
-    ? Prisma.sql`SELECT c.*, ${STATS_COLUMNS} FROM (${pageRows}) c ${STATS_LATERAL} ${orderBy}`
-    : pageRows;
-  const [rows, count] = await Promise.all([
-    prisma.$queryRaw<(Customer & Partial<StatsColumns>)[]>(rowsQuery),
-    prisma.$queryRaw<{ total: number }[]>(
-      Prisma.sql`SELECT COUNT(*)::int AS total FROM customer c ${where}`
-    ),
+export async function listCustomers({
+  search,
+  page = 1,
+  sort,
+  dir = 'desc',
+  withStats = false,
+}: {
+  search?: string;
+  page?: number;
+  sort?: CustomerSortKey;
+  dir?: SortDir;
+  withStats?: boolean;
+}) {
+  const pageSize = ORDERS_PAGE_SIZE;
+  const { ids, total } = await queryCustomerPage({
+    term: search?.trim() || undefined,
+    sort,
+    dir,
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  });
+
+  const wantStats = withStats || (sort && STATS_SORT_KEYS.includes(sort));
+  const [found, stats] = await Promise.all([
+    prisma.customer.findMany({ where: { id: { in: ids } } }),
+    wantStats ? statsByCustomer(ids) : null,
   ]);
-  const customers = rows.map(
-    ({ ordersCount, totalSpent, lastOrderAt, ...c }) => ({
-      ...(c as Customer),
-      stats: withStats
-        ? ({
-            ordersCount: ordersCount ?? 0,
-            totalSpent: totalSpent ?? 0,
-            lastOrderAt: lastOrderAt ?? null,
-          } satisfies CustomerStats)
-        : null,
-    })
-  );
-  return { customers, total: count[0]?.total ?? 0, pageSize: ORDERS_PAGE_SIZE };
+  const byId = new Map(found.map((c) => [c.id, c]));
+  const customers = ids.flatMap((id) => {
+    const c = byId.get(id);
+    return c
+      ? [{ ...c, stats: stats ? (stats.get(id) ?? ZERO_STATS) : null }]
+      : [];
+  });
+
+  return { customers, total, pageSize };
 }

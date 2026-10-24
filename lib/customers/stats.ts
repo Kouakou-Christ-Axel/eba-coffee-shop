@@ -1,34 +1,42 @@
-import { Prisma } from '@/generated/prisma/client';
-import { COUNTED_ORDER, REFUND_DEDUCTED } from './stats-rules';
+import { withStaffVisible } from '@/lib/orders/visibility';
+import prisma from '@/lib/prisma';
+import { refundedByCustomer } from '@/lib/refunds/customer';
 import type { CustomerStats } from './types';
+
+/** Stats agrégées (commandes liées) pour un ensemble d'ids client. */
+export async function statsByCustomer(
+  ids: string[]
+): Promise<Map<string, CustomerStats>> {
+  if (ids.length === 0) return new Map();
+  const [grouped, refunded] = await Promise.all([
+    prisma.order.groupBy({
+      by: ['customerId'],
+      where: withStaffVisible({
+        customerId: { in: ids },
+        status: { not: 'CANCELLED' },
+      }),
+      _count: true,
+      _sum: { total: true },
+      _max: { createdAt: true },
+    }),
+    refundedByCustomer({ in: ids }),
+  ]);
+  return new Map(
+    grouped.map((g) => [
+      g.customerId as string,
+      {
+        ordersCount: g._count,
+        // Net des remboursements déjà partis.
+        totalSpent:
+          (g._sum.total ?? 0) - (refunded.get(g.customerId as string) ?? 0),
+        lastOrderAt: g._max.createdAt ?? null,
+      },
+    ])
+  );
+}
 
 export const ZERO_STATS: CustomerStats = {
   ordersCount: 0,
   totalSpent: 0,
   lastOrderAt: null,
 };
-
-/**
- * Chiffres d'un client, calculés pour CHAQUE ligne de la sous-requête de page
- * (alias `c`) et pas pour tous les clients : une recherche d'index
- * (`order_customer_counted_idx`, cf. prisma/sql/order-customer-counted-index.sql)
- * par client de la page. Mesuré sur 300 000 commandes : ~2 ms contre ~140 ms pour
- * une jointure sur des agrégats de toute la table. Alias exposés : `s`, `rf`.
- */
-export const STATS_LATERAL = Prisma.sql`
-  LEFT JOIN LATERAL (
-    SELECT COUNT(*)::int AS orders, SUM(o.total)::int AS gross,
-           MAX(o."createdAt") AS last_order
-    FROM "order" o WHERE o."customerId" = c.id AND ${COUNTED_ORDER}
-  ) s ON true
-  LEFT JOIN LATERAL (
-    SELECT SUM(r.amount)::int AS refunded
-    FROM refund r JOIN "order" ro ON ro.id = r."orderId"
-    WHERE r."customerId" = c.id AND ${REFUND_DEDUCTED}
-  ) rf ON true`;
-
-/** Colonnes de stats du `SELECT` (avec `STATS_LATERAL`) ; total net des remboursements payés. */
-export const STATS_COLUMNS = Prisma.sql`
-  COALESCE(s.orders, 0)::int AS "ordersCount",
-  (COALESCE(s.gross, 0) - COALESCE(rf.refunded, 0))::int AS "totalSpent",
-  s.last_order AS "lastOrderAt"`;

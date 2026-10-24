@@ -47,7 +47,6 @@
     "db:merge-duplicate-emails": "tsx --env-file=.env prisma/merge-duplicate-emails.ts",
     "jeko:mock": "tsx --env-file=.env scripts/jeko-mock/run.ts",
     "db:trigger": "prisma db execute --file prisma/sql/orders-notify-trigger.sql",
-    "db:indexes": "prisma db execute --file prisma/sql/order-customer-counted-index.sql",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "prepare": "husky",
