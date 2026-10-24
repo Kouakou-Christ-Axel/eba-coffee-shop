@@ -1,6 +1,6 @@
 'use client';
 
-import { Bike, Check, CheckCheck, ChefHat, Pencil, X } from 'lucide-react';
+import { Bike, Check, CheckCheck, ChefHat, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TrackingLinkButton } from '@/components/(dashboard)/tracking-link-button';
 import type { PreparationOrder } from '@/lib/preparation-queue';
@@ -9,7 +9,7 @@ import {
   buildWhatsAppLink,
 } from '@/lib/contact-links';
 import { EncaisserButton } from '../../../_components/encaisser-button';
-import { AssociateCustomer } from '../../../_components/associate-customer';
+import { OrderMoreMenu } from './order-more-menu';
 import type { ContactInfo, OrderDetailCallbacks } from './types';
 
 export function OrderDetailActions({
@@ -43,7 +43,7 @@ export function OrderDetailActions({
   );
 
   return (
-    <div className="flex flex-col gap-3 border-t p-4">
+    <div className="flex flex-col gap-2 border-t p-3">
       {isDelivery &&
         (driverLink ? (
           // Ouvre WhatsApp avec le message pré-rempli ET pose le drapeau
@@ -56,7 +56,7 @@ export function OrderDetailActions({
               if (!order.driverRequested) onRequestDriver(order.id);
             }}
             className={cn(
-              'flex items-center justify-center gap-2 rounded-xl border py-3 text-lg font-semibold transition-colors',
+              'flex items-center justify-center gap-2 rounded-xl border py-2 text-base font-semibold transition-colors',
               order.driverRequested
                 ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100'
                 : 'border-amber-500 bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-950/50 dark:hover:bg-amber-900/40'
@@ -73,7 +73,7 @@ export function OrderDetailActions({
             onClick={() => onRequestDriver(order.id)}
             disabled={pending || order.driverRequested}
             className={cn(
-              'flex items-center justify-center gap-2 rounded-xl border py-3 text-lg font-semibold transition-colors disabled:opacity-60',
+              'flex items-center justify-center gap-2 rounded-xl border py-2 text-base font-semibold transition-colors disabled:opacity-60',
               order.driverRequested
                 ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100'
                 : 'border-amber-500 bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-950/50 dark:hover:bg-amber-900/40'
@@ -84,25 +84,6 @@ export function OrderDetailActions({
           </button>
         ))}
 
-      <button
-        type="button"
-        onClick={() => onEdit()}
-        className="flex items-center justify-center gap-2 rounded-xl border border-input bg-background py-3 text-lg font-semibold text-muted-foreground transition-colors hover:bg-accent"
-      >
-        <Pencil className="h-5 w-5" />
-        Modifier les articles
-      </button>
-
-      {customerAction && (
-        <AssociateCustomer
-          orderId={order.id}
-          currentCustomerId={order.customerId}
-          currentName={order.customerName}
-          currentPhone={order.customerPhone}
-          action={customerAction}
-        />
-      )}
-
       {!order.isPaid && payAction && (
         <EncaisserButton
           orderId={order.id}
@@ -110,7 +91,7 @@ export function OrderDetailActions({
           amount={order.total - order.depositPaid}
           action={payAction}
           size="lg"
-          className="py-4 text-lg"
+          className="py-3 text-lg"
         />
       )}
 
@@ -126,6 +107,11 @@ export function OrderDetailActions({
             >
               <X className="h-6 w-6" strokeWidth={2.5} />
             </button>
+            <OrderMoreMenu
+              order={order}
+              customerAction={customerAction}
+              onEdit={onEdit}
+            />
             <TrackingLinkButton orderId={order.id} className="flex-1 py-1" />
           </div>
           <button
@@ -144,16 +130,21 @@ export function OrderDetailActions({
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-[1fr_2.5fr] gap-3">
+          <div className="grid grid-cols-[auto_auto_1fr] gap-3">
             <button
               type="button"
               onClick={() => onCancel(order.id)}
               disabled={pending}
               aria-label="Annuler"
-              className="flex items-center justify-center rounded-xl border border-red-200 bg-red-50 py-4 text-red-700 transition-colors hover:bg-red-100 active:bg-red-200 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300"
+              className="flex items-center justify-center rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-red-700 transition-colors hover:bg-red-100 active:bg-red-200 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300"
             >
               <X className="h-7 w-7" strokeWidth={2.5} />
             </button>
+            <OrderMoreMenu
+              order={order}
+              customerAction={customerAction}
+              onEdit={onEdit}
+            />
             <button
               type="button"
               onClick={() => onReady(order.id)}

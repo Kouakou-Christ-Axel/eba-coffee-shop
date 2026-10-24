@@ -161,7 +161,7 @@ Le site vitrine est vu depuis Abidjan, en mobile, sur des liens où le **RTT pè
 - `SupplementGroup.kind` : `'flavor'` (goût, dans le produit) ou `'extra'` (supplément, par-dessus ; défaut). Existe pour la cuisine : un goût « Chocolat » et un supplément « Chocolat » ne doivent pas se confondre sur le ticket.
 - **Figé sur la ligne de commande** (`CartItemSupplement.kind`, `lib/schemas/order/cart.ts`) comme le prix. Seul `'flavor'` est écrit (`kindStamp`, `lib/supplements/kind.ts`) : absent = supplément, ce qui garde les commandes antérieures lisibles. Tout code qui fabrique une ligne depuis un groupe (`getSelectedSupplements`, `reorder`, `buildOrderItemsFromMenu`) doit passer par `kindStamp`, sinon le champ est perdu.
 - `kind` n'a **pas de défaut Zod** : un payload partiel (MCP `update_product`) qui l'omet laisse la valeur en base (`syncSupplementGroups` ne l'écrit que s'il est fourni).
-- Cuisine : `SupplementPanels` (`dashboard/preparation/_components/supplement-panels.tsx`) affiche deux cadres, « Goûts » puis « Suppléments ». `aggregateOrderSupplements` inclut `kind` dans sa clé de fusion.
+- Cuisine : `SupplementBadges` (`dashboard/preparation/_components/supplement-badges.tsx`) affiche, SOUS chaque ligne d'article (sans répéter le nom du produit), des badges : goûts (couleur primaire) puis suppléments (couleur secondaire, préfixe « + »). Rendu par ligne (`cartId`), non fusionné.
 
 ## Serveur MCP (gestion du menu)
 

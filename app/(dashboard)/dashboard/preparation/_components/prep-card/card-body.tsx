@@ -3,11 +3,11 @@
 import { formatAbidjanTime } from '@/lib/timezone';
 import { Maximize2, StickyNote, Timer } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { aggregateOrderSupplements, getPickupCode } from '@/lib/orders/format';
+import { getPickupCode } from '@/lib/orders/format';
 import type { PreparationOrder } from '@/lib/preparation-queue';
 import { formatElapsed, TONE_CLASS, type elapsedTone } from '../elapsed';
 import { ORDER_TYPE_META, SOURCE_META } from './meta';
-import { SupplementPanels } from '../supplement-panels';
+import { SupplementBadges } from '../supplement-badges';
 
 export function CardBody({
   order,
@@ -22,7 +22,6 @@ export function CardBody({
 }) {
   const typeMeta = ORDER_TYPE_META[order.orderType];
   const TypeIcon = typeMeta.Icon;
-  const supplementLines = aggregateOrderSupplements(order.items);
 
   return (
     <button
@@ -118,11 +117,10 @@ export function CardBody({
                 </span>
               )}
             </span>
+            <SupplementBadges supplements={item.supplements} size="md" />
           </li>
         ))}
       </ul>
-
-      <SupplementPanels lines={supplementLines} size="md" />
     </button>
   );
 }

@@ -32,6 +32,11 @@ type Props = {
   currentName: string | null;
   currentPhone: string | null;
   action?: AssociateCustomerAction;
+  /**
+   * Ouverture pilotée de l'extérieur : le bouton déclencheur est alors masqué
+   * (l'appelant a son propre point d'entrée, ex. une entrée de menu).
+   */
+  controlled?: { isOpen: boolean; setIsOpen: (open: boolean) => void };
 };
 
 export function AssociateCustomer({
@@ -40,29 +45,32 @@ export function AssociateCustomer({
   currentName,
   currentPhone,
   action = setOrderCustomerAction,
+  controlled,
 }: Props) {
-  const state = useAssociateCustomer({ orderId, action });
+  const state = useAssociateCustomer({ orderId, action, controlled });
   const { isOpen, setIsOpen, error, isPending, handleClose, submit } = state;
 
   const isLinked = currentCustomerId !== null;
 
   return (
     <>
-      <Button
-        type="button"
-        size="sm"
-        variant="flat"
-        startContent={
-          isLinked ? (
-            <UserCog className="h-4 w-4" />
-          ) : (
-            <UserPlus className="h-4 w-4" />
-          )
-        }
-        onPress={() => setIsOpen(true)}
-      >
-        {isLinked ? 'Modifier le client' : 'Associer un client'}
-      </Button>
+      {!controlled && (
+        <Button
+          type="button"
+          size="sm"
+          variant="flat"
+          startContent={
+            isLinked ? (
+              <UserCog className="h-4 w-4" />
+            ) : (
+              <UserPlus className="h-4 w-4" />
+            )
+          }
+          onPress={() => setIsOpen(true)}
+        >
+          {isLinked ? 'Modifier le client' : 'Associer un client'}
+        </Button>
+      )}
 
       <Modal
         isOpen={isOpen}
