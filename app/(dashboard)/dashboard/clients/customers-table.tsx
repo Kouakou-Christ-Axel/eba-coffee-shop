@@ -3,13 +3,10 @@
 // Tableau clients (TanStack Table, headless) au-dessus des primitives shadcn
 // (`components/ui/table`, cf. politique UI — Table = shadcn). Le tri est
 // BACKEND (`manualSorting`) : un clic sur un en-tête change `sort`/`dir` dans
-// l'URL (via `startTransition`, comme `customer-search.tsx` et
-// `components/(dashboard)/pagination.tsx`), et `lib/customers.ts::listCustomers`
+// l'URL (nuqs, cf. `use-clients-nav.ts`), et `lib/customers.ts::listCustomers`
 // trie/pagine sur l'ensemble des clients — pas seulement la page affichée.
 
 import Link from 'next/link';
-import { useTransition } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import {
   type ColumnDef,
   type OnChangeFn,
@@ -19,7 +16,6 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ArrowUpDown, Handshake } from 'lucide-react';
-import type { CustomerSortKey, SortDir } from '@/lib/customers';
 import { formatPhoneForDisplay } from '@/lib/phone';
 import {
   Table,
@@ -29,9 +25,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { CUSTOMER_SORT_KEYS } from './search-params';
+import { useClientsNav } from './use-clients-nav';
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
 const dateFmt = new Intl.DateTimeFormat('fr-FR', {
@@ -60,7 +57,7 @@ const columns: ColumnDef<CustomerRow>[] = [
     cell: ({ row }) => (
       <Link
         href={`/dashboard/clients/${row.original.id}`}
-        className="font-medium hover:underline"
+        className="inline-block py-1.5 font-medium hover:underline"
       >
         {row.original.name ?? '—'}
       </Link>
@@ -120,39 +117,15 @@ const columns: ColumnDef<CustomerRow>[] = [
       </span>
     ),
   },
-  {
-    id: 'actions',
-    header: '',
-    enableSorting: false,
-    cell: ({ row }) => (
-      <Button variant="ghost" size="sm" asChild>
-        <Link href={`/dashboard/clients/${row.original.id}`}>Voir</Link>
-      </Button>
-    ),
-  },
 ];
 
 // Seules ces colonnes correspondent à un `CustomerSortKey` que le serveur
 // sait trier (cf. lib/customers.ts) ; les autres restent `enableSorting: false`.
-const SORT_KEY_BY_COLUMN: Partial<Record<string, CustomerSortKey>> = {
-  name: 'name',
-  ordersCount: 'ordersCount',
-  totalSpent: 'totalSpent',
-  lastOrderAt: 'lastOrderAt',
-};
+const SORTABLE = new Set<string>(CUSTOMER_SORT_KEYS);
 
-export function CustomersTable({
-  customers,
-  sort,
-  dir,
-}: {
-  customers: CustomerRow[];
-  sort?: CustomerSortKey;
-  dir: SortDir;
-}) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
+export function CustomersTable({ customers }: { customers: CustomerRow[] }) {
+  const { filters, update, isPending } = useClientsNav();
+  const { sort, dir, search } = filters;
 
   const sorting: SortingState = sort
     ? [{ id: sort, desc: dir === 'desc' }]
@@ -161,18 +134,11 @@ export function CustomersTable({
   const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
     const next = typeof updater === 'function' ? updater(sorting) : updater;
     const first = next[0];
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('page');
-    if (first) {
-      params.set('sort', first.id);
-      params.set('dir', first.desc ? 'desc' : 'asc');
-    } else {
-      params.delete('sort');
-      params.delete('dir');
-    }
-    startTransition(() => {
-      router.push(`?${params.toString()}`, { scroll: false });
-    });
+    update(
+      first
+        ? { sort: first.id as typeof sort, dir: first.desc ? 'desc' : 'asc' }
+        : { sort: null, dir: null }
+    );
   };
 
   const table = useReactTable({
@@ -197,21 +163,15 @@ export function CustomersTable({
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => {
-                const sortable =
-                  SORT_KEY_BY_COLUMN[header.column.id] !== undefined;
+                const sortable = SORTABLE.has(header.column.id);
                 const sortState = header.column.getIsSorted();
                 return (
-                  <TableHead
-                    key={header.id}
-                    className={
-                      header.id === 'actions' ? 'text-right' : undefined
-                    }
-                  >
+                  <TableHead key={header.id}>
                     {header.isPlaceholder ? null : sortable ? (
                       <button
                         type="button"
                         onClick={header.column.getToggleSortingHandler()}
-                        className="flex items-center gap-1 hover:text-foreground"
+                        className="flex min-h-9 items-center gap-1 hover:text-foreground"
                       >
                         {flexRender(
                           header.column.columnDef.header,
@@ -247,12 +207,7 @@ export function CustomersTable({
           {table.getRowModel().rows.map((row) => (
             <TableRow key={row.id}>
               {row.getVisibleCells().map((cell) => (
-                <TableCell
-                  key={cell.id}
-                  className={
-                    cell.column.id === 'actions' ? 'text-right' : undefined
-                  }
-                >
+                <TableCell key={cell.id}>
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </TableCell>
               ))}
@@ -264,7 +219,9 @@ export function CustomersTable({
                 colSpan={columns.length}
                 className="py-8 text-center text-muted-foreground"
               >
-                Aucun client pour cette recherche.
+                {search
+                  ? 'Aucun client pour cette recherche.'
+                  : 'Aucun client à afficher.'}
               </TableCell>
             </TableRow>
           )}

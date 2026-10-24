@@ -56,11 +56,11 @@ Pre-commit hooks (Husky + lint-staged) run ESLint and Prettier on staged files a
 ## État d'URL (nuqs)
 
 - **nuqs = défaut** pour tout état porté par l'URL (filtres, tri, pagination, recherche). Plus de `useSearchParams` + `router.push` + `URLSearchParams` à la main dans le code neuf.
-- **Une seule définition des parseurs par page** (`search-params.ts`, import depuis `nuqs/server`), partagée par le serveur (`createLoader`) et le client (`useQueryStates`) : valeur invalide → `null`/défaut des deux côtés. Modèle : `app/(dashboard)/dashboard/commandes/`.
+- **Une seule définition des parseurs par page** (`search-params.ts`, import depuis `nuqs/server`), partagée par le serveur (`createLoader`) et le client (`useQueryStates`) : valeur invalide → `null`/défaut des deux côtés. Modèle : `app/(dashboard)/dashboard/commandes/` (aussi `clients/`). **Un champ de recherche lit son `value` depuis l'état nuqs, jamais depuis une prop serveur recopiée dans un `useState`** : la réponse lente d'une requête écraserait ce que l'utilisateur a tapé depuis.
 - `NuqsAdapter` est monté dans `app/(dashboard)/layout.tsx` (dashboard uniquement : le site public n'en a pas besoin, cf. « Performance du site public »). Une page hors dashboard qui adopte nuqs doit monter l'adaptateur elle-même.
 - Quand la page lit la base selon l'URL : `shallow: false` + `startTransition` (état d'attente partagé), et `limitUrlUpdates: debounce(ms)` pour la saisie au clavier — l'état local reste instantané.
 - **Paramètres communs** : `lib/url-state/shared-params.ts` (`pageParser`, `dateRangeParsers`, `rangeChangeToParams`) — utilisés par `components/(dashboard)/pagination.tsx` et `date-range-filter.tsx` (déjà sur nuqs), et réutilisés par `commandes/search-params.ts`. Une page qui a besoin d'autres paramètres les étend par spread plutôt que de les redéclarer.
-- Restent sur `useSearchParams` + `router.push` (à migrer au fil de l'eau) : `clients/{customers-table,customer-search}.tsx`, `depenses/{expense-filters,category-filter,articles-table,article-history-sheet}.tsx`, `investissements/source-filter.tsx`, `regularisations/mode-filter.tsx`, `cloture/closing-date-picker.tsx`, `menu/**` (filtres produits, stock-supplements). Ils cohabitent sans conflit avec nuqs : tous lisent l'URL réelle.
+- Restent sur `useSearchParams` + `router.push` (à migrer au fil de l'eau) : `depenses/{expense-filters,category-filter,articles-table,article-history-sheet}.tsx`, `investissements/source-filter.tsx`, `regularisations/mode-filter.tsx`, `cloture/closing-date-picker.tsx`, `menu/**` (filtres produits, stock-supplements). Ils cohabitent sans conflit avec nuqs : tous lisent l'URL réelle.
 
 ## UI library policy
 

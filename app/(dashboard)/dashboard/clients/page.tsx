@@ -1,43 +1,32 @@
 import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
-import {
-  listCustomers,
-  getCustomerListSummary,
-  type CustomerSortKey,
-  type SortDir,
-} from '@/lib/customers';
+import { createLoader, type SearchParams } from 'nuqs/server';
+import { listCustomers, getCustomerListSummary } from '@/lib/customers';
 import { fetchArdoise } from '@/lib/ardoise';
 import { Pagination } from '@/components/(dashboard)/pagination';
 import { CustomerSearch } from './customer-search';
 import { CustomerFormSheet } from './customer-form';
 import { CustomersTable } from './customers-table';
+import { clientsParsers } from './search-params';
 
 export const dynamic = 'force-dynamic';
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
 
-const SORT_KEYS: readonly CustomerSortKey[] = [
-  'name',
-  'ordersCount',
-  'totalSpent',
-  'lastOrderAt',
-];
+const loadClientsSearchParams = createLoader(clientsParsers);
 
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    search?: string;
-    page?: string;
-    sort?: string;
-    dir?: string;
-  }>;
+  searchParams: Promise<SearchParams>;
 }) {
   await requireRoleOrAnalyst(['ADMIN']);
-  const params = await searchParams;
-  const page = Math.max(1, Number(params.page ?? 1));
-  const search = params.search?.trim() || undefined;
-  const sort = SORT_KEYS.find((k) => k === params.sort);
-  const dir: SortDir = params.dir === 'asc' ? 'asc' : 'desc';
+  // Même définition de paramètres que le client (search-params.ts) : une page
+  // « abc » ou un tri inconnu retombe sur le défaut au lieu de partir en base.
+  const raw = loadClientsSearchParams(await searchParams);
+  const page = Math.max(1, raw.page);
+  const search = raw.search?.trim() || undefined;
+  const sort = raw.sort ?? undefined;
+  const dir = raw.dir;
 
   const [{ customers, total, pageSize }, summary, ardoise] = await Promise.all([
     listCustomers({ search, page, sort, dir }),
@@ -59,7 +48,7 @@ export default async function ClientsPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <CustomerSearch initial={search ?? ''} />
+          <CustomerSearch />
           <CustomerFormSheet mode="create" />
         </div>
       </div>
@@ -89,7 +78,7 @@ export default async function ClientsPage({
         />
       </div>
 
-      <CustomersTable customers={customers} sort={sort} dir={dir} />
+      <CustomersTable customers={customers} />
 
       {totalPages > 1 && <Pagination totalPages={totalPages} />}
     </div>
