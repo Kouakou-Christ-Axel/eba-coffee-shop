@@ -1,17 +1,19 @@
-// Sélection d'une page de clients directement en SQL : recherche (pg_trgm), tri et
-// pagination se font dans PostgreSQL, jamais en mémoire. Renvoie uniquement les
-// ids de la page (dans l'ordre) et le total ; les lignes complètes et les stats
-// de ces ≤ 20 clients sont lues ensuite (cf. `list.ts`).
+// Filtre d'une page de clients, en SQL : recherche (pg_trgm), tri et pagination
+// se font dans PostgreSQL, jamais en mémoire. UNE seule définition, partagée par
+// les deux requêtes indépendantes de la page :
 //
-// Les agrégats de commandes ne sont joints que si le tri en a besoin. Ils
-// reprennent à l'identique les règles de `statsByCustomer` (stats.ts) : commandes
-// non annulées et visibles du staff (cf. `STAFF_VISIBLE`), total net des
-// remboursements PAYÉS hors conversion d'avoir (cf. `refundedByCustomer`).
+//   A — la liste  (`list.ts`)  : `SELECT c.* <from> <page>`
+//   B — les stats (`stats.ts`) : `SELECT c.id <from> <page>` en sous-requête, puis
+//                                agrégats des seuls clients retenus
+//
+// Elles retiennent ainsi toujours les mêmes clients dans le même ordre, sans
+// qu'aucune ne dépende de l'autre ni qu'un id ne circule entre elles.
 
 import { Prisma } from '@/generated/prisma/client';
-import prisma from '@/lib/prisma';
 import { trgmSearch } from '@/lib/search/trgm';
+import { ORDERS_PAGE_SIZE } from '@/config/constants';
 import type { CustomerSortKey, SortDir } from './types';
+import { COUNTED_ORDER, REFUND_DEDUCTED } from './stats-rules';
 
 export const STATS_SORT_KEYS: readonly CustomerSortKey[] = [
   'ordersCount',
@@ -42,20 +44,20 @@ function searchClause(term: string) {
   return { where: Prisma.sql`WHERE ${where}`, score };
 }
 
+// Agrégats de TOUS les clients : nécessaires seulement quand le tri porte sur une
+// stat (il faut les classer). Mêmes règles que la requête B (cf. stats-rules.ts).
 const STATS_JOIN = Prisma.sql`
   LEFT JOIN (
-    SELECT "customerId", COUNT(*)::int AS orders, SUM(total)::int AS gross,
-           MAX("createdAt") AS last_order
-    FROM "order"
-    WHERE "customerId" IS NOT NULL AND status <> 'CANCELLED'
-      AND ("paymentExpiresAt" IS NULL OR "isPaid")
-    GROUP BY "customerId"
+    SELECT o."customerId", COUNT(*)::int AS orders, SUM(o.total)::int AS gross,
+           MAX(o."createdAt") AS last_order
+    FROM "order" o
+    WHERE o."customerId" IS NOT NULL AND ${COUNTED_ORDER}
+    GROUP BY o."customerId"
   ) s ON s."customerId" = c.id
   LEFT JOIN (
     SELECT r."customerId", SUM(r.amount)::int AS refunded
-    FROM refund r JOIN "order" o ON o.id = r."orderId"
-    WHERE r.status = 'PAID' AND r."creditSourceId" IS NULL
-      AND r."customerId" IS NOT NULL AND o.status <> 'CANCELLED'
+    FROM refund r JOIN "order" ro ON ro.id = r."orderId"
+    WHERE r."customerId" IS NOT NULL AND ${REFUND_DEDUCTED}
     GROUP BY r."customerId"
   ) rf ON rf."customerId" = c.id`;
 
@@ -82,30 +84,33 @@ function orderBy(
   }
 }
 
-export async function queryCustomerPage({
-  term,
-  sort,
-  dir,
-  skip,
-  take,
-}: {
-  term?: string;
+/** Paramètres de la page : ceux de l'URL (cf. `clients/search-params.ts`). */
+export type CustomerQuery = {
+  search?: string;
+  page?: number;
   sort?: CustomerSortKey;
-  dir: SortDir;
-  skip: number;
-  take: number;
-}) {
-  const search = term ? searchClause(term) : null;
+  dir?: SortDir;
+};
+
+/**
+ * Fragments SQL du filtre. `where` seul sert au total ; `from` (jointure d'agrégats
+ * incluse si le tri l'exige + `where`) et `page` (ORDER BY + LIMIT/OFFSET) à la
+ * sélection de la page.
+ */
+export function customerFilter({
+  search: term,
+  page = 1,
+  sort,
+  dir = 'desc',
+}: CustomerQuery) {
+  const search = term?.trim() ? searchClause(term.trim()) : null;
   const where = search?.where ?? Prisma.empty;
   const join =
     sort && STATS_SORT_KEYS.includes(sort) ? STATS_JOIN : Prisma.empty;
-
-  const [rows, count] = await Promise.all([
-    prisma.$queryRaw<{ id: string }[]>`
-      SELECT c.id FROM customer c ${join} ${where}
-      ${orderBy(sort, dir, search?.score)} LIMIT ${take} OFFSET ${skip}`,
-    prisma.$queryRaw<{ total: number }[]>`
-      SELECT COUNT(*)::int AS total FROM customer c ${where}`,
-  ]);
-  return { ids: rows.map((r) => r.id), total: count[0]?.total ?? 0 };
+  const skip = (Math.max(1, page) - 1) * ORDERS_PAGE_SIZE;
+  return {
+    where,
+    from: Prisma.sql`FROM customer c ${join} ${where}`,
+    page: Prisma.sql`${orderBy(sort, dir, search?.score)} LIMIT ${ORDERS_PAGE_SIZE} OFFSET ${skip}`,
+  };
 }

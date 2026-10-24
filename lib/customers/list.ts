@@ -1,70 +1,44 @@
+import type { Customer } from '@/generated/prisma/client';
+import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { ORDERS_PAGE_SIZE } from '@/config/constants';
-import type { CustomerSortKey, CustomerStats, SortDir } from './types';
-import { queryCustomerPage } from './page-query';
-import { statsByCustomer, ZERO_STATS } from './stats';
-
-type ListArgs = {
-  search?: string;
-  page?: number;
-  sort?: CustomerSortKey;
-  dir?: SortDir;
-};
-
-/** Ids de la page (dans l'ordre) + total : recherche/tri/pagination en SQL. */
-function selectPage({ search, page = 1, sort, dir = 'desc' }: ListArgs) {
-  return queryCustomerPage({
-    term: search?.trim() || undefined,
-    sort,
-    dir,
-    skip: (page - 1) * ORDERS_PAGE_SIZE,
-    take: ORDERS_PAGE_SIZE,
-  });
-}
-
-/** Fiches complètes des ids, dans l'ordre des ids. */
-async function fetchCustomers(ids: string[]) {
-  const found = await prisma.customer.findMany({ where: { id: { in: ids } } });
-  const byId = new Map(found.map((c) => [c.id, c]));
-  return ids.flatMap((id) => byId.get(id) ?? []);
-}
+import { customerFilter, type CustomerQuery } from './filter';
+import { getPageStats, ZERO_STATS } from './stats';
 
 /**
- * Liste paginée des clients. Recherche, tri et pagination sont faits par la base
- * (cf. `page-query.ts`) ; seuls les ≤ `ORDERS_PAGE_SIZE` clients de la page sont
- * ensuite lus en entier. Les stats (agrégats sur les commandes) ne sont chargées
- * que si `withStats` est demandé, EN PARALLÈLE de la lecture des fiches.
+ * Requête A — fiches des clients de la page décrite par `query` (recherche, tri,
+ * pagination faits par la base, cf. `filter.ts`) + total. Indépendante de la
+ * requête de stats (`getPageStats`), avec laquelle elle partage le même filtre.
  */
-export async function listCustomers(args: ListArgs & { withStats?: boolean }) {
-  const { ids, total } = await selectPage(args);
-  const [found, stats] = await Promise.all([
-    fetchCustomers(ids),
-    args.withStats ? statsByCustomer(ids) : null,
+export async function listCustomers(query: CustomerQuery) {
+  const { where, from, page } = customerFilter(query);
+  const [customers, count] = await Promise.all([
+    prisma.$queryRaw<Customer[]>(Prisma.sql`SELECT c.* ${from} ${page}`),
+    prisma.$queryRaw<{ total: number }[]>(
+      Prisma.sql`SELECT COUNT(*)::int AS total FROM customer c ${where}`
+    ),
   ]);
-  const customers = found.map((c) => ({
-    ...c,
-    stats: stats ? (stats.get(c.id) ?? ZERO_STATS) : null,
-  }));
-  return { customers, total, pageSize: ORDERS_PAGE_SIZE };
+  return {
+    customers,
+    total: count[0]?.total ?? 0,
+    pageSize: ORDERS_PAGE_SIZE,
+  };
 }
 
 /**
- * Comme `listCustomers`, mais les stats sont une PROMESSE démarrée en même temps
- * que la lecture des fiches et non attendue : la page peut afficher les fiches
- * dès qu'elles sont prêtes et laisser les stats arriver en streaming
- * (`use()` derrière un `Suspense`). Indexées par id ; `null` si le calcul échoue
- * (les cellules affichent alors « — », la liste n'est pas affectée).
+ * Fiches + stats pour les consommateurs qui veulent les deux d'un coup (MCP) :
+ * les deux requêtes partent en parallèle puis sont jointes par id.
  */
-export async function listCustomersWithDeferredStats(args: ListArgs) {
-  const { ids, total } = await selectPage(args);
-  const stats = statsByCustomer(ids).then(
-    (byId): Record<string, CustomerStats> =>
-      Object.fromEntries(ids.map((id) => [id, byId.get(id) ?? ZERO_STATS])),
-    (err) => {
-      console.error('[customers] stats', err);
-      return null;
-    }
-  );
-  const customers = await fetchCustomers(ids);
-  return { customers, total, pageSize: ORDERS_PAGE_SIZE, stats };
+export async function listCustomersWithStats(query: CustomerQuery) {
+  const [list, stats] = await Promise.all([
+    listCustomers(query),
+    getPageStats(query),
+  ]);
+  return {
+    ...list,
+    customers: list.customers.map((c) => ({
+      ...c,
+      stats: stats[c.id] ?? ZERO_STATS,
+    })),
+  };
 }

@@ -3,10 +3,10 @@
 // Tableau clients (TanStack Table, headless) au-dessus des primitives shadcn
 // (`components/ui/table`, cf. politique UI — Table = shadcn). Le tri est
 // BACKEND (`manualSorting`) : un clic sur un en-tête change `sort`/`dir` dans
-// l'URL (nuqs, cf. `use-clients-nav.ts`), et `lib/customers.ts::listCustomers`
-// trie/pagine sur l'ensemble des clients — pas seulement la page affichée.
+// l'URL (nuqs, cf. `use-clients-nav.ts`), et la base trie/pagine sur l'ensemble des
+// clients (`lib/customers/filter.ts`) — pas seulement la page affichée.
 
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   type ColumnDef,
@@ -26,11 +26,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import type { CustomerStats } from '@/lib/customers';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { CUSTOMER_SORT_KEYS } from './search-params';
 import { useClientsNav } from './use-clients-nav';
-import { StatCell, type StatsById } from './stat-cell';
+import {
+  useStreamedStats,
+  type StatsById,
+  type StreamedStats,
+} from './use-streamed-stats';
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
 const dateFmt = new Intl.DateTimeFormat('fr-FR', {
@@ -47,7 +52,25 @@ export type CustomerRow = {
   trustedNote: string | null;
 };
 
-function buildColumns(stats: Promise<StatsById>): ColumnDef<CustomerRow>[] {
+const StatSkeleton = () => (
+  <span
+    className="inline-block h-4 w-12 animate-pulse rounded bg-muted"
+    aria-label="Chargement"
+  />
+);
+
+/** Cellule de stat : squelette, « — » si indisponible, sinon la valeur. */
+function statCell(
+  stats: StreamedStats,
+  id: string,
+  render: (s: CustomerStats) => ReactNode
+) {
+  if (stats.status === 'loading') return <StatSkeleton />;
+  const mine = stats.status === 'ready' ? stats.byId[id] : undefined;
+  return mine ? render(mine) : <span className="text-muted-foreground">—</span>;
+}
+
+function buildColumns(stats: StreamedStats): ColumnDef<CustomerRow>[] {
   return [
     {
       id: 'name',
@@ -91,37 +114,30 @@ function buildColumns(stats: Promise<StatsById>): ColumnDef<CustomerRow>[] {
     {
       id: 'ordersCount',
       header: 'Commandes',
-      cell: ({ row }) => (
-        <StatCell stats={stats} id={row.original.id}>
-          {(s) => <span className="tabular-nums">{s.ordersCount}</span>}
-        </StatCell>
-      ),
+      cell: ({ row }) =>
+        statCell(stats, row.original.id, (s) => (
+          <span className="tabular-nums">{s.ordersCount}</span>
+        )),
     },
     {
       id: 'totalSpent',
       header: 'Total acheté',
-      cell: ({ row }) => (
-        <StatCell stats={stats} id={row.original.id}>
-          {(s) => (
-            <span className="tabular-nums">
-              {priceFmt.format(s.totalSpent)} F
-            </span>
-          )}
-        </StatCell>
-      ),
+      cell: ({ row }) =>
+        statCell(stats, row.original.id, (s) => (
+          <span className="tabular-nums">
+            {priceFmt.format(s.totalSpent)} F
+          </span>
+        )),
     },
     {
       id: 'lastOrderAt',
       header: 'Dernière commande',
-      cell: ({ row }) => (
-        <StatCell stats={stats} id={row.original.id}>
-          {(s) => (
-            <span className="text-sm text-muted-foreground">
-              {s.lastOrderAt ? dateFmt.format(s.lastOrderAt) : '—'}
-            </span>
-          )}
-        </StatCell>
-      ),
+      cell: ({ row }) =>
+        statCell(stats, row.original.id, (s) => (
+          <span className="text-sm text-muted-foreground">
+            {s.lastOrderAt ? dateFmt.format(s.lastOrderAt) : '—'}
+          </span>
+        )),
     },
   ];
 }
@@ -135,12 +151,13 @@ export function CustomersTable({
   stats,
 }: {
   customers: CustomerRow[];
-  /** Streamée : voir `listCustomersWithDeferredStats` et `stat-cell.tsx`. */
+  /** Streamée : `getPageStats`, lancée en même temps que la liste. */
   stats: Promise<StatsById>;
 }) {
   const { filters, update, isPending } = useClientsNav();
   const { sort, dir, search } = filters;
-  const columns = useMemo(() => buildColumns(stats), [stats]);
+  const streamed = useStreamedStats(stats);
+  const columns = useMemo(() => buildColumns(streamed), [streamed]);
 
   const sorting: SortingState = sort
     ? [{ id: sort, desc: dir === 'desc' }]
@@ -173,6 +190,12 @@ export function CustomersTable({
         isPending && 'opacity-60'
       )}
     >
+      {streamed.status === 'error' && (
+        <p role="status" className="mb-2 text-sm text-destructive">
+          Statistiques indisponibles pour le moment. Rechargez la page pour
+          réessayer.
+        </p>
+      )}
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
