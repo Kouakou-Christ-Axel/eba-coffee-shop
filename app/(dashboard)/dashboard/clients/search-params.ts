@@ -5,7 +5,7 @@
 //
 // Import depuis `nuqs/server` : aucun code React, utilisable côté serveur.
 
-import { parseAsString, parseAsStringLiteral } from 'nuqs/server';
+import { createLoader, parseAsString, parseAsStringLiteral } from 'nuqs/server';
 import type { CustomerSortKey, SortDir } from '@/lib/customers';
 import { pageParser } from '@/lib/url-state/shared-params';
 
@@ -29,3 +29,6 @@ export const clientsParsers = {
   sort: parseAsStringLiteral(CUSTOMER_SORT_KEYS),
   dir: parseAsStringLiteral(CUSTOMER_SORT_DIRS).withDefault('desc'),
 };
+
+/** Lecture serveur (page + route de stats) : même validation que le client. */
+export const loadClientsSearchParams = createLoader(clientsParsers);

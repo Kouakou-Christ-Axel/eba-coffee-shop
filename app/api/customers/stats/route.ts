@@ -1,18 +1,20 @@
 // app/api/customers/stats/route.ts
 //
-// GET /api/customers/stats?ids=a,b,c
+// GET /api/customers/stats?search=&page=&sort=&dir=
 // Stats CRM (commandes, total acheté net des remboursements, dernière commande)
-// d'une poignée de clients — celles de la page affichée dans
-// /dashboard/clients. La liste ne les calcule plus elle-même : elle s'affiche
-// et se recherche sans attendre l'agrégation sur les commandes.
+// des clients de la page demandée. Mêmes paramètres, même validation
+// (`loadClientsSearchParams`) et même sélection (`listCustomers`) que la liste
+// de /dashboard/clients : le client n'a pas à énumérer d'ids, il rejoue l'URL
+// de la page. La liste, elle, ne calcule plus ces agrégats — elle s'affiche et
+// se recherche sans les attendre.
 //
-// Plafonné à une page (`ORDERS_PAGE_SIZE`) : l'endpoint ne sert pas à aspirer
-// les chiffres de tout le fichier clients.
+// Borné par construction à une page (`ORDERS_PAGE_SIZE`) : l'endpoint ne sert
+// pas à aspirer les chiffres de tout le fichier clients.
 
 import { NextResponse } from 'next/server';
 import { requireRoleOrAnalyst } from '@/lib/auth-helpers';
-import { statsByCustomer, ZERO_STATS } from '@/lib/customers/stats';
-import { ORDERS_PAGE_SIZE } from '@/config/constants';
+import { listCustomers } from '@/lib/customers';
+import { loadClientsSearchParams } from '@/app/(dashboard)/dashboard/clients/search-params';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,32 +25,24 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
   }
 
-  const ids = [
-    ...new Set(
-      (new URL(req.url).searchParams.get('ids') ?? '')
-        .split(',')
-        .map((id) => id.trim())
-        .filter(Boolean)
-    ),
-  ];
-  if (ids.length === 0) return NextResponse.json({ stats: {} });
-  if (ids.length > ORDERS_PAGE_SIZE) {
-    return NextResponse.json(
-      { error: `${ORDERS_PAGE_SIZE} clients au plus par requête` },
-      { status: 400 }
-    );
-  }
+  const { page, search, sort, dir } = loadClientsSearchParams(req.url);
 
   try {
-    const byId = await statsByCustomer(ids);
+    const { customers } = await listCustomers({
+      search: search?.trim() || undefined,
+      page: Math.max(1, page),
+      sort: sort ?? undefined,
+      dir,
+      withStats: true,
+    });
     const stats = Object.fromEntries(
-      ids.map((id) => {
-        const s = byId.get(id) ?? ZERO_STATS;
-        return [
-          id,
-          { ...s, lastOrderAt: s.lastOrderAt?.toISOString() ?? null },
-        ];
-      })
+      customers.map((c) => [
+        c.id,
+        c.stats && {
+          ...c.stats,
+          lastOrderAt: c.stats.lastOrderAt?.toISOString() ?? null,
+        },
+      ])
     );
     return NextResponse.json(
       { stats },

@@ -143,8 +143,7 @@ export function CustomersTable({ customers }: { customers: CustomerRow[] }) {
   const { sort, dir, search } = filters;
 
   // Tri sur une stat : le serveur les a déjà (`stats` non nul), rien à charger.
-  const missingIds = customers.filter((c) => !c.stats).map((c) => c.id);
-  const fetched = useCustomerStats(missingIds);
+  const fetched = useCustomerStats(customers.some((c) => !c.stats));
   const rows = customers.map((c) => ({
     ...c,
     stats: c.stats ?? fetched?.[c.id] ?? null,
