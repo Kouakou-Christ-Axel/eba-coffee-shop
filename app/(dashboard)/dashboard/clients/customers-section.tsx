@@ -1,7 +1,7 @@
 // Tableau des clients + compteur + pagination. Composant serveur autonome (son
 // propre `Suspense` dans la page) : il ne dépend que des paramètres d'URL, pas
-// des tuiles de synthèse. Les stats par client, elles, arrivent encore à part
-// (cf. `use-customer-stats.ts`).
+// des tuiles de synthèse. Les chiffres par client viennent de la même requête que
+// les lignes (jointure), cf. `lib/customers/list.ts`.
 
 import { listCustomers } from '@/lib/customers';
 import { Pagination } from '@/components/(dashboard)/pagination';
@@ -14,13 +14,14 @@ export async function CustomersSection({
 }: {
   filters: Awaited<ReturnType<typeof loadClientsSearchParams>>;
 }) {
-  const page = Math.max(1, filters.page);
-  const search = filters.search?.trim() || undefined;
-  const { customers, total, pageSize } = await listCustomers({
-    search,
-    page,
+  const query = {
+    search: filters.search?.trim() || undefined,
+    page: filters.page,
     sort: filters.sort ?? undefined,
     dir: filters.dir,
+  };
+  const { customers, total, pageSize } = await listCustomers(query, {
+    withStats: true,
   });
   const totalPages = Math.ceil(total / pageSize);
 
