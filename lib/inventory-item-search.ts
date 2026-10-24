@@ -1,8 +1,9 @@
 // lib/inventory-item-search.ts
 //
-// Recherche et classement des références d'inventaire, au-dessus de
-// `lib/fuzzy-search.ts` — décalqué de `lib/expense-article-search.ts`, qui est
-// le patron maison pour ce genre de couche métier.
+// Classement des références d'inventaire. La recherche elle-même est faite par la
+// base (`lib/inventory-search.ts`, pg_trgm) ; ce module applique ses résultats à
+// la liste chargée et départage selon le métier — décalqué de
+// `lib/expense-article-search.ts`.
 //
 // Deux propriétés comptent autant l'une que l'autre :
 //
@@ -11,13 +12,14 @@
 //      les 117 références, mais dans un ordre sans rapport avec ce qu'on
 //      cherche : sur un écran de réappro, ce sont les références sous le seuil
 //      qu'on vient saisir.
-//   2. **Un classement stable.** Le score de Fuse est arrondi avant le
-//      départage métier (`scoreBucket`), sinon deux références quasi
-//      équivalentes permutent visuellement à chaque frappe.
+//   2. **Un classement stable.** Le score est arrondi avant le départage métier
+//      (`rankByHits`), sinon deux références quasi équivalentes permutent
+//      visuellement à chaque frappe.
 //
 // Pur : ni React, ni Prisma.
 
-import { createFuzzyIndex, type FuzzyIndex } from '@/lib/fuzzy-search';
+import { rankByHits } from '@/lib/search/rank';
+import type { SearchHit } from '@/lib/search/trgm';
 
 export type InventoryItemOption = {
   id: string;
@@ -86,46 +88,21 @@ export function urgencyRatio(item: InventoryItemOption): number {
   return item.currentQuantity / threshold;
 }
 
-export function createInventoryItemIndex(
-  items: readonly InventoryItemOption[]
-): FuzzyIndex<InventoryItemOption> {
-  return createFuzzyIndex(items, {
-    keys: [
-      { name: 'name' },
-      { name: 'sku', weight: 0.5 },
-      { name: 'category', weight: 0.3 },
-    ],
-  });
-}
-
-/** Arrondi du score Fuse avant départage métier : évite les permutations. */
-function scoreBucket(score: number): number {
-  return Math.round(score * 100) / 100;
-}
-
 /**
  * Références classées pour une requête. Requête vide ⇒ tout le catalogue dans
- * l'ordre de `compareForRestock`.
+ * l'ordre de `compareForRestock`. `hits` : résultats de la base pour la requête
+ * (`null` tant qu'ils ne sont pas arrivés : on garde alors le catalogue entier).
  */
 export function rankInventoryItems(
-  index: FuzzyIndex<InventoryItemOption>,
+  hits: readonly SearchHit[] | null,
   items: readonly InventoryItemOption[],
   query: string,
   options: { limit?: number } = {}
 ): InventoryItemOption[] {
-  const trimmed = query.trim();
   const ranked =
-    trimmed === ''
+    query.trim() === '' || hits === null
       ? [...items].sort(compareForRestock)
-      : index
-          .search(trimmed)
-          .map((hit) => ({ item: hit.item, score: scoreBucket(hit.score) }))
-          .sort((a, b) =>
-            a.score !== b.score
-              ? a.score - b.score
-              : compareForRestock(a.item, b.item)
-          )
-          .map((hit) => hit.item);
+      : rankByHits(items, hits, compareForRestock);
 
   return options.limit === undefined ? ranked : ranked.slice(0, options.limit);
 }

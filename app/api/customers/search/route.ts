@@ -5,8 +5,9 @@
 // téléphone de l'écran « Nouvelle commande »).
 //
 // Réutilise `listCustomers` (lib/customers.ts) — qui recherche déjà par nom OU
-// chiffres du téléphone — et renvoie une charge allégée (id, name, phone), sans
-// les stats CRM dont le sélecteur n'a pas besoin.
+// chiffres du téléphone — et renvoie une charge allégée (id, name, phone).
+// `listCustomers` ne calcule plus les stats par défaut : plus d'agrégation sur
+// les commandes à chaque frappe de la caisse.
 
 import { NextResponse } from 'next/server';
 import { requireCashier } from '@/lib/auth-helpers';

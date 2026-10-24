@@ -64,9 +64,13 @@ describe('buildMenuView', () => {
     expect(view.map((c) => c.id)).toEqual(['c2']);
   });
 
-  it('search est insensible aux accents', () => {
-    const view = buildMenuView(menu, { search: 'cafe' });
-    expect(view[0].products.map((p) => p.id)).toContain('p1');
+  it('searchHits ne garde que les produits trouvés, catégories vides écartées', () => {
+    const view = buildMenuView(menu, { searchHits: [{ id: 'p1', score: 1 }] });
+    expect(view[0].products.map((p) => p.id)).toEqual(['p1']);
     expect(view.some((c) => c.id === 'c2')).toBe(false);
+  });
+
+  it('une recherche sans résultat ne renvoie aucune catégorie', () => {
+    expect(buildMenuView(menu, { searchHits: [] })).toEqual([]);
   });
 });

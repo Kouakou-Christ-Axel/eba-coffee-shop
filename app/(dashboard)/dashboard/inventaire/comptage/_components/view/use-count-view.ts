@@ -3,7 +3,8 @@
 import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { InventoryItemView } from '@/lib/inventory';
-import { createFuzzyIndex } from '@/lib/fuzzy-search';
+import { useSearchHits } from '@/lib/hooks/use-search-hits';
+import { itemsByHits } from '@/lib/search/rank';
 import {
   countEntered,
   draftToLines,
@@ -76,24 +77,11 @@ export function useCountView(items: InventoryItemView[]) {
     return Array.from(byZone, ([name, stats]) => ({ name, ...stats }));
   }, [sorted, counts]);
 
-  // Recherche floue partagée : un `includes()` maison ne trouve pas « Café »
-  // quand on tape « cafe », et impose l'ordre des mots (CLAUDE.md).
-  const index = useMemo(
-    () =>
-      createFuzzyIndex(sorted, {
-        keys: [
-          { name: 'name' },
-          { name: 'sku', weight: 0.5 },
-          { name: 'category', weight: 0.3 },
-        ],
-      }),
-    [sorted]
-  );
+  // Recherche faite par la base (pg_trgm) ; la saisie reste locale.
+  const { hits } = useSearchHits('/api/inventory/search', search);
 
   const visible = useMemo(() => {
-    const query = search.trim();
-    const base =
-      query === '' ? sorted : index.search(query).map((hit) => hit.item);
+    const base = hits ? itemsByHits(sorted, hits) : sorted;
     return base.filter((item) => {
       if (zone !== 'all' && (item.category ?? UNCATEGORIZED) !== zone) {
         return false;
@@ -108,7 +96,7 @@ export function useCountView(items: InventoryItemView[]) {
       }
       return true;
     });
-  }, [sorted, index, search, zone, filter, snapshot]);
+  }, [sorted, hits, zone, filter, snapshot]);
 
   /** Tout changement de sélection re-photographie les saisies du moment. */
   function selectZone(next: string) {

@@ -16,8 +16,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Check, Search } from 'lucide-react';
 
+import { useSearchHits } from '@/lib/hooks/use-search-hits';
 import {
-  createInventoryItemIndex,
   rankInventoryItems,
   type InventoryItemOption,
 } from '@/lib/inventory-item-search';
@@ -47,11 +47,11 @@ export function InventoryItemCombobox({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Indexation O(n) : une fois par catalogue, jamais à chaque frappe.
-  const index = useMemo(() => createInventoryItemIndex(items), [items]);
+  // La recherche est faite par la base (pg_trgm) ; la saisie, elle, reste locale.
+  const { hits } = useSearchHits('/api/inventory/search', query);
   const suggestions = useMemo(
-    () => rankInventoryItems(index, items, query, { limit: MAX_SUGGESTIONS }),
-    [index, items, query]
+    () => rankInventoryItems(hits, items, query, { limit: MAX_SUGGESTIONS }),
+    [hits, items, query]
   );
 
   const activeOption =

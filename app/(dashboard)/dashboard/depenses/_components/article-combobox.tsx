@@ -1,7 +1,7 @@
 'use client';
 
 // Champ UNIQUE de choix d'article : il liste les articles existants dès
-// l'ouverture (triés par usage), filtre à la frappe via `lib/fuzzy-search.ts`,
+// l'ouverture (triés par usage), filtre à la frappe via la base (`lib/search/trgm.ts`),
 // et propose la création quand le nom saisi n'existe pas encore.
 //
 // Auto-suffisant : dropdown en `absolute`, pas de portal. C'est le pattern des
@@ -14,8 +14,8 @@ import { Check, Plus, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useSearchHits } from '@/lib/hooks/use-search-hits';
 import {
-  createArticleIndex,
   normalizeArticleKey,
   rankArticles,
   type ExpenseArticleOption,
@@ -66,11 +66,11 @@ export function ArticleCombobox({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Indexation O(n) : une seule fois par référentiel, jamais à chaque frappe.
-  const index = useMemo(() => createArticleIndex(articles), [articles]);
+  // La recherche est faite par la base (pg_trgm) ; la saisie, elle, reste locale.
+  const { hits } = useSearchHits('/api/expenses/articles/search', query);
   const suggestions = useMemo(
-    () => rankArticles(index, articles, query, { limit: MAX_SUGGESTIONS }),
-    [index, articles, query]
+    () => rankArticles(hits, articles, query, { limit: MAX_SUGGESTIONS }),
+    [hits, articles, query]
   );
 
   const trimmed = query.trim();

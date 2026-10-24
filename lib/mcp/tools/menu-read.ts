@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { getMenuAdmin } from '@/lib/menu';
 import { buildMenuView } from '@/lib/mcp/menu-view';
 import { searchProducts } from '@/lib/menu/search-products';
+import { searchProductHits } from '@/lib/menu/product-search';
 import { idSchema } from './helpers';
 import type { McpTool } from './types';
 
@@ -37,11 +38,15 @@ export const menuReadTools: McpTool[] = [
       'coûts : `productId` (un produit) ou `detail: "full"` (lourd).',
     inputSchema: getMenuSchema,
     readOnly: true,
-    handler: async (args) =>
-      buildMenuView(
-        await getMenuAdmin(),
-        args as z.infer<typeof getMenuSchema>
-      ),
+    handler: async (args) => {
+      const { search, ...options } = args as z.infer<typeof getMenuSchema>;
+      return buildMenuView(await getMenuAdmin(), {
+        ...options,
+        searchHits: search?.trim()
+          ? await searchProductHits(search)
+          : undefined,
+      });
+    },
   },
   {
     name: 'search_products',
@@ -59,10 +64,15 @@ export const menuReadTools: McpTool[] = [
       categoryId: idSchema.optional().describe('Limite à une catégorie.'),
     }),
     readOnly: true,
-    handler: async (args) =>
-      searchProducts(
-        await getMenuAdmin(),
-        args as { query?: string; categoryId?: string }
-      ),
+    handler: async (args) => {
+      const { query, categoryId } = args as {
+        query?: string;
+        categoryId?: string;
+      };
+      return searchProducts(await getMenuAdmin(), {
+        categoryId,
+        hits: query?.trim() ? await searchProductHits(query) : undefined,
+      });
+    },
   },
 ];
