@@ -41,7 +41,7 @@ export async function PeriodStats({
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <FeesTable stats={stats} />
         <ConversionCard
           conversion={stats.conversion}
