@@ -27,6 +27,8 @@ export type CashierOrder = {
   /** Récompense fidélité déjà déduite de `total` (null = aucune). */
   loyaltyDiscount: number | null;
   loyaltyRewardId: string | null;
+  /** Avoir du client retenu pour cette commande (mention « Avoir » en caisse) ; 0 = aucun. */
+  creditApplied: number;
   status: OrderStatus;
   isPaid: boolean;
   /** « Ardoise » : partie en cuisine sans encaissement ; toujours `isPaid: false`. */

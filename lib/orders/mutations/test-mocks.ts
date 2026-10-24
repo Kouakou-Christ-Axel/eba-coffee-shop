@@ -75,3 +75,13 @@ export const loyaltyMutationsModuleMock = () => ({
   restoreLoyaltyForOrder: vi.fn().mockResolvedValue(undefined),
   LoyaltyRewardUnavailableError: class LoyaltyRewardUnavailableError extends Error {},
 });
+
+export const mockHoldCreditForCashier = vi.fn().mockResolvedValue(0);
+
+/** Avoir : tout le vrai module, sauf la retenue à la création (base requise). */
+export const creditsSpendModuleMock = async (
+  importOriginal: () => Promise<Record<string, unknown>>
+) => ({
+  ...(await importOriginal()),
+  holdCreditForCashier: mockHoldCreditForCashier,
+});

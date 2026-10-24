@@ -33,6 +33,7 @@ function makeOrder(
     total: 1000,
     loyaltyDiscount: null,
     loyaltyRewardId: null,
+    creditApplied: 0,
     status,
     isPaid,
     isOnAccount: false,

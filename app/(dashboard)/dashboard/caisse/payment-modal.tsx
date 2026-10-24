@@ -51,13 +51,15 @@ export function PaymentModal({
   orderId,
 }: Props) {
   const offer = useCreditOffer(orderId, isOpen);
-  const [useCredit, setUseCredit] = useState(false);
-  // Une coche ne survit pas à la fermeture : la prochaine ouverture repart décochée.
+  // L'avoir est appliqué d'office (retenu dès la création) : seul un refus explicite l'écarte.
+  const [declineCredit, setDeclineCredit] = useState(false);
+  // Un refus ne survit pas à la fermeture : la prochaine ouverture repart avec l'avoir.
   const [wasOpen, setWasOpen] = useState(isOpen);
   if (wasOpen !== isOpen) {
     setWasOpen(isOpen);
-    if (!isOpen) setUseCredit(false);
+    if (!isOpen) setDeclineCredit(false);
   }
+  const useCredit = !declineCredit;
   const credit = useCredit && offer ? offer.applicable : 0;
   const toPay = amount - credit;
   // Avoir qui couvre tout (réglages à 0 F de reste minimum) : plus rien à encaisser.
@@ -109,10 +111,10 @@ export function PaymentModal({
                 className="mt-0.5 h-4 w-4"
                 checked={useCredit}
                 disabled={isSubmitting}
-                onChange={(e) => setUseCredit(e.target.checked)}
+                onChange={(e) => setDeclineCredit(!e.target.checked)}
               />
               <span>
-                Utiliser l’avoir du client :{' '}
+                Avoir du client :{' '}
                 <span className="font-semibold tabular-nums">
                   −{priceFormatter.format(offer.applicable)} F
                 </span>

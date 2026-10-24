@@ -13,6 +13,9 @@ vi.mock('@/lib/loyalty-mutations', async () =>
   (await import('./test-mocks')).loyaltyMutationsModuleMock()
 );
 
+vi.mock('@/lib/credits/spend', async (importOriginal) =>
+  (await import('./test-mocks')).creditsSpendModuleMock(importOriginal as never)
+);
 import { createCashierOrder, StockShortageError } from '@/lib/order-mutations';
 import type { CartItem } from '@/lib/cart-store';
 import {
@@ -27,6 +30,7 @@ import {
   mockOrderUpdateManyWithClaim,
   orderWithOneItem,
 } from './test-utils';
+import { mockHoldCreditForCashier } from './test-mocks';
 
 describe('createCashierOrder — ardoise du client de confiance', () => {
   const items = orderWithOneItem().items as unknown as CartItem[];
@@ -224,5 +228,39 @@ describe('createCashierOrder — ardoise du client de confiance', () => {
         orderType: 'TAKEAWAY',
       })
     ).rejects.toThrow(StockShortageError);
+  });
+
+  it('client identifié : l’avoir est retenu dès la création et porté sur la commande', async () => {
+    mockCustomerFindUnique.mockResolvedValue({ isTrusted: false } as never);
+    mockHoldCreditForCashier.mockResolvedValueOnce(1000);
+
+    const order = await createCashierOrder({
+      items,
+      customerPhone: '0708090910',
+      orderType: 'DELIVERY',
+    });
+
+    expect(mockHoldCreditForCashier).toHaveBeenCalledWith(expect.anything(), {
+      orderId: 'order-new',
+      customerId: 'cust-1',
+      total: 2500,
+    });
+    expect(order.creditApplied).toBe(1000);
+  });
+
+  it('commande anonyme ou antidatée : aucun avoir retenu', async () => {
+    mockUpsertCustomer.mockResolvedValue(null);
+    await createCashierOrder({ items, orderType: 'DELIVERY' });
+
+    mockUpsertCustomer.mockResolvedValue('cust-1');
+    mockCustomerFindUnique.mockResolvedValue({ isTrusted: false } as never);
+    await createCashierOrder({
+      items,
+      customerPhone: '0708090910',
+      orderType: 'DELIVERY',
+      orderDate: '2020-01-01',
+    });
+
+    expect(mockHoldCreditForCashier).not.toHaveBeenCalled();
   });
 });
