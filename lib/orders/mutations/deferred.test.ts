@@ -13,6 +13,9 @@ vi.mock('@/lib/loyalty-mutations', async () =>
   (await import('./test-mocks')).loyaltyMutationsModuleMock()
 );
 
+vi.mock('@/lib/credits/spend', async (importOriginal) =>
+  (await import('./test-mocks')).creditsSpendModuleMock(importOriginal as never)
+);
 import {
   createCashierOrder,
   setOrderPayment,

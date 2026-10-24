@@ -132,6 +132,21 @@ export async function restoreOrderCredit(
 }
 
 /**
+ * Caisse : retient d'emblée l'avoir autorisé par la règle dès la création de la
+ * commande (le personnel voit le client). Rendu par `restoreOrderCredit` si la
+ * commande est annulée ou dépayée. Renvoie le montant retenu (0 = rien).
+ */
+export async function holdCreditForCashier(
+  tx: Prisma.TransactionClient,
+  args: { orderId: string; customerId: string; total: number }
+): Promise<number> {
+  const amount = await allowedCredit(tx, args.customerId, args.total, 0);
+  if (amount <= 0) return 0;
+  await setOrderCredit(tx, { ...args, current: 0, wanted: amount });
+  return amount;
+}
+
+/**
  * Paiement en ligne : retient d'emblée l'avoir autorisé par la règle (le montant
  * Jèko en dépend). Rendu si le paiement n'arrive jamais (`restoreOrderCredit`).
  * Renvoie le montant retenu (0 = rien).

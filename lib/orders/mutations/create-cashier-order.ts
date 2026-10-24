@@ -15,6 +15,7 @@ import {
   LoyaltyRewardUnavailableError,
   resolveLoyaltyReward,
 } from '@/lib/loyalty-mutations';
+import { holdCreditForCashier } from '@/lib/credits/spend';
 import { cartRequiresDeposit, computeRequiredDeposit } from '@/lib/deposits';
 import { normalizeIvorianPhone } from '@/lib/phone';
 import { computeItemsTotal } from '@/lib/orders/totals';
@@ -177,6 +178,18 @@ export async function createCashierOrder(input: CreateCashierOrderInput) {
               },
             });
           }
+        }
+
+        // Avoir du client retenu d'emblée (mention « Avoir » en caisse). Pas pour
+        // une commande antidatée (saisie d'historique) ni à acompte (déjà un
+        // encaissement partiel) : l'encaissement reste alors manuel.
+        if (customerId && !isBackdated && !requiresDeposit) {
+          const held = await holdCreditForCashier(tx, {
+            orderId: created.id,
+            customerId,
+            total: finalOrder.total,
+          });
+          if (held > 0) finalOrder = { ...finalOrder, creditApplied: held };
         }
 
         return finalOrder;

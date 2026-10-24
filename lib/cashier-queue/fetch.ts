@@ -121,6 +121,7 @@ export async function fetchCashierQueue(): Promise<CashierOrder[]> {
       depositPaid: o.depositPaid,
       loyaltyDiscount: o.loyaltyDiscount,
       loyaltyRewardId: o.loyaltyRewardId,
+      creditApplied: o.creditApplied,
       status: o.status,
       isPaid: o.isPaid,
       isOnAccount: o.isOnAccount,

@@ -1,6 +1,6 @@
 'use client';
 
-import { Gift } from 'lucide-react';
+import { Gift, WalletCards } from 'lucide-react';
 import { type CashierOrder } from '@/lib/cashier-queue';
 import { getItemGross, getItemNet } from '@/lib/orders/totals';
 import { formatSupplementLabel } from '@/lib/orders/format';
@@ -77,6 +77,21 @@ export function OrderCardItems({ order }: { order: CashierOrder }) {
             </span>
             <span className="shrink-0 tabular-nums">
               -{priceFormatter.format(order.loyaltyDiscount)} F
+            </span>
+          </div>
+        )}
+        {/* Avoir retenu à la création : sera réglé en « AVOIR » à l'encaissement. */}
+        {order.creditApplied > 0 && !order.isPaid && (
+          <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-primary/5 px-2.5 py-1.5 text-xs font-medium text-primary ring-1 ring-primary/30">
+            <span className="inline-flex items-center gap-1">
+              <WalletCards
+                className="h-3.5 w-3.5 shrink-0"
+                aria-hidden="true"
+              />
+              Avoir client appliqué
+            </span>
+            <span className="shrink-0 tabular-nums">
+              -{priceFormatter.format(order.creditApplied)} F
             </span>
           </div>
         )}
