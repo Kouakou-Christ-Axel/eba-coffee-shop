@@ -12,14 +12,19 @@ export type AssociateCustomerState = ReturnType<typeof useAssociateCustomer>;
 export function useAssociateCustomer({
   orderId,
   action,
+  controlled,
 }: {
   orderId: string;
+  /** Ouverture pilotée de l'extérieur (ex. depuis un menu d'actions). */
+  controlled?: { isOpen: boolean; setIsOpen: (open: boolean) => void };
   action: (
     orderId: string,
     input: SetOrderCustomerInput
   ) => Promise<{ error: string } | undefined>;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [innerOpen, setInnerOpen] = useState(false);
+  const isOpen = controlled?.isOpen ?? innerOpen;
+  const setIsOpen = controlled?.setIsOpen ?? setInnerOpen;
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CustomerHit[]>([]);
   const [searching, setSearching] = useState(false);

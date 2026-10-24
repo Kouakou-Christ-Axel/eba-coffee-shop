@@ -1,6 +1,6 @@
 'use client';
 
-import { Bike, Check, CheckCheck, ChefHat, Pencil, X } from 'lucide-react';
+import { Bike, Check, CheckCheck, ChefHat, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TrackingLinkButton } from '@/components/(dashboard)/tracking-link-button';
 import type { PreparationOrder } from '@/lib/preparation-queue';
@@ -9,7 +9,7 @@ import {
   buildWhatsAppLink,
 } from '@/lib/contact-links';
 import { EncaisserButton } from '../../../_components/encaisser-button';
-import { AssociateCustomer } from '../../../_components/associate-customer';
+import { OrderMoreMenu } from './order-more-menu';
 import type { ContactInfo, OrderDetailCallbacks } from './types';
 
 export function OrderDetailActions({
@@ -84,27 +84,6 @@ export function OrderDetailActions({
           </button>
         ))}
 
-      <div className="flex gap-2 [&>*]:flex-1">
-        <button
-          type="button"
-          onClick={() => onEdit()}
-          className="flex items-center justify-center gap-2 rounded-xl border border-input bg-background py-2 text-base font-semibold text-muted-foreground transition-colors hover:bg-accent"
-        >
-          <Pencil className="h-5 w-5" />
-          Modifier les articles
-        </button>
-
-        {customerAction && (
-          <AssociateCustomer
-            orderId={order.id}
-            currentCustomerId={order.customerId}
-            currentName={order.customerName}
-            currentPhone={order.customerPhone}
-            action={customerAction}
-          />
-        )}
-      </div>
-
       {!order.isPaid && payAction && (
         <EncaisserButton
           orderId={order.id}
@@ -128,6 +107,11 @@ export function OrderDetailActions({
             >
               <X className="h-6 w-6" strokeWidth={2.5} />
             </button>
+            <OrderMoreMenu
+              order={order}
+              customerAction={customerAction}
+              onEdit={onEdit}
+            />
             <TrackingLinkButton orderId={order.id} className="flex-1 py-1" />
           </div>
           <button
@@ -146,16 +130,21 @@ export function OrderDetailActions({
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-[1fr_2.5fr] gap-3">
+          <div className="grid grid-cols-[auto_auto_1fr] gap-3">
             <button
               type="button"
               onClick={() => onCancel(order.id)}
               disabled={pending}
               aria-label="Annuler"
-              className="flex items-center justify-center rounded-xl border border-red-200 bg-red-50 py-4 text-red-700 transition-colors hover:bg-red-100 active:bg-red-200 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300"
+              className="flex items-center justify-center rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-red-700 transition-colors hover:bg-red-100 active:bg-red-200 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300"
             >
               <X className="h-7 w-7" strokeWidth={2.5} />
             </button>
+            <OrderMoreMenu
+              order={order}
+              customerAction={customerAction}
+              onEdit={onEdit}
+            />
             <button
               type="button"
               onClick={() => onReady(order.id)}
