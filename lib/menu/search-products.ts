@@ -3,9 +3,11 @@
 // Recherche compacte de produits dans le menu admin (pure : testable sans base).
 // Sert `search_products` (MCP + assistant) : `get_menu` renvoie tout le menu
 // (suppléments globaux recopiés dans chaque produit) et dépasse vite toute
-// limite de contexte ; ici, une ligne courte par produit.
+// limite de contexte ; ici, une ligne courte par produit. La recherche par nom
+// est faite par la base (`product-search.ts`) ; on reçoit ses résultats.
 
-import { createFuzzyIndex } from '@/lib/fuzzy-search';
+import { itemsByHits } from '@/lib/search/rank';
+import type { SearchHit } from '@/lib/search/trgm';
 import type { AdminMenuCategory } from '@/lib/menu/queries/admin';
 
 export const SEARCH_PRODUCTS_LIMIT = 25;
@@ -32,7 +34,11 @@ export type ProductSearchResult = {
 
 export function searchProducts(
   menu: AdminMenuCategory[],
-  filters: { query?: string; categoryId?: string },
+  filters: {
+    /** Résultats classés de la recherche par nom ; absent = pas de recherche. */
+    hits?: readonly SearchHit[];
+    categoryId?: string;
+  },
   limit = SEARCH_PRODUCTS_LIMIT
 ): ProductSearchResult {
   const rows: ProductSearchRow[] = menu
@@ -51,14 +57,7 @@ export function searchProducts(
       }))
     );
 
-  const query = filters.query?.trim();
-  const matched = query
-    ? createFuzzyIndex(rows, {
-        keys: [{ name: 'name', weight: 2 }, { name: 'category' }],
-      })
-        .search(query)
-        .map((hit) => hit.item)
-    : rows;
+  const matched = filters.hits ? itemsByHits(rows, filters.hits) : rows;
 
   return {
     total: matched.length,

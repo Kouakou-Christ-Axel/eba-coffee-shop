@@ -6,7 +6,8 @@
 // `productId`) — sans quoi les groupes globaux étaient recopiés dans CHAQUE
 // produit.
 
-import { createFuzzyIndex } from '@/lib/fuzzy-search';
+import { itemsByHits } from '@/lib/search/rank';
+import type { SearchHit } from '@/lib/search/trgm';
 import type {
   AdminMenuCategory,
   AdminMenuProduct,
@@ -15,15 +16,16 @@ import type {
 export type MenuViewOptions = {
   categoryId?: string;
   productId?: string;
-  search?: string;
+  /** Résultats classés de la recherche par nom (`searchProductHits`) ; défini = recherche active. */
+  searchHits?: readonly SearchHit[];
   detail?: 'compact' | 'full';
 };
 
 type Row = {
+  /** Id du produit : clé de jointure avec les résultats de recherche. */
+  id: string;
   category: AdminMenuCategory;
   product: AdminMenuProduct;
-  name: string;
-  categoryName: string;
 };
 
 function compactProduct(p: AdminMenuProduct) {
@@ -42,7 +44,7 @@ function compactCategory(c: AdminMenuCategory) {
 
 export function buildMenuView(
   menu: AdminMenuCategory[],
-  { categoryId, productId, search, detail = 'compact' }: MenuViewOptions
+  { categoryId, productId, searchHits, detail = 'compact' }: MenuViewOptions
 ) {
   const full = detail === 'full' || Boolean(productId);
 
@@ -50,19 +52,13 @@ export function buildMenuView(
     .filter((c) => !categoryId || c.id === categoryId)
     .flatMap((category) =>
       category.products.map((product) => ({
+        id: product.id,
         category,
         product,
-        name: product.name,
-        categoryName: category.name,
       }))
     );
   if (productId) rows = rows.filter((r) => r.product.id === productId);
-  if (search?.trim()) {
-    const index = createFuzzyIndex(rows, {
-      keys: [{ name: 'name', weight: 2 }, { name: 'categoryName' }],
-    });
-    rows = index.search(search).map((hit) => hit.item);
-  }
+  if (searchHits) rows = itemsByHits(rows, searchHits);
 
   // Regroupe par catégorie (ordre d'apparition conservé).
   const byCategory = new Map<string, Row[]>();
@@ -74,7 +70,7 @@ export function buildMenuView(
 
   // Catégories vides conservées uniquement sans filtre produit/recherche :
   // `create_product` en a besoin pour cibler une catégorie neuve.
-  const keepEmpty = !productId && !search?.trim();
+  const keepEmpty = !productId && !searchHits;
   return menu
     .filter(
       (c) => byCategory.has(c.id) || (keepEmpty && c.products.length === 0)

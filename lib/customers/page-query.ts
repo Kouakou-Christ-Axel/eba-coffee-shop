@@ -1,4 +1,4 @@
-// Sélection d'une page de clients directement en SQL : recherche, tri et
+// Sélection d'une page de clients directement en SQL : recherche (pg_trgm), tri et
 // pagination se font dans PostgreSQL, jamais en mémoire. Renvoie uniquement les
 // ids de la page (dans l'ordre) et le total ; les lignes complètes et les stats
 // de ces ≤ 20 clients sont lues ensuite (cf. `list.ts`).
@@ -10,7 +10,7 @@
 
 import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
-import { foldText } from '@/lib/text';
+import { trgmSearch } from '@/lib/search/trgm';
 import type { CustomerSortKey, SortDir } from './types';
 
 export const STATS_SORT_KEYS: readonly CustomerSortKey[] = [
@@ -19,28 +19,27 @@ export const STATS_SORT_KEYS: readonly CustomerSortKey[] = [
   'lastOrderAt',
 ];
 
-// Repli des accents côté SQL, symétrique de `foldText` : « Hélène » se trouve
-// avec « helene ». (Pas d'extension `unaccent` à installer.)
-const ACCENTS = 'àáâãäåçèéêëìíîïñòóôõöùúûüýÿ';
-const ACCENTS_FOLDED = [...ACCENTS].map(foldText).join('');
-const FOLDED_NAME = Prisma.sql`translate(lower(coalesce(c.name, '')), ${ACCENTS}, ${ACCENTS_FOLDED})`;
-
-const escapeLike = (s: string) => s.replace(/[\\%_]/g, '\\$&');
-
-/** Tous les mots (dans n'importe quel ordre) dans le nom, OU les chiffres dans le téléphone. */
+/**
+ * Nom (similarité trigramme, cf. lib/search/trgm.ts) OU chiffres saisis dans le
+ * téléphone. Un téléphone qui correspond classe en tête (score 1).
+ */
 function searchClause(term: string) {
-  const tokens = foldText(term).split(/\s+/).filter(Boolean);
+  const byName = trgmSearch(term, [{ sql: Prisma.sql`c.name` }]);
   const digits = term.replace(/\D/g, '');
-  const byName = Prisma.join(
-    tokens.map(
-      (t) => Prisma.sql`${FOLDED_NAME} LIKE ${`%${escapeLike(t)}%`} ESCAPE '\\'`
-    ),
-    ' AND '
-  );
   const byPhone = digits
-    ? Prisma.sql` OR c.phone LIKE ${`%${digits}%`}`
-    : Prisma.empty;
-  return Prisma.sql`WHERE (${byName})${byPhone}`;
+    ? Prisma.sql`c.phone LIKE ${`%${digits}%`}::text`
+    : null;
+  const clauses = [byName?.where && Prisma.sql`(${byName.where})`, byPhone];
+  const where = Prisma.join(
+    clauses.filter((c): c is Prisma.Sql => c != null),
+    ' OR '
+  );
+  const score = Prisma.sql`GREATEST(${byName?.score ?? Prisma.sql`0::float8`}, ${
+    byPhone
+      ? Prisma.sql`CASE WHEN ${byPhone} THEN 1::float8 ELSE 0::float8 END`
+      : Prisma.sql`0::float8`
+  })`;
+  return { where: Prisma.sql`WHERE ${where}`, score };
 }
 
 const STATS_JOIN = Prisma.sql`
@@ -60,7 +59,11 @@ const STATS_JOIN = Prisma.sql`
     GROUP BY r."customerId"
   ) rf ON rf."customerId" = c.id`;
 
-function orderBy(sort: CustomerSortKey | undefined, dir: SortDir) {
+function orderBy(
+  sort: CustomerSortKey | undefined,
+  dir: SortDir,
+  relevance?: Prisma.Sql
+) {
   const d = dir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
   const tieBreak = Prisma.sql`c."createdAt" DESC, c.id`;
   switch (sort) {
@@ -73,7 +76,9 @@ function orderBy(sort: CustomerSortKey | undefined, dir: SortDir) {
     case 'lastOrderAt':
       return Prisma.sql`ORDER BY s.last_order ${d} NULLS LAST, ${tieBreak}`;
     default:
-      return Prisma.sql`ORDER BY ${tieBreak}`;
+      return relevance
+        ? Prisma.sql`ORDER BY ${relevance} DESC, ${tieBreak}`
+        : Prisma.sql`ORDER BY ${tieBreak}`;
   }
 }
 
@@ -90,14 +95,15 @@ export async function queryCustomerPage({
   skip: number;
   take: number;
 }) {
-  const where = term ? searchClause(term) : Prisma.empty;
+  const search = term ? searchClause(term) : null;
+  const where = search?.where ?? Prisma.empty;
   const join =
     sort && STATS_SORT_KEYS.includes(sort) ? STATS_JOIN : Prisma.empty;
 
   const [rows, count] = await Promise.all([
     prisma.$queryRaw<{ id: string }[]>`
       SELECT c.id FROM customer c ${join} ${where}
-      ${orderBy(sort, dir)} LIMIT ${take} OFFSET ${skip}`,
+      ${orderBy(sort, dir, search?.score)} LIMIT ${take} OFFSET ${skip}`,
     prisma.$queryRaw<{ total: number }[]>`
       SELECT COUNT(*)::int AS total FROM customer c ${where}`,
   ]);

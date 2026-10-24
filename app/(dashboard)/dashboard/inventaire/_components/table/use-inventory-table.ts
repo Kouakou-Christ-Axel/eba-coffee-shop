@@ -3,7 +3,8 @@
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { InventoryItemView } from '@/lib/inventory';
-import { createFuzzyIndex } from '@/lib/fuzzy-search';
+import { useSearchHits } from '@/lib/hooks/use-search-hits';
+import { itemsByHits } from '@/lib/search/rank';
 import { useConfirmDialog } from '../../../_components/use-confirm-dialog';
 import {
   archiveInventoryItemAction,
@@ -45,27 +46,15 @@ export function useInventoryTable({
   const [editItem, setEditItem] = useState<InventoryItemView | null>(null);
   const [editValues, setEditValues] = useState<ItemFormValues>(emptyItem);
 
-  // Indexation mémoïsée sur la référence du tableau, jamais à la frappe.
-  const index = useMemo(
-    () =>
-      createFuzzyIndex(visibleItems, {
-        keys: [
-          { name: 'name' },
-          { name: 'sku', weight: 0.5 },
-          { name: 'category', weight: 0.3 },
-        ],
-      }),
-    [visibleItems]
-  );
+  // Recherche faite par la base (pg_trgm) ; la saisie reste locale.
+  const { hits } = useSearchHits('/api/inventory/search', search);
 
   const filtered = useMemo(() => {
-    const query = search.trim();
-    const base =
-      query === '' ? visibleItems : index.search(query).map((h) => h.item);
+    const base = hits ? itemsByHits(visibleItems, hits) : visibleItems;
     return base.filter(
       (it) => categoryFilter === 'all' || (it.category ?? '') === categoryFilter
     );
-  }, [visibleItems, index, search, categoryFilter]);
+  }, [visibleItems, hits, categoryFilter]);
 
   function openCreate() {
     setFormError(null);

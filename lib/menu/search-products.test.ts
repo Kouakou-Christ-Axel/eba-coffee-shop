@@ -35,19 +35,25 @@ const menu = [
 ];
 
 describe('searchProducts', () => {
-  it('trouve sans tenir compte des accents ni de l’ordre des mots', () => {
+  it('ne garde que les produits trouvés, dans l’ordre de la recherche', () => {
     expect(
-      searchProducts(menu, { query: 'eclair chocolat' }).products.map(
-        (p) => p.id
-      )
-    ).toEqual(['p2']);
-    expect(
-      searchProducts(menu, { query: 'creme chou' }).products.map((p) => p.id)
-    ).toEqual(['p1']);
+      searchProducts(menu, {
+        hits: [
+          { id: 'p3', score: 1 },
+          { id: 'p1', score: 0.7 },
+        ],
+      }).products.map((p) => p.id)
+    ).toEqual(['p3', 'p1']);
+  });
+
+  it('une recherche sans résultat ne renvoie rien (≠ pas de recherche)', () => {
+    expect(searchProducts(menu, { hits: [] }).total).toBe(0);
   });
 
   it('renvoie des lignes compactes (état, pause, catégorie), sans suppléments', () => {
-    const [row] = searchProducts(menu, { query: 'chocolat chaud' }).products;
+    const [row] = searchProducts(menu, {
+      hits: [{ id: 'p3', score: 1 }],
+    }).products;
     expect(row).toMatchObject({
       id: 'p3',
       category: 'Boissons',

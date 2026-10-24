@@ -12,7 +12,7 @@ generator client {
 
 datasource db {
   provider   = "postgresql"
-  extensions = [citext]
+  extensions = [citext, pg_trgm, unaccent]
 }
 
 model User {

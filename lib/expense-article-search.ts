@@ -1,18 +1,19 @@
 // lib/expense-article-search.ts
 //
-// Couche métier de la recherche d'articles de dépense, au-dessus de
-// `lib/fuzzy-search.ts` : type canonique transmis au formulaire, tri « ce qu'on
-// achète le plus » quand aucune requête n'est saisie, et tie-break stable.
+// Couche métier de la recherche d'articles de dépense : type canonique transmis
+// au formulaire, tri « ce qu'on achète le plus » quand aucune requête n'est
+// saisie, et tie-break stable. La recherche elle-même est faite par la base
+// (`lib/expense-articles-search.ts`, pg_trgm) ; ce module applique ses résultats.
 //
 // Nommage plat volontaire (pas `lib/expenses/…`) : un répertoire `lib/expenses/`
 // entrerait en collision avec le fichier `lib/expenses.ts` pour l'alias
 // `@/lib/expenses`.
 //
 // Pur : aucune dépendance Prisma ni React. Le rapprochement SERVEUR (alias,
-// `resolveArticle`) vit dans `lib/expense-matching.ts` et reste indépendant —
-// Fuse ne sert qu'à la saisie, sur des données déjà transmises au client.
+// `resolveArticle`) vit dans `lib/expense-matching.ts` et reste indépendant.
 
-import { createFuzzyIndex, type FuzzyIndex } from '@/lib/fuzzy-search';
+import { rankByHits } from '@/lib/search/rank';
+import type { SearchHit } from '@/lib/search/trgm';
 import { foldText } from '@/lib/text';
 
 /** Article du référentiel, tel que consommé par le formulaire de dépense. */
@@ -43,13 +44,6 @@ export function normalizeArticleKey(value: string): string {
   return foldText(value).trim().replace(/\s+/g, ' ');
 }
 
-/** Index de recherche des articles — à mémoïser sur la référence du tableau. */
-export function createArticleIndex(
-  articles: readonly ExpenseArticleOption[]
-): FuzzyIndex<ExpenseArticleOption> {
-  return createFuzzyIndex(articles, { keys: [{ name: 'name' }] });
-}
-
 const nameCollator = new Intl.Collator('fr', { sensitivity: 'base' });
 
 /**
@@ -68,41 +62,24 @@ export function compareArticlesByUsage(
 }
 
 /**
- * Arrondi du score Fuse pour le tri. Sans lui, deux articles quasi équivalents
- * permutent visuellement d'une frappe à l'autre : des écarts de score
- * insignifiants domineraient le critère métier.
- */
-function scoreBucket(score: number): number {
-  return Math.round(score * 100) / 100;
-}
-
-/**
  * Point d'entrée du combobox de saisie.
  *
  * Requête vide ⇒ le référentiel trié par usage (c'est ce qui permet de VOIR les
- * articles existants sans rien taper). Sinon les résultats Fuse, réordonnés par
- * le tie-break métier : score arrondi, puis usage, puis alphabet.
+ * articles existants sans rien taper). Sinon les résultats de la base
+ * (`hits`), réordonnés par le tie-break métier : score arrondi, puis usage, puis
+ * alphabet. `hits` vaut `null` tant que la réponse n'est pas arrivée : le
+ * référentiel reste affiché par usage.
  */
 export function rankArticles(
-  index: FuzzyIndex<ExpenseArticleOption>,
+  hits: readonly SearchHit[] | null,
   articles: readonly ExpenseArticleOption[],
   query: string,
   options?: { limit?: number }
 ): ExpenseArticleOption[] {
+  const ranked =
+    query.trim().length === 0 || hits === null
+      ? [...articles].sort(compareArticlesByUsage)
+      : rankByHits(articles, hits, compareArticlesByUsage);
   const limit = options?.limit;
-
-  if (query.trim().length === 0) {
-    const sorted = [...articles].sort(compareArticlesByUsage);
-    return limit == null ? sorted : sorted.slice(0, limit);
-  }
-
-  return index
-    .search(query, limit)
-    .sort((a, b) => {
-      const bucketA = scoreBucket(a.score);
-      const bucketB = scoreBucket(b.score);
-      if (bucketA !== bucketB) return bucketA - bucketB;
-      return compareArticlesByUsage(a.item, b.item);
-    })
-    .map((hit) => hit.item);
+  return limit == null ? ranked : ranked.slice(0, limit);
 }

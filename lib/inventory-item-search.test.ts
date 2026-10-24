@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import type { SearchHit } from '@/lib/search/trgm';
+
 import {
   compareForRestock,
-  createInventoryItemIndex,
   rankInventoryItems,
   suggestRestockQuantity,
   thresholdOf,
@@ -130,40 +131,45 @@ describe('rankInventoryItems', () => {
     }),
     item({ name: 'Farine T45', category: 'Épicerie' }),
   ];
-  const index = createInventoryItemIndex(items);
+  // Résultats de la base : l'id d'une référence est son nom.
+  const hits = (...pairs: [string, number][]): SearchHit[] =>
+    pairs.map(([id, score]) => ({ id, score }));
 
   it('renvoie tout le catalogue sur une requête vide, le manquant d’abord', () => {
-    const ranked = rankInventoryItems(index, items, '');
+    const ranked = rankInventoryItems(null, items, '');
     expect(ranked).toHaveLength(4);
     expect(ranked[0].name).toBe('Gobelet 25 cl');
   });
 
-  it('ignore les accents', () => {
-    // Le `.includes()` qu'on remplace ne trouvait rien ici.
-    const ranked = rankInventoryItems(index, items, 'cafe');
-    expect(ranked[0].name).toBe('Café Arabica');
-  });
-
-  it('ignore l’ordre des mots', () => {
-    const ranked = rankInventoryItems(index, items, 't45 farine');
-    expect(ranked[0].name).toBe('Farine T45');
-  });
-
-  it('tolère une faute de frappe', () => {
-    const ranked = rankInventoryItems(index, items, 'gobellet');
-    expect(ranked[0]?.name).toBe('Gobelet 25 cl');
-  });
-
-  it('cherche aussi par SKU et par catégorie', () => {
-    expect(rankInventoryItems(index, items, 'LAIT-ENTIER')[0].name).toBe(
-      'Lait entier'
+  it('ne garde que les références trouvées, meilleur score d’abord', () => {
+    const ranked = rankInventoryItems(
+      hits(['Lait entier', 0.7], ['Café Arabica', 1]),
+      items,
+      'a'
     );
-    expect(rankInventoryItems(index, items, 'emballage')[0].name).toBe(
-      'Gobelet 25 cl'
+    expect(ranked.map((i) => i.name)).toEqual(['Café Arabica', 'Lait entier']);
+  });
+
+  it('départage les scores équivalents par le métier (manquant d’abord)', () => {
+    const ranked = rankInventoryItems(
+      hits(['Café Arabica', 0.801], ['Gobelet 25 cl', 0.8]),
+      items,
+      'x'
+    );
+    expect(ranked[0].name).toBe('Gobelet 25 cl');
+  });
+
+  it('tant que la base n’a pas répondu, garde le catalogue entier', () => {
+    expect(rankInventoryItems(null, items, 'gob')).toHaveLength(4);
+  });
+
+  it('ignore un résultat absent du catalogue chargé', () => {
+    expect(rankInventoryItems(hits(['Inconnu', 1]), items, 'zzz')).toHaveLength(
+      0
     );
   });
 
   it('respecte la limite demandée', () => {
-    expect(rankInventoryItems(index, items, '', { limit: 2 })).toHaveLength(2);
+    expect(rankInventoryItems(null, items, '', { limit: 2 })).toHaveLength(2);
   });
 });
