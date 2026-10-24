@@ -3,7 +3,7 @@ import { Prisma } from '@/generated/prisma/client';
 import prisma from '@/lib/prisma';
 import { ORDERS_PAGE_SIZE } from '@/config/constants';
 import { customerFilter, type CustomerQuery } from './filter';
-import { STATS_COLUMNS } from './stats';
+import { STATS_COLUMNS, STATS_LATERAL } from './stats';
 import type { CustomerStats } from './types';
 
 type StatsColumns = CustomerStats;
@@ -14,20 +14,24 @@ type StatsColumns = CustomerStats;
  * pour le total.
  *
  * `withStats` ajoute à chaque client ses chiffres (`stats` : commandes, total net
- * des remboursements, dernière commande) dans LA MÊME requête, par jointure sur
- * des agrégats de commandes. Sans lui `stats` vaut `null` et la jointure n'est
- * faite que si le tri porte sur une stat (la recherche de la caisse reste légère).
+ * des remboursements, dernière commande) dans LA MÊME requête : la page est
+ * d'abord sélectionnée (filtre + tri + `LIMIT`), puis les chiffres ne sont
+ * calculés que pour ces ≤ 20 clients (`STATS_LATERAL`). Sans lui `stats` vaut
+ * `null` (la recherche de la caisse reste légère).
  */
 export async function listCustomers(
   query: CustomerQuery,
   { withStats = false }: { withStats?: boolean } = {}
 ) {
-  const { where, from, page } = customerFilter(query, { withStats });
+  const { where, from, orderBy, limit } = customerFilter(query);
+  const pageRows = Prisma.sql`SELECT c.* ${from} ${orderBy} ${limit}`;
+  // La jointure ne garantit pas l'ordre de la sous-requête : on le rejoue
+  // (20 lignes, mêmes expressions, alias `c` conservé).
+  const rowsQuery = withStats
+    ? Prisma.sql`SELECT c.*, ${STATS_COLUMNS} FROM (${pageRows}) c ${STATS_LATERAL} ${orderBy}`
+    : pageRows;
   const [rows, count] = await Promise.all([
-    prisma.$queryRaw<(Customer & Partial<StatsColumns>)[]>(
-      Prisma.sql`SELECT c.*${withStats ? Prisma.sql`, ${STATS_COLUMNS}` : Prisma.empty}
-        ${from} ${page}`
-    ),
+    prisma.$queryRaw<(Customer & Partial<StatsColumns>)[]>(rowsQuery),
     prisma.$queryRaw<{ total: number }[]>(
       Prisma.sql`SELECT COUNT(*)::int AS total FROM customer c ${where}`
     ),

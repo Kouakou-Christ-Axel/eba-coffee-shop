@@ -27,12 +27,15 @@ describe('listCustomers', () => {
     expect(valuesOf(queryRaw.mock.calls[0])).toContain(20);
   });
 
-  it('withStats : les chiffres viennent de la MÊME requête (jointure), plus de requête dédiée', async () => {
+  it('withStats : les chiffres viennent de la MÊME requête, calculés APRÈS le LIMIT de la page', async () => {
     const { customers } = await listCustomers({}, { withStats: true });
     expect(queryRaw).toHaveBeenCalledTimes(2);
-    const rowsSql = sqlOf(queryRaw.mock.calls[0]);
-    expect(rowsSql).toContain('LEFT JOIN');
-    expect(rowsSql).toContain('"ordersCount"');
+    const sql = sqlOf(queryRaw.mock.calls[0]);
+    expect(sql).toContain('LATERAL');
+    expect(sql).toContain('"ordersCount"');
+    // La jointure lateral est hors de la sous-requête qui porte le LIMIT : les
+    // agrégats ne sont pas calculés pour tous les clients.
+    expect(sql.indexOf('LIMIT')).toBeLessThan(sql.indexOf('LATERAL'));
     expect(customers[0].stats).toEqual({
       ordersCount: 3,
       totalSpent: 9000,
@@ -48,10 +51,12 @@ describe('listCustomers', () => {
     expect(customers[0].stats).toBeNull();
   });
 
-  it('un tri sur une stat joint les agrégats même sans les afficher', async () => {
+  it('un tri sur une stat classe tous les clients (agrégats groupés), un autre tri non', async () => {
     await listCustomers({ sort: 'totalSpent' });
     expect(sqlOf(queryRaw.mock.calls[0])).toContain('GROUP BY');
-    expect(sqlOf(queryRaw.mock.calls[0])).not.toContain('"ordersCount"');
+    queryRaw.mockClear().mockResolvedValue([]);
+    await listCustomers({ sort: 'name' }, { withStats: true });
+    expect(sqlOf(queryRaw.mock.calls[0])).not.toContain('GROUP BY');
   });
 
   it('le total ne dépend ni du tri ni de la jointure', async () => {

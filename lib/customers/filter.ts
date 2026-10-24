@@ -1,8 +1,7 @@
 // Filtre d'une page de clients, en SQL : recherche (pg_trgm), tri et pagination
 // se font dans PostgreSQL, jamais en mémoire (`list.ts` : une requête pour les
-// lignes, une pour le total). Les chiffres par client (commandes, total net,
-// dernière commande) viennent de la MÊME requête par jointure sur des agrégats
-// de commandes — plus de requête de stats par client ni d'ids qui circulent.
+// lignes — chiffres par client inclus —, une pour le total). Ici, la sélection de
+// la page ; les chiffres sont joints ensuite aux seules lignes retenues.
 
 import { Prisma } from '@/generated/prisma/client';
 import { trgmSearch } from '@/lib/search/trgm';
@@ -39,8 +38,10 @@ function searchClause(term: string) {
   return { where: Prisma.sql`WHERE ${where}`, score };
 }
 
-// Agrégats de commandes et de remboursements par client (règles : stats-rules.ts).
-// Joints seulement quand on affiche les chiffres ou qu'on trie dessus.
+// Agrégats de commandes et de remboursements de TOUS les clients (règles :
+// stats-rules.ts). Joints seulement quand le tri porte sur une stat : il faut alors
+// classer tous les clients. Sinon, les chiffres sont calculés pour la seule page
+// (`STATS_LATERAL`, stats.ts).
 const STATS_JOIN = Prisma.sql`
   LEFT JOIN (
     SELECT o."customerId", COUNT(*)::int AS orders, SUM(o.total)::int AS gross,
@@ -88,24 +89,25 @@ export type CustomerQuery = {
 };
 
 /**
- * Fragments SQL du filtre. `where` seul sert au total ; `from` (+ jointure
- * d'agrégats si `withStats` ou si le tri porte sur une stat) et `page` (ORDER BY +
- * LIMIT/OFFSET) à la sélection de la page.
+ * Fragments SQL du filtre : `where` (le total), `from` (+ agrégats de tous les
+ * clients SI le tri porte sur une stat), `orderBy` et `limit` (la page). `orderBy`
+ * est exposé à part parce que `list.ts` le rejoue après avoir joint les chiffres.
  */
-export function customerFilter(
-  { search: term, page = 1, sort, dir = 'desc' }: CustomerQuery,
-  { withStats = false }: { withStats?: boolean } = {}
-) {
+export function customerFilter({
+  search: term,
+  page = 1,
+  sort,
+  dir = 'desc',
+}: CustomerQuery) {
   const search = term?.trim() ? searchClause(term.trim()) : null;
   const where = search?.where ?? Prisma.empty;
   const join =
-    withStats || (sort && STATS_SORT_KEYS.includes(sort))
-      ? STATS_JOIN
-      : Prisma.empty;
+    sort && STATS_SORT_KEYS.includes(sort) ? STATS_JOIN : Prisma.empty;
   const skip = (Math.max(1, page) - 1) * ORDERS_PAGE_SIZE;
   return {
     where,
     from: Prisma.sql`FROM customer c ${join} ${where}`,
-    page: Prisma.sql`${orderBy(sort, dir, search?.score)} LIMIT ${ORDERS_PAGE_SIZE} OFFSET ${skip}`,
+    orderBy: orderBy(sort, dir, search?.score),
+    limit: Prisma.sql`LIMIT ${ORDERS_PAGE_SIZE} OFFSET ${skip}`,
   };
 }

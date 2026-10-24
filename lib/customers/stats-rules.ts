@@ -7,6 +7,10 @@ import { Prisma } from '@/generated/prisma/client';
 /**
  * Commande comptée dans les stats client : non annulée et visible du staff (une
  * commande en ligne jamais payée n'existe pas pour le CRM, cf. `STAFF_VISIBLE`).
+ *
+ * ⚠ Le prédicat doit rester IDENTIQUE à celui de l'index partiel
+ * `order_customer_counted_idx` (prisma/sql/order-customer-counted-index.sql) :
+ * Postgres n'utilise un index partiel que si la requête implique son prédicat.
  */
 export const COUNTED_ORDER = Prisma.sql`o.status <> 'CANCELLED' AND (o."paymentExpiresAt" IS NULL OR o."isPaid")`;
 
