@@ -4,6 +4,8 @@ import { Area, AreaChart, CartesianGrid, Line, XAxis, YAxis } from 'recharts';
 import { useReducedMotion } from 'framer-motion';
 import {
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
@@ -61,6 +63,7 @@ export function CollectionChart({
             <ChartTooltipContent labelFormatter={(v) => label(v, true)} />
           }
         />
+        <ChartLegend content={<ChartLegendContent />} />
         {split ? (
           <>
             <Area

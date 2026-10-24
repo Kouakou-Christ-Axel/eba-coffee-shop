@@ -40,17 +40,27 @@ export function FeesTable({ stats }: { stats: JekoStats }) {
           <tbody className="tabular-nums">
             {months.map((m) => (
               <tr key={m.month} className="border-b last:border-0">
-                <td className="py-2 pr-3 capitalize">{monthLabel(m.month)}</td>
-                <td className="px-3 py-2 text-right">{f(m.collected)}</td>
-                <td className="px-3 py-2 text-right">
+                <td className="whitespace-nowrap py-2 pr-3 capitalize">
+                  {monthLabel(m.month)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">
+                  {f(m.collected)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">
                   {f(m.gatewayFees)}
-                  <span className="ml-1 text-xs text-muted-foreground">
+                  <span className="block text-xs text-muted-foreground">
                     {rate(m.gatewayFees, m.collected)}
                   </span>
                 </td>
-                <td className="px-3 py-2 text-right">{f(m.customerFees)}</td>
-                <td className="px-3 py-2 text-right">{f(m.netCost)}</td>
-                <td className="px-3 py-2 text-right">{f(m.withdrawalFees)}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">
+                  {f(m.customerFees)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">
+                  {f(m.netCost)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">
+                  {f(m.withdrawalFees)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -58,15 +68,19 @@ export function FeesTable({ stats }: { stats: JekoStats }) {
             <tfoot className="tabular-nums font-medium">
               <tr className="border-t">
                 <td className="py-2 pr-3">Total</td>
-                <td className="px-3 py-2 text-right">{f(totals.collected)}</td>
-                <td className="px-3 py-2 text-right">
+                <td className="whitespace-nowrap px-3 py-2 text-right">
+                  {f(totals.collected)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">
                   {f(totals.gatewayFees)}
                 </td>
-                <td className="px-3 py-2 text-right">
+                <td className="whitespace-nowrap px-3 py-2 text-right">
                   {f(totals.customerFees)}
                 </td>
-                <td className="px-3 py-2 text-right">{f(totals.netCost)}</td>
-                <td className="px-3 py-2 text-right">
+                <td className="whitespace-nowrap px-3 py-2 text-right">
+                  {f(totals.netCost)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">
                   {f(totals.withdrawalFees)}
                 </td>
               </tr>
