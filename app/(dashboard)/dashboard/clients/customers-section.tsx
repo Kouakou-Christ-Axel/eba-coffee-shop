@@ -1,9 +1,9 @@
 // Tableau des clients + compteur + pagination. Composant serveur autonome (son
 // propre `Suspense` dans la page) : il ne dépend que des paramètres d'URL, pas
-// des tuiles de synthèse. Les stats par client sont une requête indépendante,
-// lancée en même temps que la liste et streamée (cf. `use-streamed-stats.ts`).
+// des tuiles de synthèse. Les chiffres par client viennent de la même requête que
+// les lignes (jointure), cf. `lib/customers/list.ts`.
 
-import { getPageStats, listCustomers } from '@/lib/customers';
+import { listCustomers } from '@/lib/customers';
 import { Pagination } from '@/components/(dashboard)/pagination';
 import { TableSkeleton } from '@/components/(dashboard)/skeletons';
 import { CustomersTable } from './customers-table';
@@ -20,11 +20,9 @@ export async function CustomersSection({
     sort: filters.sort ?? undefined,
     dir: filters.dir,
   };
-  // Deux requêtes indépendantes, lancées EN MÊME TEMPS avec le même filtre. La
-  // page n'attend que la liste ; la promesse de stats part vers le navigateur.
-  const stats = getPageStats(query);
-  stats.catch((err) => console.error('[clients] stats', err));
-  const { customers, total, pageSize } = await listCustomers(query);
+  const { customers, total, pageSize } = await listCustomers(query, {
+    withStats: true,
+  });
   const totalPages = Math.ceil(total / pageSize);
 
   return (
@@ -33,7 +31,7 @@ export async function CustomersSection({
         {total} client{total > 1 ? 's' : ''} identifié
         {total > 1 ? 's' : ''} par téléphone.
       </p>
-      <CustomersTable customers={customers} stats={stats} />
+      <CustomersTable customers={customers} />
       {totalPages > 1 && <Pagination totalPages={totalPages} />}
     </div>
   );

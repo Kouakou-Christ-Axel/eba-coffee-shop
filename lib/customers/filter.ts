@@ -1,13 +1,8 @@
 // Filtre d'une page de clients, en SQL : recherche (pg_trgm), tri et pagination
-// se font dans PostgreSQL, jamais en mémoire. UNE seule définition, partagée par
-// les deux requêtes indépendantes de la page :
-//
-//   A — la liste  (`list.ts`)  : `SELECT c.* <from> <page>`
-//   B — les stats (`stats.ts`) : `SELECT c.id <from> <page>` en sous-requête, puis
-//                                agrégats des seuls clients retenus
-//
-// Elles retiennent ainsi toujours les mêmes clients dans le même ordre, sans
-// qu'aucune ne dépende de l'autre ni qu'un id ne circule entre elles.
+// se font dans PostgreSQL, jamais en mémoire (`list.ts` : une requête pour les
+// lignes, une pour le total). Les chiffres par client (commandes, total net,
+// dernière commande) viennent de la MÊME requête par jointure sur des agrégats
+// de commandes — plus de requête de stats par client ni d'ids qui circulent.
 
 import { Prisma } from '@/generated/prisma/client';
 import { trgmSearch } from '@/lib/search/trgm';
@@ -44,8 +39,8 @@ function searchClause(term: string) {
   return { where: Prisma.sql`WHERE ${where}`, score };
 }
 
-// Agrégats de TOUS les clients : nécessaires seulement quand le tri porte sur une
-// stat (il faut les classer). Mêmes règles que la requête B (cf. stats-rules.ts).
+// Agrégats de commandes et de remboursements par client (règles : stats-rules.ts).
+// Joints seulement quand on affiche les chiffres ou qu'on trie dessus.
 const STATS_JOIN = Prisma.sql`
   LEFT JOIN (
     SELECT o."customerId", COUNT(*)::int AS orders, SUM(o.total)::int AS gross,
@@ -93,20 +88,20 @@ export type CustomerQuery = {
 };
 
 /**
- * Fragments SQL du filtre. `where` seul sert au total ; `from` (jointure d'agrégats
- * incluse si le tri l'exige + `where`) et `page` (ORDER BY + LIMIT/OFFSET) à la
- * sélection de la page.
+ * Fragments SQL du filtre. `where` seul sert au total ; `from` (+ jointure
+ * d'agrégats si `withStats` ou si le tri porte sur une stat) et `page` (ORDER BY +
+ * LIMIT/OFFSET) à la sélection de la page.
  */
-export function customerFilter({
-  search: term,
-  page = 1,
-  sort,
-  dir = 'desc',
-}: CustomerQuery) {
+export function customerFilter(
+  { search: term, page = 1, sort, dir = 'desc' }: CustomerQuery,
+  { withStats = false }: { withStats?: boolean } = {}
+) {
   const search = term?.trim() ? searchClause(term.trim()) : null;
   const where = search?.where ?? Prisma.empty;
   const join =
-    sort && STATS_SORT_KEYS.includes(sort) ? STATS_JOIN : Prisma.empty;
+    withStats || (sort && STATS_SORT_KEYS.includes(sort))
+      ? STATS_JOIN
+      : Prisma.empty;
   const skip = (Math.max(1, page) - 1) * ORDERS_PAGE_SIZE;
   return {
     where,

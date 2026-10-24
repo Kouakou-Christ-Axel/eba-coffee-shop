@@ -6,7 +6,6 @@
 // l'URL (nuqs, cf. `use-clients-nav.ts`), et la base trie/pagine sur l'ensemble des
 // clients (`lib/customers/filter.ts`) — pas seulement la page affichée.
 
-import { useMemo, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   type ColumnDef,
@@ -31,11 +30,6 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { CUSTOMER_SORT_KEYS } from './search-params';
 import { useClientsNav } from './use-clients-nav';
-import {
-  useStreamedStats,
-  type StatsById,
-  type StreamedStats,
-} from './use-streamed-stats';
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
 const dateFmt = new Intl.DateTimeFormat('fr-FR', {
@@ -50,114 +44,99 @@ export type CustomerRow = {
   phone: string;
   isTrusted: boolean;
   trustedNote: string | null;
+  /** Chiffres du client, joints à la requête de la liste (cf. lib/customers/list.ts). */
+  stats: CustomerStats | null;
 };
 
-const StatSkeleton = () => (
-  <span
-    className="inline-block h-4 w-12 animate-pulse rounded bg-muted"
-    aria-label="Chargement"
-  />
-);
+const NO_STAT = <span className="text-muted-foreground">—</span>;
 
-/** Cellule de stat : squelette, « — » si indisponible, sinon la valeur. */
-function statCell(
-  stats: StreamedStats,
-  id: string,
-  render: (s: CustomerStats) => ReactNode
-) {
-  if (stats.status === 'loading') return <StatSkeleton />;
-  const mine = stats.status === 'ready' ? stats.byId[id] : undefined;
-  return mine ? render(mine) : <span className="text-muted-foreground">—</span>;
-}
-
-function buildColumns(stats: StreamedStats): ColumnDef<CustomerRow>[] {
-  return [
-    {
-      id: 'name',
-      header: 'Nom',
-      cell: ({ row }) => (
-        <Link
-          href={`/dashboard/clients/${row.original.id}`}
-          className="inline-block py-1.5 font-medium hover:underline"
+const columns: ColumnDef<CustomerRow>[] = [
+  {
+    id: 'name',
+    header: 'Nom',
+    cell: ({ row }) => (
+      <Link
+        href={`/dashboard/clients/${row.original.id}`}
+        className="inline-block py-1.5 font-medium hover:underline"
+      >
+        {row.original.name ?? '—'}
+      </Link>
+    ),
+  },
+  {
+    id: 'phone',
+    header: 'Téléphone',
+    enableSorting: false,
+    cell: ({ row }) => (
+      <span className="font-mono text-sm">
+        {formatPhoneForDisplay(row.original.phone)}
+      </span>
+    ),
+  },
+  {
+    id: 'trusted',
+    header: 'Confiance',
+    enableSorting: false,
+    cell: ({ row }) =>
+      row.original.isTrusted ? (
+        <Badge
+          className="bg-blue-600"
+          title={row.original.trustedNote ?? undefined}
         >
-          {row.original.name ?? '—'}
-        </Link>
+          <Handshake className="h-3 w-3" aria-hidden="true" />
+          Confiance
+        </Badge>
+      ) : (
+        <span className="text-muted-foreground">—</span>
       ),
+  },
+  {
+    id: 'ordersCount',
+    header: 'Commandes',
+    cell: ({ row }) => {
+      const s = row.original.stats;
+      return s ? (
+        <span className="tabular-nums">{s.ordersCount}</span>
+      ) : (
+        NO_STAT
+      );
     },
-    {
-      id: 'phone',
-      header: 'Téléphone',
-      enableSorting: false,
-      cell: ({ row }) => (
-        <span className="font-mono text-sm">
-          {formatPhoneForDisplay(row.original.phone)}
+  },
+  {
+    id: 'totalSpent',
+    header: 'Total acheté',
+    cell: ({ row }) => {
+      const s = row.original.stats;
+      return s ? (
+        <span className="tabular-nums">{priceFmt.format(s.totalSpent)} F</span>
+      ) : (
+        NO_STAT
+      );
+    },
+  },
+  {
+    id: 'lastOrderAt',
+    header: 'Dernière commande',
+    cell: ({ row }) => {
+      const s = row.original.stats;
+      return s ? (
+        <span className="text-sm text-muted-foreground">
+          {s.lastOrderAt ? dateFmt.format(s.lastOrderAt) : '—'}
         </span>
-      ),
+      ) : (
+        NO_STAT
+      );
     },
-    {
-      id: 'trusted',
-      header: 'Confiance',
-      enableSorting: false,
-      cell: ({ row }) =>
-        row.original.isTrusted ? (
-          <Badge
-            className="bg-blue-600"
-            title={row.original.trustedNote ?? undefined}
-          >
-            <Handshake className="h-3 w-3" aria-hidden="true" />
-            Confiance
-          </Badge>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        ),
-    },
-    {
-      id: 'ordersCount',
-      header: 'Commandes',
-      cell: ({ row }) =>
-        statCell(stats, row.original.id, (s) => (
-          <span className="tabular-nums">{s.ordersCount}</span>
-        )),
-    },
-    {
-      id: 'totalSpent',
-      header: 'Total acheté',
-      cell: ({ row }) =>
-        statCell(stats, row.original.id, (s) => (
-          <span className="tabular-nums">
-            {priceFmt.format(s.totalSpent)} F
-          </span>
-        )),
-    },
-    {
-      id: 'lastOrderAt',
-      header: 'Dernière commande',
-      cell: ({ row }) =>
-        statCell(stats, row.original.id, (s) => (
-          <span className="text-sm text-muted-foreground">
-            {s.lastOrderAt ? dateFmt.format(s.lastOrderAt) : '—'}
-          </span>
-        )),
-    },
-  ];
-}
+  },
+];
 
 // Seules ces colonnes correspondent à un `CustomerSortKey` que le serveur
 // sait trier (cf. lib/customers.ts) ; les autres restent `enableSorting: false`.
 const SORTABLE = new Set<string>(CUSTOMER_SORT_KEYS);
 
-export function CustomersTable({
-  customers,
-  stats,
-}: {
-  customers: CustomerRow[];
-  /** Streamée : `getPageStats`, lancée en même temps que la liste. */
-  stats: Promise<StatsById>;
-}) {
+export function CustomersTable({ customers }: { customers: CustomerRow[] }) {
   const { filters, update, isPending } = useClientsNav();
   const { sort, dir, search } = filters;
-  const streamed = useStreamedStats(stats);
-  const columns = useMemo(() => buildColumns(streamed), [streamed]);
 
   const sorting: SortingState = sort
     ? [{ id: sort, desc: dir === 'desc' }]
@@ -190,12 +169,6 @@ export function CustomersTable({
         isPending && 'opacity-60'
       )}
     >
-      {streamed.status === 'error' && (
-        <p role="status" className="mb-2 text-sm text-destructive">
-          Statistiques indisponibles pour le moment. Rechargez la page pour
-          réessayer.
-        </p>
-      )}
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (

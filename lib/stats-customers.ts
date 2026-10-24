@@ -47,7 +47,7 @@ export type CustomerRangeStats = {
 /**
  * Stats clients & fidélité sur `[from, to]` (jours civils inclus).
  * Convention CA client : somme des `total` hors CANCELLED, sans condition
- * `isPaid` — cohérent avec `getPageStats` (lib/customers/stats.ts), qui mesure
+ * `isPaid` — cohérent avec les stats de la liste (lib/customers/stats-rules.ts), qui mesure
  * l'activité du client plutôt que l'encaissement.
  */
 export async function getCustomerRangeStats(

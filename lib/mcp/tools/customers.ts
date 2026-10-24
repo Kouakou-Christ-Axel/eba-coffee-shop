@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import {
-  listCustomersWithStats,
+  listCustomers,
   getCustomer,
   getCustomerByPhone,
 } from '@/lib/customers';
@@ -28,7 +28,7 @@ export const customersTools: McpTool[] = [
     readOnly: true,
     handler: (args) => {
       const { search, page } = args as { search?: string; page?: number };
-      return listCustomersWithStats({ search, page });
+      return listCustomers({ search, page }, { withStats: true });
     },
   },
   {

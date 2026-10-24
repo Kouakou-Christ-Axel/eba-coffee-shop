@@ -7,8 +7,7 @@ export type {
   SortDir,
   CustomerDetailStats,
 } from './customers/types';
-export { listCustomers, listCustomersWithStats } from './customers/list';
-export { getPageStats } from './customers/stats';
+export { listCustomers } from './customers/list';
 export type { CustomerQuery } from './customers/filter';
 export { getCustomer, getCustomerByPhone } from './customers/detail';
 export { getCustomerListSummary } from './customers/summary';
