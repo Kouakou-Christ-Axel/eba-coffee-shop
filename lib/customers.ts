@@ -7,6 +7,9 @@ export type {
   SortDir,
   CustomerDetailStats,
 } from './customers/types';
-export { listCustomers } from './customers/list';
+export {
+  listCustomers,
+  listCustomersWithDeferredStats,
+} from './customers/list';
 export { getCustomer, getCustomerByPhone } from './customers/detail';
 export { getCustomerListSummary } from './customers/summary';
