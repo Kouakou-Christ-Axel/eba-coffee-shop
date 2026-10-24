@@ -42,17 +42,21 @@ export async function deleteJekoWithdrawal(id: string) {
   await prisma.jekoWithdrawal.delete({ where: { id } });
 }
 
-/** Solde d'UN compte Jèko : chaque compte a son propre argent et son propre plafond. */
+/**
+ * Solde d'UN compte Jèko (chaque compte a son propre argent et son propre plafond),
+ * ou de tous les comptes confondus avec `null`.
+ */
 export async function getJekoLedger(
-  account: JekoAccount = DEFAULT_JEKO_ACCOUNT,
+  account: JekoAccount | null = DEFAULT_JEKO_ACCOUNT,
   now: Date = new Date()
 ) {
   // `paymentTransactionId` non nul = Jèko a réellement encaissé (même si la
   // commande a été annulée ensuite : l'argent est bien arrivé).
+  const ofAccount = account ? { jekoAccount: account } : {};
   const [orders, appRefunds, withdrawals] = await Promise.all([
     // staff-visibility: exempt — comptabilité de l'argent reçu, pas une file staff
     prisma.order.findMany({
-      where: { paymentTransactionId: { not: null }, jekoAccount: account },
+      where: { paymentTransactionId: { not: null }, ...ofAccount },
       select: {
         total: true,
         onlineFee: true,
@@ -68,13 +72,13 @@ export async function getJekoLedger(
     prisma.refund.aggregate({
       where: {
         delivery: 'JEKO_TRANSFER',
-        order: { jekoAccount: account },
+        ...(account ? { order: ofAccount } : {}),
         status: { in: ['PAID', 'PROCESSING', 'UNCERTAIN'] },
       },
       _sum: { amount: true, feeFcfa: true },
     }),
     prisma.jekoWithdrawal.findMany({
-      where: { jekoAccount: account },
+      where: ofAccount,
       orderBy: { createdAt: 'desc' },
     }),
   ]);

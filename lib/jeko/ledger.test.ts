@@ -76,6 +76,28 @@ describe('getJekoLedger — remboursements', () => {
     expect(ledger.monthCollected).toBe(2 * 1010);
   });
 
+  it('compte null : tous les comptes confondus, aucune clause de compte', async () => {
+    orders.mockResolvedValue([] as never);
+    await getJekoLedger(null);
+
+    expect(orders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { paymentTransactionId: { not: null } },
+      })
+    );
+    expect(appRefunds).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          delivery: 'JEKO_TRANSFER',
+          status: { in: ['PAID', 'PROCESSING', 'UNCERTAIN'] },
+        },
+      })
+    );
+    expect(prisma.jekoWithdrawal.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: {} })
+    );
+  });
+
   it('ne lit que les commandes, remboursements et retraits du compte demandé', async () => {
     orders.mockResolvedValue([] as never);
     await getJekoLedger('B');

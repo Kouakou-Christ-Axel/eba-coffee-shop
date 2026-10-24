@@ -19,13 +19,19 @@ import { deleteWithdrawalAction, recordWithdrawalAction } from './actions';
 const fmt = new Intl.NumberFormat('fr-FR');
 
 export function WithdrawalForm({
-  balance,
-  account,
+  accounts,
+  fixedAccount,
+  balances,
 }: {
-  /** Solde attendu du compte : le retirable max dépend du tarif choisi. */
-  balance: number;
-  account: JekoAccount;
+  accounts: JekoAccount[];
+  /** Compte retenu par le filtre de la page ; `null` = on le choisit ici. */
+  fixedAccount: JekoAccount | null;
+  /** Solde attendu de chaque compte : le retirable max dépend du tarif choisi. */
+  balances: Record<JekoAccount, number>;
 }) {
+  const [picked, setPicked] = useState<JekoAccount>(accounts[0]);
+  const account = fixedAccount ?? picked;
+  const balance = Math.max(balances[account] ?? 0, 0);
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [feeMode, setFeeMode] = useState<WithdrawalFeeMode>('percent');
@@ -52,7 +58,23 @@ export function WithdrawalForm({
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_2fr]">
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_2fr]">
+        <div className="space-y-1.5">
+          <Label htmlFor="jeko-account">Compte</Label>
+          <select
+            id="jeko-account"
+            value={account}
+            disabled={fixedAccount !== null}
+            onChange={(e) => setPicked(e.target.value as JekoAccount)}
+            className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm disabled:opacity-70"
+          >
+            {accounts.map((a) => (
+              <option key={a} value={a}>
+                Compte {a}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="space-y-1.5">
           <Label htmlFor={`jeko-amount-${account}`}>Montant retiré (F)</Label>
           <Input
