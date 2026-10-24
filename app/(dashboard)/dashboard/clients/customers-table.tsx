@@ -16,6 +16,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ArrowUpDown, Handshake } from 'lucide-react';
+import type { CustomerStats } from '@/lib/customers';
 import { formatPhoneForDisplay } from '@/lib/phone';
 import {
   Table,
@@ -29,6 +30,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { CUSTOMER_SORT_KEYS } from './search-params';
 import { useClientsNav } from './use-clients-nav';
+import { useCustomerStats } from './use-customer-stats';
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
 const dateFmt = new Intl.DateTimeFormat('fr-FR', {
@@ -43,12 +45,16 @@ export type CustomerRow = {
   phone: string;
   isTrusted: boolean;
   trustedNote: string | null;
-  stats: {
-    ordersCount: number;
-    totalSpent: number;
-    lastOrderAt: Date | null;
-  };
+  /** `null` tant que les stats ne sont pas arrivées (cf. use-customer-stats.ts). */
+  stats: CustomerStats | null;
 };
+
+const StatSkeleton = () => (
+  <span
+    className="inline-block h-4 w-12 animate-pulse rounded bg-muted"
+    aria-label="Chargement"
+  />
+);
 
 const columns: ColumnDef<CustomerRow>[] = [
   {
@@ -93,29 +99,38 @@ const columns: ColumnDef<CustomerRow>[] = [
   {
     id: 'ordersCount',
     header: 'Commandes',
-    cell: ({ row }) => (
-      <span className="tabular-nums">{row.original.stats.ordersCount}</span>
-    ),
+    cell: ({ row }) =>
+      row.original.stats ? (
+        <span className="tabular-nums">{row.original.stats.ordersCount}</span>
+      ) : (
+        <StatSkeleton />
+      ),
   },
   {
     id: 'totalSpent',
     header: 'Total acheté',
-    cell: ({ row }) => (
-      <span className="tabular-nums">
-        {priceFmt.format(row.original.stats.totalSpent)} F
-      </span>
-    ),
+    cell: ({ row }) =>
+      row.original.stats ? (
+        <span className="tabular-nums">
+          {priceFmt.format(row.original.stats.totalSpent)} F
+        </span>
+      ) : (
+        <StatSkeleton />
+      ),
   },
   {
     id: 'lastOrderAt',
     header: 'Dernière commande',
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">
-        {row.original.stats.lastOrderAt
-          ? dateFmt.format(row.original.stats.lastOrderAt)
-          : '—'}
-      </span>
-    ),
+    cell: ({ row }) =>
+      row.original.stats ? (
+        <span className="text-sm text-muted-foreground">
+          {row.original.stats.lastOrderAt
+            ? dateFmt.format(row.original.stats.lastOrderAt)
+            : '—'}
+        </span>
+      ) : (
+        <StatSkeleton />
+      ),
   },
 ];
 
@@ -126,6 +141,14 @@ const SORTABLE = new Set<string>(CUSTOMER_SORT_KEYS);
 export function CustomersTable({ customers }: { customers: CustomerRow[] }) {
   const { filters, update, isPending } = useClientsNav();
   const { sort, dir, search } = filters;
+
+  // Tri sur une stat : le serveur les a déjà (`stats` non nul), rien à charger.
+  const missingIds = customers.filter((c) => !c.stats).map((c) => c.id);
+  const fetched = useCustomerStats(missingIds);
+  const rows = customers.map((c) => ({
+    ...c,
+    stats: c.stats ?? fetched?.[c.id] ?? null,
+  }));
 
   const sorting: SortingState = sort
     ? [{ id: sort, desc: dir === 'desc' }]
@@ -142,7 +165,7 @@ export function CustomersTable({ customers }: { customers: CustomerRow[] }) {
   };
 
   const table = useReactTable({
-    data: customers,
+    data: rows,
     columns,
     state: { sorting },
     onSortingChange: handleSortingChange,
