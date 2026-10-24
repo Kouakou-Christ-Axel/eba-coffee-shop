@@ -3,8 +3,8 @@
 // Tableau clients (TanStack Table, headless) au-dessus des primitives shadcn
 // (`components/ui/table`, cf. politique UI — Table = shadcn). Le tri est
 // BACKEND (`manualSorting`) : un clic sur un en-tête change `sort`/`dir` dans
-// l'URL (nuqs, cf. `use-clients-nav.ts`), et `lib/customers.ts::listCustomers`
-// trie/pagine sur l'ensemble des clients — pas seulement la page affichée.
+// l'URL (nuqs, cf. `use-clients-nav.ts`), et la base trie/pagine sur l'ensemble des
+// clients (`lib/customers/filter.ts`) — pas seulement la page affichée.
 
 import Link from 'next/link';
 import {
@@ -16,7 +16,6 @@ import {
   useReactTable,
 } from '@tanstack/react-table';
 import { ArrowDown, ArrowUp, ArrowUpDown, Handshake } from 'lucide-react';
-import type { CustomerStats } from '@/lib/customers';
 import { formatPhoneForDisplay } from '@/lib/phone';
 import {
   Table,
@@ -26,11 +25,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import type { CustomerStats } from '@/lib/customers';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { CUSTOMER_SORT_KEYS } from './search-params';
 import { useClientsNav } from './use-clients-nav';
-import { useCustomerStats } from './use-customer-stats';
 
 const priceFmt = new Intl.NumberFormat('fr-FR');
 const dateFmt = new Intl.DateTimeFormat('fr-FR', {
@@ -45,16 +44,11 @@ export type CustomerRow = {
   phone: string;
   isTrusted: boolean;
   trustedNote: string | null;
-  /** `null` tant que les stats ne sont pas arrivées (cf. use-customer-stats.ts). */
+  /** Chiffres du client, joints à la requête de la liste (cf. lib/customers/list.ts). */
   stats: CustomerStats | null;
 };
 
-const StatSkeleton = () => (
-  <span
-    className="inline-block h-4 w-12 animate-pulse rounded bg-muted"
-    aria-label="Chargement"
-  />
-);
+const NO_STAT = <span className="text-muted-foreground">—</span>;
 
 const columns: ColumnDef<CustomerRow>[] = [
   {
@@ -99,38 +93,40 @@ const columns: ColumnDef<CustomerRow>[] = [
   {
     id: 'ordersCount',
     header: 'Commandes',
-    cell: ({ row }) =>
-      row.original.stats ? (
-        <span className="tabular-nums">{row.original.stats.ordersCount}</span>
+    cell: ({ row }) => {
+      const s = row.original.stats;
+      return s ? (
+        <span className="tabular-nums">{s.ordersCount}</span>
       ) : (
-        <StatSkeleton />
-      ),
+        NO_STAT
+      );
+    },
   },
   {
     id: 'totalSpent',
     header: 'Total acheté',
-    cell: ({ row }) =>
-      row.original.stats ? (
-        <span className="tabular-nums">
-          {priceFmt.format(row.original.stats.totalSpent)} F
-        </span>
+    cell: ({ row }) => {
+      const s = row.original.stats;
+      return s ? (
+        <span className="tabular-nums">{priceFmt.format(s.totalSpent)} F</span>
       ) : (
-        <StatSkeleton />
-      ),
+        NO_STAT
+      );
+    },
   },
   {
     id: 'lastOrderAt',
     header: 'Dernière commande',
-    cell: ({ row }) =>
-      row.original.stats ? (
+    cell: ({ row }) => {
+      const s = row.original.stats;
+      return s ? (
         <span className="text-sm text-muted-foreground">
-          {row.original.stats.lastOrderAt
-            ? dateFmt.format(row.original.stats.lastOrderAt)
-            : '—'}
+          {s.lastOrderAt ? dateFmt.format(s.lastOrderAt) : '—'}
         </span>
       ) : (
-        <StatSkeleton />
-      ),
+        NO_STAT
+      );
+    },
   },
 ];
 
@@ -141,13 +137,6 @@ const SORTABLE = new Set<string>(CUSTOMER_SORT_KEYS);
 export function CustomersTable({ customers }: { customers: CustomerRow[] }) {
   const { filters, update, isPending } = useClientsNav();
   const { sort, dir, search } = filters;
-
-  // Tri sur une stat : le serveur les a déjà (`stats` non nul), rien à charger.
-  const fetched = useCustomerStats(customers.some((c) => !c.stats));
-  const rows = customers.map((c) => ({
-    ...c,
-    stats: c.stats ?? fetched?.[c.id] ?? null,
-  }));
 
   const sorting: SortingState = sort
     ? [{ id: sort, desc: dir === 'desc' }]
@@ -164,7 +153,7 @@ export function CustomersTable({ customers }: { customers: CustomerRow[] }) {
   };
 
   const table = useReactTable({
-    data: rows,
+    data: customers,
     columns,
     state: { sorting },
     onSortingChange: handleSortingChange,
