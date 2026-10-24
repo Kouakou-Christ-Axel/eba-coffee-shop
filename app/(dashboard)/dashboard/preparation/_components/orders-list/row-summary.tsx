@@ -8,7 +8,7 @@ import type { PreparationOrder } from '@/lib/preparation-queue';
 import { SOURCE_META } from '../prep-order-card';
 import { formatElapsed } from '../elapsed';
 import type { RowState } from './row-state';
-import { SupplementPanels } from '../supplement-panels';
+import { SupplementBadges } from '../supplement-badges';
 
 export function RowSummary({
   order,
@@ -30,7 +30,6 @@ export function RowSummary({
     awaitingLaunch,
     launchNow,
     launchToday,
-    supplementLines,
   } = state;
   return (
     <button
@@ -98,11 +97,10 @@ export function RowSummary({
             <span className="font-semibold text-foreground">
               {item.quantity}× {item.productName}
             </span>
+            <SupplementBadges supplements={item.supplements} size="sm" />
           </li>
         ))}
       </ul>
-
-      <SupplementPanels lines={supplementLines} size="sm" />
 
       {isToPay && (
         <p className="text-lg font-bold text-orange-700 dark:text-orange-300">

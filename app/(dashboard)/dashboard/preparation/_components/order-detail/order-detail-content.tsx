@@ -1,15 +1,12 @@
 'use client';
 
 import { StickyNote } from 'lucide-react';
-import { aggregateOrderSupplements } from '@/lib/orders/format';
 import type { PreparationOrder } from '@/lib/preparation-queue';
-import { SupplementPanels } from '../supplement-panels';
+import { SupplementBadges } from '../supplement-badges';
 
 export function OrderDetailContent({ order }: { order: PreparationOrder }) {
-  const supplementLines = aggregateOrderSupplements(order.items);
-
   return (
-    <div className="flex-1 overflow-y-auto p-5">
+    <div className="min-h-32 flex-1 overflow-y-auto p-5">
       {order.note && (
         <div className="mb-4 flex items-start gap-2 rounded-xl border-l-4 border-amber-500 bg-amber-50/70 px-4 py-3 text-lg text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
           <StickyNote className="mt-1 h-5 w-5 shrink-0" />
@@ -33,11 +30,12 @@ export function OrderDetailContent({ order }: { order: PreparationOrder }) {
                 </span>
               )}
             </span>
+            <div className="pl-12">
+              <SupplementBadges supplements={item.supplements} size="lg" />
+            </div>
           </li>
         ))}
       </ul>
-
-      <SupplementPanels lines={supplementLines} size="lg" />
     </div>
   );
 }

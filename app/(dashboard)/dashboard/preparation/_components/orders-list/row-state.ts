@@ -1,5 +1,4 @@
 import { READY_WAIT_ALERT_MINUTES } from '@/config/constants';
-import { aggregateOrderSupplements } from '@/lib/orders/format';
 import { kitchenLaunchState } from '@/lib/orders/scheduling';
 import type { PreparationOrder } from '@/lib/preparation-queue';
 import { ORDER_TYPE_META } from '../prep-order-card';
@@ -28,7 +27,6 @@ export function deriveRowState(
   const launchState = kitchenLaunchState(order, now);
   const launchNow = launchState === 'now';
   const launchToday = launchState === 'today';
-  const supplementLines = aggregateOrderSupplements(order.items);
   return {
     TypeIcon,
     isReady,
@@ -38,7 +36,6 @@ export function deriveRowState(
     awaitingLaunch,
     launchNow,
     launchToday,
-    supplementLines,
   };
 }
 
