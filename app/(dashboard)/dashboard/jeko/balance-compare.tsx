@@ -8,9 +8,12 @@ const f = (n: number) => `${fmt.format(n)} F`;
 export function BalanceCompare({
   remote,
   expected,
+  detail,
 }: {
   remote: RemoteBalanceView;
   expected: number;
+  /** Ligne sous l'écart, ex. le solde réel de chaque compte quand on les somme. */
+  detail?: string;
 }) {
   const gap = remote.kind === 'ok' ? remote.balanceFcfa - expected : null;
   return (
@@ -36,6 +39,9 @@ export function BalanceCompare({
                 : `écart de ${gap > 0 ? '+' : '−'}${f(Math.abs(gap))} avec le solde attendu`}
             </p>
           </>
+        )}
+        {remote.kind === 'ok' && detail && (
+          <p className="text-xs text-muted-foreground">{detail}</p>
         )}
         {remote.kind === 'unconfigured' && (
           <p className="text-sm text-muted-foreground">
