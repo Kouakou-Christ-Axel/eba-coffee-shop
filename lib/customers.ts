@@ -8,5 +8,6 @@ export type {
   CustomerDetailStats,
 } from './customers/types';
 export { listCustomers } from './customers/list';
+export type { CustomerQuery } from './customers/filter';
 export { getCustomer, getCustomerByPhone } from './customers/detail';
 export { getCustomerListSummary } from './customers/summary';

@@ -28,7 +28,7 @@ export const customersTools: McpTool[] = [
     readOnly: true,
     handler: (args) => {
       const { search, page } = args as { search?: string; page?: number };
-      return listCustomers({ search, page, withStats: true });
+      return listCustomers({ search, page }, { withStats: true });
     },
   },
   {
