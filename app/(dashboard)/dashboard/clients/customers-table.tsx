@@ -158,6 +158,12 @@ export function CustomersTable({ customers }: { customers: CustomerRow[] }) {
     state: { sorting },
     onSortingChange: handleSortingChange,
     manualSorting: true,
+    // Pagination faite par le serveur (cf. `Pagination`, nuqs). SANS ce réglage,
+    // TanStack réinitialise la page à chaque changement de `data` ; avec un
+    // `data` recréé à chaque rendu et un re-rendu (arrivée de données, état de
+    // navigation…), cela relançait un rendu en boucle : onglet figé, aucune
+    // erreur en console (mesuré : 1 170 rendus en 5 s contre 22).
+    manualPagination: true,
     getCoreRowModel: getCoreRowModel(),
   });
 
