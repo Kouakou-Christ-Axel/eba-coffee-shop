@@ -1,0 +1,45 @@
+name: Sauvegarde (installer / lancer)
+
+# Lancement MANUEL (onglet Actions → « Sauvegarde » → Run workflow).
+# Installe (ou met à jour) la ligne de cron de la sauvegarde quotidienne sur le
+# VPS, et peut lancer une sauvegarde tout de suite pour la vérifier.
+# Prérequis et secrets : docs/sauvegardes.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_now:
+        description: 'Lancer aussi une sauvegarde maintenant'
+        type: boolean
+        default: true
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Installer le cron de sauvegarde
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install cron via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /var/www/eba-coffee
+            git pull origin master
+            for bin in pg_dump pg_restore age rclone flock; do
+              command -v "$bin" >/dev/null || { echo "Manquant sur le VPS : $bin"; exit 1; }
+            done
+            [ -f "$HOME/.eba-backup.env" ] || { echo "Créer ~/.eba-backup.env (cf. docs/sauvegardes.md)"; exit 1; }
+            mkdir -p "$HOME/backups/eba"
+            # Remplace la ligne marquée « eba-backup » sans toucher au reste du crontab.
+            ( crontab -l 2>/dev/null | grep -v '# eba-backup$' || true; grep -v '^#' scripts/backup/crontab.example ) | crontab -
+            crontab -l | grep 'eba-backup'
+            if [ "${{ inputs.run_now }}" = "true" ]; then
+              scripts/backup/db-backup.sh
+            fi

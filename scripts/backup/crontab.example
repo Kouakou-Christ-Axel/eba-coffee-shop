@@ -1,0 +1,4 @@
+# Sauvegarde quotidienne de la base, 03:30 UTC (= Abidjan, creux d'activité).
+# Installée par le workflow « Sauvegarde (installer / lancer) ». Ligne marquée
+# pour pouvoir être remplacée sans doublon.
+30 3 * * * /var/www/eba-coffee/scripts/backup/db-backup.sh >> $HOME/backups/eba/backup.log 2>&1 # eba-backup

@@ -9,7 +9,7 @@ dans `registre-traitements.md` ; les transferts dans
 - [ ] Raison sociale, forme juridique, RCCM, NCC, représentant légal.
 - [ ] Adresse du siège et contact du responsable (ou délégué) à la protection des données.
 - [ ] Hébergeur du site et localisation des serveurs et de la base de données.
-- [ ] Accords de traitement de données signés : Jèko, Resend, Cloudinary, Sentry, OpenRouter (et mode « zero data retention »), Google, Meta.
+- [ ] Accords de traitement de données signés : Jèko, Resend, Cloudinary, Cloudflare, Sentry, OpenRouter (et mode « zero data retention »), Google, Meta.
 - [ ] Relecture juridique des pages `/confidentialite`, `/mentions-legales`, `/cgv`, `/cookies`.
 
 ## À saisir dans le dashboard (Paramètres → Coordonnées)
