@@ -189,6 +189,12 @@ export const PROCESSORS: Processor[] = [
     trigger: 'toujours',
   },
   {
+    name: 'Cloudflare (R2)',
+    role: 'Sauvegardes chiffrées de la base',
+    country: 'États-Unis / UE',
+    trigger: 'toujours',
+  },
+  {
     name: 'Jèko',
     role: 'Paiement en ligne',
     country: 'À confirmer',

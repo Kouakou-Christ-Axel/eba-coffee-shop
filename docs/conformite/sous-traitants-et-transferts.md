@@ -12,6 +12,7 @@
 | Google Maps | Carte du lieu | États-Unis | au clic | à compléter |
 | TikTok | Vidéo intégrée | Singapour / États-Unis | au clic | à compléter |
 | Cloudinary | Hébergement des images | États-Unis | toujours | à compléter |
+| Cloudflare (R2) | Sauvegardes chiffrées de la base | États-Unis / UE | toujours | à compléter |
 | Jèko | Paiement en ligne | À confirmer | toujours | à compléter |
 | Resend | Envoi d’e-mails | États-Unis | personnel | à compléter |
 | Sentry | Suivi des erreurs | États-Unis / UE | toujours | à compléter |

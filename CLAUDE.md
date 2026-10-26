@@ -147,6 +147,12 @@ Le site vitrine est vu depuis Abidjan, en mobile, sur des liens où le **RTT pè
 - **Assistant IA et Sentry** : téléphones masqués avant envoi au modèle (`lib/ai/assistant/mask-pii.ts`) ; `scrubPii` retire corps, cookies, query string et identifiants de commande des événements Sentry. Un nouvel outil qui renvoie un téléphone sous une clé `*phone*` est masqué automatiquement.
 - **Après déploiement** : `pnpm db:push` (colonnes d'identité légale, `Customer.anonymizedAt`) ; saisir l'identité légale dans Paramètres.
 
+## Sauvegardes de la base
+
+- **Quoi** : `scripts/backup/db-backup.sh`, lancé par le cron du VPS (03:30 UTC), fait `pg_dump` → vérification → chiffrement **age** → Cloudflare R2 (+ copie de `public/uploads/`, sans les preuves de paiement). Alerte via un Sentry Cron Monitor (échec **et** check-in manquant). Pas une route Next : un `pg_dump` doit tourner sur la machine.
+- **Secrets hors dépôt** : `~/.eba-backup.env` sur le VPS (clés R2, `AGE_RECIPIENT`, `SENTRY_CRON_CHECKIN_URL`) ; la clé **privée** age n'est jamais sur le VPS. Restauration : `scripts/backup/db-restore.sh` (refuse la base de l'app). Installation du cron : workflow GitHub « Sauvegarde (installer / lancer) ». Détail et procédure : `docs/sauvegardes.md`.
+- Ne jamais envoyer un dump en clair hors du VPS ; un nouveau sous-traitant ou une durée va dans `config/data-protection.ts`.
+
 ## Assistant IA (OpenRouter)
 
 - **Quoi** : un assistant de chat dans le dashboard (`components/(dashboard)/assistant/`) qui répond et AGIT (créer une dépense, ajuster le stock…) via l'API OpenRouter (`lib/ai/openrouter.ts`, `fetch` direct, pas de SDK). Activé par `OPENROUTER_API_KEY` (optionnelle : absente = bouton masqué, route en 503) ; modèle via `OPENROUTER_MODEL` (défaut dans `lib/ai/config.ts`).
