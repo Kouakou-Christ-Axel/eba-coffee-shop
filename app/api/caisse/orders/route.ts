@@ -79,8 +79,9 @@ export async function POST(req: Request) {
       ...parsed.data,
       createdById: session.user.id,
     });
-    // Une commande qui part en cuisine réserve son stock à la création.
-    revalidatePublicMenu();
+    // Seule une commande qui part en cuisine réserve son stock à la création
+    // (une différée / antidatée n'y touche pas : inutile d'invalider).
+    if (order.stockReservedAt) revalidatePublicMenu();
 
     return NextResponse.json(
       {

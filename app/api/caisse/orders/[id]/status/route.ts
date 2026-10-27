@@ -79,8 +79,6 @@ export async function PATCH(req: Request, { params }: Params) {
         coverShortage: parsed.data.coverShortage,
       });
     }
-    // L'entrée en cuisine décrémente le stock : la carte publique doit suivre.
-    if (parsed.data.status === 'PREPARING') revalidatePublicMenu();
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof StockShortageError) {
@@ -95,5 +93,12 @@ export async function PATCH(req: Request, { params }: Params) {
       );
     }
     throw err;
+  } finally {
+    // L'entrée en cuisine décrémente le stock, une annulation restitue les
+    // parts réservées, et `coverShortage` crédite le stock avant un éventuel
+    // échec : dans tous les cas la carte publique doit suivre.
+    if (['PREPARING', 'CANCELLED'].includes(parsed.data.status)) {
+      revalidatePublicMenu();
+    }
   }
 }

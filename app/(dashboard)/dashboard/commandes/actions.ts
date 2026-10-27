@@ -86,8 +86,11 @@ export async function updateOrderStatus(
     return toFailure(id, err);
   }
   revalidateOrder(id);
-  // L'entrée en cuisine décrémente le stock : la carte publique doit suivre.
-  if (newStatus === 'PREPARING') revalidatePublicMenu();
+  // L'entrée en cuisine décrémente le stock, une annulation restitue les parts
+  // réservées : la carte publique doit suivre dans les deux cas.
+  if (newStatus === 'PREPARING' || newStatus === 'CANCELLED') {
+    revalidatePublicMenu();
+  }
 }
 
 export type BulkCancelResult = {
@@ -120,6 +123,8 @@ export async function bulkCancelOrdersAction(
   }
   revalidatePath('/dashboard/commandes');
   revalidatePath('/dashboard/ardoise');
+  // Une annulation restitue les parts de stock réservées.
+  if (cancelled > 0) revalidatePublicMenu();
   return { cancelled, failed };
 }
 
