@@ -24,6 +24,7 @@ import type {
   OrderPaymentLineInput,
 } from '@/lib/schemas/order';
 import type { CartItem } from '@/lib/cart-store';
+import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 import type { OrderStatus, UserRole } from '@/generated/prisma/client';
 
 /** Revalide la page de détail et la liste après une mutation de commande. */
@@ -67,15 +68,6 @@ async function toFailure(id: string, err: unknown): Promise<MutationFailure> {
     return { error, shortage: await getOrderShortage(id) };
   }
   return { error };
-}
-
-// Un paiement réussi peut avoir décrémenté du stock (produit/option) : la
-// carte publique (ISR) doit se rafraîchir. Best-effort, jamais bloquant.
-function revalidatePublicMenu(): void {
-  revalidatePath('/api/menu');
-  revalidatePath('/carte');
-  // L'accueil aussi : sa vitrine est commandable et filtre sur le stock.
-  revalidatePath('/');
 }
 
 export async function updateOrderStatus(

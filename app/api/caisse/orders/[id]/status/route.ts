@@ -26,6 +26,7 @@ import {
   OrderMutationError,
   StockShortageError,
 } from '@/lib/order-mutations';
+import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 
 const bodySchema = z.object({
   status: orderStatusSchema,
@@ -78,6 +79,8 @@ export async function PATCH(req: Request, { params }: Params) {
         coverShortage: parsed.data.coverShortage,
       });
     }
+    // L'entrée en cuisine décrémente le stock : la carte publique doit suivre.
+    if (parsed.data.status === 'PREPARING') revalidatePublicMenu();
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof StockShortageError) {
