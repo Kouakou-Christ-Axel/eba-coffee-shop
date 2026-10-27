@@ -35,6 +35,14 @@
 // Seul le geste humain `sendOrderToKitchen` réserve, le jour venu.
 //
 // Implémentation découpée par cas d'usage dans `lib/orders/mutations/`.
+//
+// CARTE PUBLIQUE : les mutations qui décrémentent ou restituent du stock sont
+// exportées ENVELOPPÉES par `revalidatesPublicMenu` (lib/revalidate-public-menu.ts),
+// qui invalide /carte, /api/menu et / une fois la mutation terminée. Les modules
+// de `lib/orders/mutations/` s'appellent entre eux sans passer par ce fichier :
+// une seule invalidation par appel externe. Une nouvelle mutation qui touche au
+// stock s'exporte ici avec l'enveloppe, jamais avec un `revalidatePath` chez
+// l'appelant.
 
 export {
   OrderMutationError,
@@ -51,18 +59,36 @@ export {
   reserveStockOnce,
 } from './orders/mutations/stock-reservation';
 export type { CreateCashierOrderInput } from './orders/mutations/types';
-export { createCashierOrder } from './orders/mutations/create-cashier-order';
 export { buildOrderItemsFromMenu } from './orders/mutations/build-items';
 export type { OrderItemRef } from './orders/mutations/build-items';
-export { sendOrderToKitchen } from './orders/mutations/kitchen';
-export { setOrderStatus } from './orders/mutations/status';
-export { setOrderPayment } from './orders/mutations/payment';
 export { recordDeposit } from './orders/mutations/deposit';
 export { updateOrderDetails } from './orders/mutations/details';
-export { payAndComplete } from './orders/mutations/pay-and-complete';
 export { setOrderCustomer } from './orders/mutations/customer';
-export { updateOrderItems } from './orders/mutations/items';
 export { setOrderLoyaltyReward } from './orders/mutations/loyalty';
 export { setOrderDriver } from './orders/mutations/driver';
 export { updateOrderFulfillment } from './orders/mutations/fulfillment';
 export type { UpdateOrderFulfillmentInput } from './orders/mutations/fulfillment';
+
+import { createCashierOrder as createCashierOrderImpl } from './orders/mutations/create-cashier-order';
+import { sendOrderToKitchen as sendOrderToKitchenImpl } from './orders/mutations/kitchen';
+import { setOrderStatus as setOrderStatusImpl } from './orders/mutations/status';
+import { setOrderPayment as setOrderPaymentImpl } from './orders/mutations/payment';
+import { payAndComplete as payAndCompleteImpl } from './orders/mutations/pay-and-complete';
+import { updateOrderItems as updateOrderItemsImpl } from './orders/mutations/items';
+import { revalidatesPublicMenu } from './revalidate-public-menu';
+
+/** Seule une commande envoyée en cuisine à la création réserve son stock. */
+export const createCashierOrder = revalidatesPublicMenu(
+  createCashierOrderImpl,
+  (_args, order) => order.stockReservedAt != null
+);
+export const sendOrderToKitchen = revalidatesPublicMenu(sendOrderToKitchenImpl);
+/** Cuisine (réservation), annulation et reprise (parts rendues / reprises). */
+export const setOrderStatus = revalidatesPublicMenu(
+  setOrderStatusImpl,
+  ([, status]) =>
+    status === 'PREPARING' || status === 'CANCELLED' || status === 'NEW'
+);
+export const setOrderPayment = revalidatesPublicMenu(setOrderPaymentImpl);
+export const payAndComplete = revalidatesPublicMenu(payAndCompleteImpl);
+export const updateOrderItems = revalidatesPublicMenu(updateOrderItemsImpl);

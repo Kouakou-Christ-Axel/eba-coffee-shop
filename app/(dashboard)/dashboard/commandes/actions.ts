@@ -24,7 +24,6 @@ import type {
   OrderPaymentLineInput,
 } from '@/lib/schemas/order';
 import type { CartItem } from '@/lib/cart-store';
-import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 import type { OrderStatus, UserRole } from '@/generated/prisma/client';
 
 /** Revalide la page de détail et la liste après une mutation de commande. */
@@ -86,11 +85,6 @@ export async function updateOrderStatus(
     return toFailure(id, err);
   }
   revalidateOrder(id);
-  // L'entrée en cuisine décrémente le stock, une annulation restitue les parts
-  // réservées : la carte publique doit suivre dans les deux cas.
-  if (newStatus === 'PREPARING' || newStatus === 'CANCELLED') {
-    revalidatePublicMenu();
-  }
 }
 
 export type BulkCancelResult = {
@@ -123,8 +117,6 @@ export async function bulkCancelOrdersAction(
   }
   revalidatePath('/dashboard/commandes');
   revalidatePath('/dashboard/ardoise');
-  // Une annulation restitue les parts de stock réservées.
-  if (cancelled > 0) revalidatePublicMenu();
   return { cancelled, failed };
 }
 
@@ -148,7 +140,6 @@ export async function markOrderPaidAction(
     return toFailure(id, err);
   }
   revalidateOrder(id);
-  revalidatePublicMenu();
 }
 
 /**
@@ -190,7 +181,6 @@ export async function payAndCompleteAction(
     return toFailure(id, err);
   }
   revalidateOrder(id);
-  revalidatePublicMenu();
 }
 
 /**
@@ -220,10 +210,6 @@ export async function updateOrderItemsAction(
     return toFailure(id, err);
   }
   revalidateOrder(id);
-  // Le contenu d'une commande déjà réservée réaligne le stock dans les deux
-  // sens (cf. `resyncStockForItemChange` dans `updateOrderItems`) : la carte
-  // publique doit refléter l'ajout comme le retrait.
-  revalidatePublicMenu();
 }
 
 /**
