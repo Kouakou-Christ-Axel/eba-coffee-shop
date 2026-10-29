@@ -12,7 +12,7 @@ export function buildDriverRequestMessage(params: {
   return [
     greeting,
     '',
-    `Ta commande #${number} est bientôt prête ⏳`,
+    `Ta commande #${number} est en cuisine ⏳`,
     '',
     '🛵 Envoie ton livreur Yango',
     `📍 Destination : « ${yangoLandmark} »`,
@@ -35,7 +35,7 @@ export function buildGroupDriverRequestMessage(params: {
   return [
     greeting,
     '',
-    `Tes ${dailyNumbers.length} commandes ${refs} sont bientôt prêtes ⏳`,
+    `Tes ${dailyNumbers.length} commandes ${refs} sont en cuisine ⏳`,
     '',
     '🛵 Un seul livreur Yango suffit',
     `📍 Destination : « ${yangoLandmark} »`,
