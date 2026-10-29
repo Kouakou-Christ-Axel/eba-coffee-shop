@@ -26,7 +26,6 @@ import {
   OrderMutationError,
   StockShortageError,
 } from '@/lib/order-mutations';
-import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 
 const bodySchema = z.object({
   status: orderStatusSchema,
@@ -93,12 +92,5 @@ export async function PATCH(req: Request, { params }: Params) {
       );
     }
     throw err;
-  } finally {
-    // L'entrée en cuisine décrémente le stock, une annulation restitue les
-    // parts réservées, et `coverShortage` crédite le stock avant un éventuel
-    // échec : dans tous les cas la carte publique doit suivre.
-    if (['PREPARING', 'CANCELLED'].includes(parsed.data.status)) {
-      revalidatePublicMenu();
-    }
   }
 }

@@ -26,7 +26,6 @@ import {
   StockShortageError,
 } from '@/lib/order-mutations';
 import type { CartItem } from '@/lib/cart-store';
-import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 
 const bodySchema = createOrderSchema
   .extend({
@@ -79,9 +78,6 @@ export async function POST(req: Request) {
       ...parsed.data,
       createdById: session.user.id,
     });
-    // Seule une commande qui part en cuisine réserve son stock à la création
-    // (une différée / antidatée n'y touche pas : inutile d'invalider).
-    if (order.stockReservedAt) revalidatePublicMenu();
 
     return NextResponse.json(
       {

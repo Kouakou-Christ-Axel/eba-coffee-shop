@@ -15,6 +15,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
+import { OrderMutationError } from '@/lib/orders/mutations/errors';
 
 function invalidate(): void {
   revalidatePath('/api/menu');
@@ -40,4 +41,32 @@ export function revalidatePublicMenu(): void {
   } catch (err) {
     console.warn('[revalidatePublicMenu] a échoué', err);
   }
+}
+
+/**
+ * Enveloppe une mutation qui touche au stock : la carte publique est invalidée
+ * APRÈS elle (donc après le commit de sa transaction), au point d'entrée
+ * partagé par les routes caisse, les server actions, les outils MCP et le flux
+ * Jèko — plus aucun appelant n'a à y penser.
+ *
+ * - Succès : invalide si `when(args, résultat)` le permet (défaut : toujours).
+ * - Échec : une erreur métier (`OrderMutationError`, dont la 409 de pénurie)
+ *   n'a rien écrit ; toute autre erreur peut laisser une écriture partielle
+ *   (ex. stock crédité par `coverShortage`), on invalide alors par prudence.
+ */
+export function revalidatesPublicMenu<A extends unknown[], R>(
+  fn: (...args: A) => Promise<R>,
+  when?: (args: A, result: R) => boolean
+): (...args: A) => Promise<R> {
+  return async (...args: A): Promise<R> => {
+    let result: R;
+    try {
+      result = await fn(...args);
+    } catch (err) {
+      if (!(err instanceof OrderMutationError)) revalidatePublicMenu();
+      throw err;
+    }
+    if (!when || when(args, result)) revalidatePublicMenu();
+    return result;
+  };
 }

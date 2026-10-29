@@ -19,7 +19,6 @@ import {
   OrderMutationError,
   StockShortageError,
 } from '@/lib/order-mutations';
-import { revalidatePublicMenu } from '@/lib/revalidate-public-menu';
 
 const bodySchema = z
   .object({
@@ -74,7 +73,6 @@ export async function PATCH(req: Request, { params }: Params) {
       session.user.id,
       { coverShortage }
     );
-    if (isPaid) revalidatePublicMenu();
     return NextResponse.json({ ok: true, startedPreparation });
   } catch (err) {
     // Pénurie : on renvoie la liste des manques pour que la caisse pose la
