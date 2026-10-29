@@ -3,7 +3,7 @@
 // lib/hooks/use-public-menu.ts
 //
 // Menu de la carte publique « live » : part du rendu ISR (props), puis relit
-// `/api/menu` toutes les 30 s (onglet visible seulement), au retour sur
+// `/api/menu` au montage, toutes les 30 s (onglet visible seulement), au retour sur
 // l'onglet et au retour du réseau. Un produit qui s'épuise passe en « épuisé »
 // sans que le client ait à recharger la page.
 //
@@ -65,6 +65,11 @@ export function usePublicMenu(initial: MenuCategory[]): MenuCategory[] {
         inflight.current = false;
       }
     };
+
+    // Dès le montage : le HTML ISR peut avoir jusqu'à 60 s de retard (le premier
+    // visiteur après expiration reçoit la page périmée). Sans cet appel, le
+    // visiteur verrait ce menu périmé pendant un intervalle entier.
+    void refresh();
 
     const interval = setInterval(() => void refresh(), PUBLIC_MENU_REFRESH_MS);
     const onVisible = () => void refresh();

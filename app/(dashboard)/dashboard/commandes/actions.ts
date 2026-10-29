@@ -69,15 +69,6 @@ async function toFailure(id: string, err: unknown): Promise<MutationFailure> {
   return { error };
 }
 
-// Un paiement réussi peut avoir décrémenté du stock (produit/option) : la
-// carte publique (ISR) doit se rafraîchir. Best-effort, jamais bloquant.
-function revalidatePublicMenu(): void {
-  revalidatePath('/api/menu');
-  revalidatePath('/carte');
-  // L'accueil aussi : sa vitrine est commandable et filtre sur le stock.
-  revalidatePath('/');
-}
-
 export async function updateOrderStatus(
   id: string,
   newStatus: OrderStatus,
@@ -94,8 +85,6 @@ export async function updateOrderStatus(
     return toFailure(id, err);
   }
   revalidateOrder(id);
-  // L'entrée en cuisine décrémente le stock : la carte publique doit suivre.
-  if (newStatus === 'PREPARING') revalidatePublicMenu();
 }
 
 export type BulkCancelResult = {
@@ -151,7 +140,6 @@ export async function markOrderPaidAction(
     return toFailure(id, err);
   }
   revalidateOrder(id);
-  revalidatePublicMenu();
 }
 
 /**
@@ -193,7 +181,6 @@ export async function payAndCompleteAction(
     return toFailure(id, err);
   }
   revalidateOrder(id);
-  revalidatePublicMenu();
 }
 
 /**
@@ -223,10 +210,6 @@ export async function updateOrderItemsAction(
     return toFailure(id, err);
   }
   revalidateOrder(id);
-  // Le contenu d'une commande déjà réservée réaligne le stock dans les deux
-  // sens (cf. `resyncStockForItemChange` dans `updateOrderItems`) : la carte
-  // publique doit refléter l'ajout comme le retrait.
-  revalidatePublicMenu();
 }
 
 /**

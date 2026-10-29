@@ -64,10 +64,6 @@ export async function startPreparation(
   revalidatePath('/dashboard/preparation');
   revalidatePath('/dashboard/caisse');
   revalidatePath('/dashboard/commandes');
-  // L'entrée en cuisine a décompté du stock : la carte publique doit suivre.
-  revalidatePath('/api/menu');
-  revalidatePath('/carte');
-  revalidatePath('/');
 }
 
 /**
@@ -165,11 +161,6 @@ export async function markOrderPaidFromKitchen(
   revalidatePath('/dashboard/preparation');
   revalidatePath('/dashboard/caisse');
   revalidatePath('/dashboard/commandes');
-  // Un encaissement peut pousser la commande en cuisine (NEW → PREPARING) et
-  // décompter du stock : la carte publique doit suivre.
-  revalidatePath('/api/menu');
-  revalidatePath('/carte');
-  revalidatePath('/');
 }
 
 /**
