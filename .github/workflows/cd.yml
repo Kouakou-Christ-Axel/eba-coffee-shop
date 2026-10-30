@@ -60,7 +60,21 @@ jobs:
               # Même fuseau qu'au runtime (cf. ecosystem.config.cjs) : le build
               # prérend des pages, et une date figée dans le fuseau du VPS
               # ressortirait décalée par rapport au serveur qui les sert.
-              NEXT_DEPLOYMENT_ID="$NEW_SHA" TZ=UTC pnpm build
+              #
+              # Le build est tué par le noyau (exit 137, OOM) quand le VPS
+              # manque de RAM : on plafonne le tas Node pour que le GC
+              # travaille plus tôt, et on ajoute un swap temporaire s'il n'y
+              # en a pas (sans effet si sudo sans mot de passe est absent).
+              if [ "$(swapon --show --noheadings | wc -l)" = "0" ] && sudo -n true 2>/dev/null; then
+                sudo -n fallocate -l 2G /swapfile-build \
+                  && sudo -n chmod 600 /swapfile-build \
+                  && sudo -n mkswap /swapfile-build >/dev/null \
+                  && sudo -n swapon /swapfile-build \
+                  && echo "Swap temporaire de 2G activé pour le build." \
+                  || echo "Swap non activé, build sans swap."
+              fi
+              free -m || true
+              NODE_OPTIONS="--max-old-space-size=1536" NEXT_DEPLOYMENT_ID="$NEW_SHA" TZ=UTC pnpm build
             else
               echo "Aucun fichier source du build modifié, rebuild Next.js ignoré."
             fi
