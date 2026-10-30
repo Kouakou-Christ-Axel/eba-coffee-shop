@@ -1,0 +1,43 @@
+# Production (VPS) : l'application tourne en conteneur, Postgres reste sur la machine.
+#
+# `network_mode: host` : `DATABASE_URL=…@localhost:5432/…` du `.env` du VPS continue de
+# fonctionner tel quel, sans toucher à `pg_hba.conf` ni à `listen_addresses`.
+#
+# Variables lues par le CD (jamais écrites en dur) :
+#   IMAGE      ex. ghcr.io/<owner>/eba-coffee-shop:<sha>
+#   APP_PORT   port d'écoute (défaut 3001, celui de PM2 / du reverse proxy)
+#   ENV_FILE   chemin du `.env` du VPS (défaut /var/www/eba-coffee/.env)
+#   UPLOADS_DIR dossier hôte des fichiers uploadés (défaut /var/www/eba-coffee/public/uploads)
+
+x-app: &app
+  image: ${IMAGE:?IMAGE manquante}
+  network_mode: host
+  environment:
+    NODE_ENV: production
+    TZ: UTC
+    PORT: ${APP_PORT:-3001}
+  volumes:
+    # `.env` monté tel quel : lu par varlock (runtime), dotenv (prisma) et tsx (--env-file).
+    - ${ENV_FILE:-/var/www/eba-coffee/.env}:/app/.env:ro
+    - ${UPLOADS_DIR:-/var/www/eba-coffee/public/uploads}:/app/public/uploads
+
+services:
+  app:
+    <<: *app
+    container_name: eba-coffee-shop
+    restart: unless-stopped
+    # Équivalent de `max_memory_restart: 512M` de PM2 (un conteneur redémarré par Docker).
+    mem_limit: 768m
+
+  # Étape ponctuelle du CD, avant le démarrage : `docker compose run --rm migrate`.
+  migrate:
+    <<: *app
+    profiles: ['tools']
+    command:
+      - sh
+      - -ec
+      - |
+        pnpm db:merge-duplicate-emails
+        pnpm db:push
+        pnpm db:trigger
+        pnpm db:indexes
