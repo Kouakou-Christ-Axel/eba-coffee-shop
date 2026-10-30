@@ -1,5 +1,9 @@
 name: CD
 
+# Le build se fait ICI (7 Go de RAM), jamais sur le VPS (il se faisait tuer en OOM,
+# exit 137). Le VPS ne fait que tirer l'image, migrer la base et relancer le conteneur.
+# Mise en place du VPS : docs/deploiement-docker.md.
+
 on:
   workflow_run:
     workflows: [CI]
@@ -11,72 +15,148 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Deploy to VPS
+  build:
+    name: Build image
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: read
+      packages: write
+    # Base jetable : le build prérend les pages publiques, qui interrogent la base.
+    # Elle est vide mais au schéma à jour ; le CD invalide ensuite ces pages
+    # (/api/cron/revalidate-public) pour qu'elles se régénèrent sur la vraie base.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    outputs:
+      sha: ${{ github.event.workflow_run.head_sha }}
+      image: ${{ steps.img.outputs.name }}
+    steps:
+      # GHCR exige un nom d'image en minuscules (le propriétaire GitHub a des majuscules).
+      - id: img
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Schéma de la base jetable
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+        run: |
+          pnpm db:push
+          pnpm db:trigger
+          pnpm db:indexes
+
+      # BUILD_ENV (secret) : le contenu d'un .env de build — NEXT_PUBLIC_*, et des
+      # valeurs factices ou réelles pour les variables obligatoires du schéma varlock.
+      # Les vrais secrets serveur restent dans le .env du VPS.
+      - name: Fichier d'environnement du build
+        env:
+          BUILD_ENV: ${{ secrets.BUILD_ENV }}
+        run: |
+          printf '%s\n' "$BUILD_ENV" | grep -v '^DATABASE_URL=' > "$RUNNER_TEMP/build.env"
+          echo 'DATABASE_URL=postgresql://ci:ci@localhost:5432/ci' >> "$RUNNER_TEMP/build.env"
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # Réseau « host » : le build joint la base jetable sur localhost:5432.
+          network: host
+          build-args: NEXT_DEPLOYMENT_ID=${{ github.event.workflow_run.head_sha }}
+          secret-files: buildenv=${{ runner.temp }}/build.env
+          tags: |
+            ${{ steps.img.outputs.name }}:${{ github.event.workflow_run.head_sha }}
+            ${{ steps.img.outputs.name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to VPS
+    needs: build
+    runs-on: ubuntu-latest
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE_NAME: ${{ needs.build.outputs.image }}
+          IMAGE_TAG: ${{ needs.build.outputs.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          envs: IMAGE_NAME,IMAGE_TAG,GHCR_USER,GHCR_TOKEN
           script: |
             set -e
-            source "$HOME/.nvm/nvm.sh"
             cd /var/www/eba-coffee
-            # env.d.ts est généré (varlock typegen, au postinstall) et n'est
-            # plus versionné : on le supprime avant le pull pour que d'anciennes
-            # modifications locales ne bloquent jamais le merge.
-            rm -f env.d.ts
-            OLD_SHA=$(git rev-parse HEAD)
+            # Seul le compose est lu depuis le dépôt ; le code tourne dans l'image.
             git pull origin master
-            NEW_SHA=$(git rev-parse HEAD)
 
-            if [ "$OLD_SHA" = "$NEW_SHA" ]; then
-              echo "Aucun nouveau commit, déploiement ignoré."
-              exit 0
-            fi
+            export APP_PORT="${APP_PORT:-3001}"
+            COMPOSE="docker compose -f docker-compose.prod.yml"
 
-            pnpm install --frozen-lockfile
-            # Idempotent (sans doublon de casse, ne fait rien). Doit précéder
-            # db:push : la colonne email en citext rejetterait le push tant
-            # qu'il reste des comptes qui ne diffèrent que par la casse.
-            pnpm db:merge-duplicate-emails
-            pnpm db:push
-            pnpm db:trigger
-            # Index partiel que Prisma ne sait pas décrire (idempotent).
-            pnpm db:indexes
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
-            # Rebuild Next.js uniquement si un fichier qui alimente réellement
-            # le build a changé. Allowlist plutôt que denylist : la liste des
-            # sources d'un build Next.js est bornée par l'architecture du
-            # projet, contrairement à la liste des dossiers de config d'outils
-            # annexes (docs, CI, assistants IA…) qui ne fait que croître.
-            BUILD_INPUTS="app components lib config emails hooks patches prisma prisma.config.ts .env.schema .npmrc pnpm-workspace.yaml next.config.ts package.json pnpm-lock.yaml postcss.config.mjs tsconfig.json"
-            if ! git diff --quiet "$OLD_SHA" "$NEW_SHA" -- $BUILD_INPUTS; then
-              # Même fuseau qu'au runtime (cf. ecosystem.config.cjs) : le build
-              # prérend des pages, et une date figée dans le fuseau du VPS
-              # ressortirait décalée par rapport au serveur qui les sert.
-              #
-              # Le build est tué par le noyau (exit 137, OOM) quand le VPS
-              # manque de RAM : on plafonne le tas Node pour que le GC
-              # travaille plus tôt, et on ajoute un swap temporaire s'il n'y
-              # en a pas (sans effet si sudo sans mot de passe est absent).
-              if [ "$(swapon --show --noheadings | wc -l)" = "0" ] && sudo -n true 2>/dev/null; then
-                sudo -n fallocate -l 2G /swapfile-build \
-                  && sudo -n chmod 600 /swapfile-build \
-                  && sudo -n mkswap /swapfile-build >/dev/null \
-                  && sudo -n swapon /swapfile-build \
-                  && echo "Swap temporaire de 2G activé pour le build." \
-                  || echo "Swap non activé, build sans swap."
+            # Image en place avant le déploiement, pour pouvoir revenir en arrière.
+            PREVIOUS=$(docker inspect --format '{{.Config.Image}}' eba-coffee-shop 2>/dev/null || true)
+
+            export IMAGE="$IMAGE_NAME:$IMAGE_TAG"
+            docker pull "$IMAGE"
+
+            # Base : mêmes étapes qu'avant (idempotentes), depuis la nouvelle image.
+            $COMPOSE --profile tools run --rm migrate
+
+            $COMPOSE up -d app
+
+            # Attend que le conteneur soit « healthy » ; sinon retour à l'image précédente.
+            for i in $(seq 1 30); do
+              STATUS=$(docker inspect --format '{{.State.Health.Status}}' eba-coffee-shop 2>/dev/null || echo none)
+              [ "$STATUS" = "healthy" ] && break
+              sleep 5
+            done
+            if [ "$STATUS" != "healthy" ]; then
+              echo "::error::Le conteneur n'est pas healthy ($STATUS)."
+              docker logs --tail 80 eba-coffee-shop || true
+              if [ -n "$PREVIOUS" ]; then
+                echo "Retour à $PREVIOUS"
+                IMAGE="$PREVIOUS" $COMPOSE up -d app
               fi
-              free -m || true
-              NODE_OPTIONS="--max-old-space-size=1536" NEXT_DEPLOYMENT_ID="$NEW_SHA" TZ=UTC pnpm build
-            else
-              echo "Aucun fichier source du build modifié, rebuild Next.js ignoré."
+              exit 1
             fi
 
-            pm2 startOrReload ecosystem.config.cjs --update-env
+            # Pages publiques prérendues sur la base jetable du build : on les invalide.
+            CRON_SECRET=$(grep -E '^CRON_SECRET=' .env | head -n1 | cut -d= -f2- | tr -d "\"'")
+            if [ -n "$CRON_SECRET" ]; then
+              curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" \
+                "http://127.0.0.1:$APP_PORT/api/cron/revalidate-public" \
+                || echo "::warning::Invalidation des pages publiques échouée."
+            else
+              echo "::warning::CRON_SECRET absent du .env : pages publiques non invalidées (elles se régénèrent à leur délai ISR)."
+            fi
+
+            docker image prune -f >/dev/null
