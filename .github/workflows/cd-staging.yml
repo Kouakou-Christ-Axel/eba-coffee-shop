@@ -99,6 +99,9 @@ jobs:
           context: .
           target: runner
           push: true
+          # Retire l'image de base à chaque build : un tag flottant mis en cache
+          # garderait un Node vulnérable (cf. NODE_MIN_VERSION du Dockerfile).
+          pull: true
           build-args: VARLOCK_VERSION=${{ steps.meta.outputs.varlock }}
           tags: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
           cache-from: type=gha,scope=runner
@@ -110,6 +113,7 @@ jobs:
           context: .
           target: tools
           push: true
+          pull: true
           tags: ${{ steps.meta.outputs.image }}-tools:${{ steps.meta.outputs.tag }}
           cache-from: type=gha,scope=tools
           cache-to: type=gha,mode=max,scope=tools

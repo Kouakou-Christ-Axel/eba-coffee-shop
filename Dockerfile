@@ -15,6 +15,13 @@ ARG NODE_VERSION=22
 
 FROM node:${NODE_VERSION}-bookworm-slim AS runner
 ARG VARLOCK_VERSION
+# Plancher de sécurité Node : le build échoue si le tag flottant `node:22-…` a été
+# résolu vers une version plus ancienne (cache de couche périmé, miroir en retard).
+# 22.23.4 = correctif annoncé pour « Node2Shell » (décodeur Brotli) : à confirmer
+# auprès des annonces de sécurité officielles de Node.js, puis relever ce plancher
+# à chaque nouvelle publication de sécurité.
+ARG NODE_MIN_VERSION=22.23.4
+RUN node -e "const c=process.versions.node.split('.').map(Number),m=process.argv[1].split('.').map(Number);for(let i=0;i<3;i++){if(c[i]>m[i])process.exit(0);if(c[i]<m[i]){console.error('Node '+process.versions.node+' < '+process.argv[1]+' : image refusée');process.exit(1)}}" "$NODE_MIN_VERSION"
 RUN test -n "$VARLOCK_VERSION" \
  && apt-get update \
  && apt-get install -y --no-install-recommends tini curl ca-certificates \

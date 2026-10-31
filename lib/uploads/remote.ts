@@ -57,7 +57,9 @@ export async function fetchRemoteImage(url: string): Promise<Buffer> {
     res = await fetch(parsed, {
       redirect: 'follow',
       signal: AbortSignal.timeout(REMOTE_FETCH_TIMEOUT_MS),
-      headers: { accept: 'image/*' },
+      // `identity` : on ne laisse pas un hôte distant nous envoyer un corps compressé
+      // (Brotli en particulier) à décoder côté serveur.
+      headers: { accept: 'image/*', 'accept-encoding': 'identity' },
     });
   } catch {
     throw new Error('Téléchargement de l’image impossible (URL injoignable)');

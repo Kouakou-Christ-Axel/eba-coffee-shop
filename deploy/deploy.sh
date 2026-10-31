@@ -118,6 +118,7 @@ log "démarrage de $new sur 127.0.0.1:$new_port"
 docker rm -f "$NAME-$new" >/dev/null 2>&1 || true
 docker run -d --name "$NAME-$new" --restart unless-stopped \
   --memory "$MEMORY" --cpus "$CPUS" \
+  --cap-drop ALL --security-opt no-new-privileges \
   --add-host=host.docker.internal:host-gateway \
   --env-file "$ENV_FILE" \
   -p "127.0.0.1:$new_port:3000" \
