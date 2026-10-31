@@ -31,9 +31,6 @@ esac
 STATIC_DIR="$STATE_DIR/next-static"
 ACTIVE_FILE="$STATE_DIR/active"
 
-# Pages ISR à régénérer avec la vraie base avant la bascule (cf. app/api/internal/revalidate).
-WARMUP_PATHS=(/ /carte /sondages /sitemap.xml /llms.txt /api/menu)
-
 mkdir -p "$STATIC_DIR"
 exec 9>"$STATE_DIR/deploy.lock"
 flock -n 9 || die "un autre déploiement est en cours"
@@ -130,17 +127,26 @@ if ! wait_healthy "$new_port"; then
   die "$new n'est pas sain : abandon, la couleur active ($active) n'a pas été touchée"
 fi
 
-# Réchauffage : le HTML prérendu au build vient d'une base vide.
+# Réchauffage : le HTML prérendu au build vient d'une base vide (valeurs par défaut des
+# réglages). La route invalide tout l'arbre et renvoie la liste réelle des pages
+# prérendues ; on les requête une fois pour les régénérer avec la vraie base avant la
+# bascule (le premier visiteur ne paie pas la régénération).
 secret="$(env_value CRON_SECRET)"
 if [ -n "$secret" ]; then
-  curl -fsS -X POST -H "Authorization: Bearer $secret" \
-    "http://127.0.0.1:$new_port/api/internal/revalidate" >/dev/null \
+  warm="$(curl -fsS -X POST -H "Authorization: Bearer $secret" \
+    "http://127.0.0.1:$new_port/api/internal/revalidate")" \
     || die "réchauffage refusé (CRON_SECRET), abandon avant bascule"
-  for p in "${WARMUP_PATHS[@]}"; do
+  paths="$(printf '%s' "$warm" | sed -e 's/.*"paths":\[//' -e 's/\].*//' | tr -d '"' | tr ',' '\n')"
+  [ -n "$paths" ] || die "le réchauffage n'a renvoyé aucune page (manifeste de prérendu introuvable ?)"
+  count=0
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
     curl -fsS --max-time 30 -o /dev/null "http://127.0.0.1:$new_port$p" || log "avertissement : $p n'a pas répondu"
-  done
+    count=$((count + 1))
+  done <<<"$paths"
+  log "réchauffage : $count pages régénérées"
 else
-  log "avertissement : CRON_SECRET absent, pages ISR non réchauffées (HTML de build, base vide)"
+  die "CRON_SECRET absent de $ENV_FILE : sans réchauffage, les pages afficheraient les valeurs du build (base vide)"
 fi
 
 # Assets versionnés : dossier cumulatif servi par nginx (cf. deploy/nginx/staging.conf).
